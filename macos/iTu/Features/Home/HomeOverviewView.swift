@@ -6,7 +6,6 @@ struct HomeOverviewView: View {
     @State private var quickPriority: TaskPriority = .none
     @State private var showCaptureOptions = false
     @State private var quickDescription = ""
-    @State private var editingTask: ProductivityTask?
 
     var body: some View {
         let todayTasks = model.homeTodayTasks()
@@ -26,9 +25,10 @@ struct HomeOverviewView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(iTuTheme.canvas)
-        .sheet(item: $editingTask) { task in
-            TaskEditorView(task: task)
-        }
+    }
+
+    private func openTaskEditor(_ task: ProductivityTask) {
+        model.presentedOverlay = .taskEditor(taskID: task.id)
     }
 
     private func wideLayout(todayTasks: [ProductivityTask], completedCount: Int) -> some View {
@@ -326,7 +326,7 @@ struct HomeOverviewView: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(todayTasks) { task in
-                        HomeTaskRowView(task: task, onEdit: { editingTask = task })
+                        HomeTaskRowView(task: task, onEdit: { openTaskEditor(task) })
                         if task.id != todayTasks.last?.id {
                             Rectangle()
                                 .fill(iTuTheme.borderSoft)
@@ -841,18 +841,14 @@ private struct HomeTaskRowView: View {
                     .clipShape(Capsule())
             }
 
-            Button(action: onEdit) {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 12))
-                    .foregroundStyle(iTuTheme.inkFaint)
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.plain)
-            .pointingHandCursor()
+            TaskActionMenuButton(task: task, onOpenDetails: onEdit)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(isHovered ? iTuTheme.mintTint.opacity(0.4) : Color.clear)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onEdit)
+        .taskActionMenu(for: task, onOpenDetails: onEdit)
         .onHover { hovering in
             isHovered = hovering
             if hovering {

@@ -2,8 +2,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct FocusSoundManagementSheet: View {
-    @Environment(\.dismiss) private var dismiss
     let model: AppModel
+    let onClose: () -> Void
 
     @State private var audioPlayer = AudioPlayerManager.shared
     @State private var showFileImporter = false
@@ -35,7 +35,7 @@ struct FocusSoundManagementSheet: View {
                 }
                 Spacer()
                 Button {
-                    dismiss()
+                    onClose()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 18))
@@ -151,7 +151,7 @@ struct FocusSoundManagementSheet: View {
             HStack {
                 Spacer()
                 Button("Done") {
-                    dismiss()
+                    onClose()
                 }
                 .keyboardShortcut(.defaultAction)
             }

@@ -79,6 +79,30 @@ private struct FocusMenuBarLabel: View {
     let timer: FocusTimer
     let displayMode: MenuBarDisplayMode
 
+    /// Split title into 1 or 2 lines of up to 20 chars each, max 40 total.
+    private var titleLines: [String] {
+        let title = timer.currentTitle
+        if title.count <= 20 {
+            return [title]
+        }
+        let first = String(title.prefix(20))
+        let rest = title.dropFirst(20)
+        if rest.count > 20 {
+            return [first, String(rest.prefix(20)) + "..."]
+        }
+        return [first, String(rest)]
+    }
+
+    /// SF Symbol that distinguishes short break from long break. Nil for work.
+    private var phaseIcon: String? {
+        guard let phase = timer.activeSession?.phase else { return nil }
+        switch phase {
+        case .shortBreak: return "cup.and.saucer.fill"
+        case .longBreak: return "moon.fill"
+        case .work: return nil
+        }
+    }
+
     var body: some View {
         if timer.activeSession == nil {
             Image(systemName: "checkmark.circle")
@@ -86,41 +110,75 @@ private struct FocusMenuBarLabel: View {
         } else {
             switch displayMode {
             case .remainingTime:
-                HStack(spacing: 3) {
+                HStack(spacing: 4) {
+                    titleView
+
+                    if let phaseIcon {
+                        Image(systemName: phaseIcon)
+                            .font(.system(size: 9))
+                    }
+
                     if timer.isPaused {
                         Image(systemName: "pause.fill")
+                            .font(.system(size: 9))
                     }
 
                     Text(timer.formattedRemaining)
                         .monospacedDigit()
+                        .font(.system(size: 9))
                 }
                 .accessibilityLabel(
                     timer.isPaused
-                        ? "Focus paused, \(timer.formattedRemaining)"
-                        : "Focus, \(timer.formattedRemaining) remaining"
+                        ? "Focus paused, \(timer.currentTitle), \(timer.formattedRemaining)"
+                        : "Focus, \(timer.currentTitle), \(timer.formattedRemaining) remaining"
                 )
 
             case .circularProgress:
                 let progress = min(max(timer.progressFraction, 0), 1)
                 let isOvertime = timer.displaySeconds < 0
+                let phase = timer.activeSession?.phase ?? .work
 
                 let icon = MenuBarIconCache.shared.icon(
                     progressFraction: progress,
                     isPaused: timer.isPaused,
                     isOvertime: isOvertime,
+                    phase: phase,
                     colorScheme: colorScheme
                 )
 
-                Image(nsImage: icon)
-                    .renderingMode(.original)
-                    .frame(width: 18, height: 18)
-                    .accessibilityLabel(
-                        timer.isPaused ? "Focus paused" : "Focus progress"
-                    )
-                    .accessibilityValue(
-                        Text("\(Int(progress * 100)) percent")
-                    )
+                HStack(spacing: 4) {
+                    titleView
+
+                    Image(nsImage: icon)
+                        .renderingMode(.original)
+                        .frame(width: 18, height: 18)
+                }
+                .accessibilityLabel(
+                    timer.isPaused
+                        ? "Focus paused, \(timer.currentTitle)"
+                        : "Focus, \(timer.currentTitle)"
+                )
+                .accessibilityValue(
+                    Text("\(Int(progress * 100)) percent")
+                )
             }
+        }
+    }
+
+    @ViewBuilder
+    private var titleView: some View {
+        let lines = titleLines
+        if lines.count == 1 {
+            Text(lines[0])
+                .font(.system(size: 9))
+        } else {
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(lines[0])
+                    .font(.system(size: 9))
+                Text(lines[1])
+                    .font(.system(size: 9))
+            }
+            .frame(height: 18)
         }
     }
 }
@@ -129,13 +187,19 @@ private struct CircularProgressIconView: View {
     let progressFraction: Double
     let isPaused: Bool
     let isOvertime: Bool
+    let phase: FocusPhase
 
     private var progress: Double {
         min(max(progressFraction, 0), 1)
     }
 
     private var accent: Color {
-        isOvertime ? iTuTheme.amber : iTuTheme.teal
+        if isOvertime { return iTuTheme.amber }
+        switch phase {
+        case .shortBreak: return iTuTheme.amber
+        case .longBreak: return iTuTheme.coral
+        case .work: return iTuTheme.teal
+        }
     }
 
     var body: some View {
@@ -206,6 +270,7 @@ private final class MenuBarIconCache {
         progressFraction: Double,
         isPaused: Bool,
         isOvertime: Bool,
+        phase: FocusPhase,
         colorScheme: ColorScheme
     ) -> NSImage {
         let clampedProgress = min(max(progressFraction, 0), 1)
@@ -218,6 +283,7 @@ private final class MenuBarIconCache {
             String(Int(steppedProgress * 100)),
             isPaused ? "paused" : "running",
             isOvertime ? "overtime" : "normal",
+            phase.rawValue,
             colorScheme == .dark ? "dark" : "light"
         ].joined(separator: "_")
 
@@ -228,7 +294,8 @@ private final class MenuBarIconCache {
         let view = CircularProgressIconView(
             progressFraction: steppedProgress,
             isPaused: isPaused,
-            isOvertime: isOvertime
+            isOvertime: isOvertime,
+            phase: phase
         )
         .environment(\.colorScheme, colorScheme)
         .padding(1)

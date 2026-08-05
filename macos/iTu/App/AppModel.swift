@@ -130,9 +130,40 @@ enum TaskGroupOption: String, CaseIterable, Identifiable {
     }
 }
 
+/// Content presented as a floating panel above the main window, instead of an
+/// attached sheet or a separate window.
+enum AppOverlay: Equatable, Identifiable {
+    case taskEditor(taskID: String)
+    case focusSettings
+    case focusSoundManagement
+    case focusSessionEditor(FocusSession)
+    case habitCreate
+    case habitEdit(HabitModel)
+    case habitDetail(HabitModel)
+    case habitGroups
+
+    var id: String {
+        switch self {
+        case .taskEditor(let taskID): "task-editor-\(taskID)"
+        case .focusSettings: "focus-settings"
+        case .focusSoundManagement: "focus-sound-management"
+        case .focusSessionEditor(let session): "focus-session-editor-\(session.id)"
+        case .habitCreate: "habit-create"
+        case .habitEdit(let habit): "habit-edit-\(habit.id)"
+        case .habitDetail(let habit): "habit-detail-\(habit.id)"
+        case .habitGroups: "habit-groups"
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class AppModel {
+    /// App-level floating panel presented above the main window content.
+    /// Replaces attached sheets and the separate task-editor window so every
+    /// editor follows the same TickTick-style overlay presentation.
+    var presentedOverlay: AppOverlay?
+
     var user: UserProfile?
     var tasks: [ProductivityTask] = []
     var conflicts: [SyncConflict] = []

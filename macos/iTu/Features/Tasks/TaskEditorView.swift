@@ -2,8 +2,8 @@ import SwiftUI
 
 struct TaskEditorView: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
     let task: ProductivityTask
+    let onClose: () -> Void
 
     @State private var title: String
     @State private var descriptionMarkdown: String
@@ -22,26 +22,72 @@ struct TaskEditorView: View {
     @State private var tagIds: [String]
     @State private var newSubtaskTitle: String = ""
     @State private var showsPlanningOptions = false
+    @State private var showsCloseConfirmation = false
+    @State private var baselineDraft: TaskEditorDraft
 
-    init(task: ProductivityTask) {
+    init(task: ProductivityTask, onClose: @escaping () -> Void) {
         self.task = task
-        _title = State(initialValue: task.title)
-        _descriptionMarkdown = State(initialValue: task.descriptionMarkdown)
-        _priority = State(initialValue: task.priority)
-        _status = State(initialValue: task.status)
-        _important = State(initialValue: task.important)
-        let parsedDueDate = task.dueAt.flatMap { ISO8601DateFormatter().date(from: $0) }
-        _hasDueDate = State(initialValue: parsedDueDate != nil)
-        _dueDate = State(initialValue: parsedDueDate ?? Date())
-        let parsedScheduleStart = task.scheduledStartAt.flatMap { ISO8601DateFormatter().date(from: $0) }
-        let parsedScheduleEnd = task.scheduledEndAt.flatMap { ISO8601DateFormatter().date(from: $0) }
-        _hasSchedule = State(initialValue: parsedScheduleStart != nil || parsedScheduleEnd != nil)
-        _scheduledStartDate = State(initialValue: parsedScheduleStart ?? Date())
-        _scheduledEndDate = State(initialValue: parsedScheduleEnd ?? parsedScheduleStart ?? Date())
-        _recurrenceRule = State(initialValue: task.recurrenceRule ?? "")
-        _estimatedMinutes = State(initialValue: task.estimatedMinutes)
-        _taskListId = State(initialValue: task.taskListId ?? task.projectId)
+        self.onClose = onClose
+        let draft = TaskEditorDraft(task: task, tagIds: [])
+        _baselineDraft = State(initialValue: draft)
+        _title = State(initialValue: draft.title)
+        _descriptionMarkdown = State(initialValue: draft.descriptionMarkdown)
+        _priority = State(initialValue: draft.priority)
+        _status = State(initialValue: draft.status)
+        _important = State(initialValue: draft.important)
+        _hasDueDate = State(initialValue: draft.hasDueDate)
+        _dueDate = State(initialValue: draft.dueDate)
+        _hasSchedule = State(initialValue: draft.hasSchedule)
+        _scheduledStartDate = State(initialValue: draft.scheduledStartDate)
+        _scheduledEndDate = State(initialValue: draft.scheduledEndDate)
+        _recurrenceRule = State(initialValue: draft.recurrenceRule)
+        _estimatedMinutes = State(initialValue: draft.estimatedMinutes)
+        _taskListId = State(initialValue: draft.taskListId)
         _tagIds = State(initialValue: [])
+    }
+
+    var draft: TaskEditorDraft {
+        TaskEditorDraft(
+            title: title,
+            descriptionMarkdown: descriptionMarkdown,
+            priority: priority,
+            status: status,
+            important: important,
+            hasDueDate: hasDueDate,
+            dueDate: dueDate,
+            hasSchedule: hasSchedule,
+            scheduledStartDate: scheduledStartDate,
+            scheduledEndDate: scheduledEndDate,
+            recurrenceRule: recurrenceRule,
+            estimatedMinutes: estimatedMinutes,
+            taskListId: taskListId,
+            tagIds: tagIds
+        )
+    }
+
+    /// True when the user edited any field away from the loaded baseline.
+    var isDirty: Bool {
+        draft != baselineDraft
+    }
+
+    private func requestClose() {
+        if isDirty {
+            showsCloseConfirmation = true
+        } else {
+            onClose()
+        }
+    }
+
+    /// Closes only this editor window and queues the local task deletion.
+    func deleteTask(task: ProductivityTask, model: AppModel, onClose: @escaping () -> Void) {
+        onClose()
+        Task { await model.deleteTask(task) }
+    }
+
+    /// Closes only this editor window and starts focus for the task.
+    func startFocus(task: ProductivityTask, model: AppModel, onClose: @escaping () -> Void) {
+        onClose()
+        Task { await model.prepareFocus(for: task) }
     }
 
     var subtasks: [ProductivityTask] {
@@ -148,7 +194,7 @@ struct TaskEditorView: View {
 
                 // Close Button
                 Button {
-                    dismiss()
+                    requestClose()
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .semibold))
@@ -446,8 +492,7 @@ struct TaskEditorView: View {
                 // Actions: Start Focus, Delete, Save
                 HStack(spacing: 10) {
                     Button {
-                        dismiss()
-                        Task { await model.prepareFocus(for: task) }
+                        startFocus(task: task, model: model, onClose: onClose)
                     } label: {
                         HStack(spacing: 5) {
                             Image(systemName: "play.fill")
@@ -470,8 +515,7 @@ struct TaskEditorView: View {
                     .disabled(status == .completed || status == .canceled)
 
                     Button {
-                        dismiss()
-                        Task { await model.deleteTask(task) }
+                        deleteTask(task: task, model: model, onClose: onClose)
                     } label: {
                         Image(systemName: "trash")
                             .font(.system(size: 13))
@@ -501,14 +545,25 @@ struct TaskEditorView: View {
         .frame(
             minWidth: 520,
             idealWidth: 580,
-            maxWidth: 640,
             minHeight: 520,
-            idealHeight: 660,
-            maxHeight: 780
+            idealHeight: 660
         )
         .task {
-            tagIds = model.tagIdsByTaskID[task.id] ?? []
+            let tags = model.tagIdsByTaskID[task.id] ?? []
+            tagIds = tags
+            baselineDraft.tagIds = tags
             await model.refreshGrowthRule(for: task.id)
+        }
+        .confirmationDialog(
+            "Discard unsaved changes?",
+            isPresented: $showsCloseConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Save") { save() }
+            Button("Discard Changes", role: .destructive) { onClose() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You have unsaved changes to this task.")
         }
     }
 
@@ -599,7 +654,18 @@ struct TaskEditorView: View {
             sectionId: task.sectionId,
             tagIds: tagIds
         )
-        dismiss()
+        commitSave(edits: edits, status: status, task: task, model: model, onClose: onClose)
+    }
+
+    /// Testable seam: persists the draft locally and closes only this editor window.
+    func commitSave(
+        edits: TaskEdits,
+        status: TaskStatus,
+        task: ProductivityTask,
+        model: AppModel,
+        onClose: @escaping () -> Void
+    ) {
+        onClose()
         Task {
             if status != task.status {
                 await model.setTaskStatus(task, status: status)
@@ -624,6 +690,83 @@ struct TaskEditorView: View {
         case .low: iTuTheme.syncBlue
         case .none: iTuTheme.inkFaint
         }
+    }
+}
+
+/// A snapshot of the editable task fields. Seeds the editor and detects unsaved
+/// ("dirty") changes against a stable baseline.
+struct TaskEditorDraft: Equatable {
+    var title: String
+    var descriptionMarkdown: String
+    var priority: TaskPriority
+    var status: TaskStatus
+    var important: Bool
+    var hasDueDate: Bool
+    var dueDate: Date
+    var hasSchedule: Bool
+    var scheduledStartDate: Date
+    var scheduledEndDate: Date
+    var recurrenceRule: String
+    var estimatedMinutes: Int?
+    var taskListId: String?
+    var tagIds: [String]
+
+    init(
+        title: String,
+        descriptionMarkdown: String,
+        priority: TaskPriority,
+        status: TaskStatus,
+        important: Bool,
+        hasDueDate: Bool,
+        dueDate: Date,
+        hasSchedule: Bool,
+        scheduledStartDate: Date,
+        scheduledEndDate: Date,
+        recurrenceRule: String,
+        estimatedMinutes: Int?,
+        taskListId: String?,
+        tagIds: [String]
+    ) {
+        self.title = title
+        self.descriptionMarkdown = descriptionMarkdown
+        self.priority = priority
+        self.status = status
+        self.important = important
+        self.hasDueDate = hasDueDate
+        self.dueDate = dueDate
+        self.hasSchedule = hasSchedule
+        self.scheduledStartDate = scheduledStartDate
+        self.scheduledEndDate = scheduledEndDate
+        self.recurrenceRule = recurrenceRule
+        self.estimatedMinutes = estimatedMinutes
+        self.taskListId = taskListId
+        self.tagIds = tagIds
+    }
+
+    init(task: ProductivityTask, tagIds: [String]) {
+        let parsedDueDate = task.dueAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+        let parsedScheduleStart = task.scheduledStartAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+        let parsedScheduleEnd = task.scheduledEndAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+        self.init(
+            title: task.title,
+            descriptionMarkdown: task.descriptionMarkdown,
+            priority: task.priority,
+            status: task.status,
+            important: task.important,
+            hasDueDate: parsedDueDate != nil,
+            dueDate: parsedDueDate ?? Date(),
+            hasSchedule: parsedScheduleStart != nil || parsedScheduleEnd != nil,
+            scheduledStartDate: parsedScheduleStart ?? Date(),
+            scheduledEndDate: parsedScheduleEnd ?? parsedScheduleStart ?? Date(),
+            recurrenceRule: task.recurrenceRule ?? "",
+            estimatedMinutes: task.estimatedMinutes,
+            taskListId: task.taskListId ?? task.projectId,
+            tagIds: tagIds
+        )
+    }
+
+    func isDirty(comparedTo task: ProductivityTask, currentTags: [String]) -> Bool {
+        self != TaskEditorDraft(task: task, tagIds: currentTags)
     }
 }
 

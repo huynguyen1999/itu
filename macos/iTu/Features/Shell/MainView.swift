@@ -4,18 +4,28 @@ struct MainView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        HStack(spacing: 0) {
-            PrimaryRail()
+        ZStack {
+            HStack(spacing: 0) {
+                PrimaryRail()
 
-            if model.selectedSection.isPlanningSection {
-                PlanningRail()
+                if model.selectedSection.isPlanningSection {
+                    PlanningRail()
+                }
+
+                detail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .background(iTuTheme.canvas)
 
-            detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if let overlay = model.presentedOverlay {
+                AppOverlayHost(overlay: overlay)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    .zIndex(100)
+            }
         }
         .background(iTuTheme.canvas)
         .ignoresSafeArea()
+        .animation(.snappy, value: model.presentedOverlay)
         .preferredColorScheme(preferredColorScheme)
     }
 

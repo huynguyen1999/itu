@@ -33,6 +33,8 @@ The main agent selects a workflow route **automatically** at session start, base
 
 Default to the **Direct** route. Choose the **Sub-agent** route only when the task is large and complex enough that parallel, independently owned work packages reduce total time or risk, and the active tool provides suitable native subagents. The user may still override by naming a route. Full selection criteria, the Codex model policy, and per-route procedures are defined in [`agent_docs/workflows/route_selection.md`](agent_docs/workflows/route_selection.md).
 
+**DeepSeek profile (`deepseek-v4-flash`).** When the active profile is `deepseek-v4-flash` (Codex running against the DeepSeek API), always use the **Direct** route and never spawn subagents. The DeepSeek profile provides no native subagent orchestration, so the Sub-agent route is unavailable and falls back to Direct per **R5** and the Sub-agent-to-Direct fallback.
+
 ### 2.3 Domain Language
 
 Before writing code, UI copy, API contracts, or documentation, consult [`agent_docs/ubiquitous_language.md`](agent_docs/ubiquitous_language.md) and use its canonical terms. Avoid the aliases it flags, do not introduce parallel vocabulary for existing concepts, and extend the glossary when a new domain concept needs a name.

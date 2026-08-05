@@ -48,6 +48,13 @@ For Codex sessions, the top-level model is fixed at session start and cannot be 
 - A plain `codex` launch uses the project default and therefore starts in the Direct-route model configuration.
 - **If the selected route does not match the active top-level model and reasoning effort, stop before repository work and ask the user to relaunch with the route launcher.** Do not emulate a top-level model switch by spawning a replacement agent.
 
+### DeepSeek profile (`deepseek-v4-flash`)
+
+When the active profile is `deepseek-v4-flash` (Codex running against the DeepSeek API), the top-level model is `deepseek-v4-flash` and only the **Direct** route is valid:
+
+- Always implement directly; never spawn subagents.
+- The Sub-agent route is unavailable under this profile because the DeepSeek API does not provide native subagent orchestration. If the Sub-agent route is ever selected, apply the Sub-agent-to-Direct fallback below and do not emulate a model switch by spawning a replacement agent.
+
 ## Route Behaviors
 
 **Direct route.** Perform the task yourself, whatever its size. Do not spawn subagents. Read and follow [`agent_docs/workflows/direct_route.md`](direct_route.md).

@@ -2,6 +2,8 @@
 
 Use this workflow after the Sub-agent route has been selected under [`agent_docs/workflows/route_selection.md`](route_selection.md).
 
+> **DeepSeek profile (`deepseek-v4-flash`).** Under this profile the Sub-agent route is unavailable: Codex against the DeepSeek API does not provide native subagent orchestration. Apply the Direct-route fallback immediately; never spawn subagents.
+
 ## Main-Agent Role
 
 You are the active top-level agent and therefore the main agent, regardless of which compatible coding-agent product is running. Own direction, planning, work-package boundaries, native-subagent coordination, integration, targeted critical review, `agent_docs/project_progress.md`, and `agent_docs/latest_session_work.md`.

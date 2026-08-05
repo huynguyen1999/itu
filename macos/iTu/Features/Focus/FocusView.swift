@@ -3,7 +3,6 @@ import SwiftUI
 struct FocusView: View {
     @Environment(AppModel.self) private var model
     @State private var showTaskPickerSheet = false
-    @State private var showSettingsSheet = false
     @State private var taskSearchQuery = ""
     @State private var recordSearchQuery = ""
     @State private var combineShortSessions = true
@@ -14,14 +13,9 @@ struct FocusView: View {
     @State private var isEditingTime = false
     @State private var editMinutes = "29"
     @State private var editSeconds = "00"
-    @State private var editingSession: FocusSession?
-    @State private var editStartedAt = Date()
-    @State private var editCompletedAt = Date()
-    @State private var editTaskId = ""
     @State private var audioPlayer = AudioPlayerManager.shared
     @State private var notificationManager = SystemNotificationManager.shared
     @State private var showVolumePopover = false
-    @State private var showSoundManagementSheet = false
 
     private var audioStatusText: String {
         if !audioPlayer.isEnabled { return "Sound disabled" }
@@ -55,7 +49,7 @@ struct FocusView: View {
                 Spacer()
 
                 Button {
-                    showSettingsSheet = true
+                    model.presentedOverlay = .focusSettings
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 15, weight: .bold))
@@ -101,17 +95,6 @@ struct FocusView: View {
                     endPoint: .bottomTrailing
                 )
             )
-        }
-        .sheet(isPresented: $showSettingsSheet) {
-            focusSettingsModal(timer: timer)
-                .task { await notificationManager.refreshStatus() }
-        }
-
-        .sheet(item: $editingSession) { session in
-            editRecordModal(session)
-        }
-        .sheet(isPresented: $showSoundManagementSheet) {
-            FocusSoundManagementSheet(model: model)
         }
         .onAppear {
             timer.configure(settings: model.settingsStore.focusSettings)
@@ -473,7 +456,7 @@ struct FocusView: View {
                             }
                             Divider()
                             Button {
-                                showSoundManagementSheet = true
+                                model.presentedOverlay = .focusSoundManagement
                             } label: {
                                 Label("Manage Custom Sounds...", systemImage: "music.note.list")
                             }
@@ -959,12 +942,7 @@ struct FocusView: View {
     }
 
     private func openRecordEditor(_ session: FocusSession) {
-        editStartedAt = FocusTimer.parseDate(session.adjustedStartedAt ?? session.startedAt) ?? Date()
-        editCompletedAt = FocusTimer.parseDate(
-            session.adjustedCompletedAt ?? session.completedAt ?? session.startedAt
-        ) ?? Date()
-        editTaskId = session.taskId ?? ""
-        editingSession = session
+        model.presentedOverlay = .focusSessionEditor(session)
     }
 
     // MARK: - Modals
@@ -1033,142 +1011,6 @@ struct FocusView: View {
         .frame(width: 440, height: 420)
     }
 
-    private func focusSettingsModal(timer: FocusTimer) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Text("Focus Studio Settings")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(iTuTheme.ink)
-                Spacer()
-                Button("Done") {
-                    showSettingsSheet = false
-                }
-                .buttonStyle(iTuPrimaryButtonStyle(height: 28))
-            }
-
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text("Pomodoro Duration")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                    Spacer()
-                    Stepper("\(timer.selectedMinutes) min", value: Binding(
-                        get: { timer.selectedMinutes },
-                        set: { timer.setDuration(minutes: $0) }
-                    ), in: 5...120, step: 5)
-                    .foregroundStyle(iTuTheme.ink)
-                }
-
-                Toggle(isOn: Binding(
-                    get: { model.settingsStore.focusSettings.overtimeEnabled },
-                    set: {
-                        model.settingsStore.focusSettings.overtimeEnabled = $0
-                        timer.configure(settings: model.settingsStore.focusSettings)
-                    }
-                )) {
-                    Text("Allow overtime")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                }
-                .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
-
-                Toggle(isOn: Binding(
-                    get: { model.settingsStore.focusSettings.finishSoundEnabled },
-                    set: {
-                        model.settingsStore.focusSettings.finishSoundEnabled = $0
-                        timer.configure(settings: model.settingsStore.focusSettings)
-                    }
-                )) {
-                    Text("Finish sound")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                }
-                .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
-
-                Toggle(isOn: Binding(
-                    get: { model.settingsStore.focusSettings.desktopNotificationEnabled },
-                    set: {
-                        model.settingsStore.focusSettings.desktopNotificationEnabled = $0
-                        timer.configure(settings: model.settingsStore.focusSettings)
-                        if $0 && notificationManager.authorizationStatus == .notDetermined {
-                            Task { await notificationManager.requestAuthorization() }
-                        }
-                    }
-                )) {
-                    Text("Desktop notification")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                }
-                .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
-
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(notificationManager.statusLabel)
-                        .font(.system(size: 11))
-                        .foregroundStyle(notificationManager.authorizationStatus == .denied ? iTuTheme.coral : iTuTheme.inkDim)
-                    Spacer()
-                    if notificationManager.authorizationStatus == .notDetermined {
-                        Button("Enable") {
-                            Task { await notificationManager.requestAuthorization() }
-                        }
-                        .buttonStyle(iTuSecondaryButtonStyle(height: 26))
-                    } else if notificationManager.authorizationStatus == .denied {
-                        Button("Open Settings") {
-                            notificationManager.openSystemSettings()
-                        }
-                        .buttonStyle(iTuSecondaryButtonStyle(height: 26))
-                    }
-                }
-
-                Toggle(isOn: Binding(
-                    get: { timer.compactAudio },
-                    set: {
-                        model.settingsStore.focusSettings.compactAudio = $0
-                        timer.configure(settings: model.settingsStore.focusSettings)
-                    }
-                )) {
-                    Text("Compact audio controls")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                }
-                .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
-
-                Divider()
-
-                HStack {
-                    Text("Short Break Duration")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                    Spacer()
-                    Text("5 min")
-                        .font(.system(size: 13))
-                        .foregroundStyle(iTuTheme.inkDim)
-                }
-
-                HStack {
-                    Text("Long Break Duration")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                    Spacer()
-                    Text("15 min")
-                        .font(.system(size: 13))
-                        .foregroundStyle(iTuTheme.inkDim)
-                }
-            }
-            .padding(16)
-            .background(iTuTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(iTuTheme.border, lineWidth: 1)
-            )
-
-            Spacer()
-        }
-        .padding(20)
-        .background(iTuTheme.canvas)
-        .frame(width: 420, height: 400)
-    }
-
     private func applyInlineTime(timer: FocusTimer) {
         let m = Int(editMinutes.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
         let s = Int(editSeconds.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
@@ -1177,56 +1019,6 @@ struct FocusView: View {
         isEditingTime = false
     }
 
-    private func editRecordModal(_ session: FocusSession) -> some View {
-        let isInvalid = editCompletedAt <= editStartedAt
-        return VStack(alignment: .leading, spacing: 16) {
-            Text("Edit Focus Record")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(iTuTheme.ink)
-            DatePicker("Start", selection: $editStartedAt)
-                .foregroundStyle(iTuTheme.ink)
-            DatePicker("End", selection: $editCompletedAt)
-                .foregroundStyle(iTuTheme.ink)
-            Picker("Task", selection: $editTaskId) {
-                Text("No task").tag("")
-                ForEach(model.tasks.filter {
-                    $0.deletedAt == nil && $0.status != .canceled && $0.status != .archived
-                }) { task in
-                    Text(task.title).tag(task.id)
-                }
-            }
-            .foregroundStyle(iTuTheme.ink)
-
-            if isInvalid {
-                Text("End time must be after start time.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(iTuTheme.coral)
-            }
-            HStack {
-                Spacer()
-                Button("Cancel") {
-                    editingSession = nil
-                }
-                .buttonStyle(iTuGhostButtonStyle())
-                Button("Save") {
-                    Task {
-                        await model.adjustFocusRecord(
-                            session,
-                            startedAt: editStartedAt,
-                            completedAt: editCompletedAt,
-                            taskId: editTaskId.isEmpty ? nil : editTaskId
-                        )
-                        editingSession = nil
-                    }
-                }
-                .buttonStyle(iTuPrimaryButtonStyle())
-                .disabled(isInvalid || model.focusTimer.isMutating)
-            }
-        }
-        .padding(20)
-        .background(iTuTheme.canvas)
-        .frame(width: 420)
-    }
 }
 
 // MARK: - Light Dial Ticks Shape for White Canvas

@@ -3,12 +3,8 @@ import SwiftUI
 struct HabitsView: View {
     @Environment(AppModel.self) private var model
 
-    @State private var showCreateSheet = false
-    @State private var editingHabit: HabitModel?
-    @State private var detailHabit: HabitModel?
     @State private var filterCategory: String = "All"
     @State private var collapsedGroups: Set<String> = []
-    @State private var showGroupsSheet = false
 
     private var activeHabits: [HabitModel] {
         model.habits.filter { $0.archivedAt == nil }
@@ -71,7 +67,7 @@ struct HabitsView: View {
                     .help("Collapse or expand habit groups")
 
                     Button {
-                        showGroupsSheet = true
+                        model.presentedOverlay = .habitGroups
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 14, weight: .semibold))
@@ -82,7 +78,7 @@ struct HabitsView: View {
                     .help("Manage habit groups")
 
                     Button {
-                        showCreateSheet = true
+                        model.presentedOverlay = .habitCreate
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "plus")
@@ -187,8 +183,8 @@ struct HabitsView: View {
                                             },
                                             isLoadingOccurrences: model.habitOccurrencesLoading,
                                             occurrencesFailed: model.habitOccurrencesErrorMessage != nil,
-                                            onEdit: { editingHabit = habit },
-                                            onOpenDetails: { detailHabit = habit },
+                                            onEdit: { model.presentedOverlay = .habitEdit(habit) },
+                                            onOpenDetails: { model.presentedOverlay = .habitDetail(habit) },
                                             onArchive: { Task { await model.archiveHabit(habit) } }
                                         )
                                     }
@@ -209,35 +205,6 @@ struct HabitsView: View {
                 endPoint: .bottomTrailing
             )
         )
-        .sheet(isPresented: $showCreateSheet) {
-            HabitEditorSheet(habit: nil, timeBlocks: model.habitTimeBlocks) { newHabit in
-                Task { await model.saveHabit(newHabit) }
-            }
-        }
-        .sheet(item: $editingHabit) { habit in
-            HabitEditorSheet(habit: habit, timeBlocks: model.habitTimeBlocks) { updated in
-                Task { await model.saveHabit(updated) }
-            }
-        }
-        .sheet(item: $detailHabit) { habit in
-            HabitDetailSheet(
-                habit: habit,
-                stats: model.habitStatsByID[habit.id] ?? habit.stats,
-                onEdit: {
-                    detailHabit = nil
-                    editingHabit = habit
-                }
-            )
-            .task { await model.refreshHabitStats(for: habit) }
-        }
-        .sheet(isPresented: $showGroupsSheet) {
-            HabitGroupsSheet(
-                timeBlocks: model.habitTimeBlocks,
-                onCreate: { name in
-                    Task { await model.createHabitTimeBlock(name: name) }
-                }
-            )
-        }
         .task(id: visibleWeekRangeKey) {
             guard let range = visibleWeekRange else { return }
             await model.refreshHabitOccurrences(from: range.from, to: range.to)
@@ -619,10 +586,10 @@ struct HabitOccurrenceButton: View {
     }
 }
 
-private struct HabitDetailSheet: View {
-    @Environment(\.dismiss) private var dismiss
+struct HabitDetailSheet: View {
     let habit: HabitModel
     let stats: HabitStatsModel?
+    let onClose: () -> Void
     let onEdit: () -> Void
 
     var body: some View {
@@ -635,7 +602,7 @@ private struct HabitDetailSheet: View {
                         .foregroundStyle(iTuTheme.ink)
                 }
                 Spacer()
-                Button("Done") { dismiss() }
+                Button("Done") { onClose() }
                     .buttonStyle(iTuPrimaryButtonStyle(height: 30))
             }
 
@@ -665,7 +632,7 @@ private struct HabitDetailSheet: View {
                 Spacer()
                 Button("Edit Habit") {
                     onEdit()
-                    dismiss()
+                    onClose()
                 }
                 .buttonStyle(iTuSecondaryButtonStyle(height: 30))
             }
@@ -701,9 +668,9 @@ private struct HabitDetailMetric: View {
     }
 }
 
-private struct HabitGroupsSheet: View {
-    @Environment(\.dismiss) private var dismiss
+struct HabitGroupsSheet: View {
     let timeBlocks: [HabitTimeBlockModel]
+    let onClose: () -> Void
     let onCreate: (String) -> Void
 
     @State private var name = ""
@@ -718,7 +685,7 @@ private struct HabitGroupsSheet: View {
                         .foregroundStyle(iTuTheme.ink)
                 }
                 Spacer()
-                Button("Done") { dismiss() }
+                Button("Done") { onClose() }
                     .buttonStyle(iTuPrimaryButtonStyle(height: 30))
             }
 
@@ -775,11 +742,11 @@ private struct HabitGroupsSheet: View {
     }
 }
 
-private struct HabitEditorSheet: View {
+struct HabitEditorSheet: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
     let habit: HabitModel?
     let timeBlocks: [HabitTimeBlockModel]
+    let onClose: () -> Void
     let onSave: (HabitModel) -> Void
 
     @State private var name: String = ""
@@ -807,7 +774,7 @@ private struct HabitEditorSheet: View {
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(iTuTheme.ink)
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button("Cancel") { onClose() }
                     .buttonStyle(iTuGhostButtonStyle())
             }
 
@@ -1006,7 +973,7 @@ private struct HabitEditorSheet: View {
                     version: (habit?.version ?? 0) + 1
                 )
                 onSave(saved)
-                dismiss()
+                onClose()
             }
             .buttonStyle(iTuPrimaryButtonStyle())
             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

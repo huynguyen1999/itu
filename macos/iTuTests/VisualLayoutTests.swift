@@ -54,7 +54,7 @@ final class VisualLayoutTests: XCTestCase {
         task.descriptionMarkdown = "Notes about learning goals"
 
         let renderer = ImageRenderer(
-            content: TaskEditorView(task: task)
+            content: TaskEditorView(task: task, onClose: {})
                 .environment(model)
                 .frame(width: 580, height: 660)
         )
@@ -63,6 +63,111 @@ final class VisualLayoutTests: XCTestCase {
         let image = try XCTUnwrap(renderer.nsImage)
         XCTAssertEqual(image.size.width, 580)
         XCTAssertEqual(image.size.height, 660)
+    }
+
+    func testTaskEditorOverlayResolvesTaskByID() {
+        let tasks = previewTasks()
+        let resolved = AppOverlayHost.resolvedTask(taskID: tasks[0].id, in: tasks)
+        XCTAssertEqual(resolved?.id, tasks[0].id)
+    }
+
+    func testTaskEditorOverlayMissingOrDeletedTaskResolvesNil() {
+        let tasks = previewTasks()
+        XCTAssertNil(AppOverlayHost.resolvedTask(taskID: "missing-id", in: tasks))
+        XCTAssertNil(AppOverlayHost.resolvedTask(taskID: nil, in: tasks))
+
+        var deleted = previewTasks()[0]
+        deleted.deletedAt = "2026-01-01T00:00:00Z"
+        XCTAssertNil(AppOverlayHost.resolvedTask(taskID: deleted.id, in: [deleted]))
+    }
+
+    func testTaskEditorDraftDetectsChanges() {
+        var task = previewTasks()[0]
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        task.scheduledStartAt = stamp
+        task.scheduledEndAt = stamp
+        let clean = TaskEditorDraft(task: task, tagIds: [])
+
+        XCTAssertFalse(clean.isDirty(comparedTo: task, currentTags: []))
+
+        var editedTitle = clean
+        editedTitle.title = "Changed"
+        XCTAssertTrue(editedTitle.isDirty(comparedTo: task, currentTags: []))
+
+        var editedStatus = clean
+        editedStatus.status = .completed
+        XCTAssertTrue(editedStatus.isDirty(comparedTo: task, currentTags: []))
+
+        var editedTags = clean
+        editedTags.tagIds = ["tag-1"]
+        XCTAssertTrue(editedTags.isDirty(comparedTo: task, currentTags: []))
+    }
+
+    func testSaveInvokesModelUpdateAndClose() async throws {
+        let tempDir = FileManager.default
+            .urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let model = AppModel()
+        let store = OfflineStore(accountID: "editor-save-test", baseURL: tempDir)
+        _ = try await store.load()
+        let (task, snapshot) = try await store.createTask(title: "Original title")
+        model.offlineStore = store
+        model.apply(snapshot)
+
+        let edits = TaskEdits(
+            title: "Updated title",
+            descriptionMarkdown: "",
+            priority: .high,
+            important: true,
+            dueAt: nil,
+            estimatedMinutes: nil
+        )
+
+        var closed = false
+        let view = TaskEditorView(task: task, onClose: { closed = true })
+        view.commitSave(edits: edits, status: task.status, task: task, model: model, onClose: { closed = true })
+        XCTAssertTrue(closed)
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(model.tasks.first(where: { $0.id == task.id })?.title, "Updated title")
+    }
+
+    func testDeleteAndStartFocusCloseOnlyTheEditor() {
+        let model = AppModel()
+        let task = previewTasks()[0]
+        model.tasks = [task]
+
+        var deleteClosed = false
+        TaskEditorView(task: task, onClose: {})
+            .deleteTask(task: task, model: model, onClose: { deleteClosed = true })
+        XCTAssertTrue(deleteClosed)
+
+        var focusClosed = false
+        TaskEditorView(task: task, onClose: {})
+            .startFocus(task: task, model: model, onClose: { focusClosed = true })
+        XCTAssertTrue(focusClosed)
+    }
+
+    func testSharedTaskActionMenuRenders() throws {
+        let model = AppModel()
+        let task = previewTasks()[0]
+
+        let renderer = ImageRenderer(
+            content: TaskContextMenuPopoverView(
+                task: task,
+                onDismiss: {},
+                onOpenDetail: {}
+            )
+            .environment(model)
+        )
+        renderer.scale = 1
+
+        let image = try XCTUnwrap(renderer.nsImage)
+        XCTAssertEqual(image.size.width, 320)
+        XCTAssertGreaterThan(image.size.height, 0)
     }
 
     func testGrowthReceiptOverlayKeepsLongRewardNamesInCompactLayout() throws {

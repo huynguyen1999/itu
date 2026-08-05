@@ -4,7 +4,6 @@ struct UpcomingView: View {
     @Environment(AppModel.self) private var model
 
     @State private var newTaskTitle = ""
-    @State private var editingTask: ProductivityTask?
 
     var body: some View {
         let upcomingTasks = model.tasks(for: .upcoming)
@@ -42,9 +41,10 @@ struct UpcomingView: View {
                 endPoint: .bottomTrailing
             )
         )
-        .sheet(item: $editingTask) { task in
-            TaskEditorView(task: task)
-        }
+    }
+
+    private func openTaskEditor(_ task: ProductivityTask) {
+        model.presentedOverlay = .taskEditor(taskID: task.id)
     }
 
     private var quickCaptureHeader: some View {
@@ -104,7 +104,7 @@ struct UpcomingView: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(group.tasks.enumerated()), id: \.element.id) { index, task in
-                        UpcomingTaskRow(task: task, onEdit: { editingTask = task })
+                        UpcomingTaskRow(task: task, onEdit: { openTaskEditor(task) })
 
                         if index < group.tasks.count - 1 {
                             Rectangle()
@@ -239,30 +239,16 @@ private struct UpcomingTaskRow: View {
                     .foregroundStyle(priorityColor(task.priority))
             }
 
-            Button {
-                onEdit()
-            } label: {
-                Image(systemName: "pencil")
-                    .font(.system(size: 12))
-                    .foregroundStyle(iTuTheme.inkFaint)
-                    .frame(width: 26, height: 26)
-            }
-            .buttonStyle(.plain)
-            .pointingHandCursor()
+            TaskActionMenuButton(task: task, onOpenDetails: onEdit)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(isHovered ? iTuTheme.mintTint.opacity(0.4) : Color.clear)
         .onHover { isHovered = $0 }
-        .contextMenu {
-            Button("Complete Task") {
-                Task { await model.setTaskStatus(task, status: .completed) }
-            }
-            Button("Edit Task", action: onEdit)
-            Button("Move to Trash", role: .destructive) {
-                Task { await model.softDeleteTask(task) }
-            }
-        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onEdit)
+        .taskActionMenu(for: task, onOpenDetails: onEdit)
+        .pointingHandCursor()
     }
 
     private func priorityColor(_ priority: TaskPriority) -> Color {

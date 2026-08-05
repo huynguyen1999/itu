@@ -2,7 +2,6 @@ import SwiftUI
 
 struct EisenhowerMatrixView: View {
     @Environment(AppModel.self) private var model
-    @State private var editingTask: ProductivityTask?
     @State private var searchText = ""
     @State private var priorityFilter: TaskPriority?
     @State private var showFilterPopover = false
@@ -31,18 +30,26 @@ struct EisenhowerMatrixView: View {
             }
         }
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+        GeometryReader { proxy in
+            let isNarrow = proxy.size.width < 700
+            let isShort = proxy.size.height < 600
+            let isMedium = proxy.size.width >= 700 && proxy.size.width < 900
+            let spacing: CGFloat = isMedium ? 12 : 16
+            let pagePadding: CGFloat = isMedium || isNarrow ? 12 : 16
+
+            VStack(alignment: .leading, spacing: spacing) {
                 // Header overview bar
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 4) {
                         iTuSectionLabel(title: "Prioritization Matrix", color: iTuTheme.teal)
                         Text("Eisenhower Matrix")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .font(.system(size: isNarrow ? 20 : 24, weight: .bold, design: .rounded))
                             .foregroundStyle(iTuTheme.ink)
+                            .lineLimit(1)
                     }
-                    Spacer()
-                    HStack(spacing: 8) {
+                    Spacer(minLength: 8)
+
+                    HStack(spacing: isNarrow ? 6 : 8) {
                         HStack(spacing: 7) {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 11))
@@ -52,7 +59,7 @@ struct EisenhowerMatrixView: View {
                                 .font(.system(size: 12))
                         }
                         .padding(.horizontal, 9)
-                        .frame(width: 160, height: 30)
+                        .frame(width: isNarrow ? 110 : (isMedium ? 130 : 160), height: 30)
                         .background(iTuTheme.surface)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .overlay {
@@ -81,45 +88,57 @@ struct EisenhowerMatrixView: View {
                             MatrixFilterPopover(priorityFilter: $priorityFilter)
                         }
 
-                        Text("\(allTasks.filter { $0.status != .completed && $0.status != .canceled }.count) mapped")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(iTuTheme.inkFaint)
+                        if !isNarrow {
+                            Text("\(allTasks.filter { $0.status != .completed && $0.status != .canceled }.count) mapped")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(iTuTheme.inkFaint)
+                                .lineLimit(1)
+                        }
                     }
                 }
                 .padding(.horizontal, 4)
 
-                // 2x2 Matrix Grid
-                Grid(horizontalSpacing: 16, verticalSpacing: 16) {
-                    GridRow {
-                        MatrixQuadrantCard(
-                            quadrant: .q1,
-                            tasks: tasksForQuadrant(.q1, from: allTasks, settings: matrixSettings),
-                            onEditTask: { editingTask = $0 }
-                        )
-                        MatrixQuadrantCard(
-                            quadrant: .q2,
-                            tasks: tasksForQuadrant(.q2, from: allTasks, settings: matrixSettings),
-                            onEditTask: { editingTask = $0 }
-                        )
+                // Matrix Workspace
+                if isNarrow || isShort {
+                    ScrollView {
+                        LazyVStack(spacing: spacing) {
+                            ForEach(MatrixQuadrant.allCases) { quadrant in
+                                MatrixQuadrantCard(
+                                    quadrant: quadrant,
+                                    tasks: tasksForQuadrant(quadrant, from: allTasks, settings: matrixSettings),
+                                    onEditTask: { openTaskEditor($0) }
+                                )
+                                .frame(height: isShort ? 280 : 340)
+                            }
+                        }
+                        .padding(.vertical, 2)
                     }
-                    GridRow {
-                        MatrixQuadrantCard(
-                            quadrant: .q3,
-                            tasks: tasksForQuadrant(.q3, from: allTasks, settings: matrixSettings),
-                            onEditTask: { editingTask = $0 }
-                        )
-                        MatrixQuadrantCard(
-                            quadrant: .q4,
-                            tasks: tasksForQuadrant(.q4, from: allTasks, settings: matrixSettings),
-                            onEditTask: { editingTask = $0 }
-                        )
+                } else {
+                    let availableHeight = proxy.size.height - 48 - spacing
+                    let rowHeight = max(260, (availableHeight - spacing) / 2)
+
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: spacing),
+                            GridItem(.flexible())
+                        ],
+                        spacing: spacing
+                    ) {
+                        ForEach(MatrixQuadrant.allCases) { quadrant in
+                            MatrixQuadrantCard(
+                                quadrant: quadrant,
+                                tasks: tasksForQuadrant(quadrant, from: allTasks, settings: matrixSettings),
+                                onEditTask: { openTaskEditor($0) }
+                            )
+                            .frame(height: rowHeight)
+                        }
                     }
                 }
             }
-            .padding(20)
-            .frame(maxWidth: 1200)
-            .frame(maxWidth: .infinity, alignment: .top)
+            .padding(pagePadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             LinearGradient(
                 colors: [iTuTheme.canvas, iTuTheme.mintTint.opacity(0.38)],
@@ -127,9 +146,10 @@ struct EisenhowerMatrixView: View {
                 endPoint: .bottomTrailing
             )
         )
-        .sheet(item: $editingTask) { task in
-            TaskEditorView(task: task)
-        }
+    }
+
+    private func openTaskEditor(_ task: ProductivityTask) {
+        model.presentedOverlay = .taskEditor(taskID: task.id)
     }
 
     private func tasksForQuadrant(_ quadrant: MatrixQuadrant, from tasks: [ProductivityTask], settings: MatrixSettings) -> [ProductivityTask] {
@@ -370,110 +390,121 @@ private struct MatrixQuadrantCard: View {
 
                 Spacer()
 
-                Text("\(activeTasks.count)")
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(quadrant.accentColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(quadrant.tintColor)
-                    .clipShape(Capsule())
-            }
-            .padding(14)
-            .background(iTuTheme.surface)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(iTuTheme.borderSoft)
-                    .frame(height: 1)
-            }
-
-            // Quadrant Task List
-            ScrollView {
-                VStack(spacing: 8) {
-                    if activeTasks.isEmpty {
-                        VStack(spacing: 6) {
-                            Text("No active tasks in \(quadrant.title.lowercased())")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(iTuTheme.inkFaint)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 32)
-                    } else {
-                        ForEach(activeTasks) { task in
-                            MatrixTaskRow(task: task, quadrant: quadrant, onEdit: { onEditTask(task) })
-                        }
-                    }
-
-                    resolvedTasks(
-                        title: "Completed",
-                        tasks: completedTasks,
-                        isExpanded: $showsCompleted,
-                        color: iTuTheme.mint
-                    )
-                    resolvedTasks(
-                        title: "Won't do",
-                        tasks: wontDoTasks,
-                        isExpanded: $showsWontDo,
-                        color: iTuTheme.inkDim
-                    )
-                }
-                .padding(12)
-            }
-            .frame(minHeight: 220, maxHeight: 340)
-
-            // Inline Add Task Input
-            VStack(spacing: 0) {
-                Rectangle()
-                    .fill(iTuTheme.borderSoft)
-                    .frame(height: 1)
-
-                if isAdding {
-                    HStack(spacing: 8) {
-                        TextField("Task title…", text: $quickTitle)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 13))
-                            .onSubmit(addTask)
-
-                        Button("Add") { addTask() }
-                            .buttonStyle(iTuPrimaryButtonStyle(height: 28))
-                            .disabled(quickTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                        Button {
-                            isAdding = false
-                            quickTitle = ""
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(iTuTheme.inkFaint)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(10)
-                } else {
-                    Button {
-                        isAdding = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 12, weight: .bold))
-                            Text("Add task to \(quadrant.title)")
-                                .font(.system(size: 12, weight: .medium))
-                            Spacer()
-                        }
+                HStack(spacing: 6) {
+                    Text("\(activeTasks.count)")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(quadrant.accentColor)
-                        .padding(.horizontal, 12)
-                        .frame(height: 34)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(quadrant.tintColor)
+                        .clipShape(Capsule())
+
+                    Button {
+                        isAdding.toggle()
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(quadrant.accentColor)
+                            .frame(width: 26, height: 26)
+                            .background(quadrant.tintColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHandCursor()
+                    .help("Add task to \(quadrant.title)")
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(iTuTheme.surface)
+
+            Divider()
+
+            // Flexible Content Area
+            ZStack {
+                if activeTasks.isEmpty && completedTasks.isEmpty && wontDoTasks.isEmpty {
+                    VStack(spacing: 6) {
+                        Image(systemName: quadrant.iconName)
+                            .font(.system(size: 20))
+                            .foregroundStyle(quadrant.accentColor.opacity(0.5))
+                            .padding(.bottom, 2)
+                        Text("No tasks in \(quadrant.title.lowercased())")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(iTuTheme.inkFaint)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            if activeTasks.isEmpty {
+                                VStack(spacing: 4) {
+                                    Text("No active tasks")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(iTuTheme.inkFaint)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                            } else {
+                                ForEach(activeTasks) { task in
+                                    MatrixTaskRow(task: task, quadrant: quadrant, onEdit: { onEditTask(task) })
+                                }
+                            }
+
+                            resolvedTasks(
+                                title: "Completed",
+                                tasks: completedTasks,
+                                isExpanded: $showsCompleted,
+                                color: iTuTheme.mint
+                            )
+                            resolvedTasks(
+                                title: "Won't do",
+                                tasks: wontDoTasks,
+                                isExpanded: $showsWontDo,
+                                color: iTuTheme.inkDim
+                            )
+                        }
+                        .padding(10)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if isAdding {
+                Divider()
+
+                HStack(spacing: 8) {
+                    TextField("Task title…", text: $quickTitle)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .onSubmit(addTask)
+
+                    Button("Add") { addTask() }
+                        .buttonStyle(iTuPrimaryButtonStyle(height: 28))
+                        .disabled(quickTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    Button {
+                        isAdding = false
+                        quickTitle = ""
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(iTuTheme.inkFaint)
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(10)
+                .background(iTuTheme.surface)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(iTuTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(quadrant.accentColor.opacity(0.3), lineWidth: 1.5)
+                .stroke(quadrant.accentColor.opacity(0.22), lineWidth: 1.5)
         }
         .shadow(color: iTuTheme.forest.opacity(0.04), radius: 4, y: 2)
+        .clipped()
     }
 
     private func addTask() {
@@ -536,9 +567,6 @@ private struct MatrixTaskRow: View {
     let onEdit: () -> Void
 
     @State private var isHovered = false
-    @State private var showPopoverContext = false
-    @State private var popoverScreenPoint: CGPoint = .zero
-    @State private var popoverWindowPoint: CGPoint?
 
     var body: some View {
         HStack(spacing: 10) {
@@ -562,6 +590,7 @@ private struct MatrixTaskRow: View {
                     .foregroundStyle(task.status == .completed ? iTuTheme.inkFaint : iTuTheme.ink)
                     .strikethrough(task.status == .completed)
                     .lineLimit(2)
+                    .layoutPriority(1)
 
                 WrappingHStack(horizontalSpacing: 5, verticalSpacing: 4) {
                     if let taskListName {
@@ -613,31 +642,12 @@ private struct MatrixTaskRow: View {
 
             Spacer()
 
-            Button {
-                popoverScreenPoint = NSEvent.mouseLocation
-                popoverWindowPoint = nil
-                showPopoverContext.toggle()
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(iTuTheme.inkFaint)
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.plain)
-            .pointingHandCursor()
-            .help("Task Actions")
+            TaskActionMenuButton(task: task, onOpenDetails: onEdit)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(
-            ZStack {
-                (isHovered ? iTuTheme.mintTint.opacity(0.4) : iTuTheme.surfaceMuted)
-                RightClickDetector {
-                    popoverWindowPoint = $0
-                    showPopoverContext = true
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            isHovered ? iTuTheme.mintTint.opacity(0.4) : iTuTheme.surfaceMuted
         )
         .contentShape(Rectangle())
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -646,23 +656,7 @@ private struct MatrixTaskRow: View {
                 .stroke(iTuTheme.borderSoft, lineWidth: 1)
         }
         .onTapGesture(perform: onEdit)
-        .background {
-            PointerAnchoredPopover(
-                isPresented: $showPopoverContext,
-                screenPoint: popoverScreenPoint,
-                windowPoint: popoverWindowPoint,
-                onDismiss: { showPopoverContext = false }
-            ) {
-                TaskContextMenuPopoverView(
-                    task: task,
-                    onDismiss: { showPopoverContext = false },
-                    onOpenDetail: onEdit
-                )
-                .environment(model)
-            }
-            .frame(width: 0, height: 0)
-            .allowsHitTesting(false)
-        }
+        .taskActionMenu(for: task, onOpenDetails: onEdit)
         .onHover { isHovered = $0 }
         .pointingHandCursor()
     }
