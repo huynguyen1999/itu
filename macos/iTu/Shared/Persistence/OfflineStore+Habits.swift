@@ -1,0 +1,270 @@
+import Foundation
+
+extension OfflineStore {
+    @discardableResult
+    func updateHabits(_ fetchedHabits: [HabitModel]) throws -> OfflineSnapshot {
+        for habit in fetchedHabits {
+            if let index = state.habits.firstIndex(where: { $0.id == habit.id }) {
+                state.habits[index] = habit
+            } else {
+                state.habits.append(habit)
+            }
+        }
+        try persist()
+        return state
+    }
+
+    @discardableResult
+    func updateHabitOccurrences(
+        _ fetchedOccurrences: [HabitOccurrenceModel],
+        from startDate: String? = nil,
+        to endDate: String? = nil
+    ) throws -> OfflineSnapshot {
+        let pendingOccurrenceIDs = Set(
+            state.mutations
+                .filter { $0.kind.hasPrefix("habitoccurrence.") }
+                .map(\.entityId)
+        )
+
+        if let startDate, let endDate {
+            state.habitOccurrences.removeAll { occurrence in
+                let date = occurrence.localDayString
+                return date >= startDate && date <= endDate && !pendingOccurrenceIDs.contains(occurrence.id)
+            }
+        }
+
+        for occurrence in fetchedOccurrences {
+            guard !pendingOccurrenceIDs.contains(occurrence.id) else { continue }
+            if let index = state.habitOccurrences.firstIndex(where: { $0.id == occurrence.id }) {
+                state.habitOccurrences[index] = occurrence
+            } else {
+                state.habitOccurrences.append(occurrence)
+            }
+        }
+        try persist()
+        return state
+    }
+
+    @discardableResult
+    func checkInHabitOccurrence(
+        id: String,
+        value: Double,
+        idempotencyKey: String = ULID.generate()
+    ) throws -> OfflineSnapshot {
+        guard let index = state.habitOccurrences.firstIndex(where: { $0.id == id }) else { return state }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let occurrence = state.habitOccurrences[index]
+        let habit = state.habits.first(where: { $0.id == occurrence.habitId })
+        // The server owns completion and Growth eligibility. We can still
+        // project the status for a complete local target, while preserving a
+        // pending state for partial count/duration/quantity check-ins.
+        let projectedValue = max(0, occurrence.value + value)
+        let reachesTarget: Bool
+        if let habit {
+            reachesTarget = habit.direction == .limit
+                ? projectedValue <= habit.targetValue
+                : projectedValue >= habit.targetValue
+        } else {
+            reachesTarget = value >= 1
+        }
+        state.habitOccurrences[index].status = reachesTarget ? .completed : .pending
+        state.habitOccurrences[index].value = projectedValue
+        appendMutation(SyncMutation(
+            id: ULID.generate(),
+            kind: "habitoccurrence.checkin",
+            entityId: id,
+            payload: [
+                "value": .number(value),
+                "idempotencyKey": .string(idempotencyKey),
+                "occurredAt": .string(now)
+            ],
+            occurredAt: now
+        ))
+        try persist()
+        return state
+    }
+
+    @discardableResult
+    func checkInHabitDate(
+        habitId: String,
+        date: String,
+        value: Double,
+        idempotencyKey: String = ULID.generate()
+    ) throws -> OfflineSnapshot {
+        if let occurrence = state.habitOccurrences.first(where: { $0.habitId == habitId && $0.localDayString == date }) {
+            return try checkInHabitOccurrence(id: occurrence.id, value: value, idempotencyKey: idempotencyKey)
+        }
+
+        let habit = state.habits.first(where: { $0.id == habitId })
+        let occurrenceId = ULID.generate()
+        let now = ISO8601DateFormatter().string(from: Date())
+        let occurrenceDateISO = "\(date)T00:00:00.000Z"
+        let reachesTarget: Bool
+        if let habit {
+            reachesTarget = habit.direction == .limit
+                ? value <= habit.targetValue
+                : value >= habit.targetValue
+        } else {
+            reachesTarget = value >= 1
+        }
+
+        let newOccurrence = HabitOccurrenceModel(
+            id: occurrenceId,
+            habitId: habitId,
+            occurrenceDate: occurrenceDateISO,
+            status: reachesTarget ? .completed : .pending,
+            value: value
+        )
+        state.habitOccurrences.append(newOccurrence)
+        appendMutation(SyncMutation(
+            id: ULID.generate(),
+            kind: "habitoccurrence.checkin",
+            entityId: occurrenceId,
+            payload: [
+                "value": .number(value),
+                "idempotencyKey": .string(idempotencyKey),
+                "occurredAt": .string(now)
+            ],
+            occurredAt: now
+        ))
+        try persist()
+        return state
+    }
+
+    @discardableResult
+    func habitOccurrenceAction(
+        id: String,
+        action: String,
+        idempotencyKey: String = ULID.generate()
+    ) throws -> OfflineSnapshot {
+        guard let index = state.habitOccurrences.firstIndex(where: { $0.id == id }) else { return state }
+        let now = ISO8601DateFormatter().string(from: Date())
+        state.habitOccurrences[index].status = switch action {
+        case "skip": .skipped
+        case "fail": .failed
+        default: .pending
+        }
+        if action == "undo" {
+            state.habitOccurrences[index].value = 0
+        }
+        appendMutation(SyncMutation(
+            id: ULID.generate(),
+            kind: "habitoccurrence.action",
+            entityId: id,
+            payload: [
+                "action": .string(action),
+                "idempotencyKey": .string(idempotencyKey)
+            ],
+            occurredAt: now
+        ))
+        try persist()
+        return state
+    }
+
+    @discardableResult
+    func toggleHabitCheckIn(id: String) throws -> OfflineSnapshot {
+        guard let index = state.habits.firstIndex(where: { $0.id == id }) else { return state }
+        let now = ISO8601DateFormatter().string(from: Date())
+        var habit = state.habits[index]
+        habit.isCompletedToday.toggle()
+        if habit.isCompletedToday {
+            habit.currentStreak += 1
+            habit.bestStreak = max(habit.bestStreak, habit.currentStreak)
+            habit.totalCompletions += 1
+        } else {
+            habit.currentStreak = max(0, habit.currentStreak - 1)
+            habit.totalCompletions = max(0, habit.totalCompletions - 1)
+        }
+        habit.version += 1
+        state.habits[index] = habit
+
+        let mutation = SyncMutation(
+            id: ULID.generate(),
+            kind: "habit.checkin",
+            entityId: id,
+            baseVersion: habit.version - 1,
+            payload: [
+                "isCompletedToday": .bool(habit.isCompletedToday),
+                "occurredAt": .string(now)
+            ],
+            occurredAt: now
+        )
+        appendMutation(mutation)
+        try persist()
+        return state
+    }
+
+    @discardableResult
+    func saveHabit(_ habit: HabitModel) throws -> OfflineSnapshot {
+        let now = ISO8601DateFormatter().string(from: Date())
+        if let index = state.habits.firstIndex(where: { $0.id == habit.id }) {
+            var updated = habit
+            updated.version += 1
+            state.habits[index] = updated
+            let mutation = SyncMutation(
+                id: ULID.generate(),
+                kind: "habit.update",
+                entityId: habit.id,
+                baseVersion: habit.version,
+                payload: [
+                    "name": .string(habit.name),
+                    "description": habit.description.map(JSONValue.string) ?? .null,
+                    "icon": .string(habit.icon),
+                    "color": .string(habit.color),
+                    "frequency": .string(habit.frequency.rawValue),
+                    "targetValue": .number(habit.targetValue),
+                    "targetType": .string(habit.targetType),
+                    "unit": habit.unit.map(JSONValue.string) ?? .null,
+                    "targetDaysPerWeek": .number(Double(habit.targetDaysPerWeek)),
+                    "direction": .string(habit.direction.rawValue),
+                    "scheduleType": .string(habit.scheduleType),
+                    "weekdays": .array(habit.weekdays.map { .number(Double($0)) }),
+                    "intervalDays": habit.intervalDays.map { .number(Double($0)) } ?? .null,
+                    "timesPerPeriod": habit.timesPerPeriod.map { .number(Double($0)) } ?? .null,
+                    "period": habit.period.map(JSONValue.string) ?? .null,
+                    "startDate": .string(habit.startDate),
+                    "endDate": habit.endDate.map(JSONValue.string) ?? .null,
+                    "timeBlockId": habit.timeBlockId.map(JSONValue.string) ?? .null,
+                    "tagIds": .array(habit.tagIds.map(JSONValue.string)),
+                    "archived": .bool(habit.archivedAt != nil)
+                ],
+                occurredAt: now
+            )
+            appendMutation(mutation)
+        } else {
+            state.habits.append(habit)
+            let mutation = SyncMutation(
+                id: ULID.generate(),
+                kind: "habit.create",
+                entityId: habit.id,
+                payload: [
+                    "name": .string(habit.name),
+                    "description": habit.description.map(JSONValue.string) ?? .null,
+                    "icon": .string(habit.icon),
+                    "color": .string(habit.color),
+                    "frequency": .string(habit.frequency.rawValue),
+                    "targetValue": .number(habit.targetValue),
+                    "targetType": .string(habit.targetType),
+                    "unit": habit.unit.map(JSONValue.string) ?? .null,
+                    "targetDaysPerWeek": .number(Double(habit.targetDaysPerWeek)),
+                    "direction": .string(habit.direction.rawValue),
+                    "scheduleType": .string(habit.scheduleType),
+                    "weekdays": .array(habit.weekdays.map { .number(Double($0)) }),
+                    "intervalDays": habit.intervalDays.map { .number(Double($0)) } ?? .null,
+                    "timesPerPeriod": habit.timesPerPeriod.map { .number(Double($0)) } ?? .null,
+                    "period": habit.period.map(JSONValue.string) ?? .null,
+                    "timeBlockId": habit.timeBlockId.map(JSONValue.string) ?? .null,
+                    "tagIds": .array(habit.tagIds.map(JSONValue.string)),
+                    "startDate": .string(habit.startDate),
+                    "endDate": habit.endDate.map(JSONValue.string) ?? .null
+                ],
+                occurredAt: now
+            )
+            appendMutation(mutation)
+        }
+        try persist()
+        return state
+    }
+
+
+}

@@ -1,0 +1,11 @@
+PASS src/infrastructure/persistence/prisma/prisma-statistics.spec.ts
+  statistics repositories
+    ✓ counts completed focus sessions in the daily activity calendar (2 ms)
+    ✓ aggregates earned XP and attribute gains, losses, and net change (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        0.253 s, estimated 1 s
+Ran all test suites matching /src\/infrastructure\/persistence\/prisma\/prisma-statistics.spec.ts/i.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

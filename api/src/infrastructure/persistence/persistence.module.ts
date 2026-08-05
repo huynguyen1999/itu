@@ -1,0 +1,93 @@
+import { Module } from '@nestjs/common';
+import { TOKENS } from '@core/application/constants/tokens';
+import { PrismaService } from './prisma/prisma.service';
+import {
+  PrismaAiFeedbackRepository,
+  PrismaAiJobRepository,
+  PrismaCardRepository,
+  PrismaDeckRepository,
+  PrismaOAuthHandoffRepository,
+  PrismaRateLimitRepository,
+  PrismaReviewStateRepository,
+  PrismaRefreshSessionRepository,
+  PrismaScheduledJobRepository,
+  PrismaReminderRepository,
+  PrismaSyncDeviceRepository,
+  PrismaStudySessionRepository,
+  PrismaTrashRepository,
+  PrismaUserRepository,
+} from './prisma/prisma.repositories';
+import { PrismaSyncRepository } from './prisma/prisma-sync.repository';
+import { SrsSchedulerService } from '@core/application/use-cases/srs-scheduler.service';
+import { PrismaAccessRepository } from './prisma/prisma-access.repository';
+import { PrismaProductivityRepository } from './prisma/prisma-productivity.repository';
+import { PrismaGrowthRepository } from './prisma/prisma-growth.repository';
+import { PrismaGrowthShop } from './prisma/prisma-growth-shop';
+import { PrismaProductivityHabits } from './prisma/prisma-productivity-habits';
+
+@Module({
+  providers: [
+    PrismaService,
+    PrismaUserRepository,
+    PrismaDeckRepository,
+    PrismaRefreshSessionRepository,
+    PrismaOAuthHandoffRepository,
+    PrismaRateLimitRepository,
+    PrismaCardRepository,
+    PrismaReviewStateRepository,
+    PrismaStudySessionRepository,
+    PrismaAiJobRepository,
+    PrismaAiFeedbackRepository,
+    PrismaTrashRepository,
+    PrismaScheduledJobRepository,
+    PrismaReminderRepository,
+    PrismaSyncDeviceRepository,
+    SrsSchedulerService,
+    PrismaSyncRepository,
+    PrismaAccessRepository,
+    PrismaProductivityRepository,
+    PrismaProductivityHabits,
+    PrismaGrowthRepository,
+    PrismaGrowthShop,
+    { provide: TOKENS.USER_REPOSITORY, useExisting: PrismaUserRepository },
+    { provide: TOKENS.DECK_REPOSITORY, useExisting: PrismaDeckRepository },
+    { provide: TOKENS.REFRESH_SESSION_REPOSITORY, useExisting: PrismaRefreshSessionRepository },
+    { provide: TOKENS.OAUTH_HANDOFF_REPOSITORY, useExisting: PrismaOAuthHandoffRepository },
+    { provide: TOKENS.RATE_LIMIT_REPOSITORY, useExisting: PrismaRateLimitRepository },
+    { provide: TOKENS.CARD_REPOSITORY, useExisting: PrismaCardRepository },
+    { provide: TOKENS.REVIEW_STATE_REPOSITORY, useExisting: PrismaReviewStateRepository },
+    { provide: TOKENS.STUDY_SESSION_REPOSITORY, useExisting: PrismaStudySessionRepository },
+    { provide: TOKENS.AI_JOB_REPOSITORY, useExisting: PrismaAiJobRepository },
+    { provide: TOKENS.AI_FEEDBACK_REPOSITORY, useExisting: PrismaAiFeedbackRepository },
+    { provide: TOKENS.SYNC_REPOSITORY, useExisting: PrismaSyncRepository },
+    { provide: TOKENS.TRASH_REPOSITORY, useExisting: PrismaTrashRepository },
+    { provide: TOKENS.SCHEDULED_JOB_REPOSITORY, useExisting: PrismaScheduledJobRepository },
+    { provide: TOKENS.REMINDER_REPOSITORY, useExisting: PrismaReminderRepository },
+    { provide: TOKENS.SYNC_DEVICE_REPOSITORY, useExisting: PrismaSyncDeviceRepository },
+    { provide: TOKENS.ACCESS_REPOSITORY, useExisting: PrismaAccessRepository },
+  { provide: TOKENS.PRODUCTIVITY_REPOSITORY, useExisting: PrismaProductivityRepository },
+    { provide: TOKENS.GROWTH_REPOSITORY, useExisting: PrismaGrowthRepository },
+  ],
+  exports: [
+    PrismaService,
+    TOKENS.USER_REPOSITORY,
+    TOKENS.DECK_REPOSITORY,
+    TOKENS.REFRESH_SESSION_REPOSITORY,
+    TOKENS.OAUTH_HANDOFF_REPOSITORY,
+    TOKENS.RATE_LIMIT_REPOSITORY,
+    TOKENS.CARD_REPOSITORY,
+    TOKENS.REVIEW_STATE_REPOSITORY,
+    TOKENS.STUDY_SESSION_REPOSITORY,
+    TOKENS.AI_JOB_REPOSITORY,
+    TOKENS.AI_FEEDBACK_REPOSITORY,
+    TOKENS.SYNC_REPOSITORY,
+    TOKENS.TRASH_REPOSITORY,
+    TOKENS.SCHEDULED_JOB_REPOSITORY,
+    TOKENS.REMINDER_REPOSITORY,
+    TOKENS.SYNC_DEVICE_REPOSITORY,
+    TOKENS.ACCESS_REPOSITORY,
+    TOKENS.PRODUCTIVITY_REPOSITORY,
+    TOKENS.GROWTH_REPOSITORY,
+  ],
+})
+export class PersistenceModule {}

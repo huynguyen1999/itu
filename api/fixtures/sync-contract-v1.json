@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "queuedMutation": {
+    "id": "01K1SYNCMUTATION000000000001",
+    "kind": "task.update",
+    "entityId": "01K1SYNCENTITY0000000000001",
+    "baseVersion": 3,
+    "baseValues": {
+      "status": "IN_PROGRESS",
+      "title": "Original title"
+    },
+    "payload": {
+      "status": "COMPLETED",
+      "title": "Updated title"
+    },
+    "occurredAt": "2026-08-04T05:00:00.000Z",
+    "attemptCount": 2,
+    "lastAttemptAt": "2026-08-04T05:00:01.000Z",
+    "nextRetryAt": "2026-08-04T05:00:04.000Z",
+    "lastErrorCode": "SERVER"
+  },
+  "pushRequest": {
+    "deviceId": "device-sync-contract-v1",
+    "clientInstanceId": "client-sync-contract-v1",
+    "mutations": [
+      {
+        "id": "01K1SYNCMUTATION000000000001",
+        "kind": "task.update",
+        "entityId": "01K1SYNCENTITY0000000000001",
+        "baseVersion": 3,
+        "baseValues": {
+          "status": "IN_PROGRESS",
+          "title": "Original title"
+        },
+        "payload": {
+          "status": "COMPLETED",
+          "title": "Updated title"
+        },
+        "occurredAt": "2026-08-04T05:00:00.000Z"
+      }
+    ]
+  },
+  "pushResponse": {
+    "acknowledgedMutationIds": [
+      "01K1SYNCMUTATION000000000001"
+    ],
+    "conflicts": [
+      {
+        "mutationId": "01K1SYNCMUTATION000000000002",
+        "entityType": "task",
+        "entityId": "01K1SYNCENTITY0000000000002",
+        "reason": "STALE_VERSION",
+        "serverData": {
+          "id": "01K1SYNCENTITY0000000000002",
+          "version": 5,
+          "status": "IN_PROGRESS"
+        },
+        "localDraft": {
+          "status": "COMPLETED"
+        },
+        "conflictingFields": [
+          "status"
+        ]
+      },
+      {
+        "mutationId": "01K1SYNCMUTATION000000000003",
+        "entityType": "task",
+        "entityId": "01K1SYNCENTITY0000000000003",
+        "reason": "STALE_VERSION",
+        "serverData": {
+          "id": "01K1SYNCENTITY0000000000003",
+          "version": 7,
+          "title": "Server title"
+        },
+        "localDraft": {
+          "title": "Local title"
+        },
+        "conflictingFields": [
+          "title"
+        ]
+      }
+    ],
+    "latestServerCursor": "43",
+    "mutationOutcomes": [
+      {
+        "mutationId": "01K1SYNCMUTATION000000000001",
+        "growthReceipt": {
+          "sourceType": "TASK",
+          "sourceId": "01K1SYNCENTITY0000000000001",
+          "title": "Completed task",
+          "receiptKey": "earned:TASK:01K1SYNCENTITY0000000000001",
+          "accountAward": {
+            "amount": 5,
+            "beforeXp": 10,
+            "afterXp": 15,
+            "beforeLevel": 1,
+            "afterLevel": 1,
+            "nextLevelXp": 75
+          },
+          "progressAwards": [],
+          "coinAward": null,
+          "itemAwards": []
+        }
+      }
+    ]
+  },
+  "pullResponse": {
+    "cursor": "45",
+    "lastSyncTime": "2026-08-04T05:00:05.000Z",
+    "changes": [
+      {
+        "cursor": 44,
+        "resourceType": "task",
+        "resourceId": "01K1SYNCENTITY0000000000001",
+        "operation": "UPSERT",
+        "resource": {
+          "id": "01K1SYNCENTITY0000000000001",
+          "version": 4,
+          "status": "COMPLETED",
+          "title": "Updated title"
+        },
+        "complete": false
+      },
+      {
+        "cursor": 45,
+        "resourceType": "deck",
+        "resourceId": "01K1SYNCDELETED000000000001",
+        "operation": "DELETE",
+        "resource": null,
+        "complete": true
+      }
+    ]
+  },
+  "invalidation": {
+    "type": "SYNC_AVAILABLE",
+    "cursor": "45"
+  }
+}

@@ -1,0 +1,1478 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OAuthProvider {
+  GOOGLE
+}
+
+enum CardType {
+  BASIC
+  REVERSE
+}
+
+enum CardStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum CardSide {
+  PROMPT
+  ANSWER
+}
+
+enum ReviewDirection {
+  FRONT_TO_BACK
+  BACK_TO_FRONT
+}
+
+enum ReviewGrade {
+  AGAIN
+  HARD
+  GOOD
+  EASY
+}
+
+enum StudyMode {
+  DUE
+  CRAM
+}
+
+enum AiJobType {
+  CARD_GENERATION
+  SESSION_FEEDBACK
+}
+
+enum AiJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ScheduledJobType {
+  ACCOUNT_DELETE
+  TRASH_PURGE
+  TASK_REMINDER
+}
+
+enum ScheduledJobStatus {
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+enum SyncDevicePlatform {
+  IOS
+  WATCHOS
+  WEB
+}
+
+enum TaskPriority {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  INBOX
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+  ARCHIVED
+}
+
+enum ReminderStatus {
+  SCHEDULED
+  SNOOZED
+  DISMISSED
+  DELIVERED
+  CANCELED
+}
+
+enum FocusMode {
+  COUNTDOWN
+  STOPWATCH
+}
+
+enum FocusPhase {
+  WORK
+  SHORT_BREAK
+  LONG_BREAK
+}
+
+enum FocusSessionStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ABANDONED
+}
+
+enum FocusSoundSource {
+  UPLOAD
+}
+
+enum HabitTargetType {
+  BOOLEAN
+  COUNT
+  DURATION
+  QUANTITY
+}
+
+enum HabitScheduleType {
+  WEEKDAYS
+  INTERVAL
+  TIMES_PER_PERIOD
+}
+
+enum HabitOccurrenceStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+enum HabitDirection {
+  BUILD
+  LIMIT
+}
+
+enum HabitProgressSource {
+  MANUAL
+  FOCUS_SESSION
+  TASK_COMPLETION
+  HEALTH
+  SCREEN_TIME
+  CALENDAR
+  EXTERNAL
+}
+
+enum CommitmentPolicyLevel {
+  GENTLE
+  STANDARD
+}
+
+enum HabitCommitmentState {
+  NONE
+  COMMITTED
+  BREACHED
+  RECOVERED
+  EXCUSED
+}
+
+enum CommitmentPenaltyState {
+  ACTIVE
+  REVERSED
+}
+
+enum HabitTaskSyncPolicy {
+  NONE
+  TASK_TO_HABIT
+  HABIT_TO_TASK
+  BIDIRECTIONAL
+}
+
+enum GrowthSourceType {
+  TASK
+  HABIT
+  FOCUS_PRESET
+  REVIEW_DECK
+}
+
+enum GrowthProgressKind {
+  ATTRIBUTE
+  SKILL
+}
+
+enum GrowthAttributeMappingSlot {
+  PRIMARY
+  SECONDARY
+}
+
+enum GrowthCurrency {
+  ACCOUNT_XP
+  SKILL_XP
+  COIN
+}
+
+enum GrowthLedgerKind {
+  ACTIVITY_AWARD
+  REVERSAL
+  COMMITMENT_PENALTY
+  REWARD_PURCHASE
+  ADMINISTRATIVE_ADJUSTMENT
+  RESET_ADJUSTMENT
+}
+
+enum GrowthRewardPreset {
+  LIGHT
+  STANDARD
+  STRONG
+}
+
+enum GrowthResetScope {
+  SKILL
+  ALL_XP
+  FULL
+}
+
+enum GrowthOnboardingState {
+  NOT_STARTED
+  SKILLS_OFFERED
+  COMPLETED
+}
+
+enum GrowthScalingMode {
+  FIXED
+  LINEAR
+}
+
+enum GrowthInventoryTransactionKind {
+  PURCHASE
+  TASK_AWARD
+  CONSUMPTION
+  REVERSAL
+  ADJUSTMENT
+}
+
+model User {
+  id                          String                       @id
+  email                       String?                      @unique
+  username                    String?                      @unique
+  displayName                 String?
+  passwordHash                String?
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  deletionRequestedAt         DateTime?
+  deletionScheduledFor        DateTime?
+  deletedAt                   DateTime?
+  bannedAt                    DateTime?
+  oauth                       OAuthIdentity[]
+  refreshSessions             RefreshSession[]
+  oauthHandoffs               OAuthHandoff[]
+  decks                       Deck[]
+  sessions                    StudySession[]
+  aiJobs                      AiJob[]
+  scheduledJobs               ScheduledJob[]
+  syncDevices                 SyncDevice[]
+  roles                       UserRole[]
+  taskLists                   TaskList[]
+  tasks                       Task[]
+  taskTags                    TaskTag[]
+  taskSections                TaskSection[]
+  taskReminders               TaskReminder[]
+  notifications               Notification[]
+  taskOccurrences             TaskOccurrence[]
+  focusPresets                FocusPreset[]
+  focusPolicies               FocusPolicy[]
+  focusSessions               FocusSession[]
+  focusSounds                 FocusSound[]
+  focusSoundPreferences       FocusSoundPreference[]
+  habits                      Habit[]
+  habitTimeBlocks             HabitTimeBlock[]
+  habitTaskTemplates          HabitTaskTemplate[]
+  growthSkills                GrowthSkill[]
+  growthAttributeMappings    GrowthAttributeMapping[]
+  growthEarningRules          GrowthEarningRule[]
+  growthLedgerEntries         GrowthLedgerEntry[]
+  growthShopRewards           GrowthShopReward[]
+  growthRewardRedemptions     GrowthRewardRedemption[]
+  growthItemCategories        GrowthItemCategory[]
+  growthInventoryTransactions GrowthInventoryTransaction[]
+  growthRewardPresetSettings  GrowthRewardPresetSetting[]
+  growthTaskRewardDefaults    GrowthTaskRewardDefault[]
+  growthProfile               GrowthProfile?
+  growthCycles                GrowthCycle[]
+  growthResets                GrowthReset[]
+  habitCommitmentPolicies     HabitCommitmentPolicy[]
+  commitmentPenalties         GrowthCommitmentPenalty[]
+}
+
+model Role {
+  id          String           @id
+  name        String           @unique
+  description String?
+  isDefault   Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String           @id
+  key         String           @unique
+  description String
+  category    String
+  createdAt   DateTime         @default(now())
+  roles       RolePermission[]
+}
+
+model UserRole {
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model RefreshSession {
+  id        String    @id
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model OAuthHandoff {
+  id         String    @id
+  userId     String?
+  codeHash   String    @unique
+  payload    Json
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+}
+
+model SyncDevice {
+  id                     String             @id
+  userId                 String
+  platform               SyncDevicePlatform
+  pushToken              String?
+  lastSeenAt             DateTime           @default(now())
+  lastKnownSyncCursor    String?
+  notificationPreference Json?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, platform])
+  @@index([userId, lastSeenAt])
+}
+
+model OAuthIdentity {
+  id             String        @id
+  userId         String
+  provider       OAuthProvider
+  providerUserId String
+  createdAt      DateTime      @default(now())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+model Deck {
+  id          String    @id
+  userId      String
+  title       String
+  description String?
+  icon        DeckIcon  @default(BOOK)
+  color       DeckColor @default(TEAL)
+  isDefault   Boolean   @default(false)
+  archived    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  version     Int       @default(1)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards       Card[]
+
+  @@index([userId, archived])
+}
+
+model Card {
+  id             String        @id
+  deckId         String
+  userId         String
+  type           CardType
+  status         CardStatus    @default(ACTIVE)
+  promptRichText String
+  answerRichText String
+  tags           String[]      @default([])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  version        Int           @default(1)
+  deck           Deck          @relation(fields: [deckId], references: [id])
+  images         CardImage[]
+  reviewStates   ReviewState[]
+
+  @@index([userId, deckId, status])
+}
+
+model CardImage {
+  id         String    @id
+  cardId     String
+  userId     String
+  side       CardSide
+  storageKey String
+  url        String
+  mimeType   String
+  width      Int
+  height     Int
+  sizeBytes  Int
+  sortOrder  Int       @default(0)
+  createdAt  DateTime  @default(now())
+  deletedAt  DateTime?
+  card       Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([userId, cardId, side])
+  @@index([userId, deletedAt])
+}
+
+model ReviewState {
+  id           String          @id
+  userId       String
+  cardId       String
+  direction    ReviewDirection
+  dueAt        DateTime
+  stability    Float           @default(0)
+  difficulty   Float           @default(5)
+  intervalDays Int             @default(0)
+  lapseCount   Int             @default(0)
+  reviewCount  Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  card         Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, direction])
+  @@index([userId, dueAt])
+}
+
+model StudySession {
+  id          String             @id
+  userId      String?
+  deckId      String?
+  mode        StudyMode
+  rating      Int?
+  startedAt   DateTime           @default(now())
+  completedAt DateTime?
+  reviewed    Int                @default(0)
+  correct     Int                @default(0)
+  growthReceipt Json?
+  user        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reviewLogs  ReviewLog[]
+  feedback    AiSessionFeedback?
+
+  @@index([userId, startedAt])
+}
+
+model ReviewLog {
+  id                 String          @id
+  idempotencyKey     String?
+  userId             String
+  sessionId          String
+  cardId             String
+  cardDeckId         String?
+  cardPromptRichText String          @default("")
+  cardAnswerRichText String          @default("")
+  cardImages         Json            @default("[]")
+  direction          ReviewDirection
+  grade              ReviewGrade
+  userAnswer         String?
+  responseMs         Int?
+  previousDueAt      DateTime?
+  nextDueAt          DateTime
+  previousInterval   Int
+  nextInterval       Int
+  createdAt          DateTime        @default(now())
+  session            StudySession    @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@index([userId, sessionId])
+  @@index([cardId, createdAt])
+  @@index([userId, cardDeckId, createdAt])
+  @@unique([userId, idempotencyKey])
+}
+
+enum DeckIcon {
+  INBOX
+  BOOK
+  BRAIN
+  LANGUAGE
+  FLASK
+  CODE
+  LEAF
+  CALCULATOR
+  GLOBE
+}
+
+enum DeckColor {
+  SLATE
+  EMERALD
+  TEAL
+  BLUE
+  INDIGO
+  VIOLET
+  ROSE
+  AMBER
+}
+
+model AiJob {
+  id          String      @id
+  userId      String?
+  type        AiJobType
+  status      AiJobStatus @default(QUEUED)
+  input       Json
+  output      Json?
+  error       String?
+  attempts    Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  completedAt DateTime?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt])
+}
+
+model AiSessionFeedback {
+  id         String       @id
+  userId     String
+  sessionId  String       @unique
+  summary    String
+  weakAreas  String[]     @default([])
+  nextSteps  String[]     @default([])
+  confidence Float?
+  createdAt  DateTime     @default(now())
+  session    StudySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model ScheduledJob {
+  id          String             @id
+  userId      String?
+  type        ScheduledJobType
+  status      ScheduledJobStatus @default(SCHEDULED)
+  payload     Json
+  runAt       DateTime
+  attempts    Int                @default(0)
+  lastError   String?
+  lockedAt    DateTime?
+  publishedAt DateTime?
+  completedAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  user        User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([status, lockedAt])
+  @@index([userId, status, runAt])
+}
+
+model SyncMutation {
+  id          String   @id
+  userId      String
+  deviceId    String
+  kind        String
+  entityId    String
+  payload     Json
+  result      Json?
+  occurredAt  DateTime
+  processedAt DateTime @default(now())
+
+  @@index([userId, processedAt])
+}
+
+model SyncChange {
+  cursor     Int      @id @default(autoincrement())
+  userId     String
+  entityType String
+  entityId   String
+  operation  String
+  data       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, cursor])
+}
+
+model TaskList {
+  id                   String                    @id
+  userId               String
+  title                String
+  description          String?
+  color                String                    @default("TEAL")
+  isDefault            Boolean                   @default(false)
+  archivedAt           DateTime?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  version              Int                       @default(1)
+  user                 User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks                Task[]
+  habits               Habit[]
+  sections             TaskSection[]
+  growthRewardDefaults GrowthTaskRewardDefault[]
+
+  @@index([userId, archivedAt, updatedAt])
+  @@index([userId, isDefault])
+}
+
+model Task {
+  id                      String              @id
+  userId                  String
+  taskListId              String?
+  sectionId               String?
+  parentId                String?
+  title                   String
+  descriptionMarkdown     String              @default("")
+  priority                TaskPriority        @default(NONE)
+  important               Boolean             @default(false)
+  urgentOverride          Boolean?
+  scheduledStartAt        DateTime?
+  scheduledEndAt          DateTime?
+  dueAt                   DateTime?
+  sourceHabitDate         DateTime?
+  estimatedMinutes        Int?
+  recurrenceRule          String?
+  status                  TaskStatus          @default(INBOX)
+  sortOrder               Float               @default(0)
+  completedAt             DateTime?
+  archivedAt              DateTime?
+  deletedAt               DateTime?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  version                 Int                 @default(1)
+  user                    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskList                TaskList?           @relation(fields: [taskListId], references: [id], onDelete: SetNull)
+  section                 TaskSection?        @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  parent                  Task?               @relation("TaskChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children                Task[]              @relation("TaskChildren")
+  tags                    TaskTagAssignment[]
+  reminders               TaskReminder[]
+  occurrences             TaskOccurrence[]
+  focusSessions           FocusSession[]
+  generatedByHabits       Habit[]             @relation("HabitTaskTemplate")
+  sourceHabitId           String?
+  sourceHabitOccurrenceId String?             @unique
+  sourceHabit             Habit?              @relation("HabitSupportingTasks", fields: [sourceHabitId], references: [id], onDelete: SetNull)
+  sourceHabitOccurrence   HabitOccurrence?    @relation(fields: [sourceHabitOccurrenceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, dueAt])
+  @@index([userId, sortOrder])
+  @@index([userId, scheduledStartAt])
+  @@index([userId, deletedAt])
+  @@index([taskListId, status])
+  @@index([sectionId, sortOrder])
+  @@index([parentId])
+  @@index([sourceHabitId])
+  @@unique([userId, sourceHabitId, sourceHabitDate])
+}
+
+model TaskSection {
+  id         String    @id
+  userId     String
+  taskListId String?
+  title      String
+  sortOrder  Float     @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  version    Int       @default(1)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskList   TaskList? @relation(fields: [taskListId], references: [id], onDelete: Cascade)
+  tasks      Task[]
+
+  @@index([userId, taskListId, sortOrder])
+}
+
+model TaskTag {
+  id        String               @id
+  userId    String
+  name      String
+  color     String               @default("SLATE")
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks     TaskTagAssignment[]
+  habits    HabitTagAssignment[]
+
+  @@unique([userId, name])
+  @@index([userId, name])
+}
+
+model TaskTagAssignment {
+  taskId String
+  tagId  String
+  task   Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag    TaskTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+  @@index([tagId])
+}
+
+model TaskReminder {
+  id             String         @id
+  userId         String
+  taskId         String
+  remindAt       DateTime
+  status         ReminderStatus @default(SCHEDULED)
+  persistent     Boolean        @default(false)
+  snoozedFrom    DateTime?
+  deliveredAt    DateTime?
+  scheduledJobId String?        @unique
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task           Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  notification   Notification?
+
+  @@index([userId, status, remindAt])
+  @@index([taskId])
+}
+
+model Notification {
+  id         String       @id
+  userId     String
+  reminderId String       @unique
+  title      String
+  body       String
+  actionUrl  String
+  readAt     DateTime?
+  createdAt  DateTime     @default(now())
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reminder   TaskReminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model TaskOccurrence {
+  id             String                @id
+  userId         String
+  taskId         String
+  occurrenceDate DateTime
+  status         HabitOccurrenceStatus @default(PENDING)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task           Task                  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, occurrenceDate])
+  @@index([userId, occurrenceDate])
+}
+
+model FocusPreset {
+  id                String         @id
+  userId            String
+  name              String
+  workMinutes       Int
+  shortBreakMinutes Int
+  longBreakMinutes  Int
+  cyclesBeforeLong  Int
+  autoStartBreaks   Boolean        @default(false)
+  autoStartWork     Boolean        @default(false)
+  isDefault         Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  version           Int            @default(1)
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions          FocusSession[]
+  habits            Habit[]
+
+  @@unique([userId, name])
+  @@index([userId, isDefault])
+}
+
+model FocusPolicy {
+  id           String         @id
+  userId       String
+  name         String
+  blockedApps  String[]       @default([])
+  blockedSites String[]       @default([])
+  commitment   Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  version      Int            @default(1)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions     FocusSession[]
+
+  @@unique([userId, name])
+}
+
+model FocusSession {
+  id                    String              @id
+  userId                String
+  taskId                String?
+  presetId              String?
+  policyId              String?
+  mode                  FocusMode
+  phase                 FocusPhase
+  status                FocusSessionStatus  @default(ACTIVE)
+  plannedSeconds        Int?
+  accumulatedPauseSecs  Int                 @default(0)
+  cycle                 Int                 @default(1)
+  taskTitleSnapshot     String?
+  customTitle           String?
+  taskListTitleSnapshot String?
+  tagNamesSnapshot      String[]            @default([])
+  startedAt             DateTime            @default(now())
+  pausedAt              DateTime?
+  completedAt           DateTime?
+  adjustedAt            DateTime?
+  adjustedStartedAt     DateTime?
+  adjustedCompletedAt   DateTime?
+  reflection            String?
+  ownerDeviceId         String?
+  startIdempotencyKey   String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  version               Int                 @default(1)
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task                  Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  preset                FocusPreset?        @relation(fields: [presetId], references: [id], onDelete: SetNull)
+  policy                FocusPolicy?        @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  events                FocusEvent[]
+  interruptions         FocusInterruption[]
+  habitCheckIns         HabitCheckIn[]
+  habitProgressLogs     HabitProgressLog[]
+
+  @@index([userId, status])
+  @@index([userId, startedAt])
+  @@index([taskId, startedAt])
+  @@unique([userId, startIdempotencyKey])
+}
+
+model FocusSound {
+  id              String           @id
+  userId          String
+  name            String
+  originalName    String
+  storageKey      String           @unique
+  mimeType        String
+  sizeBytes       Int
+  durationSeconds Int?
+  source          FocusSoundSource @default(UPLOAD)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  version         Int              @default(1)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model FocusSoundPreference {
+  id        String     @id
+  userId    String
+  soundKey  String
+  enabled   Boolean    @default(true)
+  sortOrder Int        @default(0)
+  volume    Int        @default(55)
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, soundKey])
+  @@index([userId, sortOrder])
+}
+
+model FocusEvent {
+  id             String       @id
+  sessionId      String
+  idempotencyKey String
+  type           String
+  payload        Json         @default("{}")
+  growthReceipt  Json?
+  createdAt      DateTime     @default(now())
+  session        FocusSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, idempotencyKey])
+  @@index([sessionId, createdAt])
+}
+
+model FocusInterruption {
+  id        String       @id
+  sessionId String
+  category  String
+  note      String?
+  createdAt DateTime     @default(now())
+  session   FocusSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+model Habit {
+  id                   String               @id
+  userId               String
+  name                 String
+  description          String               @default("")
+  icon                 String               @default("CHECK")
+  color                String               @default("EMERALD")
+  targetType           HabitTargetType
+  targetValue          Float                @default(1)
+  unit                 String?
+  scheduleType         HabitScheduleType
+  weekdays             Int[]                @default([])
+  intervalDays         Int?
+  timesPerPeriod       Int?
+  period               String?
+  startDate            DateTime
+  endDate              DateTime?
+  difficulty           Int                  @default(1)
+  allowedSkips         Int                  @default(0)
+  restDays             Int[]                @default([])
+  taskTemplateId       String?
+  showInTasks          Boolean              @default(false)
+  taskListId           String?
+  focusPresetId        String?
+  archivedAt           DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  version              Int                  @default(1)
+  direction            HabitDirection       @default(BUILD)
+  timezone             String               @default("UTC")
+  timeBlockId          String?
+  taskTemplateConfigId String?              @unique
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskList             TaskList?            @relation(fields: [taskListId], references: [id], onDelete: SetNull)
+  taskTemplate         Task?                @relation("HabitTaskTemplate", fields: [taskTemplateId], references: [id], onDelete: SetNull)
+  focusPreset          FocusPreset?         @relation(fields: [focusPresetId], references: [id], onDelete: SetNull)
+  tags                 HabitTagAssignment[]
+  reminders            HabitReminder[]
+  occurrences          HabitOccurrence[]
+  timeBlock            HabitTimeBlock?      @relation(fields: [timeBlockId], references: [id], onDelete: SetNull)
+  checklistItems       HabitChecklistItem[]
+  taskTemplateConfig   HabitTaskTemplate?   @relation(fields: [taskTemplateConfigId], references: [id], onDelete: SetNull)
+  supportingTasks      Task[]               @relation("HabitSupportingTasks")
+  commitmentPolicy     HabitCommitmentPolicy?
+
+  @@index([userId, archivedAt])
+}
+
+model HabitTimeBlock {
+  id         String   @id
+  userId     String
+  name       String
+  icon       String   @default("CLOCK")
+  color      String   @default("SLATE")
+  startLocal String
+  endLocal   String
+  sortOrder  Float    @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habits     Habit[]
+
+  @@unique([userId, name])
+  @@index([userId, sortOrder])
+}
+
+model HabitTaskTemplate {
+  id                  String              @id
+  userId              String
+  title               String
+  descriptionMarkdown String              @default("")
+  taskListId          String?
+  sectionId           String?
+  priority            TaskPriority        @default(NONE)
+  estimatedMinutes    Int?
+  tagIds              String[]            @default([])
+  syncPolicy          HabitTaskSyncPolicy @default(NONE)
+  enabled             Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit               Habit?
+
+  @@index([userId])
+}
+
+model HabitChecklistItem {
+  id        String   @id
+  habitId   String
+  title     String
+  required  Boolean  @default(false)
+  sortOrder Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@index([habitId, sortOrder])
+}
+
+model HabitTagAssignment {
+  habitId String
+  tagId   String
+  habit   Habit   @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  tag     TaskTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([habitId, tagId])
+  @@index([tagId])
+}
+
+model HabitReminder {
+  id        String   @id
+  habitId   String
+  timeLocal String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, timeLocal])
+}
+
+model HabitOccurrence {
+  id              String                         @id
+  habitId         String
+  occurrenceDate  DateTime
+  status          HabitOccurrenceStatus          @default(PENDING)
+  statusSource    HabitProgressSource?
+  statusChangedAt DateTime?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  habit           Habit                          @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  checkIn         HabitCheckIn?
+  progressLogs    HabitProgressLog[]
+  checklistItems  HabitOccurrenceChecklistItem[]
+  generatedTask   Task?
+  commitmentState HabitCommitmentState       @default(NONE)
+  commitmentPolicyId String?
+  commitmentPolicyVersion Int?
+  commitmentPolicyLevel CommitmentPolicyLevel?
+  commitmentExpectedAccountXp Int?
+  commitmentPenaltyRate Float?
+  commitmentGraceMinutes Int?
+  commitmentRecoveryWindowMinutes Int?
+  commitmentTimezone String?
+  commitmentEffectiveFrom DateTime?
+  commitmentBreachAt DateTime?
+  commitmentPenalty GrowthCommitmentPenalty?
+  commitmentPolicy HabitCommitmentPolicy? @relation(fields: [commitmentPolicyId], references: [id], onDelete: SetNull)
+
+  @@unique([habitId, occurrenceDate])
+  @@index([occurrenceDate, status])
+}
+
+model HabitCommitmentPolicy {
+  id                    String                 @id
+  userId                String
+  habitId               String                 @unique
+  enabled               Boolean                @default(false)
+  level                 CommitmentPolicyLevel  @default(GENTLE)
+  expectedAccountXp     Int
+  penaltyRate           Float
+  graceMinutes          Int
+  recoveryWindowMinutes Int
+  timezone              String
+  version               Int                    @default(1)
+  effectiveFrom        DateTime               @default(now())
+  effectiveTo          DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit                 Habit                  @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  occurrences           HabitOccurrence[]
+
+  @@index([userId, enabled])
+}
+
+model HabitOccurrenceChecklistItem {
+  id           String          @id
+  occurrenceId String
+  sourceItemId String?
+  title        String
+  required     Boolean         @default(false)
+  completedAt  DateTime?
+  sortOrder    Float           @default(0)
+  occurrence   HabitOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  @@unique([occurrenceId, sourceItemId])
+  @@index([occurrenceId, sortOrder])
+}
+
+model HabitProgressLog {
+  id             String              @id
+  occurrenceId   String
+  source         HabitProgressSource @default(MANUAL)
+  sourceEventId  String?
+  focusSessionId String?
+  value          Float
+  note           String?
+  adjusted       Boolean             @default(false)
+  rewardEligible Boolean             @default(false)
+  growthReceipt  Json?
+  recordedAt     DateTime            @default(now())
+  originalAt     DateTime?
+  occurrence     HabitOccurrence     @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  focusSession   FocusSession?       @relation(fields: [focusSessionId], references: [id], onDelete: SetNull)
+
+  @@unique([source, sourceEventId])
+  @@index([occurrenceId, recordedAt])
+  @@index([focusSessionId])
+}
+
+model HabitCheckIn {
+  id                String          @id
+  occurrenceId      String          @unique
+  focusSessionId    String?
+  value             Float
+  note              String?
+  adjusted          Boolean         @default(false)
+  rewardEligible    Boolean         @default(false)
+  checkedInAt       DateTime        @default(now())
+  originalCheckedAt DateTime?
+  occurrence        HabitOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  focusSession      FocusSession?   @relation(fields: [focusSessionId], references: [id], onDelete: SetNull)
+}
+
+model GrowthProfile {
+  id              String                @id
+  userId          String                @unique
+  accountBaseXp   Int                   @default(75)
+  activeCycleId   String
+  onboardingState GrowthOnboardingState @default(NOT_STARTED)
+  rewardPreset    GrowthRewardPreset    @default(STANDARD)
+  lifetimeEarnedXp Int                  @default(0)
+  outstandingPenaltyDebt Int            @default(0)
+  highestLevelReached Int               @default(1)
+  protectedLevelFloor Int               @default(1)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeCycle     GrowthCycle           @relation(fields: [activeCycleId], references: [id])
+}
+
+model GrowthCycle {
+  id        String          @id
+  userId    String
+  startedAt DateTime        @default(now())
+  endedAt   DateTime?
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profiles  GrowthProfile[]
+  resets    GrowthReset[]
+
+  @@index([userId, startedAt])
+}
+
+model GrowthReset {
+  id               String           @id
+  userId           String
+  cycleId          String
+  scope            GrowthResetScope
+  skillId          String?
+  idempotencyKey   String
+  keepEarningRules Boolean          @default(true)
+  keepShopRewards  Boolean          @default(true)
+  metadata         Json             @default("{}")
+  createdAt        DateTime         @default(now())
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle            GrowthCycle      @relation(fields: [cycleId], references: [id])
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+}
+
+model GrowthSkill {
+  id                 String                         @id
+  userId             String
+  name               String
+  kind               GrowthProgressKind             @default(SKILL)
+  description        String                         @default("")
+  icon               String                         @default("SPARKLES")
+  color              String                         @default("AMBER")
+  sortOrder          Float                          @default(0)
+  baseXp             Int                            @default(100)
+  starterKey         String?
+  cycleId            String?
+  archivedAt         DateTime?
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+  version            Int                            @default(1)
+  user               User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ruleAwards         GrowthEarningRuleSkill[]
+  taskRewardDefaults GrowthTaskRewardDefaultSkill[]
+  ledgerEntries      GrowthLedgerEntry[]
+  attributeMappings  GrowthAttributeMapping[] @relation("GrowthAttributeMappingSkill")
+  mappedFromSkills    GrowthAttributeMapping[] @relation("GrowthAttributeMappingAttribute")
+
+  @@unique([userId, kind, name])
+  @@unique([userId, starterKey])
+  @@index([userId, kind, archivedAt, sortOrder])
+}
+
+/// Immutable-at-award-time routing from a SKILL's XP to one or two ATTRIBUTEs.
+/// Mapping rows are user-owned and may only point at skills/attributes owned by
+/// the same user; service validation enforces the cross-row 100% invariant.
+model GrowthAttributeMapping {
+  id          String                     @id
+  userId      String
+  skillId     String
+  attributeId String
+  slot        GrowthAttributeMappingSlot
+  weight      Int
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  user        User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill       GrowthSkill                @relation("GrowthAttributeMappingSkill", fields: [skillId], references: [id], onDelete: Cascade)
+  attribute   GrowthSkill                @relation("GrowthAttributeMappingAttribute", fields: [attributeId], references: [id], onDelete: Restrict)
+
+  @@unique([skillId, slot])
+  @@unique([skillId, attributeId])
+  @@index([userId, skillId])
+  @@index([userId, attributeId])
+}
+
+model GrowthEarningRule {
+  id           String                   @id
+  userId       String
+  sourceType   GrowthSourceType
+  sourceId     String
+  coinReward   Int                      @default(0)
+  accountXp    Int                      @default(0)
+  enabled      Boolean                  @default(true)
+  scalingMode  GrowthScalingMode        @default(FIXED)
+  maxRewardCap Int?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  version      Int                      @default(1)
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillAwards  GrowthEarningRuleSkill[]
+  itemAwards   GrowthEarningRuleItem[]
+
+  @@unique([userId, sourceType, sourceId])
+  @@index([userId, sourceType])
+}
+
+model GrowthEarningRuleItem {
+  ruleId   String
+  itemId   String
+  quantity Int
+  rule     GrowthEarningRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  item     GrowthShopReward  @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@id([ruleId, itemId])
+  @@index([itemId])
+}
+
+model GrowthEarningRuleSkill {
+  ruleId   String
+  skillId  String
+  xpReward Int
+  rule     GrowthEarningRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  skill    GrowthSkill       @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@id([ruleId, skillId])
+  @@index([skillId])
+}
+
+model GrowthRewardPresetSetting {
+  id               String             @id
+  userId           String
+  preset           GrowthRewardPreset
+  sourceType       GrowthSourceType
+  coinReward       Int                @default(0)
+  accountXp        Int                @default(0)
+  xpRewardPerSkill Int                @default(0)
+  scalingMode      GrowthScalingMode  @default(FIXED)
+  maxRewardCap     Int?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, preset, sourceType])
+  @@index([userId, preset])
+}
+
+model GrowthTaskRewardDefault {
+  id          String                         @id
+  userId      String
+  taskListId  String?
+  coinReward  Int                            @default(0)
+  accountXp   Int                            @default(0)
+  enabled     Boolean                        @default(true)
+  createdAt   DateTime                       @default(now())
+  updatedAt   DateTime                       @updatedAt
+  user        User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskList    TaskList?                      @relation(fields: [taskListId], references: [id], onDelete: Cascade)
+  skillAwards GrowthTaskRewardDefaultSkill[]
+  itemAwards  GrowthTaskRewardDefaultItem[]
+
+  @@unique([userId, taskListId])
+  @@index([userId])
+}
+
+model GrowthTaskRewardDefaultItem {
+  defaultId String
+  itemId    String
+  quantity  Int
+  default   GrowthTaskRewardDefault @relation(fields: [defaultId], references: [id], onDelete: Cascade)
+  item      GrowthShopReward        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([defaultId, itemId])
+  @@index([itemId])
+}
+
+model GrowthTaskRewardDefaultSkill {
+  defaultId String
+  skillId   String
+  xpReward  Int
+  default   GrowthTaskRewardDefault @relation(fields: [defaultId], references: [id], onDelete: Cascade)
+  skill     GrowthSkill             @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([defaultId, skillId])
+  @@index([skillId])
+}
+
+model GrowthLedgerEntry {
+  id            String                  @id
+  userId        String
+  currency      GrowthCurrency
+  skillId       String?
+  amount        Int
+  kind          GrowthLedgerKind
+  sourceType    String
+  sourceId      String
+  entryKey      String
+  reversalOfId  String?
+  cycleId       String?
+  titleSnapshot String
+  metadata      Json                    @default("{}")
+  createdAt     DateTime                @default(now())
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill         GrowthSkill?            @relation(fields: [skillId], references: [id], onDelete: Restrict)
+  reversalOf    GrowthLedgerEntry?      @relation("GrowthLedgerReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversals     GrowthLedgerEntry[]     @relation("GrowthLedgerReversal")
+  redemption    GrowthRewardRedemption?
+  commitmentPenalty GrowthCommitmentPenalty?
+
+  @@unique([userId, entryKey])
+  @@index([userId, currency, createdAt])
+  @@index([skillId, createdAt])
+}
+
+model GrowthCommitmentPenalty {
+  id             String                 @id
+  userId         String
+  occurrenceId   String                 @unique
+  ledgerEntryId  String                 @unique
+  amount         Int
+  state          CommitmentPenaltyState @default(ACTIVE)
+  reason         String
+  policySnapshot Json
+  idempotencyKey String
+  breachedAt     DateTime
+  reversedAt     DateTime?
+  reversalEntryId String?
+  createdAt      DateTime               @default(now())
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  occurrence     HabitOccurrence        @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
+  ledgerEntry    GrowthLedgerEntry      @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, state, createdAt])
+}
+
+model GrowthShopReward {
+  id                    String                        @id
+  userId                String
+  name                  String
+  description           String                        @default("")
+  icon                  String                        @default("GIFT")
+  color                 String                        @default("ROSE")
+  price                 Int?
+  listedInShop          Boolean                       @default(true)
+  repeatable            Boolean                       @default(true)
+  sortOrder             Float                         @default(0)
+  categoryId            String?
+  archivedAt            DateTime?
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  version               Int                           @default(1)
+  user                  User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category              GrowthItemCategory?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  redemptions           GrowthRewardRedemption[]
+  ruleAwards            GrowthEarningRuleItem[]
+  taskRewardDefaults    GrowthTaskRewardDefaultItem[]
+  inventoryTransactions GrowthInventoryTransaction[]
+
+  @@unique([userId, name])
+  @@index([userId, listedInShop, archivedAt, sortOrder])
+  @@index([categoryId, sortOrder])
+}
+
+model GrowthItemCategory {
+  id         String             @id
+  userId     String
+  name       String
+  sortOrder  Float              @default(0)
+  archivedAt DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  version    Int                @default(1)
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items      GrowthShopReward[]
+
+  @@unique([userId, name])
+  @@index([userId, archivedAt, sortOrder])
+}
+
+model GrowthInventoryTransaction {
+  id         String                         @id
+  userId     String
+  itemId     String
+  quantity   Int
+  kind       GrowthInventoryTransactionKind
+  sourceType String
+  sourceId   String
+  entryKey   String
+  metadata   Json                           @default("{}")
+  createdAt  DateTime                       @default(now())
+  user       User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item       GrowthShopReward               @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, entryKey])
+  @@index([userId, itemId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model GrowthRewardRedemption {
+  id                  String            @id
+  userId              String
+  rewardId            String
+  ledgerEntryId       String            @unique
+  rewardNameSnapshot  String
+  descriptionSnapshot String
+  priceSnapshot       Int
+  redeemedAt          DateTime          @default(now())
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward              GrowthShopReward  @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+  ledgerEntry         GrowthLedgerEntry @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+
+  @@index([userId, redeemedAt])
+  @@index([rewardId, redeemedAt])
+}

@@ -1,0 +1,37 @@
+name: API CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: quizme
+          POSTGRES_USER: quizme
+          POSTGRES_PASSWORD: quizme
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quizme"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://quizme:quizme@localhost:5432/quizme?schema=public
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - run: corepack enable
+      - run: yarn install --frozen-lockfile
+      - run: yarn prisma:generate
+      - run: yarn typecheck
+      - run: yarn test
+      - run: yarn build
