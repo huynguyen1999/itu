@@ -275,6 +275,7 @@ export interface IProductivityRepository {
   updateChecklistItem(userId: string, id: string, data: any): Promise<any>;
   setOccurrenceChecklistItem(userId: string, occurrenceId: string, itemId: string, completed: boolean): Promise<any>;
   habitStats(userId: string, habitId: string): Promise<any>;
+  listHabitStats(userId: string, habitIds: string[]): Promise<Record<string, any>>;
 
   // Task Tags & Notifications
   listTaskTags(userId: string): Promise<any[]>;

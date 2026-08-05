@@ -222,7 +222,7 @@ struct HabitsView: View {
         .sheet(item: $detailHabit) { habit in
             HabitDetailSheet(
                 habit: habit,
-                stats: model.habitStatsByID[habit.id],
+                stats: model.habitStatsByID[habit.id] ?? habit.stats,
                 onEdit: {
                     detailHabit = nil
                     editingHabit = habit

@@ -432,13 +432,8 @@ function HabitRowItem({
   onCheckIn: (occurrenceId: string, value: number) => void;
   onUndo: (occurrenceId: string) => void;
 }) {
-  const stats = useQuery({
-    queryKey: ['habit-stats', habit.id],
-    queryFn: () => api.habitStats(habit.id),
-  });
-
-  const currentStreak = stats.data?.currentStreak ?? 0;
-  const bestStreak = stats.data?.bestStreak ?? 0;
+  const currentStreak = habit.stats?.currentStreak ?? 0;
+  const bestStreak = habit.stats?.bestStreak ?? 0;
 
   return (
     <div className="group flex items-center justify-between rounded-xl border border-border/80 bg-card p-3.5 hover:border-border transition-colors">

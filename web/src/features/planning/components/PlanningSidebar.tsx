@@ -25,13 +25,8 @@ const planningNavigation = [
 
 export function PlanningSidebar() {
   const { setSelectedTaskList, setSelectedTag, selectedTaskList, selectedTag } = usePlanning();
-  const projects = useQuery({ queryKey: ['task-lists'], queryFn: () => api.taskLists() });
+  const projects = useQuery({ queryKey: ['task-lists', 'with-counts'], queryFn: () => api.taskLists(true) });
   const tags = useQuery({ queryKey: ['task-tags'], queryFn: () => api.taskTags() });
-  const sidebarTasks = useQuery({
-    queryKey: ['tasks', 'all', null, null, ''],
-    queryFn: () => api.tasks({ view: 'all' }),
-    retry: 1,
-  });
   const queryClient = useQueryClient();
   const [projectTitle, setProjectTitle] = useState('');
   const [tagName, setTagName] = useState('');
@@ -92,10 +87,7 @@ export function PlanningSidebar() {
               >
                 <SectionRailDot color={projectColor(project.color)} />
                 <SectionRailLabel>{project.title}</SectionRailLabel>
-                <SectionRailBadge>
-                  {(sidebarTasks.data?.data ?? []).filter((task) => (task.taskListId ?? task.projectId) === project.id)
-                    .length || ''}
-                </SectionRailBadge>
+                <SectionRailBadge>{project.taskCount || ''}</SectionRailBadge>
               </SectionRailButton>
             ))}
           <SectionRailCreator
@@ -159,11 +151,7 @@ export function PlanningSidebar() {
                 >
                   <SectionRailDot color={projectColor(project.color)} />
                   <span className="min-w-0 flex-1 truncate">{project.title}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {(sidebarTasks.data?.data ?? []).filter(
-                      (task) => (task.taskListId ?? task.projectId) === project.id,
-                    ).length || ''}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{project.taskCount || ''}</span>
                 </DropdownMenuItem>
               ))}
             <DropdownMenuSeparator />

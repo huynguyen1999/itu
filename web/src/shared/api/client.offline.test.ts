@@ -28,15 +28,16 @@ const focus: FocusSession = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('offline-first productivity mutations', () => {
-  it('queues task ordering as individual task updates', async () => {
+  it('queues task ordering as a single batch reorder mutation', async () => {
     const { client, mutations } = offlineClient();
 
     await client.reorderTasks(['task-1', 'task-2']);
 
-    expect(mutations.map(({ kind, entityId, payload }) => ({ kind, entityId, payload }))).toEqual([
-      { kind: 'task.update', entityId: 'task-1', payload: { sortOrder: 1 } },
-      { kind: 'task.update', entityId: 'task-2', payload: { sortOrder: 2 } },
-    ]);
+    expect(mutations).toHaveLength(1);
+    expect(mutations[0]).toMatchObject({
+      kind: 'task.reorder',
+      payload: { taskIds: ['task-1', 'task-2'] },
+    });
   });
 
   it('marks task status changes for immediate synchronization', async () => {

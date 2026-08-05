@@ -18,7 +18,7 @@ import { PageHeader } from '@/shared/ui/PageHeader';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { api } from '@/shared/api/client';
 import type { Card as ApiCard, Deck } from '@/shared/api/client';
-import type { ProductivityTask } from '@/shared/api/types';
+import type { ProductivityTask, TrashSnapshot } from '@/shared/api/types';
 import { MarkdownPreview } from '@/shared/markdown/MarkdownPreview';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
@@ -70,66 +70,76 @@ export function TrashPage() {
     };
   }, []);
 
-  // ── Shared invalidations ────────────────────────────────────────────────
+  // ── Targeted cache updates ──────────────────────────────────────────────
+  // Update the trash cache directly (remove the item) instead of refetching
+  // the whole trash snapshot, and invalidate only the resources the operation
+  // actually affects.
 
-  const invalidateAll = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ['trash'] });
-    void queryClient.invalidateQueries({ queryKey: ['decks'] });
-    void queryClient.invalidateQueries({ queryKey: ['cards'] });
-    void queryClient.invalidateQueries({ queryKey: ['due'] });
-    void queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-  }, [queryClient]);
+  const removeFromTrash = useCallback(
+    (type: 'deck' | 'card' | 'task', id: string) => {
+      queryClient.setQueryData<TrashSnapshot>(['trash'], (current) => {
+        if (!current) return current;
+        const key = type === 'deck' ? 'decks' : type === 'card' ? 'cards' : 'tasks';
+        return { ...current, [key]: current[key].filter((item) => item.id !== id) };
+      });
+    },
+    [queryClient],
+  );
 
   // ── Mutations ───────────────────────────────────────────────────────────
 
   const restoreDeck = useMutation({
     mutationFn: (deckId: string) => api.restoreDeck(deckId),
-    onSuccess: () => {
-      invalidateAll();
+    onSuccess: (_, deckId) => {
+      removeFromTrash('deck', deckId);
+      void queryClient.invalidateQueries({ queryKey: ['decks'] });
       showToast('Deck restored.', 'restore');
     },
   });
 
   const restoreCard = useMutation({
     mutationFn: (card: ApiCard) => api.restoreCard(card.id),
-    onSuccess: () => {
-      invalidateAll();
+    onSuccess: (_, card) => {
+      removeFromTrash('card', card.id);
+      void queryClient.invalidateQueries({ queryKey: ['cards'] });
+      void queryClient.invalidateQueries({ queryKey: ['due'] });
       showToast('Card restored.', 'restore');
     },
   });
 
   const restoreTask = useMutation({
     mutationFn: (taskId: string) => api.restoreTrashTask(taskId),
-    onSuccess: () => {
-      invalidateAll();
+    onSuccess: (_, taskId) => {
+      removeFromTrash('task', taskId);
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       showToast('Task restored.', 'restore');
     },
   });
 
   const deleteDeck = useMutation({
     mutationFn: (deckId: string) => api.deleteTrashDeck(deckId),
-    onSuccess: () => {
+    onSuccess: (_, deckId) => {
       setDeleteTarget(null);
-      invalidateAll();
+      removeFromTrash('deck', deckId);
       showToast('Deck permanently deleted.', 'delete');
     },
   });
 
   const deleteCard = useMutation({
     mutationFn: (target: Extract<PermanentDeleteTarget, { type: 'card' }>) => api.deleteTrashCard(target.id),
-    onSuccess: () => {
+    onSuccess: (_, target) => {
       setDeleteTarget(null);
-      invalidateAll();
+      removeFromTrash('card', target.id);
       showToast('Card permanently deleted.', 'delete');
     },
   });
 
   const deleteTask = useMutation({
     mutationFn: (taskId: string) => api.deleteTrashTask(taskId),
-    onSuccess: () => {
+    onSuccess: (_, taskId) => {
       setDeleteTarget(null);
-      invalidateAll();
+      removeFromTrash('task', taskId);
       showToast('Task permanently deleted.', 'delete');
     },
   });

@@ -57,7 +57,11 @@ export function TodayPage() {
 
   const today = new Date().toISOString().slice(0, 10);
   const tasksToday = useQuery({ queryKey: ['tasks', 'today'], queryFn: () => api.tasks({ view: 'today' }) });
-  const allTasks = useQuery({ queryKey: ['tasks', 'all'], queryFn: () => api.tasks({ view: 'all' }) });
+  const allTasks = useQuery({
+    queryKey: ['tasks', 'all'],
+    queryFn: () => api.tasks({ view: 'all' }),
+    enabled: !!selectedTaskId,
+  });
   const habits = useQuery({
     queryKey: ['habit-occurrences', today],
     queryFn: () => api.habitOccurrences(today, today),
@@ -67,8 +71,25 @@ export function TodayPage() {
     queryFn: () => api.habitTimeBlocks(),
   });
   const focus = useQuery({ queryKey: ['focus', 'active'], queryFn: () => api.activeFocus() });
-  const projects = useQuery({ queryKey: ['task-lists'], queryFn: () => api.taskLists() });
-  const tags = useQuery({ queryKey: ['task-tags'], queryFn: () => api.taskTags() });
+  const taskOptionsOpen =
+    isInputFocused ||
+    quickTask.trim().length > 0 ||
+    quickPriority !== 'NONE' ||
+    Boolean(quickDueAt) ||
+    Boolean(quickRemindAt) ||
+    Boolean(quickDescription.trim()) ||
+    Boolean(quickTaskListId) ||
+    quickTagIds.length > 0;
+  const projects = useQuery({
+    queryKey: ['task-lists'],
+    queryFn: () => api.taskLists(),
+    enabled: taskOptionsOpen,
+  });
+  const tags = useQuery({
+    queryKey: ['task-tags'],
+    queryFn: () => api.taskTags(),
+    enabled: taskOptionsOpen || Boolean(selectedHabit),
+  });
 
   const toggleHabit = useMutation({
     mutationFn: ({ id, value, completed, idempotencyKey }: { id: string; value: number; completed: boolean; idempotencyKey: string }) =>

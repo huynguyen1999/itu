@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CursorPageQueryDto {
   @IsOptional()
@@ -20,4 +20,9 @@ export class CursorPageQueryDto {
   @IsOptional()
   @IsString()
   taskListId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  includeTaskCount?: boolean;
 }

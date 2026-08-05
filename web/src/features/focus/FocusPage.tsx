@@ -147,7 +147,7 @@ export function FocusPage() {
   const notificationFiredRef = useRef<Record<string, boolean>>({});
 
   const active = useQuery({ queryKey: ['focus', 'active'], queryFn: () => api.activeFocus() });
-  const tasks = useQuery({ queryKey: ['tasks', 'focusable'], queryFn: () => api.tasks({ view: 'all' }) });
+  const tasks = useQuery({ queryKey: ['tasks', 'all'], queryFn: () => api.tasks({ view: 'all' }) });
   const history = useQuery({ queryKey: ['focus', 'history'], queryFn: () => api.focusHistory() });
   const summary = useQuery({ queryKey: ['focus', 'summary'], queryFn: () => api.focusSummary() });
 

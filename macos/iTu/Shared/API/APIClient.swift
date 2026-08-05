@@ -199,6 +199,12 @@ actor APIClient {
         return try await request(path: path, method: "GET", body: Optional<String>.none)
     }
 
+    /// Unified push+pull: POST /sync returns acknowledged mutations, conflicts,
+    /// and incremental changes in a single round trip.
+    func synchronize(_ requestBody: UnifiedSyncRequest) async throws -> UnifiedSyncResponse {
+        try await request(path: "/sync", method: "POST", body: requestBody)
+    }
+
     func token() -> String? {
         accessToken
     }

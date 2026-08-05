@@ -805,15 +805,7 @@ export class PrismaProductivityHabits {
     });
   }
 
-  async habitStats(userId: string, habitId: string) {
-    const habit = await this.db.habit.findFirst({ where: { id: habitId, userId } });
-    if (!habit) throw new EntityNotFoundException('Habit', habitId);
-    const occurrences = await this.db.habitOccurrence.findMany({
-      where: { habitId },
-      include: { progressLogs: true },
-      orderBy: { occurrenceDate: 'desc' },
-      take: 366,
-    });
+  private computeStats(habit: { allowedSkips: number }, occurrences: any[]) {
     let currentStreak = 0;
     let skipBudget = habit.allowedSkips;
     for (const item of occurrences) {
@@ -847,5 +839,39 @@ export class PrismaProductivityHabits {
       failed: occurrences.filter((item) => item.status === HabitOccurrenceStatus.FAILED).length,
       skipped: occurrences.filter((item) => item.status === HabitOccurrenceStatus.SKIPPED).length,
     };
+  }
+
+  async habitStats(userId: string, habitId: string) {
+    const habit = await this.db.habit.findFirst({ where: { id: habitId, userId } });
+    if (!habit) throw new EntityNotFoundException('Habit', habitId);
+    const occurrences = await this.db.habitOccurrence.findMany({
+      where: { habitId },
+      include: { progressLogs: true },
+      orderBy: { occurrenceDate: 'desc' },
+      take: 366,
+    });
+    return this.computeStats(habit, occurrences);
+  }
+
+  async listHabitStats(userId: string, habitIds: string[]) {
+    if (habitIds.length === 0) return {};
+    const habits = await this.db.habit.findMany({ where: { id: { in: habitIds }, userId } });
+    const occurrences = await this.db.habitOccurrence.findMany({
+      where: { habitId: { in: habitIds } },
+      include: { progressLogs: true },
+      orderBy: { occurrenceDate: 'desc' },
+    });
+    const byHabit = new Map<string, any[]>();
+    for (const occ of occurrences) {
+      const list = byHabit.get(occ.habitId) ?? [];
+      list.push(occ);
+      byHabit.set(occ.habitId, list);
+    }
+    const result: Record<string, any> = {};
+    for (const habit of habits) {
+      const occs = (byHabit.get(habit.id) ?? []).slice(0, 366);
+      result[habit.id] = this.computeStats(habit, occs);
+    }
+    return result;
   }
 }

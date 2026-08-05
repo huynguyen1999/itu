@@ -85,6 +85,7 @@ export function DeckDetailPage() {
     queryFn: ({ pageParam }) => api.decks({ cursor: pageParam, limit: 50 }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.meta.nextCursor ?? undefined,
+    enabled: isMoveDialogOpen,
   });
   const deckOptions = (deckOptionsQuery.data?.pages.flatMap((page) => page.data) ?? []).filter(
     (option) => typeof option.title === 'string',

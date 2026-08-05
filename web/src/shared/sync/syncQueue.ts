@@ -86,6 +86,22 @@ interface PullChangesResponse {
   }>;
 }
 
+interface UnifiedSyncResponse {
+  acknowledgedMutationIds: string[];
+  cursor: string;
+  lastSyncTime?: string;
+  changes: Array<{
+    cursor?: number;
+    entityType: string;
+    entityId: string;
+    deleted: boolean;
+    data: unknown;
+    complete?: boolean;
+  }>;
+  conflicts: SyncConflict[];
+  mutationOutcomes: SyncMutationOutcome[];
+}
+
 type SyncChannelMessage =
   | { type: 'OUTBOX_CHANGED'; originClientInstanceId: string }
   | { type: 'SYNC_RESPONSE'; originClientInstanceId: string; response: SyncResponse };
@@ -97,6 +113,9 @@ const RECONCILE_INTERVAL_MS = 60_000;
 const CHANNEL_NAME = 'itu-sync-v1';
 
 export class SyncQueue {
+  /** Feature flag: use the unified POST /sync (push+pull) endpoint. Defaults to env, overridable in tests. */
+  static useUnifiedSync = import.meta.env.VITE_USE_UNIFIED_SYNC === 'true';
+
   private readonly httpClient: HttpClient;
   private readonly deviceId = getDeviceId();
   private readonly clientInstanceId = getClientInstanceId();
@@ -379,17 +398,36 @@ export class SyncQueue {
     let acknowledgedGrowthMappings: ClientSyncMutation[] = [];
     try {
       const cursor = cursorOverride ?? (await offlineSyncStore.getCursor());
-      const pushed =
-        mutations.length > 0
-          ? await this.httpClient.request<PushMutationsResponse>('/sync/mutations', {
-              method: 'POST',
-              body: JSON.stringify({
-                deviceId: this.deviceId,
-                clientInstanceId: this.clientInstanceId,
-                mutations: mutations.map(toSyncMutationPayload),
-              }),
-            })
-          : { acknowledgedMutationIds: [], conflicts: [], latestServerCursor: cursor, mutationOutcomes: [] };
+      let pushed: PushMutationsResponse;
+      let unified: UnifiedSyncResponse | null = null;
+      if (SyncQueue.useUnifiedSync) {
+        unified = await this.httpClient.request<UnifiedSyncResponse>('/sync', {
+          method: 'POST',
+          body: JSON.stringify({
+            deviceId: this.deviceId,
+            clientInstanceId: this.clientInstanceId,
+            cursor,
+            mutations: mutations.map(toSyncMutationPayload),
+          }),
+        });
+        pushed = {
+          acknowledgedMutationIds: unified.acknowledgedMutationIds,
+          conflicts: unified.conflicts,
+          latestServerCursor: unified.cursor,
+          mutationOutcomes: unified.mutationOutcomes ?? [],
+        };
+      } else if (mutations.length > 0) {
+        pushed = await this.httpClient.request<PushMutationsResponse>('/sync/mutations', {
+          method: 'POST',
+          body: JSON.stringify({
+            deviceId: this.deviceId,
+            clientInstanceId: this.clientInstanceId,
+            mutations: mutations.map(toSyncMutationPayload),
+          }),
+        });
+      } else {
+        pushed = { acknowledgedMutationIds: [], conflicts: [], latestServerCursor: cursor, mutationOutcomes: [] };
+      }
       if (!this.isCurrentAuthGeneration(authGeneration)) return null;
       const conflicts = pushed.conflicts.map((conflict) => {
         const original = mutations.find((mutation) => mutation.id === conflict.mutationId);
@@ -421,24 +459,36 @@ export class SyncQueue {
       await offlineSyncStore.putConflicts(manualConflicts);
       if (autoRebaseConflicts.length > 0) this.scheduleFlush(50);
       if (!this.isCurrentAuthGeneration(authGeneration)) return null;
-      const pulled = await this.httpClient.request<PullChangesResponse>(
-        `/sync/changes?deviceId=${encodeURIComponent(this.deviceId)}&cursor=${encodeURIComponent(cursor)}`,
-      );
-      if (!this.isCurrentAuthGeneration(authGeneration)) return null;
-      const response: SyncResponse = {
-        acknowledgedMutationIds: pushed.acknowledgedMutationIds,
-        cursor: pulled.cursor,
-        lastSyncTime: pulled.lastSyncTime,
-        changes: pulled.changes.map((change) => ({
-          ...change,
-          entityType: change.resourceType,
-          entityId: change.resourceId,
-          deleted: change.operation === 'DELETE',
-          data: change.resource,
-        })),
-        conflicts: manualConflicts,
-        mutationOutcomes: pushed.mutationOutcomes ?? [],
-      };
+      let response: SyncResponse;
+      if (unified) {
+        response = {
+          acknowledgedMutationIds: unified.acknowledgedMutationIds,
+          cursor: unified.cursor,
+          lastSyncTime: unified.lastSyncTime,
+          changes: unified.changes,
+          conflicts: manualConflicts,
+          mutationOutcomes: unified.mutationOutcomes ?? [],
+        };
+      } else {
+        const pulled = await this.httpClient.request<PullChangesResponse>(
+          `/sync/changes?deviceId=${encodeURIComponent(this.deviceId)}&cursor=${encodeURIComponent(cursor)}`,
+        );
+        if (!this.isCurrentAuthGeneration(authGeneration)) return null;
+        response = {
+          acknowledgedMutationIds: pushed.acknowledgedMutationIds,
+          cursor: pulled.cursor,
+          lastSyncTime: pulled.lastSyncTime,
+          changes: pulled.changes.map((change) => ({
+            ...change,
+            entityType: change.resourceType,
+            entityId: change.resourceId,
+            deleted: change.operation === 'DELETE',
+            data: change.resource,
+          })),
+          conflicts: manualConflicts,
+          mutationOutcomes: pushed.mutationOutcomes ?? [],
+        };
+      }
       await this.emitResponse(response);
       if (!this.isCurrentAuthGeneration(authGeneration)) return null;
       if (response.cursor) await offlineSyncStore.setCursor(response.cursor);

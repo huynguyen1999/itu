@@ -54,9 +54,21 @@ export function SettingsPage() {
   const theme = useTheme();
   const queryClient = useQueryClient();
 
-  const overview = useQuery({ queryKey: ['growth', 'overview'], queryFn: () => api.growthOverview() });
-  const focusPresets = useQuery({ queryKey: ['focus-presets'], queryFn: () => api.focusPresets() });
-  const taskLists = useQuery({ queryKey: ['task-lists'], queryFn: () => api.taskLists() });
+  const overview = useQuery({
+    queryKey: ['growth', 'overview'],
+    queryFn: () => api.growthOverview(),
+    enabled: section === 'growth',
+  });
+  const focusPresets = useQuery({
+    queryKey: ['focus-presets'],
+    queryFn: () => api.focusPresets(),
+    enabled: section === 'focus',
+  });
+  const taskLists = useQuery({
+    queryKey: ['task-lists'],
+    queryFn: () => api.taskLists(),
+    enabled: section === 'tasks' || section === 'growth',
+  });
   const data = overview.data;
 
   const updateAccountBaseXp = useMutation({

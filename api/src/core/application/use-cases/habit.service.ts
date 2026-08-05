@@ -57,6 +57,15 @@ export class HabitService {
     return this.repo.listHabits(userId, includeArchived);
   }
 
+  async listHabitsWithStats(userId: string) {
+    const habits = await this.repo.listHabits(userId);
+    const stats = await this.repo.listHabitStats(
+      userId,
+      habits.map((habit) => habit.id),
+    );
+    return habits.map((habit) => ({ ...habit, stats: stats[habit.id] ?? null }));
+  }
+
   async findHabitById(userId: string, id: string) {
     const habit = await this.repo.findHabitById(userId, id);
     if (!habit) throw new EntityNotFoundException('Habit', id);

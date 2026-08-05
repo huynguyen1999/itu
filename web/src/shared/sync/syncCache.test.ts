@@ -394,7 +394,9 @@ describe('applySyncChanges', () => {
 
     expect(queryClient.getQueryState(['habit-occurrences', '2026-07-25'])?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(['habit-stats', 'habit-1'])?.isInvalidated).toBe(true);
-    expect(queryClient.getQueryState(['habits'])?.isInvalidated).toBe(false);
+    // Habit stats are embedded in the habits list response, so occurrence changes
+    // must also invalidate the habits list to refresh per-row streak data.
+    expect(queryClient.getQueryState(['habits'])?.isInvalidated).toBe(true);
   });
 
   it('invalidates an optimistic mapping cache when the server reports a mapping conflict', async () => {

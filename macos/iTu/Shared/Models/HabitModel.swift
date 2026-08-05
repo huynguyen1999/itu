@@ -138,6 +138,7 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
     var totalCompletions: Int
     var createdAt: String
     var version: Int
+    var stats: HabitStatsModel?
 
     enum CodingKeys: String, CodingKey {
         case id, name, title, description, icon, color, frequency, scheduleType
@@ -146,7 +147,7 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
         case timeBlockId
         case tags
         case currentStreak, bestStreak
-        case isCompletedToday, totalCompletions, createdAt, version
+        case isCompletedToday, totalCompletions, createdAt, version, stats
     }
 
     init(
@@ -176,7 +177,8 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
         isCompletedToday: Bool = false,
         totalCompletions: Int = 0,
         createdAt: String = ISO8601DateFormatter().string(from: Date()),
-        version: Int = 1
+        version: Int = 1,
+        stats: HabitStatsModel? = nil
     ) {
         self.id = id
         self.name = name
@@ -205,6 +207,7 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
         self.totalCompletions = totalCompletions
         self.createdAt = createdAt
         self.version = version
+        self.stats = stats
     }
 
     init(from decoder: Decoder) throws {
@@ -253,6 +256,7 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
         totalCompletions = try container.decodeIfPresent(Int.self, forKey: .totalCompletions) ?? 0
         createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt) ?? ISO8601DateFormatter().string(from: Date())
         version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        stats = try container.decodeIfPresent(HabitStatsModel.self, forKey: .stats)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -286,6 +290,7 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
         try container.encode(totalCompletions, forKey: .totalCompletions)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(version, forKey: .version)
+        try container.encodeIfPresent(stats, forKey: .stats)
     }
 
     static func sampleHabits() -> [HabitModel] {

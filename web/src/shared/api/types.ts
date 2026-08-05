@@ -262,6 +262,7 @@ export interface TaskList {
   isDefault?: boolean;
   archivedAt?: string | null;
   version: number;
+  taskCount?: number;
 }
 export type Project = TaskList;
 
@@ -479,6 +480,7 @@ export interface Habit {
   reminders: Array<{ id: string; timeLocal: string; enabled: boolean }>;
   checklistItems: HabitChecklistItem[];
   taskTemplateConfig?: HabitTaskTemplate | null;
+  stats?: HabitStats | null;
 }
 
 export interface HabitOccurrence {

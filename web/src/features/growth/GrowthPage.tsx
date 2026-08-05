@@ -48,8 +48,16 @@ export function GrowthPage({ tab = 'attributes' }: { tab?: GrowthTab }) {
 
   const queryClient = useQueryClient();
   const overview = useQuery({ queryKey: ['growth', 'overview'], queryFn: () => api.growthOverview() });
-  const rewards = useQuery({ queryKey: ['growth', 'rewards'], queryFn: () => api.growthRewards() });
-  const ledger = useQuery({ queryKey: ['growth', 'ledger'], queryFn: () => api.growthLedger() });
+  const rewards = useQuery({
+    queryKey: ['growth', 'rewards'],
+    queryFn: () => api.growthRewards(),
+    enabled: tab === 'shop',
+  });
+  const ledger = useQuery({
+    queryKey: ['growth', 'ledger'],
+    queryFn: () => api.growthLedger(),
+    enabled: tab === 'ledger',
+  });
   const data = overview.data;
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['growth'] });

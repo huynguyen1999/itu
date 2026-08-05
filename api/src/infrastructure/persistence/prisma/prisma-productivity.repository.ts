@@ -42,12 +42,17 @@ export class PrismaProductivityRepository implements IProductivityRepository {
   async listTaskLists(userId: string, filter?: any) {
     const take = filter?.limit ? Math.min(filter.limit, 50) : 50;
 
-    return this.db.taskList.findMany({
+    const lists = (await this.db.taskList.findMany({
       where: { userId, archivedAt: null },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take,
       ...(filter?.cursor && { cursor: { id: filter.cursor }, skip: 1 }),
-    });
+      ...(filter?.includeTaskCount
+        ? { include: { _count: { select: { tasks: { where: { deletedAt: null } } } } } }
+        : {}),
+    })) as Array<{ _count?: { tasks: number } } & Record<string, unknown>>;
+    if (!filter?.includeTaskCount) return lists;
+    return lists.map(({ _count, ...list }) => ({ ...list, taskCount: _count?.tasks ?? 0 }));
   }
 
   async findTaskListById(userId: string, id: string) {
@@ -762,5 +767,8 @@ export class PrismaProductivityRepository implements IProductivityRepository {
   }
   async habitStats(userId: string, habitId: string) {
     return this.habits.habitStats(userId, habitId);
+  }
+  async listHabitStats(userId: string, habitIds: string[]) {
+    return this.habits.listHabitStats(userId, habitIds);
   }
 }

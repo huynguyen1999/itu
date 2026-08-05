@@ -113,9 +113,10 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
   }, [tasks.data]);
 
   const sidebarTasks = useQuery({
-    queryKey: ['tasks', 'all', null, null, ''],
+    queryKey: ['tasks', 'all'],
     queryFn: () => api.tasks({ view: 'all' }),
     retry: 1,
+    enabled: !!selectedTaskId,
   });
   const projects = useQuery({ queryKey: ['task-lists'], queryFn: () => api.taskLists() });
   const inboxListId = projects.data?.find((project) => project.isDefault)?.id ?? null;

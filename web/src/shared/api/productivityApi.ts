@@ -14,8 +14,8 @@ import type { ApiClientContext } from './apiContext';
 
 export function createProductivityApi(ctx: ApiClientContext) {
   return {
-    taskLists() {
-      return ctx.request<TaskList[]>('/productivity/task-lists');
+    taskLists(includeCounts = false) {
+      return ctx.request<TaskList[]>(`/productivity/task-lists${includeCounts ? '?includeTaskCount=true' : ''}`);
     },
     projects() {
       return this.taskLists();
@@ -127,9 +127,20 @@ export function createProductivityApi(ctx: ApiClientContext) {
       );
     },
     reorderTasks(taskIds: string[]) {
-      return Promise.all(taskIds.map((id, index) => this.updateTask(id, { sortOrder: index + 1 }))).then(() => ({
-        taskIds,
-      }));
+      const id = createUlid();
+      return ctx.offlineMutation(
+        {
+          kind: 'task.reorder',
+          entityId: id,
+          payload: { taskIds },
+          optimistic: { taskIds },
+        },
+        () =>
+          ctx.request<{ taskIds: string[] }>('/productivity/tasks/reorder', {
+            method: 'POST',
+            body: JSON.stringify({ taskIds }),
+          }),
+      );
     },
     deleteTask(id: string) {
       return ctx.offlineMutation(

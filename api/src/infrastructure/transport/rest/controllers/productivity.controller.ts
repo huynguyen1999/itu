@@ -291,7 +291,7 @@ export class ProductivityController {
   // Habits
   @Get(REST_ROUTES.habits)
   habits(@Req() req: AuthenticatedRequest) {
-    return this.habitsService.listHabits(req.user.sub);
+    return this.habitsService.listHabitsWithStats(req.user.sub);
   }
 
   @Post(REST_ROUTES.habits)

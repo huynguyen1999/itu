@@ -20,7 +20,7 @@ const QUERY_PREFIXES: Record<string, string[]> = {
   focussound: ['focus', 'sounds'],
   focussoundpreference: ['focus', 'sounds'],
   habit: ['habits', 'habit-occurrences', 'habit-stats', 'study-calendar'],
-  habitoccurrence: ['habit-occurrences', 'habit-stats', 'study-calendar'],
+  habitoccurrence: ['habits', 'habit-occurrences', 'habit-stats', 'study-calendar'],
   growthskill: ['growth'],
   growthearningrule: ['growth'],
   growthledgerentry: ['growth'],
@@ -191,7 +191,8 @@ function applyCompleteChange(
 ): void {
   if (change.entityType === 'task') {
     updateTaskQueries(queryClient, change);
-    ['trash', 'study-calendar', 'dashboard'].forEach((prefix) => fallbackPrefixes.add(prefix));
+    // task-lists carries per-list open-task counts used by the planning sidebar.
+    ['trash', 'study-calendar', 'dashboard', 'task-lists'].forEach((prefix) => fallbackPrefixes.add(prefix));
     return;
   }
   if (change.entityType === 'tasklist') {

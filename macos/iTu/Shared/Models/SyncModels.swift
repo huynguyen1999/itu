@@ -286,6 +286,31 @@ struct SyncChange: Codable, Sendable {
     let complete: Bool
 }
 
+struct UnifiedSyncRequest: Codable, Sendable {
+    let deviceId: String
+    let clientInstanceId: String
+    let cursor: String
+    let mutations: [SyncMutationPayload]
+}
+
+struct UnifiedSyncChange: Codable, Sendable {
+    let cursor: Int?
+    let entityType: String
+    let entityId: String
+    let deleted: Bool
+    let data: JSONValue?
+    let complete: Bool?
+}
+
+struct UnifiedSyncResponse: Codable, Sendable {
+    let acknowledgedMutationIds: [String]
+    let cursor: String
+    let lastSyncTime: String?
+    let changes: [UnifiedSyncChange]
+    let conflicts: [SyncConflict]
+    let mutationOutcomes: [SyncMutationOutcome]?
+}
+
 struct OfflineSnapshot: Codable, Equatable, Sendable {
     var cursor = "0"
     var tasks: [ProductivityTask] = []

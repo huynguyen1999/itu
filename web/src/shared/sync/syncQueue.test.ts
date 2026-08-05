@@ -140,6 +140,7 @@ describe('coalesceMutation', () => {
 
 describe('SyncQueue transport split', () => {
   afterEach(() => {
+    SyncQueue.useUnifiedSync = false;
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -170,6 +171,43 @@ describe('SyncQueue transport split', () => {
     expect(request).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith(expect.stringContaining('/sync/changes?'));
     expect(request).not.toHaveBeenCalledWith('/sync/mutations', expect.anything());
+  });
+
+  it('uses the unified POST /sync endpoint when the feature flag is enabled', async () => {
+    installBrowserGlobals();
+    const mutation: ClientSyncMutation = { ...base, id: 'unified-mutation' };
+    vi.spyOn(offlineSyncStore, 'listMutations').mockResolvedValue([mutation]);
+    vi.spyOn(offlineSyncStore, 'listConflicts').mockResolvedValue([]);
+    vi.spyOn(offlineSyncStore, 'getCursor').mockResolvedValue('5');
+    vi.spyOn(offlineSyncStore, 'setCursor').mockResolvedValue();
+    vi.spyOn(offlineSyncStore, 'deleteMutations').mockResolvedValue();
+    vi.spyOn(offlineSyncStore, 'putConflicts').mockResolvedValue();
+    const request = vi.fn().mockResolvedValue({
+      acknowledgedMutationIds: ['unified-mutation'],
+      cursor: '7',
+      lastSyncTime: '2026-07-25T00:00:00.000Z',
+      changes: [
+        {
+          entityType: 'task',
+          entityId: 'task-1',
+          deleted: false,
+          data: { id: 'task-1', title: 'First', version: 3 },
+          complete: true,
+        },
+      ],
+      conflicts: [],
+      mutationOutcomes: [],
+    });
+    const queue = new SyncQueue({ request } as unknown as HttpClient);
+    queue.setAuthenticated(true, 'session-a');
+    SyncQueue.useUnifiedSync = true;
+
+    await queue.flush(true);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith('/sync', expect.anything());
+    expect(request).not.toHaveBeenCalledWith('/sync/mutations', expect.anything());
+    expect(request).not.toHaveBeenCalledWith(expect.stringContaining('/sync/changes?'), expect.anything());
   });
 
   it('keeps the local queue usable without sending network requests while signed out', async () => {

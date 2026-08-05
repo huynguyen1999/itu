@@ -44,7 +44,11 @@ export function Shop({
   const [categoryName, setCategoryName] = useState('');
   const [editingReward, setEditingReward] = useState<PricedGrowthReward | null>(null);
 
-  const inventory = useQuery({ queryKey: ['growth', 'inventory'], queryFn: () => api.growthInventory() });
+  const inventory = useQuery({
+    queryKey: ['growth', 'inventory'],
+    queryFn: () => api.growthInventory(),
+    enabled: mode === 'inventory',
+  });
   const categories = useQuery({ queryKey: ['growth', 'item-categories'], queryFn: () => api.growthItemCategories() });
   const consume = useMutation({
     mutationFn: (id: string) => api.consumeGrowthInventoryItem(id),

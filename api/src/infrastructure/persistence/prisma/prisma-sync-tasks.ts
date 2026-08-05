@@ -68,7 +68,7 @@ export { conflictingSyncFields } from './prisma-sync.helpers';
 
 
 export class PrismaSyncTasks {
-  readonly kinds: readonly string[] = ["task.create","task.update","task.delete","task.restore"];
+  readonly kinds: readonly string[] = ["task.create","task.update","task.delete","task.restore","task.reorder"];
   async applyMutation(
     tx: Tx,
     userId: string,
@@ -218,6 +218,22 @@ export class PrismaSyncTasks {
         });
         const syncedTask = await tx.task.findUniqueOrThrow({ where: { id: updated.id }, include: TASK_SYNC_INCLUDE });
         await recordSyncChange(tx, userId, 'task', updated.id, 'UPSERT', syncedTask);
+        return null;
+      }
+      case 'task.reorder': {
+        const taskIds = stringArray(payload, 'taskIds');
+        for (let index = 0; index < taskIds.length; index += 1) {
+          const task = await tx.task.findFirst({ where: { id: taskIds[index], userId } });
+          if (!task) continue;
+          const sortOrder = index + 1;
+          if (task.sortOrder === sortOrder) continue;
+          const updated = await tx.task.update({
+            where: { id: task.id },
+            data: { sortOrder, version: { increment: 1 } },
+          });
+          const syncedTask = await tx.task.findUniqueOrThrow({ where: { id: updated.id }, include: TASK_SYNC_INCLUDE });
+          await recordSyncChange(tx, userId, 'task', updated.id, 'UPSERT', syncedTask);
+        }
         return null;
       }
       default:

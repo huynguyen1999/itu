@@ -33,6 +33,7 @@ export class SyncService implements ISyncUseCase {
         entityId: change.resourceId,
         deleted: change.operation === 'DELETE',
         data: change.resource,
+        complete: change.complete,
       })),
       conflicts: pushed.conflicts,
       mutationOutcomes: pushed.mutationOutcomes,
