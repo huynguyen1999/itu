@@ -1,0 +1,31 @@
+# macOS / Xcode build outputs
+build/
+DerivedData/
+DerivedDataGrowth/
+*.xcuserstate
+xcuserdata/
+.swiftpm/
+Package.resolved
+
+# Node / JS build outputs (web + api)
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+.codex
+.impeccable
+.roo
+plans/
