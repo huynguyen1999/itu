@@ -5,7 +5,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Circle,
-  Clock,
   CornerDownRight,
   Flag,
   FolderInput,

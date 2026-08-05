@@ -96,9 +96,9 @@ final class VisualLayoutTests: XCTestCase {
     func testRewardChipsWrapInsteadOfCompressingAtNarrowWidth() throws {
         let renderer = ImageRenderer(
             content: WrappingHStack(horizontalSpacing: 6, verticalSpacing: 5) {
-                rewardChip("+25 Account XP")
-                rewardChip("+15 Skill XP · 60%")
-                rewardChip("+6 Skill XP · 25%")
+                rewardChip("+25 XP")
+                rewardChip("+15")
+                rewardChip("+6")
                 rewardChip("+2 Coins")
             }
             .frame(width: 180, alignment: .leading)

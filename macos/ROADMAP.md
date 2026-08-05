@@ -105,9 +105,9 @@ Current verified baseline:
 Verification baseline:
 
 - `xcodebuild -project iTu.xcodeproj -scheme iTu -configuration Debug
-  -destination 'platform=macOS' -derivedDataPath build/DerivedData
-  CODE_SIGNING_ALLOWED=NO test`
+  -destination 'platform=macOS' -derivedDataPath build/DerivedData test`
 - Result on 2026-07-31: **13 tests passed**.
+
 - Coverage includes legacy snapshot migration, Focus restart persistence,
   pending Focus action protection against stale pulls, pause-aware timer
   projection, task persistence/sync behavior, ULID compatibility, and default

@@ -15,6 +15,9 @@ struct iTuApp: App {
                     await model.bootstrap()
                 }
                 .preferredColorScheme(preferredColorScheme)
+                .onOpenURL { url in
+                    FocusURLRouter.shared.handleURL(url)
+                }
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
                     Task {

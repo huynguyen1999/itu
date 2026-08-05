@@ -87,3 +87,10 @@ Paths in this workflow are written using `/` as a platform-neutral separator.
 - On macOS and Linux, use `/`.
 - On Windows, use the equivalent Windows path format and `\\` where required.
 - Resolve every path using the conventions of the current environment.
+
+## 6. macOS Build and Code Signing
+
+When building or verifying the macOS client:
+
+- **Consistent Code Signing Across Builds.** macOS application and test builds must maintain consistent code signing (automatic signing with Apple Development certificate and stable Team ID).
+- **Avoid Disabling Signing for App or Test Builds.** Do not pass `CODE_SIGNING_ALLOWED=NO` or `CODE_SIGN_IDENTITY="-"` for `xcodebuild build` or `xcodebuild test`. Using ad-hoc or disabled signing breaks macOS Keychain ACL recognition across rebuilds and causes macOS to prompt for system passwords on every test run.

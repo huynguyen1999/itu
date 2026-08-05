@@ -55,10 +55,22 @@ final class AudioPlayerManager {
     private var audioPlayer: AVAudioPlayer?
     private var loadedSoundID: String?
 
-    private init() {}
+    var onStartPlaybackRequested: (() -> Void)?
 
     func configureBuiltInDefaults() {
         configure(catalog: Self.builtInCatalog)
+    }
+
+    func playIfEnabled() {
+        guard isEnabled, selectedSound != nil else { return }
+        if hasLoadedSelectedSound {
+            if !isPlaying {
+                audioPlayer?.play()
+                isPlaying = audioPlayer?.isPlaying == true
+            }
+        } else {
+            onStartPlaybackRequested?()
+        }
     }
 
     func toggleLoadedPlayback() {
@@ -72,13 +84,15 @@ final class AudioPlayerManager {
 
     func configure(catalog: FocusSoundCatalog) {
         let preferences = Dictionary(uniqueKeysWithValues: catalog.preferences.map { ($0.soundKey, $0) })
-        sounds = catalog.sounds
-            .filter { preferences[$0.id]?.enabled != false }
+        let catalogIndexed = Array(catalog.sounds.enumerated())
+        sounds = catalogIndexed
+            .filter { preferences[$0.element.id]?.enabled != false }
             .sorted {
-                let lhs = preferences[$0.id]?.sortOrder ?? Int.max
-                let rhs = preferences[$1.id]?.sortOrder ?? Int.max
-                return lhs == rhs ? $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending : lhs < rhs
+                let lhs = preferences[$0.element.id]?.sortOrder ?? $0.offset
+                let rhs = preferences[$1.element.id]?.sortOrder ?? $1.offset
+                return lhs == rhs ? $0.element.name.localizedCaseInsensitiveCompare($1.element.name) == .orderedAscending : lhs < rhs
             }
+            .map(\.element)
         if let selectedSound, sounds.contains(where: { $0.id == selectedSound.id }) {
             self.selectedSound = sounds.first(where: { $0.id == selectedSound.id })
         } else {

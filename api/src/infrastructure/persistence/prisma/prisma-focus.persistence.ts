@@ -164,6 +164,13 @@ export class PrismaFocusPersistence {
     const preset = await tx.focusPreset.findFirst({ where: { id: presetId, userId } });
     if (!preset) return null;
 
+    if (updated.phase !== FocusPhase.WORK) {
+      if (previous.status === FocusSessionStatus.COMPLETED && previous.phase === FocusPhase.WORK) {
+        await reverseGrowthActivity(tx, userId, GrowthSourceType.FOCUS_PRESET, updated.id, preset.name);
+      }
+      return null;
+    }
+
     const becameCompleted = previous.status !== FocusSessionStatus.COMPLETED && updated.status === FocusSessionStatus.COMPLETED;
     const becameIncomplete = previous.status === FocusSessionStatus.COMPLETED && updated.status !== FocusSessionStatus.COMPLETED;
     if (becameIncomplete) {

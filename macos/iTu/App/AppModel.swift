@@ -150,7 +150,9 @@ final class AppModel {
     var errorMessage: String?
     let settingsStore = SettingsStore()
     let focusTimer = FocusTimer()
+    let focusCycleEngine = FocusCycleEngine()
     let focusPolicyEnforcer = FocusPolicyEnforcer()
+
     var habits: [HabitModel] = []
     var habitTimeBlocks: [HabitTimeBlockModel] = []
     var habitStatsByID: [String: HabitStatsModel] = [:]
@@ -219,8 +221,11 @@ final class AppModel {
     init() {
         let cachedUser = SessionCache.loadUser()
         user = cachedUser
+        focusCycleEngine.configure(cyclesBeforeLongBreak: settingsStore.focusSettings.cyclesBeforeLongBreak)
         focusTimer.setDuration(minutes: settingsStore.focusSettings.defaultWorkMinutes)
         focusTimer.configure(settings: settingsStore.focusSettings)
+        FocusCommandService.shared.register(timer: focusTimer, cycleEngine: focusCycleEngine, settingsStore: settingsStore)
+        FocusURLRouter.shared.setHydrated(true, authenticated: cachedUser != nil)
         apiClient = APIClient()
         offlineStore = OfflineStore(accountID: cachedUser?.id ?? "anonymous")
         syncCoordinator = SyncCoordinator(apiClient: apiClient, offlineStore: offlineStore)

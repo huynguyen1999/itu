@@ -18,7 +18,6 @@ import {
   GrowthIconMark,
   growthIconLabel,
   growthIconOptions,
-  growthSolidColorClasses,
   isPresetGrowthIcon,
   isUploadedGrowthIcon,
 } from '@/shared/ui/GrowthIcons';

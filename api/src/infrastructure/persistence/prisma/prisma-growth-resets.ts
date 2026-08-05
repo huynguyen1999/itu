@@ -1,7 +1,6 @@
 import {
   GrowthCurrency,
   GrowthLedgerKind,
-  GrowthProgressKind,
   GrowthResetScope,
   GrowthRewardPreset,
   GrowthScalingMode,

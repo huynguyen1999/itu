@@ -75,7 +75,7 @@ final class SyncCoordinator {
             }
         }
         periodicTask?.cancel()
-        periodicTask = Task { [weak self] in
+        periodicTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(15))
                 guard !Task.isCancelled else { return }
@@ -112,8 +112,8 @@ final class SyncCoordinator {
             urgentFlushTask?.cancel()
             urgentFlushTask = Task { [weak self] in
                 await syncAction()
-                guard let self, !Task.isCancelled else { return }
-                self.urgentFlushTask = nil
+                guard !Task.isCancelled else { return }
+                self?.urgentFlushTask = nil
             }
             return
         }

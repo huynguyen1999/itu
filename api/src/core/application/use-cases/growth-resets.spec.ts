@@ -1,4 +1,3 @@
-import { GrowthResetScope } from '@prisma/client';
 import { growthLevelProgress } from './growth-rules';
 
 describe('Growth v2 Resets Logic', () => {

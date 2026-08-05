@@ -28,7 +28,10 @@ Raw task data and queued mutations are written atomically before a network reque
 
 The application is sandboxed. It requests outbound network access, user-selected read access for choosing applications, and Apple Events access to enabled browsers for the optional Focus Policy. Signing credentials and generated build products are not stored in the repository.
 
-## Verify
+## Verify & Build
+
+### Application Build (Consistent Code Signing)
+To build the macOS application for execution or local testing, maintain consistent code signing (Apple Development certificate + stable Team ID) so macOS Keychain access remains valid across builds:
 
 ```sh
 xcodebuild \
@@ -37,8 +40,20 @@ xcodebuild \
   -configuration Debug \
   -destination 'platform=macOS' \
   -derivedDataPath build/DerivedData \
-  CODE_SIGNING_ALLOWED=NO \
+  build
+```
+
+### Unit Testing
+```sh
+xcodebuild \
+  -project iTu.xcodeproj \
+  -scheme iTu \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  -derivedDataPath build/DerivedData \
   test
 ```
+
+
 
 See [ROADMAP.md](./ROADMAP.md) for the remaining feature-parity and system-integration work.

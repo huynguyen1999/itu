@@ -284,10 +284,10 @@ private struct TrashCardCard: View {
     }
 }
 
-@ViewBuilder
+@MainActor @ViewBuilder
 private func trashActions(
-    onRestore: @MainActor @Sendable @escaping () -> Void,
-    onDelete: @MainActor @Sendable @escaping () -> Void
+    onRestore: @MainActor @escaping () -> Void,
+    onDelete: @MainActor @escaping () -> Void
 ) -> some View {
     HStack(spacing: 8) {
         Spacer()

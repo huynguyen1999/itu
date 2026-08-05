@@ -5,7 +5,7 @@ import { api } from '@/shared/api/client';
 import type { GrowthShopReward } from '@/shared/api/types';
 import { Button } from '@/shared/ui/button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
 

@@ -328,34 +328,105 @@ struct FocusView: View {
                     .buttonStyle(.plain)
                     .disabled(timer.isMutating)
                 } else {
-                    Button {
-                        Task {
-                            await model.performFocusAction(timer.isPaused ? "resume" : "pause")
+                    HStack(spacing: 8) {
+                        Button {
+                            Task {
+                                await model.performFocusAction(timer.isPaused ? "resume" : "pause")
+                            }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: timer.isPaused ? "play.fill" : "pause.fill")
+                                    .font(.system(size: 12, weight: .bold))
+                                Text(timer.isPaused ? "Resume" : "Pause")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .frame(height: 36)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(red: 0.18, green: 0.52, blue: 0.44), Color(red: 0.10, green: 0.35, blue: 0.30)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .clipShape(Capsule())
+                            .shadow(color: iTuTheme.teal.opacity(0.3), radius: 4, y: 1)
                         }
-                    } label: {
-                        Label(timer.isPaused ? "Resume" : "Pause", systemImage: timer.isPaused ? "play.fill" : "pause.fill")
-                    }
-                    .buttonStyle(iTuSecondaryButtonStyle())
+                        .buttonStyle(.plain)
 
-                    Button("+5m") {
-                        Task { await model.performFocusAction("extend", extendSeconds: 300) }
-                    }
-                    .buttonStyle(iTuSecondaryButtonStyle())
+                        if timer.activeSession?.phase == .work {
+                            Button {
+                                Task { await model.performFocusAction("extend", extendSeconds: 300) }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "timer")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text("+5m")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .lineLimit(1)
+                                }
+                                .foregroundStyle(iTuTheme.ink)
+                                .padding(.horizontal, 10)
+                                .frame(height: 36)
+                                .background(iTuTheme.mintTint)
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .stroke(iTuTheme.border, lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .help("Add 5 minutes")
+                        }
 
-                    Button {
-                        Task { await model.performFocusAction("complete") }
-                    } label: {
-                        Label("Stop", systemImage: "stop.fill")
-                    }
-                    .buttonStyle(iTuDangerButtonStyle())
+                        let isCompletable = timer.elapsedSeconds >= (timer.activeSession?.plannedSeconds ?? 0)
+                        if isCompletable {
+                            Button {
+                                Task { await model.performFocusAction("complete") }
+                            } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 12, weight: .bold))
+                                    Text(timer.activeSession?.phase == .work ? "Complete" : "End Break")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .lineLimit(1)
+                                }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 12)
+                                .frame(height: 36)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color(red: 0.14, green: 0.48, blue: 0.42), Color(red: 0.08, green: 0.32, blue: 0.28)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .clipShape(Capsule())
+                                .shadow(color: iTuTheme.teal.opacity(0.3), radius: 4, y: 1)
+                            }
+                            .buttonStyle(.plain)
+                            .help(timer.activeSession?.phase == .work ? "Complete Focus Session" : "End Break")
+                        }
 
-                    Button {
-                        Task { await model.performFocusAction("abandon") }
-                    } label: {
-                        Image(systemName: "arrow.counterclockwise")
+                        Button {
+                            Task { await model.performFocusAction("abandon") }
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(iTuTheme.inkDim)
+                                .frame(width: 36, height: 36)
+                                .background(iTuTheme.mintTint)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(iTuTheme.border, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help("Abandon session")
                     }
-                    .buttonStyle(.plain)
-                    .help("Abandon session")
                 }
             }
             .padding(.top, 4)
@@ -1174,12 +1245,12 @@ private struct LightDialTicksShape: Shape {
             let rIn = isMajor ? innerRadiusMajor : innerRadiusMinor
 
             let start = CGPoint(
-                x: center.x + CGFloat(rIn * cos(angle)),
-                y: center.y + CGFloat(rIn * sin(angle))
+                x: center.x + CGFloat(rIn * Darwin.cos(angle)),
+                y: center.y + CGFloat(rIn * Darwin.sin(angle))
             )
             let end = CGPoint(
-                x: center.x + CGFloat(radius * cos(angle)),
-                y: center.y + CGFloat(radius * sin(angle))
+                x: center.x + CGFloat(radius * Darwin.cos(angle)),
+                y: center.y + CGFloat(radius * Darwin.sin(angle))
             )
 
             path.move(to: start)

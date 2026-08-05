@@ -14,7 +14,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
-  GrowthOnboardingState,
   GrowthAttributeMappingSlot,
   GrowthProgressKind,
   GrowthResetScope,

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CardStatus, DeckColor, DeckIcon } from '@core/domain/enums';
+import { CardStatus } from '@core/domain/enums';
 import { ITrashRepository } from '@core/application/ports/out/repositories.port';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from './prisma.service';

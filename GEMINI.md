@@ -12,5 +12,9 @@ Before planning, implementing, testing, reviewing, or updating documentation:
 6. Use only Antigravity-native workers when the Sub-agent route permits delegation.
 7. Never invoke Codex CLI, Codex SDK, `codex exec`, `codex mcp-server`, or any other external coding-agent runtime as a worker or subagent.
 8. If suitable Antigravity-native workers are unavailable, follow the Sub-agent-to-Direct fallback in [`agent_docs/workflows/route_selection.md`](agent_docs/workflows/route_selection.md) and continue implementation directly.
+9. Ensure macOS application and test builds maintain consistent code signing (Apple Development certificate + stable Team ID) across builds to preserve Keychain access. Never pass `CODE_SIGNING_ALLOWED=NO` or `CODE_SIGN_IDENTITY="-"` during standard development or verification runs.
+
+
 
 Do not duplicate project policy in Antigravity-specific files. If an Antigravity-specific instruction conflicts with `AGENTS.md` or `agent_docs/project_guidelines.md`, the canonical repository files take precedence.
+

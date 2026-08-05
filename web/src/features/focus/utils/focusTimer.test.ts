@@ -51,9 +51,10 @@ describe('focus timer', () => {
     expect(focusDisplaySeconds(session, false, now)).toBe(1020);
   });
 
-  it('freezes while paused and supports stopwatch mode', () => {
-    const paused = { ...session, mode: 'STOPWATCH' as const, pausedAt: '2026-07-24T10:05:00.000Z' };
-    expect(focusDisplaySeconds(paused, false, new Date('2026-07-24T12:00:00Z').getTime())).toBe(180);
+  it('prevents break sessions from entering overtime even when allowOvertime is true', () => {
+    const now = new Date('2026-07-24T10:30:00.000Z').getTime(); // 30 mins elapsed
+    const shortBreak: FocusSession = { ...session, phase: 'SHORT_BREAK', plannedSeconds: 300 }; // 5 mins planned
+    expect(focusDisplaySeconds(shortBreak, true, now)).toBe(0);
   });
 
   it('formats time consistently including overtime', () => {

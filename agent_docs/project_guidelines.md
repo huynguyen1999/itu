@@ -79,12 +79,17 @@ General rules:
 Before reporting a completed task, execute and verify:
 
 ```text
-API:   cd api && yarn typecheck && yarn test --runInBand && yarn build
-Web:   cd web && yarn typecheck && yarn test && yarn build
-macOS: cd macos && xcodebuild -project iTu.xcodeproj -scheme iTu -configuration Debug -destination 'platform=macOS' -derivedDataPath ../build/DerivedData CODE_SIGNING_ALLOWED=NO test
+API:         cd api && yarn typecheck && yarn test --runInBand && yarn build
+Web:         cd web && yarn typecheck && yarn test && yarn build
+macOS Build: cd macos && xcodebuild -project iTu.xcodeproj -scheme iTu -configuration Debug -destination 'platform=macOS' -derivedDataPath ../build/DerivedData build
+macOS Tests: cd macos && xcodebuild -project iTu.xcodeproj -scheme iTu -configuration Debug -destination 'platform=macOS' -derivedDataPath ../build/DerivedData test
 ```
 
+Note: macOS app and test builds must maintain consistent code signing (Apple Development certificate + stable Team ID) across builds to preserve Keychain access. Do not pass `CODE_SIGNING_ALLOWED=NO` or `CODE_SIGN_IDENTITY="-"` during verification runs, as ad-hoc signing causes macOS to prompt for system passwords on every test execution.
+
+
 Explicitly report any command that could not run. Use the shared NestJS/Winston logger in backend code; never use `console.log`. Preserve request IDs and correlation context. Do not remove existing log statements unless instructed.
+
 
 - Use strict TypeScript with no implicit `any`.
 - Prefer early returns and focused functions.

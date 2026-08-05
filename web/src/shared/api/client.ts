@@ -1,4 +1,4 @@
-import { API_BASE_URL, HttpClient } from './httpClient';
+import { HttpClient } from './httpClient';
 export { API_BASE_URL } from './httpClient';
 import { createAuthApi, type AuthApi } from './authApi';
 import { createDeckStudyApi, type DeckStudyApi } from './deckStudyApi';

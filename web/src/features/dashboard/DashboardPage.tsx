@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, BookOpenText, History, LibraryBig, PlayCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
-import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 

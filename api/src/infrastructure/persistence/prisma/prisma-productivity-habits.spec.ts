@@ -307,6 +307,7 @@ describe('PrismaProductivityHabits', () => {
       id: 'focus-1',
       userId: 'user-1',
       presetId: 'preset-1',
+      phase: 'WORK',
       status: 'ACTIVE',
       startedAt,
       completedAt: null,

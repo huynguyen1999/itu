@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { useAuth } from './shared/auth/AuthProvider';
 import { Layout } from './shared/ui/Layout';
 import { AuthPage } from './features/auth';

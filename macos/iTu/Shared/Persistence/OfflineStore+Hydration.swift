@@ -112,7 +112,7 @@ extension OfflineStore {
 
     private func reapplyPendingHabitMutations(optimisticByID: [String: HabitModel]) throws {
         for mutation in state.mutations where mutation.kind == "habit.update" || mutation.kind == "habit.create" {
-            var habit = state.habits.first(where: { $0.id == mutation.entityId }) ?? optimisticByID[mutation.entityId]
+            let habit = state.habits.first(where: { $0.id == mutation.entityId }) ?? optimisticByID[mutation.entityId]
             guard habit != nil else { continue }
             guard var value = habit else { continue }
             if let name = mutation.payload["name"]?.stringValue { value.name = name }
@@ -148,7 +148,7 @@ extension OfflineStore {
 
     private func reapplyPendingGrowthSkillMutations(optimisticByID: [String: SkillNode]) throws {
         for mutation in state.mutations where mutation.kind == "growthskill.update" {
-            var skill = state.skills.first(where: { $0.id == mutation.entityId }) ?? optimisticByID[mutation.entityId]
+            let skill = state.skills.first(where: { $0.id == mutation.entityId }) ?? optimisticByID[mutation.entityId]
             guard var value = skill else { continue }
             if let name = mutation.payload["name"]?.stringValue { value.name = name }
             if let description = mutation.payload["description"]?.stringValue { value.description = description }

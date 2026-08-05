@@ -4,7 +4,7 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import fastifyCompress from '@fastify/compress';
 import fastifyCookie from '@fastify/cookie';
 import fastifyMultipart from '@fastify/multipart';
-import { CONFIG_KEYS, DEFAULT_URLS, MEDIA_CONSTANTS, QUEUE_CONSTANTS } from '@core/application/constants/app.constants';
+import { CONFIG_KEYS, MEDIA_CONSTANTS, QUEUE_CONSTANTS } from '@core/application/constants/app.constants';
 import { AppModule } from './app.module';
 import { WinstonLoggerService } from './infrastructure/logging/winston-logger.service';
 import { captureResponseBody } from './infrastructure/logging/response-body-capture';

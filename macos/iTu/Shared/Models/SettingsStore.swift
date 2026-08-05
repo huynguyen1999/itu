@@ -162,51 +162,80 @@ enum SupportedBrowser: String, Codable, CaseIterable, Identifiable, Hashable {
 
 struct FocusSettings: Codable, Equatable, Hashable {
     var defaultWorkMinutes: Int = 30
-    var overtimeEnabled: Bool = true
+    var shortBreakMinutes: Int = 5
+    var longBreakMinutes: Int = 15
+    var cyclesBeforeLongBreak: Int = 4
+    var countExceededFocusTime: Bool = true
     var finishSoundEnabled: Bool = true
     var desktopNotificationEnabled: Bool = true
     var compactAudio: Bool = true
     var showMenuBarItem: Bool = true
     var menuBarDisplayMode: MenuBarDisplayMode = .remainingTime
+    var autoStartBreaks: Bool = false
+    var autoStartWork: Bool = false
     var focusPolicyEnabled: Bool = false
     var blockedApplications: [BlockedApplication] = []
     var blockedWebsitePatterns: [String] = []
     var enabledBrowsers: [SupportedBrowser] = SupportedBrowser.defaultSelection
 
+    var overtimeEnabled: Bool {
+        get { countExceededFocusTime }
+        set { countExceededFocusTime = newValue }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case defaultWorkMinutes
-        case overtimeEnabled
+        case shortBreakMinutes
+        case longBreakMinutes
+        case cyclesBeforeLongBreak
+        case countExceededFocusTime
         case finishSoundEnabled
         case desktopNotificationEnabled
         case compactAudio
         case showMenuBarItem
         case menuBarDisplayMode
+        case autoStartBreaks
+        case autoStartWork
         case focusPolicyEnabled
         case blockedApplications
         case blockedWebsitePatterns
         case enabledBrowsers
     }
 
+    private enum LegacyCodingKeys: String, CodingKey {
+        case overtimeEnabled
+    }
+
     init(
         defaultWorkMinutes: Int = 30,
-        overtimeEnabled: Bool = true,
+        shortBreakMinutes: Int = 5,
+        longBreakMinutes: Int = 15,
+        cyclesBeforeLongBreak: Int = 4,
+        countExceededFocusTime: Bool = true,
         finishSoundEnabled: Bool = true,
         desktopNotificationEnabled: Bool = true,
         compactAudio: Bool = true,
         showMenuBarItem: Bool = true,
         menuBarDisplayMode: MenuBarDisplayMode = .remainingTime,
+        autoStartBreaks: Bool = false,
+        autoStartWork: Bool = false,
         focusPolicyEnabled: Bool = false,
         blockedApplications: [BlockedApplication] = [],
         blockedWebsitePatterns: [String] = [],
         enabledBrowsers: [SupportedBrowser] = SupportedBrowser.defaultSelection
     ) {
         self.defaultWorkMinutes = defaultWorkMinutes
-        self.overtimeEnabled = overtimeEnabled
+        self.shortBreakMinutes = shortBreakMinutes
+        self.longBreakMinutes = longBreakMinutes
+        self.cyclesBeforeLongBreak = cyclesBeforeLongBreak
+        self.countExceededFocusTime = countExceededFocusTime
         self.finishSoundEnabled = finishSoundEnabled
         self.desktopNotificationEnabled = desktopNotificationEnabled
         self.compactAudio = compactAudio
         self.showMenuBarItem = showMenuBarItem
         self.menuBarDisplayMode = menuBarDisplayMode
+        self.autoStartBreaks = autoStartBreaks
+        self.autoStartWork = autoStartWork
         self.focusPolicyEnabled = focusPolicyEnabled
         self.blockedApplications = blockedApplications
         self.blockedWebsitePatterns = blockedWebsitePatterns
@@ -215,14 +244,22 @@ struct FocusSettings: Codable, Equatable, Hashable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        let legacyValues = try? decoder.container(keyedBy: LegacyCodingKeys.self)
+        let overtimeDecoded = try values.decodeIfPresent(Bool.self, forKey: .countExceededFocusTime)
+            ?? (try legacyValues?.decodeIfPresent(Bool.self, forKey: .overtimeEnabled) ?? true)
         self.init(
             defaultWorkMinutes: try values.decodeIfPresent(Int.self, forKey: .defaultWorkMinutes) ?? 30,
-            overtimeEnabled: try values.decodeIfPresent(Bool.self, forKey: .overtimeEnabled) ?? true,
+            shortBreakMinutes: try values.decodeIfPresent(Int.self, forKey: .shortBreakMinutes) ?? 5,
+            longBreakMinutes: try values.decodeIfPresent(Int.self, forKey: .longBreakMinutes) ?? 15,
+            cyclesBeforeLongBreak: try values.decodeIfPresent(Int.self, forKey: .cyclesBeforeLongBreak) ?? 4,
+            countExceededFocusTime: overtimeDecoded,
             finishSoundEnabled: try values.decodeIfPresent(Bool.self, forKey: .finishSoundEnabled) ?? true,
             desktopNotificationEnabled: try values.decodeIfPresent(Bool.self, forKey: .desktopNotificationEnabled) ?? true,
             compactAudio: try values.decodeIfPresent(Bool.self, forKey: .compactAudio) ?? true,
             showMenuBarItem: try values.decodeIfPresent(Bool.self, forKey: .showMenuBarItem) ?? true,
             menuBarDisplayMode: try values.decodeIfPresent(MenuBarDisplayMode.self, forKey: .menuBarDisplayMode) ?? .remainingTime,
+            autoStartBreaks: false,
+            autoStartWork: false,
             focusPolicyEnabled: try values.decodeIfPresent(Bool.self, forKey: .focusPolicyEnabled) ?? false,
             blockedApplications: try values.decodeIfPresent([BlockedApplication].self, forKey: .blockedApplications) ?? [],
             blockedWebsitePatterns: try values.decodeIfPresent([String].self, forKey: .blockedWebsitePatterns) ?? [],

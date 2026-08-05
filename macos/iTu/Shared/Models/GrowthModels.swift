@@ -103,7 +103,7 @@ enum GrowthAttributeMappingRules {
         if let value = secondary.first?.weight, !(1...30).contains(value) {
             errors.append("Secondary weight must be an integer from 1% to 30%.")
         }
-        if Set(mappings.map(\.attributeId).filter { !$0.isEmpty }).count != mappings.filter { !$0.attributeId.isEmpty }.count {
+        if (Set(mappings.map(\.attributeId).filter { !$0.isEmpty }).count != mappings.filter { !$0.attributeId.isEmpty }.count) {
             errors.append("Primary and secondary attributes must be different.")
         }
         if mappings.reduce(0, { $0 + $1.weight }) != 100 {

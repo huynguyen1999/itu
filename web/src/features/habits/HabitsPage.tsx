@@ -1,25 +1,16 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import {
   CalendarDays,
   Check,
   ChevronDown,
-  ChevronRight,
-  CircleOff,
-  Clock3,
   Flame,
-  History,
   LayoutGrid,
-  ListChecks,
   MoreHorizontal,
   Plus,
-  RotateCcw,
-  SkipForward,
   Smile,
   Target,
-  Timer,
   X,
   Zap,
 } from 'lucide-react';

@@ -5,6 +5,7 @@ export function createOptimisticFocusSession(input: {
   taskId?: string;
   taskTitleSnapshot?: string;
   customTitle?: string;
+  phase?: 'WORK' | 'SHORT_BREAK' | 'LONG_BREAK';
   plannedSeconds: number;
   startedAt: string;
 }): FocusSession {
@@ -12,7 +13,7 @@ export function createOptimisticFocusSession(input: {
     id: input.id,
     taskId: input.taskId,
     mode: 'COUNTDOWN',
-    phase: 'WORK',
+    phase: input.phase ?? 'WORK',
     status: 'ACTIVE',
     plannedSeconds: input.plannedSeconds,
     accumulatedPauseSecs: 0,
@@ -35,7 +36,10 @@ export function focusDisplaySeconds(session: FocusSession, allowOvertime = false
   const elapsed = focusElapsedSeconds(session, now);
   if (session.mode === 'COUNTDOWN') {
     const diff = (session.plannedSeconds ?? 0) - elapsed;
-    return allowOvertime ? diff : Math.max(0, diff);
+    if (session.phase === 'WORK') {
+      return allowOvertime ? diff : Math.max(0, diff);
+    }
+    return Math.max(0, diff);
   }
   return elapsed;
 }

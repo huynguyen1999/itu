@@ -1,4 +1,4 @@
-import { CardStatus, CardType, DeckColor, DeckIcon, Prisma } from '@prisma/client';
+import { CardStatus, CardType, DeckColor, DeckIcon } from '@prisma/client';
 import { InvalidSyncMutationException } from '@core/domain/exceptions';
 import { createUlid } from './ulid';
 import {

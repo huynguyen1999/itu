@@ -4,15 +4,11 @@ import {
   Check,
   Download,
   Loader2,
-  Pause,
   Pencil,
-  Play,
-  Square,
   Volume2,
   PlayCircle,
   Trash2,
   Upload,
-  VolumeX,
   X,
 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -26,7 +22,6 @@ import { FocusAudioPlayerCard } from './FocusAudioPlayer';
 import { saveFocusSoundCatalog } from '../sounds';
 import type { FocusSound, FocusSoundPreference } from '@/shared/api/types';
 import {
-  DEFAULT_FOCUS_SETTINGS,
   getStoredFocusSettings,
   saveStoredFocusSettings,
   type FocusUserSettings,
@@ -297,11 +292,15 @@ export function FocusSettingsModal({ open, onOpenChange, onSettingsChange }: Foc
     }
   }, [open]);
 
-  const updateSetting = <K extends keyof FocusUserSettings>(key: K, value: FocusUserSettings[K]) => {
-    const updated = { ...settings, [key]: value };
+  const updateSettings = (updates: Partial<FocusUserSettings>) => {
+    const updated = { ...settings, ...updates };
     setSettings(updated);
     saveStoredFocusSettings(updated);
     onSettingsChange?.(updated);
+  };
+
+  const updateSetting = <K extends keyof FocusUserSettings>(key: K, value: FocusUserSettings[K]) => {
+    updateSettings({ [key]: value });
   };
 
   const handleToggleNotification = async (checked: boolean) => {
@@ -372,24 +371,93 @@ export function FocusSettingsModal({ open, onOpenChange, onSettingsChange }: Foc
             {upload.isPending && <p className="text-xs text-muted-foreground">Uploading sound…</p>}
             {upload.isError && <p className="text-xs text-destructive">Sound upload failed. Try again.</p>}
           </div>
-          {/* Overtime Setting */}
+          {/* Default Timer Length */}
           <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/60 bg-muted/20">
             <div className="space-y-0.5">
               <Label className="text-sm font-semibold flex items-center gap-1.5 cursor-pointer">
                 <PlayCircle className="h-4 w-4 text-primary" />
-                Default timer length
+                Default work duration (mins)
               </Label>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Used when opening Focus before choosing a custom duration.
+                Used when starting a work focus session (1–240 min).
               </p>
             </div>
             <input
               type="number"
               min="1"
-              max="180"
+              max="240"
               value={settings.defaultWorkMinutes}
               onChange={(e) =>
-                updateSetting('defaultWorkMinutes', Math.max(1, Math.min(180, Number(e.target.value) || 30)))
+                updateSetting('defaultWorkMinutes', Math.max(1, Math.min(240, Number(e.target.value) || 30)))
+              }
+              className="mt-1 h-9 w-20 rounded-md border border-border bg-background px-2 text-sm font-semibold"
+            />
+          </div>
+
+          {/* Short Break Length */}
+          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/60 bg-muted/20">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-semibold flex items-center gap-1.5 cursor-pointer">
+                <PlayCircle className="h-4 w-4 text-primary" />
+                Short break duration (mins)
+              </Label>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Duration for short breaks between work sessions (1–60 min).
+              </p>
+            </div>
+            <input
+              type="number"
+              min="1"
+              max="60"
+              value={settings.shortBreakMinutes}
+              onChange={(e) =>
+                updateSetting('shortBreakMinutes', Math.max(1, Math.min(60, Number(e.target.value) || 5)))
+              }
+              className="mt-1 h-9 w-20 rounded-md border border-border bg-background px-2 text-sm font-semibold"
+            />
+          </div>
+
+          {/* Long Break Length */}
+          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/60 bg-muted/20">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-semibold flex items-center gap-1.5 cursor-pointer">
+                <PlayCircle className="h-4 w-4 text-primary" />
+                Long break duration (mins)
+              </Label>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Duration for long breaks after completing a cycle (1–120 min).
+              </p>
+            </div>
+            <input
+              type="number"
+              min="1"
+              max="120"
+              value={settings.longBreakMinutes}
+              onChange={(e) =>
+                updateSetting('longBreakMinutes', Math.max(1, Math.min(120, Number(e.target.value) || 15)))
+              }
+              className="mt-1 h-9 w-20 rounded-md border border-border bg-background px-2 text-sm font-semibold"
+            />
+          </div>
+
+          {/* Cycles Before Long Break */}
+          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/60 bg-muted/20">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-semibold flex items-center gap-1.5 cursor-pointer">
+                <PlayCircle className="h-4 w-4 text-primary" />
+                Work sessions before long break
+              </Label>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Number of completed work sessions before a long break (1–20).
+              </p>
+            </div>
+            <input
+              type="number"
+              min="1"
+              max="20"
+              value={settings.cyclesBeforeLongBreak}
+              onChange={(e) =>
+                updateSetting('cyclesBeforeLongBreak', Math.max(1, Math.min(20, Number(e.target.value) || 4)))
               }
               className="mt-1 h-9 w-20 rounded-md border border-border bg-background px-2 text-sm font-semibold"
             />
@@ -400,16 +468,18 @@ export function FocusSettingsModal({ open, onOpenChange, onSettingsChange }: Foc
             <div className="space-y-0.5">
               <Label className="text-sm font-semibold flex items-center gap-1.5 cursor-pointer">
                 <PlayCircle className="h-4 w-4 text-primary" />
-                Auto-continue overtime after timer ends
+                Continue counting after focus timer ends
               </Label>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                When countdown reaches 00:00, notify and keep counting upward (+MM:SS) until you press Stop.
+                Keep the focus session running after the planned time and record the additional focused time.
               </p>
             </div>
             <input
               type="checkbox"
-              checked={settings.autoContinueOvertime}
-              onChange={(e) => updateSetting('autoContinueOvertime', e.target.checked)}
+              checked={settings.countExceededFocusTime}
+              onChange={(e) =>
+                updateSettings({ countExceededFocusTime: e.target.checked, autoContinueOvertime: e.target.checked })
+              }
               className="mt-1 h-4 w-4 rounded border-border accent-primary cursor-pointer"
             />
           </div>

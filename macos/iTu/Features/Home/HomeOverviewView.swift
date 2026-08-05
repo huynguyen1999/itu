@@ -17,24 +17,8 @@ struct HomeOverviewView: View {
                 headerBar
 
                 ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: 20) {
-                        VStack(spacing: 16) {
-                            levelHeroBanner
-                            todayTasksSection(todayTasks: todayTasks, completedCount: completedTodayCount)
-                            todayHabitsSection
-                        }
-                        .frame(minWidth: 520, maxWidth: .infinity)
-
-                        attributeProfileCard
-                            .frame(width: 360)
-                    }
-
-                    VStack(spacing: 16) {
-                        levelHeroBanner
-                        todayTasksSection(todayTasks: todayTasks, completedCount: completedTodayCount)
-                        todayHabitsSection
-                        attributeProfileCard
-                    }
+                    wideLayout(todayTasks: todayTasks, completedCount: completedTodayCount)
+                    narrowLayout(todayTasks: todayTasks, completedCount: completedTodayCount)
                 }
             }
             .padding(24)
@@ -44,6 +28,29 @@ struct HomeOverviewView: View {
         .background(iTuTheme.canvas)
         .sheet(item: $editingTask) { task in
             TaskEditorView(task: task)
+        }
+    }
+
+    private func wideLayout(todayTasks: [ProductivityTask], completedCount: Int) -> some View {
+        HStack(alignment: .top, spacing: 20) {
+            VStack(spacing: 16) {
+                levelHeroBanner
+                todayTasksSection(todayTasks: todayTasks, completedCount: completedCount)
+                todayHabitsSection
+            }
+            .frame(minWidth: 520, maxWidth: .infinity)
+
+            attributeProfileCard
+                .frame(width: 360)
+        }
+    }
+
+    private func narrowLayout(todayTasks: [ProductivityTask], completedCount: Int) -> some View {
+        VStack(spacing: 16) {
+            levelHeroBanner
+            todayTasksSection(todayTasks: todayTasks, completedCount: completedCount)
+            todayHabitsSection
+            attributeProfileCard
         }
     }
 
@@ -626,21 +633,29 @@ private struct AttributeRadarChartView: View {
             ZStack {
                 gridShapes(center: center, radius: radius)
                 axisLines(center: center, radius: radius)
-                filledRadarShape(center: center, radius: radius)
-                    .fill(
-                        LinearGradient(
-                            colors: [iTuTheme.mint.opacity(0.30), iTuTheme.teal.opacity(0.20)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .shadow(color: iTuTheme.teal.opacity(0.12), radius: 4, y: 2)
-                filledRadarShape(center: center, radius: radius)
-                    .stroke(iTuTheme.teal, lineWidth: 2.5)
+                radarFill(center: center, radius: radius)
+                radarOutline(center: center, radius: radius)
                 vertexPointsAndLabels(center: center, radius: radius, availableWidth: geo.size.width)
             }
         }
         .frame(height: 280)
+    }
+
+    private func radarFill(center: CGPoint, radius: CGFloat) -> some View {
+        filledRadarShape(center: center, radius: radius)
+            .fill(
+                LinearGradient(
+                    colors: [iTuTheme.mint.opacity(0.30), iTuTheme.teal.opacity(0.20)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .shadow(color: iTuTheme.teal.opacity(0.12), radius: 4, y: 2)
+    }
+
+    private func radarOutline(center: CGPoint, radius: CGFloat) -> some View {
+        filledRadarShape(center: center, radius: radius)
+            .stroke(iTuTheme.teal, lineWidth: 2.5)
     }
 
     @ViewBuilder
@@ -703,19 +718,40 @@ private struct AttributeRadarChartView: View {
         let count = items.count
         let labelWidth = min(132, max(96, availableWidth * 0.38))
         ForEach(0..<count, id: \.self) { i in
-            let item = items[i]
-            let stepRadius = radius * item.progress
-            let angle = Double(i) * (2 * .pi / Double(count)) - (.pi / 2)
-            let dotX = center.x + stepRadius * CGFloat(cos(angle))
-            let dotY = center.y + stepRadius * CGFloat(sin(angle))
-            let labelRadius = radius + 38
-            let labelX = center.x + labelRadius * CGFloat(cos(angle))
-            let labelY = center.y + labelRadius * CGFloat(sin(angle))
-            let side = cos(angle)
-            let labelAlignment: Alignment = side > 0.25 ? .leading : side < -0.25 ? .trailing : .center
-            let textAlignment: TextAlignment = side > 0.25 ? .leading : side < -0.25 ? .trailing : .center
-            let labelOffset = side > 0.25 ? labelWidth / 2 : side < -0.25 ? -labelWidth / 2 : 0
+            AttributeVertexView(
+                item: items[i],
+                index: i,
+                totalCount: count,
+                center: center,
+                radius: radius,
+                labelWidth: labelWidth
+            )
+        }
+    }
+}
 
+private struct AttributeVertexView: View {
+    let item: AttributeRadarChartView.AttributeItem
+    let index: Int
+    let totalCount: Int
+    let center: CGPoint
+    let radius: CGFloat
+    let labelWidth: CGFloat
+
+    var body: some View {
+        let angle = Double(index) * (2 * .pi / Double(totalCount)) - (.pi / 2)
+        let stepRadius = radius * item.progress
+        let dotX = center.x + stepRadius * CGFloat(cos(angle))
+        let dotY = center.y + stepRadius * CGFloat(sin(angle))
+        let labelRadius = radius + 38
+        let labelX = center.x + labelRadius * CGFloat(cos(angle))
+        let labelY = center.y + labelRadius * CGFloat(sin(angle))
+        let side = cos(angle)
+        let labelAlignment: Alignment = side > 0.25 ? .leading : (side < -0.25 ? .trailing : .center)
+        let textAlignment: TextAlignment = side > 0.25 ? .leading : (side < -0.25 ? .trailing : .center)
+        let labelOffset: CGFloat = side > 0.25 ? labelWidth / 2 : (side < -0.25 ? -labelWidth / 2 : 0)
+
+        ZStack {
             Circle()
                 .fill(item.color)
                 .frame(width: 7, height: 7)

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, BookOpenText, ChartNoAxesCombined, CheckCircle2, Clock3, Settings2, Trophy } from 'lucide-react';
+import { ArrowRight, BookOpenText, ChartNoAxesCombined, Clock3 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   PolarAngleAxis,
@@ -43,7 +43,6 @@ const HOME_PROFILE_SELECTION_KEY = 'itu_home_profile_selection_v1';
 
 /* ─── Design tokens from the reference HTML ─── */
 const RADIUS_LG = '20px';
-const RADIUS_MD = '14px';
 const TEAL_DEEP = '#0D3831';
 const TEAL = '#1E7864';
 const GOLD = '#AD8A3D';

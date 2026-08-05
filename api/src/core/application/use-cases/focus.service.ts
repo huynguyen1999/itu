@@ -156,14 +156,18 @@ export class FocusService {
   }
 
   async listFocusHistory(userId: string) {
-    return this.repo.listFocusSessions(userId, {
-      status: { in: [FocusSessionStatus.COMPLETED, FocusSessionStatus.ABANDONED] },
-    });
+    const sessions = await this.repo.listFocusSessions(userId);
+    return sessions.filter((s) =>
+      s.phase === FocusPhase.WORK
+        ? s.status === FocusSessionStatus.COMPLETED || s.status === FocusSessionStatus.ABANDONED
+        : s.status === FocusSessionStatus.COMPLETED,
+    );
   }
 
   async getFocusSummary(userId: string) {
     const sessions = await this.repo.listFocusSessions(userId);
-    const completed = sessions.filter((s) => s.status === FocusSessionStatus.COMPLETED);
+    const workSessions = sessions.filter((s) => s.phase === FocusPhase.WORK);
+    const completed = workSessions.filter((s) => s.status === FocusSessionStatus.COMPLETED);
     const totalDurationSeconds = completed.reduce((acc, s) => {
       const start = s.startedAt ? new Date(s.startedAt).getTime() : 0;
       const end = s.completedAt ? new Date(s.completedAt).getTime() : start;
@@ -172,9 +176,9 @@ export class FocusService {
     }, 0);
 
     return {
-      totalSessions: sessions.length,
+      totalSessions: workSessions.length,
       completedSessions: completed.length,
-      completionRate: sessions.length === 0 ? 0 : Math.round((completed.length / sessions.length) * 100),
+      completionRate: workSessions.length === 0 ? 0 : Math.round((completed.length / workSessions.length) * 100),
       totalFocusedMinutes: Math.round(totalDurationSeconds / 60),
     };
   }

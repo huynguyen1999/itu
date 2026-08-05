@@ -8,15 +8,13 @@ import {
   HabitProgressSource,
   HabitScheduleType,
   Prisma,
-  ReminderStatus,
-  ScheduledJobStatus,
 } from '@prisma/client';
 import { DomainException, EntityNotFoundException } from '@core/domain/exceptions';
 import { PrismaService } from './prisma.service';
 import { createUlid } from './ulid';
 import { PrismaFocusPersistence } from './prisma-focus.persistence';
 import { isHabitScheduled, utcDay } from '@core/application/use-cases/productivity-rules';
-import { awardGrowthActivityWithReceipt, reverseGrowthActivity, reverseGrowthActivityWithReceipt, GrowthAwardReceipt } from '@core/application/use-cases/growth-awards';
+import { awardGrowthActivityWithReceipt, reverseGrowthActivityWithReceipt, GrowthAwardReceipt } from '@core/application/use-cases/growth-awards';
 import { ensureHabitGrowthRule } from '@core/application/use-cases/ensure-habit-growth-rule';
 import { HABIT_ACTION_MARKER_PREFIX } from './prisma-sync.helpers';
 import { focusActionSemanticPayload, focusAdjustSemanticPayload, focusPayloadsEqual } from './focus-idempotency';

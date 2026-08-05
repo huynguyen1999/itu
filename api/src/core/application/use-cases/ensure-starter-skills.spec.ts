@@ -1,4 +1,4 @@
-import { GrowthProgressKind, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { ensureStarterSkills } from './ensure-starter-skills';
 
 describe('ensureStarterSkills attribute routes', () => {

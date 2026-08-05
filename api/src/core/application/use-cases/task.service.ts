@@ -2,7 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { TOKENS } from '@core/application/constants/tokens';
 import type { IProductivityRepository, ISyncDeviceRepository } from '@core/application/ports/out/repositories.port';
 import type { IQueueJobHandler, ISyncInvalidationNotifier } from '@core/application/ports/out/services.port';
-import { DomainException, EntityNotFoundException } from '@core/domain/exceptions';
+import { EntityNotFoundException } from '@core/domain/exceptions';
 import { deriveUrgency } from './productivity-rules';
 import { normalizeCursorOptions } from '@core/application/pagination/cursor-pagination';
 import type { CursorPage } from '@core/application/ports/pagination.port';

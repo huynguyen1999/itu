@@ -1,67 +1,24 @@
 import { Tx, recordSyncChange } from './prisma-sync-mutation.shared';
 import {
-  AiJobType,
-  CardStatus,
-  CardType,
-  CommitmentPolicyLevel,
-  DeckColor,
-  DeckIcon,
   GrowthAttributeMappingSlot,
   GrowthProgressKind,
   GrowthRewardPreset,
   GrowthScalingMode,
   GrowthSourceType,
-  FocusMode,
-  FocusPhase,
-  FocusSessionStatus,
-  HabitDirection,
-  HabitOccurrenceStatus,
-  HabitProgressSource,
-  HabitScheduleType,
-  HabitTargetType,
-  Prisma,
-  ReviewDirection,
-  ReviewGrade,
-  ReminderStatus,
-  StudyMode,
-  TaskPriority,
-  TaskStatus,
 } from '@prisma/client';
 import { SyncConflict, SyncMutation } from '@core/application/ports/in/sync-use-case.port';
-import {
-  ApplySyncMutationsResult,
-  ISyncRepository,
-  SyncChangesResult,
-} from '@core/application/ports/out/sync-repository.port';
-import { SrsSchedulerService } from '@core/application/use-cases/srs-scheduler.service';
-import { ReviewDirection as DomainReviewDirection, ReviewGrade as DomainReviewGrade } from '@core/domain/enums';
 import { InvalidSyncMutationException } from '@core/domain/exceptions';
 import { createUlid } from './ulid';
-import { PrismaService } from './prisma.service';
-import { mapCard, mapDeck } from './prisma.mappers';
-import { deriveUrgency } from '@core/application/use-cases/productivity-rules';
-import { awardGrowthActivityWithReceipt, reverseGrowthActivity, reverseGrowthActivityWithReceipt } from '@core/application/use-cases/growth-awards';
-import { ensureHabitGrowthRule } from '@core/application/use-cases/ensure-habit-growth-rule';
-import { ensureStarterSkills } from '@core/application/use-cases/ensure-starter-skills';
 import { STARTER_SKILLS } from '@core/application/use-cases/growth-starter-skills';
 import { REWARD_PRESETS } from '@core/application/use-cases/growth-reward-presets';
-import { focusActionSemanticPayload, focusAdjustSemanticPayload, focusStartSemanticPayload } from './focus-idempotency';
-import { commitmentDefaults, commitmentFeatureEnabled, evaluateMissedCommitment, recoveryWindowOpen, reverseCommitmentPenalty } from '@core/application/use-cases/habit-commitments';
 import {
   assertClientId,
   awardsArray,
-  conflictingSyncFields,
   enumValue,
   fieldConflict,
   notFound,
-  numberArray,
   optionalString,
-  requiredInt,
   requiredString,
-  stale,
-  stringArray,
-  syncValuesEqual,
-  HABIT_ACTION_MARKER_PREFIX,
   validatedGrowthInt,
 } from './prisma-sync.helpers';
 export { conflictingSyncFields } from './prisma-sync.helpers';

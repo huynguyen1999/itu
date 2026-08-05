@@ -148,6 +148,7 @@ describe('SyncQueue transport split', () => {
   });
 
   it('pulls WebSocket changes without posting the mutation queue', async () => {
+    SyncQueue.useUnifiedSync = false;
     installBrowserGlobals();
     vi.spyOn(offlineSyncStore, 'getCursor').mockResolvedValue('5');
     vi.spyOn(offlineSyncStore, 'setCursor').mockResolvedValue();

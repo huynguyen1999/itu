@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { CardStatus, CardType, ReviewDirection } from '@core/domain/enums';
-import { CardModel } from '@core/domain/models';
 import { CursorPageOptions } from '@core/application/ports/pagination.port';
 import { normalizeCursorOptions, toCursorPage } from '@core/application/pagination/cursor-pagination';
 import { ICardRepository, IDeckRepository } from '@core/application/ports/out/repositories.port';

@@ -88,8 +88,9 @@ describe('SyncService', () => {
       acknowledgedMutationIds: ['mutation-1'],
       cursor: '42',
       lastSyncTime: expect.any(String),
-      changes: [{ cursor: 42, entityType: 'deck', entityId: 'deck-1', deleted: false, data: { id: 'deck-1' } }],
+      changes: [{ complete: true, cursor: 42, entityType: 'deck', entityId: 'deck-1', deleted: false, data: { id: 'deck-1' } }],
       conflicts: [],
+      mutationOutcomes: undefined,
     });
   });
 

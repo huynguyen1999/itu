@@ -9,7 +9,7 @@ import { CardGrading } from '@core/application/ports/out/service-types.port';
 import { AiJobType } from '@core/domain/enums';
 import { AiJobModel, AiSessionFeedbackModel } from '@core/domain/models';
 import { EntityNotFoundException } from '@core/domain/exceptions';
-import { AI_CONSTANTS, AI_ERRORS } from '@core/application/constants/app.constants';
+import { AI_CONSTANTS } from '@core/application/constants/app.constants';
 import { hydrateSessionReviewImages } from './ai-session-images';
 
 export class AiService implements IAiUseCase {

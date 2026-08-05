@@ -437,6 +437,7 @@ private struct TaskRow: View {
                             GrowthRewardSummaryView(
                                 rule: growthRule,
                                 compact: true,
+                                dense: true,
                                 archivedSkillIDs: Set(model.skills.filter { $0.archivedAt != nil }.map(\.id))
                             )
                         }
@@ -812,7 +813,7 @@ struct GrowthRewardSummaryView: View {
     @ViewBuilder
     private var rewardChips: some View {
         if rewardCount > 0 {
-            WrappingHStack(horizontalSpacing: 6, verticalSpacing: 5) {
+            Group {
                 if let accountXp = rule?.accountXp, accountXp > 0 {
                     GrowthAccountRewardChipView(amount: accountXp, dense: dense)
                 }
@@ -863,10 +864,6 @@ private struct GrowthRewardChipView: View {
     var showsMultiSkillStack: Bool = false
     var dense = false
 
-    private var weightLabel: String {
-        weights.map { "\($0)%" }.joined(separator: "/")
-    }
-
     var body: some View {
         HStack(spacing: 5) {
             // Overlapping circular marks stack matching Web .itu-reward-chip__mark
@@ -896,7 +893,7 @@ private struct GrowthRewardChipView: View {
                 }
             }
 
-            Text(dense ? "+\(xpAmount)" : "+\(xpAmount) Skill XP · \(weightLabel)")
+            Text(dense ? "+\(xpAmount)" : "+\(xpAmount) Skill XP")
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color(hex: 0x0D5C4D))
         }
@@ -909,7 +906,7 @@ private struct GrowthRewardChipView: View {
             Capsule()
                 .stroke(Color(hex: 0xA7F3D0), lineWidth: 1)
         }
-        .accessibilityLabel("Earn \(xpAmount) Skill XP, weights \(weightLabel)")
+        .accessibilityLabel("Earn \(xpAmount) Skill XP")
     }
 }
 

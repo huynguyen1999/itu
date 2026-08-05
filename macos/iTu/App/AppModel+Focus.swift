@@ -15,6 +15,11 @@ extension AppModel {
     func loadFocus() async {
         guard user != nil else { return }
         AudioPlayerManager.shared.configureBuiltInDefaults()
+        AudioPlayerManager.shared.onStartPlaybackRequested = { [weak self] in
+            Task { [weak self] in
+                await self?.toggleFocusSoundPlayback()
+            }
+        }
         focusTimer.isLoading = true
         defer { focusTimer.isLoading = false }
         do {
@@ -29,9 +34,6 @@ extension AppModel {
             if let loadedSoundCatalog = try? await soundCatalog {
                 AudioPlayerManager.shared.configure(catalog: loadedSoundCatalog)
             }
-            // Hydrate the timer only after the store has merged server data with
-            // any local focus state. Applying `activeFocus` first lets a stale
-            // endpoint response briefly roll back an optimistic action.
             apply(try await offlineStore.hydrateFocus(active: loadedActive, history: loadedHistory))
             updateFocusPolicy()
             focusTimer.errorMessage = nil
@@ -217,6 +219,7 @@ extension AppModel {
         )
         focusTimer.apply(active: session)
         updateFocusPolicy()
+        AudioPlayerManager.shared.playIfEnabled()
         await saveFocusSession(session, mutation: mutation)
     }
 
@@ -248,6 +251,7 @@ extension AppModel {
         case "pause":
             session.status = .paused
             session.pausedAt = occurredAt
+            AudioPlayerManager.shared.pause()
         case "resume":
             if let pausedAt = session.pausedAt,
                let pausedDate = ISO8601DateFormatter().date(from: pausedAt),
@@ -256,6 +260,7 @@ extension AppModel {
             }
             session.status = .active
             session.pausedAt = nil
+            AudioPlayerManager.shared.playIfEnabled()
         case "extend":
             session.plannedSeconds = (session.plannedSeconds ?? 0) + (extendSeconds ?? 300)
         case "attach":
@@ -265,6 +270,7 @@ extension AppModel {
         case "complete", "abandon":
             session.status = action == "complete" ? .completed : .abandoned
             session.completedAt = occurredAt
+            AudioPlayerManager.shared.pause()
         default:
             return
         }

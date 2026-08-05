@@ -48,10 +48,18 @@ final class FocusTimer {
     var isLoading = false
     var isMutating = false
     var errorMessage: String?
-    var overtimeEnabled = true
+    var countExceededFocusTime = true
+    var overtimeEnabled: Bool {
+        get { countExceededFocusTime }
+        set { countExceededFocusTime = newValue }
+    }
     var finishSoundEnabled = true
     var desktopNotificationEnabled = true
     var compactAudio = true
+
+    var pendingPhase: FocusPhase = .work
+    var isBreakPending: Bool = false
+    var isWorkPending: Bool = false
 
     var currentTitle: String {
         if let title = activeSession?.customTitle, !title.isEmpty {
@@ -66,7 +74,8 @@ final class FocusTimer {
         if !customTitle.isEmpty {
             return customTitle
         }
-        return "Focus"
+        let phase = activeSession?.phase ?? pendingPhase
+        return phase == .work ? "Focus" : (phase == .shortBreak ? "Short break" : "Long break")
     }
 
     private var now = Date()
@@ -79,7 +88,7 @@ final class FocusTimer {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
                 self?.now = Date()
-                self?.deliverCompletionNotificationIfNeeded()
+                self?.evaluateAutoCompletionAndNotification()
             }
         }
     }
@@ -107,7 +116,12 @@ final class FocusTimer {
             return elapsedSeconds
         }
         let remaining = (session.plannedSeconds ?? 0) - elapsedSeconds
-        return overtimeEnabled ? remaining : max(0, remaining)
+        if session.phase == .work {
+            return countExceededFocusTime ? remaining : max(0, remaining)
+        } else {
+            // Breaks never enter overtime
+            return max(0, remaining)
+        }
     }
 
     var formattedRemaining: String {
@@ -118,7 +132,9 @@ final class FocusTimer {
     }
 
     var progressFraction: Double {
+        if isBreakPending || isWorkPending { return 1.0 }
         guard let session = activeSession else { return 0 }
+        if displaySeconds <= 0 { return 1.0 }
         let total = max(1, session.plannedSeconds ?? selectedDurationSeconds)
         return min(1, max(0, Double(elapsedSeconds) / Double(total)))
     }
@@ -133,7 +149,8 @@ final class FocusTimer {
 
     var todayCompletedSessionsCount: Int {
         history.filter {
-            $0.status == .completed
+            $0.phase == .work
+                && $0.status == .completed
                 && Self.parseDate($0.adjustedStartedAt ?? $0.startedAt).map(Calendar.current.isDateInToday) == true
         }.count
     }
@@ -141,7 +158,8 @@ final class FocusTimer {
     var todayFocusedMinutes: Int {
         history
             .filter {
-                $0.status == .completed
+                $0.phase == .work
+                    && $0.status == .completed
                     && Self.parseDate($0.adjustedStartedAt ?? $0.startedAt).map(Calendar.current.isDateInToday) == true
             }
             .reduce(0) { total, session in
@@ -177,7 +195,7 @@ final class FocusTimer {
     }
 
     func configure(settings: FocusSettings) {
-        overtimeEnabled = settings.overtimeEnabled
+        countExceededFocusTime = settings.countExceededFocusTime
         finishSoundEnabled = settings.finishSoundEnabled
         desktopNotificationEnabled = settings.desktopNotificationEnabled
         compactAudio = settings.compactAudio
@@ -197,6 +215,93 @@ final class FocusTimer {
         }
     }
 
+    func startOptimisticSession(
+        phase: FocusPhase,
+        plannedSeconds: Int,
+        taskId: String?,
+        customTitle: String?,
+        idempotencyKey: String?
+    ) -> FocusSession {
+        isBreakPending = false
+        isWorkPending = false
+        let session = FocusSession.optimistic(
+            id: UUID().uuidString,
+            task: linkedTask,
+            phase: phase,
+            plannedSeconds: plannedSeconds,
+            startedAt: ISO8601DateFormatter().string(from: Date())
+        )
+        var mutableSession = session
+        mutableSession.taskId = taskId ?? linkedTask?.id
+        mutableSession.customTitle = customTitle
+        activeSession = mutableSession
+        return mutableSession
+    }
+
+    func pauseActiveSession() {
+        guard var session = activeSession, session.status == .active else { return }
+        session.status = .paused
+        session.pausedAt = ISO8601DateFormatter().string(from: Date())
+        activeSession = session
+    }
+
+    func resumeActiveSession() {
+        guard var session = activeSession, session.status == .paused else { return }
+        if let pausedAtStr = session.pausedAt, let pausedDate = Self.parseDate(pausedAtStr) {
+            let pauseDuration = Int(Date().timeIntervalSince(pausedDate))
+            session.accumulatedPauseSecs += max(0, pauseDuration)
+        }
+        session.status = .active
+        session.pausedAt = nil
+        activeSession = session
+    }
+
+    func completeActiveSession() -> FocusSession? {
+        guard var session = activeSession else { return nil }
+        session.status = .completed
+        session.completedAt = ISO8601DateFormatter().string(from: Date())
+        if session.phase == .work {
+            history.append(session)
+        } else {
+            // Completed breaks appear in history
+            history.append(session)
+        }
+        activeSession = nil
+        return session
+    }
+
+    func abandonActiveSession() -> FocusSession? {
+        guard var session = activeSession else { return nil }
+        session.status = .abandoned
+        session.completedAt = ISO8601DateFormatter().string(from: Date())
+        if session.phase == .work {
+            history.append(session)
+        }
+        activeSession = nil
+        return session
+    }
+
+    private func evaluateAutoCompletionAndNotification() {
+        guard let session = activeSession, session.status == .active, session.mode == .countdown else { return }
+
+        let remaining = displaySeconds
+        if remaining <= 0 {
+            deliverCompletionNotificationIfNeeded()
+
+            if session.phase == .work {
+                if !countExceededFocusTime {
+                    // Disabled overtime -> auto complete work session once, audio continues
+                    _ = completeActiveSession()
+                    isBreakPending = true
+                }
+            } else {
+                // Break phases always end at 00:00 -> auto complete break session
+                _ = completeActiveSession()
+                isWorkPending = true
+            }
+        }
+    }
+
     private func deliverCompletionNotificationIfNeeded() {
         guard let session = activeSession,
               Self.shouldDeliverCompletionNotification(
@@ -208,9 +313,9 @@ final class FocusTimer {
 
         notificationFiredSessionID = session.id
         UserDefaults.standard.set(session.id, forKey: "iTu.FocusNotificationFiredSessionID")
-        let taskTitle = session.customTitle ?? session.taskTitleSnapshot ?? "Focus Session"
+        let taskTitle = session.customTitle ?? session.taskTitleSnapshot ?? (session.phase == .work ? "Focus Session" : "Break")
         SystemNotificationManager.shared.deliver(
-            title: "Focus Timer Complete! 🎯",
+            title: session.phase == .work ? "Focus Timer Complete! 🎯" : "Break Complete! ☕️",
             body: "\(taskTitle) is complete.",
             identifier: "focus-complete-\(session.id)"
         )

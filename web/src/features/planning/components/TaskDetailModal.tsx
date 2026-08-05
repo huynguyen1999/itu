@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Calendar, Check, Clock3, CornerDownRight, Flag, ListTodo, Plus, Play, Tag, Trash2, X } from 'lucide-react';
+import { Check, CornerDownRight, Flag, ListTodo, Plus, Play, Trash2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import type { ProductivityTask, TaskPriority } from '@/shared/api/types';

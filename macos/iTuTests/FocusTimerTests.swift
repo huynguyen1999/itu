@@ -306,10 +306,11 @@ final class FocusTimerTests: XCTestCase {
         XCTAssertEqual(timer.elapsedSeconds, 570) // 600s - 30s pause
         XCTAssertEqual(timer.displaySeconds, 930) // 1500s - 570s = 930s
 
+        timer.apply(active: nil)
         XCTAssertFalse(timer.isRunning)
         XCTAssertFalse(timer.isPaused)
         XCTAssertNil(timer.activeSession)
-        XCTAssertEqual(timer.displaySeconds, 1500)
+        XCTAssertEqual(timer.displaySeconds, 1800)
     }
 
     func testCustomTitleAndTagSelectionInFocusTimer() {

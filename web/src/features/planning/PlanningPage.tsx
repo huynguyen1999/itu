@@ -1,11 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import {
   AlertCircle,
   Bell,
   Calendar,
-  CalendarDays,
   CheckSquare2,
   ChevronDown,
   Columns3,
@@ -22,7 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '@/shared/api/client';
-import type { ProductivityTask, TaskInput, TaskPriority, TaskStatus, TaskSection } from '@/shared/api/types';
+import type { ProductivityTask, TaskInput, TaskPriority, TaskSection } from '@/shared/api/types';
 import { Button } from '@/shared/ui/button';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { Input } from '@/shared/ui/input';

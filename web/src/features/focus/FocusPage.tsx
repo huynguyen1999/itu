@@ -4,21 +4,14 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Check,
   ChevronDown,
-  ChevronRight,
-  Clock,
-  Download,
   ListTodo,
-  Loader2,
   MoreHorizontal,
   Pause,
   Pencil,
   Play,
   RotateCcw,
   Search,
-  Square,
   TimerReset,
-  Volume2,
-  VolumeX,
 } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import type { FocusSession } from '@/shared/api/types';
@@ -27,11 +20,10 @@ import { useSync } from '@/shared/sync/SyncProvider';
 import { Button } from '@/shared/ui/button';
 import { Card } from '@/shared/ui/card';
 import { PageHeader } from '@/shared/ui/PageHeader';
-import { createOptimisticFocusSession, focusDisplaySeconds, formatFocusTime, parseDurationInput, validFocusMinutes } from './utils/focusTimer';
+import { createOptimisticFocusSession, focusDisplaySeconds, focusElapsedSeconds, formatFocusTime, validFocusMinutes } from './utils/focusTimer';
 import { playFinishChime } from '@/shared/utils/sound';
 import {
   FocusSettingsModal,
-  DEFAULT_FOCUS_SETTINGS,
   getStoredFocusSettings,
   type FocusUserSettings,
 } from './components/FocusSettingsModal';
@@ -166,8 +158,9 @@ export function FocusPage() {
   }, []);
 
   const displaySeconds = active.data
-    ? focusDisplaySeconds(active.data, userSettings.autoContinueOvertime)
+    ? focusDisplaySeconds(active.data, userSettings.countExceededFocusTime ?? userSettings.autoContinueOvertime)
     : MODE_SECONDS[timerMode];
+  const isCompletable = active.data ? focusElapsedSeconds(active.data) >= (active.data.plannedSeconds ?? 0) : false;
   const selectedSoundIsBuiltin = audio.selectedSound?.source === 'BUILTIN';
   const selectedSoundIsCached = audio.selectedSound ? audio.cachedSoundKeys.has(audio.selectedSound.url) : false;
   const selectedSoundDownloadStatus = audio.selectedSound ? audio.downloadStatuses[audio.selectedSound.id] : undefined;
@@ -179,7 +172,7 @@ export function FocusPage() {
   const soundStatusLabel = getSoundStatusLabel(audio.settings.enabled, audio.settings.muted, audio.isPlaying, selectedSoundIsDownloading, selectedSoundIsCached || selectedSoundJustDownloaded, soundNeedsDownload);
   const canControlAudio = Boolean(audio.settings.enabled && audio.selectedSound);
 
-  // Check finish notification / chime
+  // Check finish notification / chime / auto-completion
   useEffect(() => {
     if (!active.data || active.data.mode !== 'COUNTDOWN' || active.data.status !== 'ACTIVE') return;
     const sessionKey = `${active.data.id}:${active.data.cycle}`;
@@ -199,6 +192,20 @@ export function FocusPage() {
         } catch {
           // ignore
         }
+      }
+
+      // Auto completion logic:
+      // If WORK session and countExceededFocusTime is false, auto-complete at 00:00 (audio continues!)
+      // If SHORT_BREAK or LONG_BREAK session, breaks always auto-complete at 00:00 (audio continues!)
+      const isWork = active.data.phase === 'WORK';
+      const shouldAutoComplete = isWork ? !(userSettings.countExceededFocusTime ?? userSettings.autoContinueOvertime) : true;
+      if (shouldAutoComplete) {
+        action.mutate({
+          operation: 'complete',
+          session: active.data,
+          idempotencyKey: eventKey(),
+          expectedVersion: active.data.version,
+        });
       }
     }
   }, [displaySeconds, active.data, userSettings]);
@@ -266,7 +273,7 @@ export function FocusPage() {
         operation === 'complete' || operation === 'abandon' ? null : session,
       );
       if (operation === 'complete') setLastCompletedSession(session);
-      if (operation === 'complete' || operation === 'abandon') audio.stop();
+      // Audio continues per locked requirement; audio stops only when user manually stops/pauses audio
     },
   });
 
@@ -427,8 +434,19 @@ export function FocusPage() {
   // Percentage circle progress
   const plannedSecs = active.data?.plannedSeconds || MODE_SECONDS[timerMode];
   const isOvertime = displaySeconds < 0;
-  const progressRatio = isOvertime ? 1 : Math.max(0, Math.min(1, 1 - displaySeconds / plannedSecs));
-  const CIRC = 748; // circumference for r=119
+
+  let progressRatio = 0;
+  if (active.data) {
+    const startMs = new Date(active.data.startedAt).getTime();
+    const pauseSecs = active.data.accumulatedPauseSecs || 0;
+    const endMs = active.data.pausedAt ? new Date(active.data.pausedAt).getTime() : Date.now();
+    const elapsedSecs = Math.max(0, (endMs - startMs) / 1000 - pauseSecs);
+    progressRatio = isOvertime || displaySeconds <= 0 ? 1 : Math.max(0, Math.min(1, elapsedSecs / plannedSecs));
+  } else if (lastCompletedSession) {
+    progressRatio = 1;
+  }
+
+  const CIRC = 747.7; // 2 * pi * 119
   const strokeDashoffset = CIRC * (1 - progressRatio);
 
   // Active session total elapsed (for display in footer)
@@ -828,17 +846,18 @@ export function FocusPage() {
                   +5m
                 </Button>
 
-                <Button
-                  size="lg"
-                  variant="destructive"
-                  className="rounded-full h-10 sm:h-12 px-3.5 sm:px-6 text-xs sm:text-sm font-semibold shrink-0"
-                  onClick={() => runFocusAction('complete')}
-                  title="Stop session"
-                  aria-label="Stop focus session"
-                >
-                  <Square className="mr-1.5 h-3.5 sm:h-4 w-3.5 sm:w-4 fill-current shrink-0" />
-                  Stop
-                </Button>
+                {isCompletable && (
+                  <Button
+                    size="lg"
+                    className="rounded-full h-10 sm:h-12 px-3.5 sm:px-6 text-xs sm:text-sm font-semibold shrink-0 itu-primary-action"
+                    onClick={() => runFocusAction('complete')}
+                    title={active.data?.phase === 'WORK' ? "Complete session" : "End Break"}
+                    aria-label={active.data?.phase === 'WORK' ? "Complete focus session" : "End break"}
+                  >
+                    <Check className="mr-1.5 h-3.5 sm:h-4 w-3.5 sm:w-4 shrink-0" />
+                    {active.data?.phase === 'WORK' ? 'Complete' : 'End Break'}
+                  </Button>
+                )}
 
                 <Button
                   size="icon"
