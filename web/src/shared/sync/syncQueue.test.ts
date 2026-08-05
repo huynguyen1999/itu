@@ -269,7 +269,7 @@ describe('SyncQueue transport split', () => {
     const pull = vi.spyOn(queue, 'pull').mockResolvedValue(null);
 
     queue.start();
-    await vi.advanceTimersByTimeAsync(15_000);
+    await vi.advanceTimersByTimeAsync(60_000);
 
     expect(pull).toHaveBeenCalledTimes(1);
     queue.stop();

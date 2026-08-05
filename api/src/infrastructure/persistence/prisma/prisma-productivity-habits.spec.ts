@@ -355,7 +355,7 @@ describe('PrismaProductivityHabits', () => {
 
   it('resolves a concurrent focus idempotency unique-key race as a replay', async () => {
     const session = { id: 'focus-1', userId: 'user-1', status: 'PAUSED', version: 3 };
-    const event = { payload: { action: 'pause', category: null, note: null, extendSeconds: null, ownerDeviceId: null, reflection: null, taskId: null } };
+    const event = { payload: { action: 'pause', category: null, note: null, extendSeconds: null, ownerDeviceId: null, reflection: null, taskId: null, customTitle: null } };
     const db = {
       $transaction: jest.fn().mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' })),
       focusEvent: { findUnique: jest.fn().mockResolvedValue(event) },
