@@ -1,33 +1,67 @@
 import SwiftUI
 
+// MARK: - Layout breakpoints
+enum LayoutMode {
+    /// Primary rail + content only (< 860 pt)
+    case narrow
+    /// Primary rail + content; Plan rail manually toggleable (860 – 1099 pt)
+    case medium
+    /// Primary rail + Plan rail + content (≥ 1100 pt)
+    case wide
+
+    init(width: CGFloat) {
+        if width < 860 {
+            self = .narrow
+        } else if width < 1100 {
+            self = .medium
+        } else {
+            self = .wide
+        }
+    }
+}
+
 struct MainView: View {
     @Environment(AppModel.self) private var model
     @State private var retainedDestinations: Set<RetainedDestination> = [.home]
     @State private var retainedPlanSection: AppSection = .inbox
+    /// Manually shown/hidden in .medium mode; auto-shown in .wide.
+    @State private var showPlanRail = false
 
     var body: some View {
-        ZStack(alignment: .leading) {
-            HStack(spacing: 0) {
-                PrimaryRail()
+        GeometryReader { geometry in
+            let mode = LayoutMode(width: geometry.size.width)
+            ZStack(alignment: .leading) {
+                HStack(spacing: 0) {
+                    PrimaryRail()
 
-                if model.selectedSection.isPlanningSection {
-                    PlanningRail()
+                    // Plan Views rail: always shown in .wide; manually toggled in .medium; hidden in .narrow
+                    if model.selectedSection.isPlanningSection && planRailVisible(mode: mode) {
+                        PlanningRail()
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                    }
+
+                    detail
+                        .environment(\.layoutMode, mode)
+                        .environment(\.showPlanRailBinding, showPlanRailBinding)
+                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .background(iTuTheme.canvas)
+                .onChange(of: mode) { _, newMode in
+                    // In wide mode the sidebar is always implicit — reset the manual toggle
+                    if newMode == .wide { showPlanRail = false }
                 }
 
-                detail
-                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(iTuTheme.canvas)
-
-            if let overlay = model.presentedOverlay {
-                AppOverlayHost(overlay: overlay)
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                    .zIndex(100)
+                if let overlay = model.presentedOverlay {
+                    AppOverlayHost(overlay: overlay)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                        .zIndex(100)
+                }
             }
         }
         .background(iTuTheme.canvas)
         .ignoresSafeArea()
+        .animation(.snappy(duration: 0.22), value: showPlanRail)
         .animation(.snappy, value: model.presentedOverlay)
         .preferredColorScheme(preferredColorScheme)
         .onAppear {
@@ -99,6 +133,22 @@ struct MainView: View {
 
     private var activePlanSection: AppSection {
         model.selectedSection.isRetainedPlanningSection ? model.selectedSection : retainedPlanSection
+    }
+
+    /// Whether the PlanningRail should be displayed for the given mode.
+    private func planRailVisible(mode: LayoutMode) -> Bool {
+        switch mode {
+        case .wide: return true
+        case .medium: return showPlanRail
+        case .narrow: return false
+        }
+    }
+
+    private var showPlanRailBinding: Binding<Bool> {
+        Binding(
+            get: { showPlanRail },
+            set: { showPlanRail = $0 }
+        )
     }
 
     private func retainedDestination<Content: View>(
@@ -340,27 +390,38 @@ private struct PrimaryRail: View {
 
             if let user = model.user {
                 HStack(spacing: 10) {
-                    Text(String(user.accountLabel.prefix(1)).uppercased())
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 36, height: 36)
-                        .background(iTuTheme.teal)
-                        .clipShape(Circle())
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(user.accountLabel)
-                            .font(.system(size: 13, weight: .semibold))
+                    // Avatar initial
+                    ZStack {
+                        Circle()
+                            .fill(iTuTheme.teal)
+                        Text(String(user.accountLabel.prefix(1)).uppercased())
+                            .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(.white)
-                            .lineLimit(1)
-                        HStack(spacing: 4) {
-                            Image(systemName: syncIcon)
-                                .font(.system(size: 9, weight: .medium))
-                            Text(syncTitle)
-                                .font(.system(size: 10, design: .monospaced))
-                        }
-                        .foregroundStyle(syncColor)
                     }
-                    Spacer(minLength: 0)
+                    .frame(width: 34, height: 34)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Name + level badge
+                        HStack(spacing: 6) {
+                            Text(user.accountLabel)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            if let level = model.growthLevel {
+                                Text("Lv \(level)")
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(iTuTheme.mint)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(iTuTheme.mint.opacity(0.15))
+                                    .clipShape(Capsule())
+                            }
+                        }
+
+                        // XP progress bar
+                        xpProgressBar
+                    }
                 }
                 .padding(10)
                 .background(Color.white.opacity(0.055))
@@ -373,9 +434,11 @@ private struct PrimaryRail: View {
                 .onTapGesture {
                     if model.pendingCount > 0 || !model.conflicts.isEmpty {
                         navigateTo(.conflicts)
+                    } else {
+                        navigateTo(.growth)
                     }
                 }
-                .help(model.pendingCount > 0 || !model.conflicts.isEmpty ? "Open sync recovery" : "Sync status")
+                .help("View Growth profile")
             }
         }
         .padding(12)
@@ -424,6 +487,42 @@ private struct PrimaryRail: View {
         case .syncing: iTuTheme.mint
         case .upToDate: iTuTheme.mint
         case .conflict: iTuTheme.coral
+        }
+    }
+
+    @ViewBuilder
+    private var xpProgressBar: some View {
+        let currentXp = model.growthProgressXp ?? model.growthCurrentXp ?? 0
+        let requiredXp = model.growthRequiredXp ?? model.growthNextLevelXp ?? 100
+        let progress = requiredXp > 0 ? CGFloat(currentXp) / CGFloat(requiredXp) : 0
+
+        VStack(alignment: .leading, spacing: 3) {
+            // Track
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.1))
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [iTuTheme.mint, iTuTheme.teal],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(4, geo.size.width * min(progress, 1)))
+                }
+            }
+            .frame(height: 4)
+
+            // XP label
+            HStack(spacing: 0) {
+                Text("\(currentXp)")
+                    .foregroundStyle(Color.white.opacity(0.6))
+                Text(" / \(requiredXp) XP")
+                    .foregroundStyle(Color.white.opacity(0.35))
+            }
+            .font(.system(size: 9, weight: .medium, design: .monospaced))
         }
     }
 }
@@ -737,5 +836,27 @@ private extension AppSection {
         default:
             false
         }
+    }
+}
+
+// MARK: - Environment Keys
+
+struct LayoutModeKey: EnvironmentKey {
+    static let defaultValue: LayoutMode = .wide
+}
+
+struct ShowPlanRailBindingKey: EnvironmentKey {
+    static let defaultValue: Binding<Bool> = .constant(false)
+}
+
+extension EnvironmentValues {
+    var layoutMode: LayoutMode {
+        get { self[LayoutModeKey.self] }
+        set { self[LayoutModeKey.self] = newValue }
+    }
+
+    var showPlanRailBinding: Binding<Bool> {
+        get { self[ShowPlanRailBindingKey.self] }
+        set { self[ShowPlanRailBindingKey.self] = newValue }
     }
 }

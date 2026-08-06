@@ -395,32 +395,13 @@ private struct FocusSettingsPanel: View {
             SettingsCardView(
                 iconName: "menubar.rectangle",
                 title: "Menu Bar",
-                description: "Keep the active Focus Session visible while you work in another app."
+                description: "Show the active focus title or a compact break progress indicator in the menu bar."
             ) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Show Focus in the menu bar", isOn: Binding(
+                    Toggle("Show timer in the menu bar", isOn: Binding(
                         get: { settings.focusSettings.showMenuBarItem },
                         set: { settings.focusSettings.showMenuBarItem = $0 }
                     ))
-
-                    HStack {
-                        Label("Display", systemImage: "timer")
-                            .font(.system(size: 13))
-                            .foregroundStyle(iTuTheme.inkDim)
-                        Spacer()
-                        Picker("Display", selection: Binding(
-                            get: { settings.focusSettings.menuBarDisplayMode },
-                            set: { settings.focusSettings.menuBarDisplayMode = $0 }
-                        )) {
-                            ForEach(MenuBarDisplayMode.allCases) { mode in
-                                Text(mode.label).tag(mode)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(width: 170)
-                        .disabled(!settings.focusSettings.showMenuBarItem)
-                    }
                 }
             }
 

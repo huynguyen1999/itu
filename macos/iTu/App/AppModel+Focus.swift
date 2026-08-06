@@ -209,6 +209,11 @@ extension AppModel {
         )
         if !focusTimer.customTitle.isEmpty {
             session.customTitle = focusTimer.customTitle
+        } else if focusTimer.linkedTask == nil {
+            // No custom title and no linked task – give the session a phase-based default
+            // so it always shows a meaningful label in the focus record list.
+            let phase = focusTimer.timerMode.phase
+            session.customTitle = phase == .work ? "Focus" : (phase == .shortBreak ? "Short break" : "Long break")
         }
         let selectedTags = tags.filter { focusTimer.selectedTagIds.contains($0.id) }
         if !selectedTags.isEmpty {
@@ -243,7 +248,7 @@ extension AppModel {
             entityId: entityId,
             payload: [
                 "taskId": focusTimer.linkedTask.map { .string($0.id) } ?? .null,
-                "customTitle": focusTimer.customTitle.isEmpty ? .null : .string(focusTimer.customTitle),
+                "customTitle": session.customTitle.map { .string($0) } ?? .null,
                 "mode": .string(FocusMode.countdown.rawValue),
                 "plannedSeconds": .number(Double(plannedSeconds)),
                 "ownerDeviceId": .string("macos"),

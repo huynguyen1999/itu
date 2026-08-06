@@ -424,6 +424,12 @@ struct HomeOverviewView: View {
                                     Task { await model.checkInHabitDate(habitId: habit.id, date: todayDateString, value: max(1, habit.targetValue)) }
                                 }
                             )
+                            Image(systemName: habit.icon)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(iTuTheme.teal)
+                                .frame(width: 30, height: 30)
+                                .background(iTuTheme.mintTint)
+                                .clipShape(Circle())
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(habit.name)
                                     .font(.system(size: 13, weight: .semibold))

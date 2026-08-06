@@ -9,9 +9,6 @@ struct TaskListView: View {
     var taskListId: String? = nil
 
     @State private var newTaskTitle = ""
-    @State private var priority: TaskPriority = .none
-    @State private var hasReminder = false
-    @State private var reminderDate = Date().addingTimeInterval(3600)
     @State private var isInboxGroupExpanded = true
     @State private var isCompletedGroupExpanded = true
     @State private var draggedTaskId: String?
@@ -73,7 +70,7 @@ struct TaskListView: View {
                 }
             }
             .padding(24)
-            .frame(maxWidth: 980)
+            .frame(maxWidth: 900)
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(
@@ -120,38 +117,6 @@ struct TaskListView: View {
                     .font(.system(size: 14))
                     .foregroundStyle(iTuTheme.ink)
                     .onSubmit(addTask)
-
-                Menu {
-                    Picker("Priority", selection: $priority) {
-                        ForEach(TaskPriority.allCases, id: \.self) { value in
-                            Label(priorityLabel(value), systemImage: priorityIcon(value))
-                                .tag(value)
-                        }
-                    }
-                } label: {
-                    Image(systemName: priorityIcon(priority))
-                        .font(.system(size: 13))
-                        .foregroundStyle(priority == .none ? iTuTheme.inkFaint : priorityColor(priority))
-                        .frame(width: 28, height: 28)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .help("Set priority")
-
-                Menu {
-                    Toggle("Set reminder", isOn: $hasReminder)
-                    if hasReminder {
-                        DatePicker("Remind at", selection: $reminderDate, in: Date()...)
-                    }
-                } label: {
-                    Image(systemName: hasReminder ? "bell.fill" : "bell")
-                        .font(.system(size: 13))
-                        .foregroundStyle(hasReminder ? iTuTheme.teal : iTuTheme.inkFaint)
-                        .frame(width: 28, height: 28)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .help("Set reminder")
             }
             .padding(.horizontal, 14)
             .frame(minHeight: 46)
@@ -277,20 +242,12 @@ struct TaskListView: View {
         guard !title.isEmpty else { return }
         newTaskTitle = ""
         Task {
-            let task = await model.createTask(
+            await model.createTask(
                 title: title,
-                priority: priority,
+                priority: .none,
                 dueAt: section == .today ? todayDueDate() : nil,
                 taskListId: taskListId
             )
-            if hasReminder, let task {
-                await model.createTaskReminder(
-                    taskId: task.id,
-                    remindAt: ISO8601DateFormatter().string(from: reminderDate)
-                )
-            }
-            hasReminder = false
-            reminderDate = Date().addingTimeInterval(3600)
         }
     }
 
@@ -299,28 +256,6 @@ struct TaskListView: View {
         components.hour = 18
         let date = Calendar.current.date(from: components) ?? Date()
         return ISO8601DateFormatter().string(from: date)
-    }
-
-    private func priorityLabel(_ value: TaskPriority) -> String {
-        switch value {
-        case .none: "No priority"
-        case .low: "Low"
-        case .medium: "Medium"
-        case .high: "High"
-        }
-    }
-
-    private func priorityIcon(_ value: TaskPriority) -> String {
-        value == .none ? "flag" : "flag.fill"
-    }
-
-    private func priorityColor(_ value: TaskPriority) -> Color {
-        switch value {
-        case .none: iTuTheme.inkFaint
-        case .low: iTuTheme.teal
-        case .medium: iTuTheme.amber
-        case .high: iTuTheme.coral
-        }
     }
 }
 
@@ -434,10 +369,9 @@ private struct TaskRow: View {
             .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
 
-            Spacer(minLength: 0)
-
             // Edit Action Menu Button presenting the shared web context popover
             TaskActionMenuButton(task: task, onOpenDetails: onEdit)
+                .layoutPriority(0)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)

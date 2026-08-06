@@ -2,98 +2,28 @@ import SwiftUI
 
 struct PlanningView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.layoutMode) private var layoutMode
+    @Environment(\.showPlanRailBinding) private var showPlanRailBinding
     let section: AppSection
 
     @State private var searchText = ""
+    @State private var searchExpanded = false
     @State private var showGroupAndSortPopover = false
     @State private var showViewOptionsPopover = false
 
     var body: some View {
         VStack(spacing: 0) {
-            // Unified Planning Top Bar Header (Matching Web Plan / All Tasks)
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    iTuSectionLabel(title: section == .today ? "Daily Planning" : "Smart List", color: iTuTheme.teal)
-                    Text(model.selectedTaskListId.flatMap { id in
-                        model.taskLists.first(where: { $0.id == id })?.name
-                    } ?? (section == .inbox ? "All Tasks" : section.title))
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(iTuTheme.ink)
+            // Unified Planning Top Bar Header
+            toolbar
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+                .padding(.bottom, 16)
+                .background(iTuTheme.surface.opacity(0.88))
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(iTuTheme.border)
+                        .frame(height: 1)
                 }
-
-                Spacer()
-
-                // Search Bar
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 12))
-                        .foregroundStyle(iTuTheme.inkFaint)
-                    TextField("Search tasks…", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-                }
-                .padding(.horizontal, 10)
-                .frame(width: 170, height: 32)
-                .background(iTuTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(iTuTheme.border, lineWidth: 1)
-                }
-
-                // Group & Sort Button (≡ / ListFilter icon button matching Web Image 3)
-                Button {
-                    showGroupAndSortPopover.toggle()
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(iTuTheme.inkDim)
-                        .frame(width: 32, height: 32)
-                        .background(iTuTheme.mintTint.opacity(0.6))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(iTuTheme.teal.opacity(0.3), lineWidth: 1)
-                        }
-                }
-                .buttonStyle(.plain)
-                .pointingHandCursor()
-                .help("Group & Sort options")
-                .popover(isPresented: $showGroupAndSortPopover, arrowEdge: .top) {
-                    GroupAndSortPopoverView(onDismiss: { showGroupAndSortPopover = false })
-                }
-
-                // View Options Menu Button (... icon button matching Web Image 2)
-                Button {
-                    showViewOptionsPopover.toggle()
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(iTuTheme.inkDim)
-                        .frame(width: 32, height: 32)
-                        .background(iTuTheme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(iTuTheme.border, lineWidth: 1)
-                        }
-                }
-                .buttonStyle(.plain)
-                .pointingHandCursor()
-                .help("View options")
-                .popover(isPresented: $showViewOptionsPopover, arrowEdge: .top) {
-                    ViewOptionsPopoverView(onDismiss: { showViewOptionsPopover = false })
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 24)
-            .padding(.bottom, 16)
-            .background(iTuTheme.surface.opacity(0.88))
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(iTuTheme.border)
-                    .frame(height: 1)
-            }
 
             // Main Content Area
             if model.planningViewMode == .matrix {
@@ -104,6 +34,199 @@ struct PlanningView: View {
                     filterQuery: searchText,
                     taskListId: model.selectedTaskListId
                 )
+            }
+        }
+    }
+
+    // MARK: - Adaptive Toolbar
+
+    /// Full toolbar: title | (spacer) | search-field | sort | options
+    private var wideToolbar: some View {
+        HStack(spacing: 10) {
+            sidebarToggleButton
+
+            titleSection
+
+            Spacer(minLength: 12)
+
+            // Search field — unconstrained width, grows with available space
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 12))
+                    .foregroundStyle(iTuTheme.inkFaint)
+                TextField("Search tasks…", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .frame(minWidth: 80, idealWidth: 160, maxWidth: 200)
+                if !searchText.isEmpty {
+                    Button { searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(iTuTheme.inkFaint)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .background(iTuTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(iTuTheme.border, lineWidth: 1)
+            }
+
+            iconButtons
+        }
+    }
+
+    /// Compact toolbar: title | (spacer) | search-icon | sort | options
+    private var compactToolbar: some View {
+        HStack(spacing: 8) {
+            sidebarToggleButton
+
+            titleSection
+
+            Spacer(minLength: 8)
+
+            // Search collapsed to icon; tap expands a popover or inline field
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { searchExpanded.toggle() }
+            } label: {
+                Image(systemName: searchText.isEmpty ? "magnifyingglass" : "magnifyingglass.circle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(searchText.isEmpty ? iTuTheme.inkDim : iTuTheme.teal)
+                    .frame(width: 32, height: 32)
+                    .background(searchText.isEmpty ? iTuTheme.surface : iTuTheme.mintTint)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(iTuTheme.border, lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .help("Search tasks")
+            .popover(isPresented: $searchExpanded, arrowEdge: .bottom) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                    TextField("Search tasks…", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .frame(width: 220)
+                    if !searchText.isEmpty {
+                        Button { searchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(iTuTheme.inkFaint)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+
+            iconButtons
+        }
+    }
+
+    @ViewBuilder
+    private var toolbar: some View {
+        ViewThatFits(in: .horizontal) {
+            wideToolbar
+            compactToolbar
+        }
+    }
+
+    // MARK: - Sub-components
+
+    /// Shows a toggle button in .medium mode so the user can open/close PlanningRail.
+    @ViewBuilder
+    private var sidebarToggleButton: some View {
+        if layoutMode == .medium {
+            Button {
+                withAnimation(.snappy(duration: 0.22)) {
+                    showPlanRailBinding.wrappedValue.toggle()
+                }
+            } label: {
+                Image(systemName: showPlanRailBinding.wrappedValue
+                      ? "sidebar.squares.left" : "sidebar.left")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(showPlanRailBinding.wrappedValue ? iTuTheme.teal : iTuTheme.inkDim)
+                    .frame(width: 32, height: 32)
+                    .background(showPlanRailBinding.wrappedValue ? iTuTheme.mintTint : iTuTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(iTuTheme.border, lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .help(showPlanRailBinding.wrappedValue ? "Hide Plan Views" : "Show Plan Views")
+        }
+    }
+
+    private var titleSection: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            iTuSectionLabel(title: section == .today ? "Daily Planning" : "Smart List", color: iTuTheme.teal)
+            Text(model.selectedTaskListId.flatMap { id in
+                model.taskLists.first(where: { $0.id == id })?.name
+            } ?? (section == .inbox ? "All Tasks" : section.title))
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundStyle(iTuTheme.ink)
+                .lineLimit(1)
+        }
+        .layoutPriority(1)
+    }
+
+    private var iconButtons: some View {
+        HStack(spacing: 6) {
+            // Group & Sort Button
+            Button {
+                showGroupAndSortPopover.toggle()
+            } label: {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(iTuTheme.inkDim)
+                    .frame(width: 32, height: 32)
+                    .background(iTuTheme.mintTint.opacity(0.6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(iTuTheme.teal.opacity(0.3), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .help("Group & Sort options")
+            .popover(isPresented: $showGroupAndSortPopover, arrowEdge: .top) {
+                GroupAndSortPopoverView(onDismiss: { showGroupAndSortPopover = false })
+            }
+
+            // View Options Menu Button
+            Button {
+                showViewOptionsPopover.toggle()
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(iTuTheme.inkDim)
+                    .frame(width: 32, height: 32)
+                    .background(iTuTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(iTuTheme.border, lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .help("View options")
+            .popover(isPresented: $showViewOptionsPopover, arrowEdge: .top) {
+                ViewOptionsPopoverView(onDismiss: { showViewOptionsPopover = false })
             }
         }
     }

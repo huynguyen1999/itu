@@ -96,20 +96,19 @@ struct AuthView: View {
                 VStack(spacing: 14) {
                     if isRegistration {
                         iTuField(title: "Display name", systemImage: "person", text: $displayName)
+                            .onSubmit { submitIfReady() }
+                            .submitLabel(.next)
                     }
                     iTuField(title: "Email or username", systemImage: "at", text: $identifier)
+                        .onSubmit { submitIfReady() }
+                        .submitLabel(.next)
                     iTuSecureField(title: "Password", systemImage: "lock", text: $password)
+                        .onSubmit { submitIfReady() }
+                        .submitLabel(isRegistration ? .join : .go)
                 }
 
                 Button {
-                    Task {
-                        await model.authenticate(
-                            identifier: identifier,
-                            password: password,
-                            displayName: isRegistration ? displayName : nil,
-                            isRegistration: isRegistration
-                        )
-                    }
+                    submitIfReady()
                 } label: {
                     HStack {
                         if model.isAuthenticating {
@@ -172,6 +171,18 @@ struct AuthView: View {
             || password.isEmpty
             || (isRegistration && password.count < 8)
             || model.isAuthenticating
+    }
+
+    private func submitIfReady() {
+        guard !isActionDisabled else { return }
+        Task {
+            await model.authenticate(
+                identifier: identifier,
+                password: password,
+                displayName: isRegistration ? displayName : nil,
+                isRegistration: isRegistration
+            )
+        }
     }
 }
 
