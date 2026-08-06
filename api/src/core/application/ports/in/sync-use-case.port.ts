@@ -6,6 +6,15 @@ export interface SyncMutation {
   baseValues?: Record<string, unknown>;
   payload: Record<string, unknown>;
   occurredAt: string;
+  fieldEditedAt?: Record<string, string>;
+}
+
+export interface SyncMergeOutcome {
+  mutationId: string;
+  status: 'APPLIED' | 'AUTO_MERGED' | 'PARTIALLY_APPLIED' | 'MANUAL_CONFLICT';
+  appliedFields: string[];
+  serverWonFields: string[];
+  manualFields: string[];
 }
 
 export interface SyncConflict {

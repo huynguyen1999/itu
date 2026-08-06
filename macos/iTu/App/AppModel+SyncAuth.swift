@@ -100,7 +100,13 @@ extension AppModel {
             focusTimer.apply(active: nil)
             updateFocusPolicy()
             tasks = []
+            cachedTaskSections.removeAll()
+            cachedHomeTodayTasks = nil
+            cachedPlanningProjections.removeAll()
+            cachedTaskProjectionDay = nil
             habits = []
+            habitOccurrences = []
+            habitOccurrencesByHabitAndDay.removeAll()
             decks = []
             conflicts = []
             syncPhase = .offline
@@ -161,6 +167,8 @@ extension AppModel {
     func synchronize(showErrors: Bool = false) async {
         guard let userID = user?.id else { return }
         let runGeneration = sessionGeneration
+        let wasOffline = syncPhase == .offline
+        let previousPendingCount = pendingCount
         syncPhase = .syncing
         do {
             let result = try await syncCoordinator.synchronize()
@@ -188,6 +196,12 @@ extension AppModel {
             syncPhase = snapshot.conflicts.isEmpty
                 ? (snapshot.mutations.isEmpty ? .upToDate : .pending)
                 : .conflict
+
+            if wasOffline && syncPhase != .offline {
+                let syncedCount = max(0, previousPendingCount - snapshot.mutations.count)
+                let message = syncedCount > 0 ? "\(syncedCount) change\(syncedCount == 1 ? "" : "s") synced" : nil
+                enqueueNotice(AppNotice(level: .success, presentation: .toast, title: "Back online", message: message))
+            }
         } catch let error as APIError where error.statusCode == 401 {
             syncCoordinator.stop()
             SessionCache.clearUser()
@@ -205,7 +219,7 @@ extension AppModel {
                 syncPhase = .offline
             }
             if showErrors {
-                errorMessage = error.localizedDescription
+                enqueueNotice(AppNotice(level: .warning, presentation: .toast, title: "Sync status", message: error.localizedDescription))
             }
         }
     }

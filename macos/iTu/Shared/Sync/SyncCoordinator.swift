@@ -82,6 +82,9 @@ final class SyncCoordinator {
                 await periodicAction()
             }
         }
+        ConnectivityMonitor.shared.onReconnected = { [weak self] in
+            self?.requestFlush(urgent: true)
+        }
         Task { [weak self] in await self?.registerAndConnect() }
     }
 
@@ -206,10 +209,11 @@ final class SyncCoordinator {
                 cursor: pull.cursor
             )
         } catch {
+            let isOffline = ConnectivityMonitor.shared.state == .offline
             let code = Self.syncErrorCode(error)
             let apiError = error as? APIError
             let retryable = apiError.map { $0.statusCode == 0 || $0.statusCode == 408 || $0.statusCode == 425 || $0.statusCode == 429 || $0.statusCode >= 500 } ?? true
-            if runGeneration == generation {
+            if runGeneration == generation && !isOffline {
                 _ = try? await offlineStore.recordMutationFailures(
                     readyMutations.map(\.id), code: code, retryAfter: apiError?.retryAfter, retryable: retryable
                 )

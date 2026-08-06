@@ -1,27 +1,72 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6366F1" />
-      <stop offset="100%" stop-color="#4F46E5" />
+    <!-- Teal squircle background gradient -->
+    <linearGradient id="squircle-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3fb6a4" />
+      <stop offset="35%" stop-color="#1e9a89" />
+      <stop offset="70%" stop-color="#167f71" />
+      <stop offset="100%" stop-color="#125149" />
     </linearGradient>
-    <linearGradient id="bolt-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FBBF24" />
-      <stop offset="100%" stop-color="#F59E0B" />
+
+    <!-- Inner top light reflection -->
+    <linearGradient id="top-shine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.3" />
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.05" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.0" />
     </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.15"/>
+
+    <!-- Outer Squircle Drop Shadow -->
+    <filter id="squircle-shadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#08211d" flood-opacity="0.45" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#08211d" flood-opacity="0.25" />
+    </filter>
+
+    <!-- Brain Icon Subtle Drop Shadow -->
+    <filter id="brain-emboss" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0b322c" flood-opacity="0.4" />
     </filter>
   </defs>
-  
-  <!-- Outer Rounded Square with Gradient -->
-  <rect x="10" y="10" width="80" height="80" rx="20" fill="url(#bg-grad)" filter="url(#shadow)"/>
-  
-  <!-- Overlapping Cards Design -->
-  <!-- Back Card -->
-  <rect x="25" y="25" width="45" height="45" rx="8" fill="#FFFFFF" opacity="0.3" transform="rotate(-10 47.5 47.5)"/>
-  <!-- Front Card -->
-  <rect x="30" y="30" width="45" height="45" rx="8" fill="#FFFFFF" filter="url(#shadow)"/>
-  
-  <!-- Lightning Bolt (Spaced Repetition / Zap theme) in the center of front card -->
-  <path d="M54,37 L43,49 L51,49 L46,59 L57,47 L49,47 Z" fill="url(#bolt-grad)"/>
+
+  <!-- Outer Rounded Squircle Base -->
+  <rect x="40" y="40" width="432" height="432" rx="112" fill="url(#squircle-bg)" filter="url(#squircle-shadow)" />
+
+  <!-- Top Gloss Highlight -->
+  <rect x="40" y="40" width="432" height="216" rx="112" fill="url(#top-shine)" />
+
+  <!-- Subtle Border Highlight -->
+  <rect x="40" y="40" width="432" height="432" rx="112" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-opacity="0.2" />
+
+  <!-- White Brain Silhouette Line Art matching exact uploaded image -->
+  <g filter="url(#brain-emboss)" fill="none" stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Left Hemisphere -->
+    <path d="
+      M 244,144 
+      C 214,144 192,156 172,176
+      C 152,196 148,218 160,240
+      C 142,248 132,266 132,288
+      C 132,310 144,328 164,338
+      C 152,358 156,380 172,398
+      C 192,420 220,424 244,408
+    " />
+    
+    <!-- Left Inner Fissure/Branch -->
+    <path d="M 244,272 C 220,272 208,284 220,300 C 232,316 244,312 244,328" />
+
+    <!-- Right Hemisphere -->
+    <path d="
+      M 268,144 
+      C 298,144 320,156 340,176
+      C 360,196 364,218 352,240
+      C 370,248 380,266 380,288
+      C 380,310 368,328 348,338
+      C 360,358 356,380 340,398
+      C 320,420 292,424 268,408
+    " />
+
+    <!-- Right Inner Fissure/Branch -->
+    <path d="M 268,272 C 292,272 304,284 292,300 C 280,316 268,312 268,328" />
+
+    <!-- Central Vertical Fissure Split -->
+    <line x1="256" y1="140" x2="256" y2="416" stroke-width="16" opacity="0.3" />
+  </g>
 </svg>

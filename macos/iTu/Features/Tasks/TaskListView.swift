@@ -17,40 +17,12 @@ struct TaskListView: View {
     @State private var draggedTaskId: String?
 
     var body: some View {
-        var allSectionTasks = model.tasks(for: section)
-
-        if let taskListId {
-            allSectionTasks = allSectionTasks.filter { $0.taskListId == taskListId }
-        }
-
-        if !filterQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let query = filterQuery.lowercased()
-            allSectionTasks = allSectionTasks.filter { $0.title.lowercased().contains(query) }
-        }
-
-        if model.hideCompletedTasks {
-            allSectionTasks = allSectionTasks.filter { $0.status != .completed }
-        }
-
-        switch model.sortOption {
-        case .manual:
-            allSectionTasks.sort { $0.sortOrder < $1.sortOrder }
-        case .priority:
-            allSectionTasks.sort { lhs, rhs in
-                let lhsWeight = priorityWeight(lhs.priority)
-                let rhsWeight = priorityWeight(rhs.priority)
-                if lhsWeight != rhsWeight { return lhsWeight > rhsWeight }
-                return lhs.sortOrder < rhs.sortOrder
-            }
-        case .dueDate:
-            allSectionTasks.sort { lhs, rhs in
-                guard let lDate = lhs.dueAt else { return false }
-                guard let rDate = rhs.dueAt else { return true }
-                return lDate < rDate
-            }
-        case .title:
-            allSectionTasks.sort { $0.title.localizedCompare($1.title) == .orderedAscending }
-        }
+        let allSectionTasks = model.planningTasks(
+            for: section,
+            filterQuery: filterQuery,
+            taskListId: taskListId
+        )
+        let archivedSkillIDs = Set(model.skills.filter { $0.archivedAt != nil }.map(\.id))
 
         let pendingTasks = allSectionTasks.filter { ![.completed, .canceled].contains($0.status) }
         let completedTasks = allSectionTasks.filter { [.completed, .canceled].contains($0.status) }
@@ -67,6 +39,7 @@ struct TaskListView: View {
                     taskGroupSection(
                         title: section == .today ? "Today" : "Inbox",
                         tasks: pendingTasks,
+                        archivedSkillIDs: archivedSkillIDs,
                         isExpanded: $isInboxGroupExpanded,
                         onReorder: { draggedId, beforeId in
                             let ordered = reorderedVisibleIds(
@@ -85,6 +58,7 @@ struct TaskListView: View {
                     taskGroupSection(
                         title: "Completed & Won’t Do",
                         tasks: completedTasks,
+                        archivedSkillIDs: archivedSkillIDs,
                         isExpanded: $isCompletedGroupExpanded,
                         onReorder: { draggedId, beforeId in
                             let ordered = reorderedVisibleIds(
@@ -113,15 +87,6 @@ struct TaskListView: View {
 
     private func openTaskEditor(_ task: ProductivityTask) {
         model.presentedOverlay = .taskEditor(taskID: task.id)
-    }
-
-    private func priorityWeight(_ priority: TaskPriority) -> Int {
-        switch priority {
-        case .high: 3
-        case .medium: 2
-        case .low: 1
-        case .none: 0
-        }
     }
 
     private func reorderedVisibleIds(
@@ -218,6 +183,7 @@ struct TaskListView: View {
     private func taskGroupSection(
         title: String,
         tasks: [ProductivityTask],
+        archivedSkillIDs: Set<String>,
         isExpanded: Binding<Bool>,
         onReorder: @escaping (String, String) -> Void
     ) -> some View {
@@ -259,25 +225,11 @@ struct TaskListView: View {
                     .padding(.vertical, 32)
                     .iTuPanel(radius: 14)
                 } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
-                            TaskRow(task: task, onEdit: { openTaskEditor(task) })
-                                .onDrag {
-                                    guard model.sortOption == .manual else { return NSItemProvider() }
-                                    draggedTaskId = task.id
-                                    return NSItemProvider(object: task.id as NSString)
-                                }
-                                .onDrop(of: [UTType.text], isTargeted: nil) { providers in
-                                    guard model.sortOption == .manual,
-                                          let draggedTaskId,
-                                          draggedTaskId != task.id
-                                    else { return false }
-                                    onReorder(draggedTaskId, task.id)
-                                    self.draggedTaskId = nil
-                                    return true
-                                }
+                    LazyVStack(spacing: 0) {
+                        ForEach(tasks) { task in
+                            taskRow(task, archivedSkillIDs: archivedSkillIDs, onReorder: onReorder)
 
-                            if index < tasks.count - 1 {
+                            if task.id != tasks.last?.id {
                                 Rectangle()
                                     .fill(iTuTheme.borderSoft)
                                     .frame(height: 1)
@@ -288,6 +240,35 @@ struct TaskListView: View {
                     .iTuPanel(radius: 14)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func taskRow(
+        _ task: ProductivityTask,
+        archivedSkillIDs: Set<String>,
+        onReorder: @escaping (String, String) -> Void
+    ) -> some View {
+        let row = TaskRow(
+            task: task,
+            growthRule: model.growthEarningRules[task.id],
+            archivedSkillIDs: archivedSkillIDs,
+            onEdit: { openTaskEditor(task) }
+        )
+        if model.sortOption == .manual {
+            row
+                .onDrag {
+                    draggedTaskId = task.id
+                    return NSItemProvider(object: task.id as NSString)
+                }
+                .onDrop(of: [UTType.text], isTargeted: nil) { _ in
+                    guard let draggedTaskId, draggedTaskId != task.id else { return false }
+                    onReorder(draggedTaskId, task.id)
+                    self.draggedTaskId = nil
+                    return true
+                }
+        } else {
+            row
         }
     }
 
@@ -348,6 +329,8 @@ struct TaskListView: View {
 private struct TaskRow: View {
     @Environment(AppModel.self) private var model
     let task: ProductivityTask
+    let growthRule: GrowthEarningRuleDTO?
+    let archivedSkillIDs: Set<String>
     let onEdit: () -> Void
     @State private var isHovered = false
     @State private var isStatusHovered = false
@@ -430,12 +413,12 @@ private struct TaskRow: View {
                             )
                         }
 
-                        if let growthRule = model.growthEarningRules[task.id] {
+                        if let growthRule {
                             GrowthRewardSummaryView(
                                 rule: growthRule,
                                 compact: true,
                                 dense: true,
-                                archivedSkillIDs: Set(model.skills.filter { $0.archivedAt != nil }.map(\.id))
+                                archivedSkillIDs: archivedSkillIDs
                             )
                         }
                     }
@@ -602,10 +585,7 @@ private struct TaskRow: View {
         }
 
         guard let date = parseDate(value) else { return value }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "dd MMM"
-        return formatter.string(from: date)
+        return date.formatted(iTuDateSupport.dueDay)
     }
 
     // Robust Date Formatter handling ISO8601 with/without fractional seconds
@@ -622,14 +602,7 @@ private struct TaskRow: View {
     }
 
     private func parseDate(_ value: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        if let date = formatter.date(from: value) { return date }
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) { return date }
-
-        let simpleFormatter = DateFormatter()
-        simpleFormatter.dateFormat = "yyyy-MM-dd"
-        return simpleFormatter.date(from: value)
+        iTuDateSupport.parse(value)
     }
 }
 

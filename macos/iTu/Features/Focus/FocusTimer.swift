@@ -1,6 +1,62 @@
 import Foundation
 import Observation
 
+struct FocusHistoryProjection: Sendable {
+    let localDay: String
+    let sessionsByDay: [String: [FocusSession]]
+    let durationMinutesBySessionID: [String: Int]
+    let labels: [String]
+    let todayCompletedSessionsCount: Int
+    let todayFocusedMinutes: Int
+
+    init(history: [FocusSession]) {
+        var sessionsByDay: [String: [FocusSession]] = [:]
+        var durationMinutesBySessionID: [String: Int] = [:]
+        var todayCompletedSessionsCount = 0
+        var todayFocusedSeconds = 0
+        let today = Calendar.current.startOfDay(for: Date())
+
+        for session in history where session.status == .completed || session.status == .abandoned {
+            let startValue = session.adjustedStartedAt ?? session.startedAt
+            let start = iTuDateSupport.parse(startValue)
+            let dayLabel = start?.formatted(iTuDateSupport.focusDayStyle) ?? startValue
+            let endValue = session.adjustedCompletedAt ?? session.completedAt ?? startValue
+            let end = iTuDateSupport.parse(endValue)
+            let duration: Int
+            if let start, let end {
+                let diff = end.timeIntervalSince(start)
+                if diff.isFinite && diff > 0 && diff < 86400000 {
+                    let seconds = max(0, Int(diff) - max(0, session.accumulatedPauseSecs))
+                    duration = max(1, Int((Double(seconds) / 60.0).rounded()))
+                    if session.phase == .work,
+                       session.status == .completed,
+                       Calendar.current.isDate(start, inSameDayAs: today) {
+                        todayCompletedSessionsCount += 1
+                        todayFocusedSeconds += seconds
+                    }
+                } else {
+                    duration = 1
+                }
+            } else {
+                duration = 1
+            }
+            sessionsByDay[dayLabel, default: []].append(session)
+            durationMinutesBySessionID[session.id] = duration
+        }
+
+        self.sessionsByDay = sessionsByDay
+        self.durationMinutesBySessionID = durationMinutesBySessionID
+        self.labels = Array(sessionsByDay.keys.sorted().reversed())
+        self.todayCompletedSessionsCount = todayCompletedSessionsCount
+        self.todayFocusedMinutes = todayFocusedSeconds / 60
+        self.localDay = today.formatted(iTuDateSupport.day)
+    }
+
+    func durationMinutes(for session: FocusSession) -> Int {
+        durationMinutesBySessionID[session.id] ?? 1
+    }
+}
+
 enum TimerMode: String, CaseIterable, Identifiable {
     case focus
     case shortBreak
@@ -43,7 +99,10 @@ final class FocusTimer {
     var selectedTagIds: Set<String> = []
     var linkedTask: ProductivityTask?
     var activeSession: FocusSession?
-    var history: [FocusSession] = []
+    var history: [FocusSession] = [] {
+        didSet { historyProjection = FocusHistoryProjection(history: history) }
+    }
+    private(set) var historyProjection = FocusHistoryProjection(history: [])
     var summary = FocusSummary()
     var isLoading = false
     var isMutating = false
@@ -148,31 +207,18 @@ final class FocusTimer {
     }
 
     var todayCompletedSessionsCount: Int {
-        history.filter {
-            $0.phase == .work
-                && $0.status == .completed
-                && Self.parseDate($0.adjustedStartedAt ?? $0.startedAt).map(Calendar.current.isDateInToday) == true
-        }.count
+        refreshHistoryProjectionForCurrentDay()
+        return historyProjection.todayCompletedSessionsCount
     }
 
     var todayFocusedMinutes: Int {
-        history
-            .filter {
-                $0.phase == .work
-                    && $0.status == .completed
-                    && Self.parseDate($0.adjustedStartedAt ?? $0.startedAt).map(Calendar.current.isDateInToday) == true
-            }
-            .reduce(0) { total, session in
-                let startValue = session.adjustedStartedAt ?? session.startedAt
-                let endValue = session.adjustedCompletedAt ?? session.completedAt ?? startValue
-                guard let start = Self.parseDate(startValue), let end = Self.parseDate(endValue) else {
-                    return total
-                }
-                let diff = end.timeIntervalSince(start)
-                guard diff.isFinite && diff > 0 && diff < 86400000 else { return total }
-                let mins = max(0, Int(diff) - max(0, session.accumulatedPauseSecs)) / 60
-                return total &+ mins
-            }
+        refreshHistoryProjectionForCurrentDay()
+        return historyProjection.todayFocusedMinutes
+    }
+
+    private func refreshHistoryProjectionForCurrentDay() {
+        guard historyProjection.localDay != Date().formatted(iTuDateSupport.day) else { return }
+        historyProjection = FocusHistoryProjection(history: history)
     }
 
     func setMode(_ mode: TimerMode) {
@@ -335,12 +381,6 @@ final class FocusTimer {
     }
 
     static func parseDate(_ value: String) -> Date? {
-        let formatterWithFractional = ISO8601DateFormatter()
-        formatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatterWithFractional.date(from: value) {
-            return date
-        }
-        let standardFormatter = ISO8601DateFormatter()
-        return standardFormatter.date(from: value)
+        iTuDateSupport.parse(value)
     }
 }

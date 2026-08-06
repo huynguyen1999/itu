@@ -13,21 +13,47 @@ struct TrashView: View {
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                Button {
+                    model.selectedSection = .inbox
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("Recover removed content")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(iTuTheme.teal)
+                }
+                .buttonStyle(.plain)
+                .pointingHandCursor()
+
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
-                        iTuSectionLabel(title: "SYSTEM", color: iTuTheme.coral)
+                        iTuSectionLabel(title: "SYSTEM & MAINTENANCE", color: iTuTheme.inkFaint)
                         Text("Trash")
                             .font(.system(size: 24, weight: .bold, design: .rounded))
                             .foregroundStyle(iTuTheme.ink)
-                        Text("Deleted items remain recoverable until permanently removed.")
+                        Text("Deleted items remain recoverable for 30 days before they are permanently removed.")
                             .font(.system(size: 13))
                             .foregroundStyle(iTuTheme.inkDim)
                     }
                     Spacer()
                     HStack(spacing: 10) {
-                        Label("\(totalCount) item\(totalCount == 1 ? "" : "s")", systemImage: "trash")
-                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(iTuTheme.inkDim)
+                        HStack(spacing: 6) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 12))
+                            Text("\(totalCount) item\(totalCount == 1 ? "" : "s")")
+                                .font(.system(size: 12, weight: .bold))
+                        }
+                        .foregroundStyle(iTuTheme.inkDim)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(iTuTheme.surface)
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(iTuTheme.border, lineWidth: 1)
+                        )
+
                         if !trashedTasks.isEmpty {
                             Button {
                                 showEmptyConfirm = true
@@ -61,15 +87,28 @@ struct TrashView: View {
                     .iTuPanel(radius: 14)
                 } else if totalCount == 0 {
                     VStack(spacing: 12) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 32))
-                            .foregroundStyle(iTuTheme.inkFaint)
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(iTuTheme.surface)
+                                .frame(width: 48, height: 48)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(iTuTheme.border, lineWidth: 1)
+                                )
+                            Image(systemName: "archivebox")
+                                .font(.system(size: 20))
+                                .foregroundStyle(iTuTheme.inkDim)
+                        }
+
                         Text("Trash is empty")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(iTuTheme.inkDim)
-                        Text("Deleted decks, cards, and tasks will appear here for recovery.")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(iTuTheme.ink)
+
+                        Text("Deleted decks, cards, and tasks will appear here and can be\nrestored within 30 days.")
                             .font(.system(size: 12))
-                            .foregroundStyle(iTuTheme.inkFaint)
+                            .foregroundStyle(iTuTheme.inkDim)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(3)
                     }
                     .frame(maxWidth: .infinity, minHeight: 240)
                     .iTuPanel(radius: 14)

@@ -39,6 +39,10 @@ export class SyncMutationDto {
 
   @IsDateString()
   occurredAt!: string;
+
+  @IsOptional()
+  @IsObject()
+  fieldEditedAt?: Record<string, string>;
 }
 
 export class SyncRequestDto {

@@ -2,9 +2,11 @@ import SwiftUI
 
 struct MainView: View {
     @Environment(AppModel.self) private var model
+    @State private var retainedDestinations: Set<RetainedDestination> = [.home]
+    @State private var retainedPlanSection: AppSection = .inbox
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .leading) {
             HStack(spacing: 0) {
                 PrimaryRail()
 
@@ -13,8 +15,9 @@ struct MainView: View {
                 }
 
                 detail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .background(iTuTheme.canvas)
 
             if let overlay = model.presentedOverlay {
@@ -27,6 +30,17 @@ struct MainView: View {
         .ignoresSafeArea()
         .animation(.snappy, value: model.presentedOverlay)
         .preferredColorScheme(preferredColorScheme)
+        .onAppear {
+            retain(model.selectedSection)
+        }
+        .onChange(of: model.selectedSection) { _, section in
+            retain(section)
+            Task { @MainActor in
+                await Task.yield()
+                guard model.selectedSection == section else { return }
+                AppPerformanceSignposts.emitContentVisible(sectionName: section.rawValue)
+            }
+        }
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -39,19 +53,72 @@ struct MainView: View {
 
     @ViewBuilder
     private var detail: some View {
-        switch model.selectedSection {
+        ZStack {
+            if retainedDestinations.contains(.home) || model.selectedSection == .home {
+                retainedDestination(isVisible: model.selectedSection == .home) {
+                    HomeOverviewView()
+                }
+            }
+            if retainedDestinations.contains(.plan) || model.selectedSection.isRetainedPlanningSection {
+                retainedDestination(isVisible: model.selectedSection.isRetainedPlanningSection) {
+                    PlanningView(section: activePlanSection)
+                }
+            }
+            if retainedDestinations.contains(.focus) || model.selectedSection == .focus {
+                retainedDestination(isVisible: model.selectedSection == .focus) {
+                    FocusView()
+                }
+            }
+            if retainedDestinations.contains(.habits) || model.selectedSection == .habits {
+                retainedDestination(isVisible: model.selectedSection == .habits) {
+                    HabitsView()
+                }
+            }
+
+            if !model.selectedSection.isRetainedDestination {
+                nonRetainedDetail
+            }
+        }
+    }
+
+    private func retain(_ section: AppSection) {
+        switch section {
         case .home:
-            HomeOverviewView()
+            retainedDestinations.insert(.home)
         case .today, .inbox, .completed:
-            PlanningView(section: model.selectedSection)
+            retainedDestinations.insert(.plan)
+            retainedPlanSection = section
+        case .focus:
+            retainedDestinations.insert(.focus)
+        case .habits:
+            retainedDestinations.insert(.habits)
+        default:
+            break
+        }
+    }
+
+    private var activePlanSection: AppSection {
+        model.selectedSection.isRetainedPlanningSection ? model.selectedSection : retainedPlanSection
+    }
+
+    private func retainedDestination<Content: View>(
+        isVisible: Bool,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .opacity(isVisible ? 1 : 0)
+            .allowsHitTesting(isVisible)
+            .accessibilityHidden(!isVisible)
+    }
+
+    @ViewBuilder
+    private var nonRetainedDetail: some View {
+        switch model.selectedSection {
         case .upcoming:
             UpcomingView()
         case .matrix:
             EisenhowerMatrixView()
-        case .focus:
-            FocusView()
-        case .habits:
-            HabitsView()
         case .statistics:
             StatisticsView()
         case .growth:
@@ -68,12 +135,35 @@ struct MainView: View {
             ProfileView()
         case .settings:
             SettingsView()
+        case .home, .today, .inbox, .completed, .focus, .habits:
+            EmptyView()
         }
+    }
+
+    private enum RetainedDestination: Hashable {
+        case home
+        case plan
+        case focus
+        case habits
     }
 }
 
 private struct PrimaryRail: View {
     @Environment(AppModel.self) private var model
+
+    private func navigateTo(_ section: AppSection) {
+        let sectionChanged = model.selectedSection != section
+        guard sectionChanged || model.selectedTaskListId != nil else { return }
+        if sectionChanged {
+            AppPerformanceSignposts.emitSelectionCommitted(sectionName: section.rawValue)
+        }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            model.selectedTaskListId = nil
+            model.selectedSection = section
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -87,17 +177,15 @@ private struct PrimaryRail: View {
                             systemImage: "house",
                             isSelected: model.selectedSection == .home
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .home
+                            navigateTo(.home)
                         }
                         PrimaryRailButton(
                             title: "Plan",
                             systemImage: "checkmark.square",
                             isSelected: model.selectedSection.isPlanningSection
                         ) {
-                            model.selectedTaskListId = nil
                             if !model.selectedSection.isPlanningSection {
-                                model.selectedSection = .inbox
+                                navigateTo(.inbox)
                             }
                         }
                         PrimaryRailButton(
@@ -105,24 +193,21 @@ private struct PrimaryRail: View {
                             systemImage: "square.grid.2x2",
                             isSelected: model.selectedSection == .matrix
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .matrix
+                            navigateTo(.matrix)
                         }
                         PrimaryRailButton(
                             title: "Focus",
                             systemImage: "scope",
                             isSelected: model.selectedSection == .focus
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .focus
+                            navigateTo(.focus)
                         }
                         PrimaryRailButton(
                             title: "Habits",
                             systemImage: "repeat",
                             isSelected: model.selectedSection == .habits
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .habits
+                            navigateTo(.habits)
                         }
                     }
 
@@ -132,24 +217,21 @@ private struct PrimaryRail: View {
                             systemImage: "book.closed",
                             isSelected: model.selectedSection == .learn
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .learn
+                            navigateTo(.learn)
                         }
                         PrimaryRailButton(
                             title: "Growth",
                             systemImage: "sparkles",
                             isSelected: model.selectedSection == .growth
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .growth
+                            navigateTo(.growth)
                         }
                         PrimaryRailButton(
                             title: "Statistics",
                             systemImage: "chart.bar",
                             isSelected: model.selectedSection == .statistics
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .statistics
+                            navigateTo(.statistics)
                         }
                     }
 
@@ -160,8 +242,7 @@ private struct PrimaryRail: View {
                             badge: model.conflicts.count,
                             isSelected: model.selectedSection == .conflicts
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .conflicts
+                            navigateTo(.conflicts)
                         }
                         PrimaryRailButton(
                             title: "Notifications",
@@ -169,32 +250,28 @@ private struct PrimaryRail: View {
                             badge: model.notifications.filter { $0.readAt == nil }.count,
                             isSelected: model.selectedSection == .notifications
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .notifications
+                            navigateTo(.notifications)
                         }
                         PrimaryRailButton(
                             title: "Trash",
                             systemImage: "trash",
                             isSelected: model.selectedSection == .trash
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .trash
+                            navigateTo(.trash)
                         }
                         PrimaryRailButton(
                             title: "Profile",
                             systemImage: "person.crop.circle",
                             isSelected: model.selectedSection == .profile
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .profile
+                            navigateTo(.profile)
                         }
                         PrimaryRailButton(
                             title: "Settings",
                             systemImage: "gearshape",
                             isSelected: model.selectedSection == .settings
                         ) {
-                            model.selectedTaskListId = nil
-                            model.selectedSection = .settings
+                            navigateTo(.settings)
                         }
                     }
                 }
@@ -295,7 +372,7 @@ private struct PrimaryRail: View {
                 .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .onTapGesture {
                     if model.pendingCount > 0 || !model.conflicts.isEmpty {
-                        model.selectedSection = .conflicts
+                        navigateTo(.conflicts)
                     }
                 }
                 .help(model.pendingCount > 0 || !model.conflicts.isEmpty ? "Open sync recovery" : "Sync status")
@@ -397,12 +474,10 @@ private struct PrimaryRailButtonStyle: ButtonStyle {
             .background(
                 isSelected
                     ? Color.white.opacity(0.1)
-                    : Color.white.opacity(isHovered ? 0.065 : 0)
+                    : Color.white.opacity(configuration.isPressed ? 0.1 : (isHovered ? 0.065 : 0))
             )
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .offset(y: configuration.isPressed && !reduceMotion ? 1 : 0)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isHovered)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.08), value: isHovered)
             .onHover { hovering in
                 isHovered = hovering
             }
@@ -604,8 +679,15 @@ private struct PlanningRailButton: View {
             model.selectedSection == section && model.selectedTaskListId == nil
         }
         Button {
-            onSelect()
-            model.selectedSection = section
+            if model.selectedSection != section {
+                AppPerformanceSignposts.emitSelectionCommitted(sectionName: section.rawValue)
+            }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                onSelect()
+                model.selectedSection = section
+            }
         } label: {
             HStack(spacing: 11) {
                 Image(systemName: icon ?? section.systemImage)
@@ -641,6 +723,19 @@ private struct PlanningRailButton: View {
 
 private extension AppSection {
     var isPlanningSection: Bool {
-        [.today, .inbox, .upcoming, .completed, .trash].contains(self)
+        [.today, .inbox, .upcoming, .completed].contains(self)
+    }
+
+    var isRetainedPlanningSection: Bool {
+        [.today, .inbox, .completed].contains(self)
+    }
+
+    var isRetainedDestination: Bool {
+        switch self {
+        case .home, .today, .inbox, .completed, .focus, .habits:
+            true
+        default:
+            false
+        }
     }
 }

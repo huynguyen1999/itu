@@ -13,9 +13,9 @@ struct ConflictsView: View {
                         .foregroundStyle(iTuTheme.ink)
                 }
                 Spacer()
-                Text("\(model.conflicts.count + model.pendingMutations.count) pending")
+                Text(model.conflicts.isEmpty ? "Up to date" : "\(model.conflicts.count) action required")
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(model.conflicts.isEmpty && model.pendingMutations.isEmpty ? iTuTheme.teal : iTuTheme.coral)
+                    .foregroundStyle(model.conflicts.isEmpty ? iTuTheme.teal : iTuTheme.coral)
             }
             .padding(.horizontal, 24)
             .padding(.top, 28)
@@ -28,7 +28,7 @@ struct ConflictsView: View {
             }
 
             ScrollView {
-                if model.conflicts.isEmpty && model.pendingMutations.isEmpty {
+                if model.conflicts.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "checkmark.shield")
                             .font(.system(size: 27, weight: .light))
@@ -39,7 +39,7 @@ struct ConflictsView: View {
                         Text("Everything agrees")
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundStyle(iTuTheme.ink)
-                        Text("Your local workspace and the server have no competing changes.")
+                        Text("Your local workspace and the server have no unresolved conflicts.")
                             .font(.system(size: 13))
                             .foregroundStyle(iTuTheme.inkDim)
                     }
@@ -50,10 +50,7 @@ struct ConflictsView: View {
                     .frame(maxWidth: 720)
                     .frame(maxWidth: .infinity)
                 } else {
-                    LazyVStack(spacing: 12) {
-                        ForEach(model.pendingMutations) { mutation in
-                            pendingCard(mutation)
-                        }
+                    LazyVStack(spacing: 14) {
                         ForEach(model.conflicts) { conflict in
                             conflictCard(conflict)
                         }

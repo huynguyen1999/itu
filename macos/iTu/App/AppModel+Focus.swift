@@ -12,8 +12,31 @@ extension AppModel {
         selectedSection = .focus
     }
 
-    func loadFocus() async {
+    func loadFocus(force: Bool = false) async {
         guard user != nil else { return }
+        if let inFlight = focusRefreshTask {
+            await inFlight.value
+            return
+        }
+        if !force,
+           let lastRefresh = focusLastRefreshAt,
+           Date().timeIntervalSince(lastRefresh) < 5 * 60 {
+            return
+        }
+
+        let generation = sessionGeneration
+        let refreshTask = Task<Void, Never> { [weak self] in
+            await self?.refreshFocusData(generation: generation)
+        }
+        focusRefreshTask = refreshTask
+        await refreshTask.value
+        if sessionGeneration == generation {
+            focusRefreshTask = nil
+        }
+    }
+
+    private func refreshFocusData(generation: Int) async {
+        let store = offlineStore
         AudioPlayerManager.shared.configureBuiltInDefaults()
         AudioPlayerManager.shared.onStartPlaybackRequested = { [weak self] in
             Task { [weak self] in
@@ -21,7 +44,11 @@ extension AppModel {
             }
         }
         focusTimer.isLoading = true
-        defer { focusTimer.isLoading = false }
+        defer {
+            if generation == sessionGeneration {
+                focusTimer.isLoading = false
+            }
+        }
         do {
             async let active = apiClient.activeFocus()
             async let history = apiClient.focusHistory()
@@ -29,16 +56,24 @@ extension AppModel {
             async let soundCatalog = apiClient.fetchFocusSounds()
             let loadedActive = try await active
             let loadedHistory = try await history
+            let loadedSummary = try await summary
+            let loadedSoundCatalog = try? await soundCatalog
+            guard generation == sessionGeneration else { return }
+            let snapshot = try await store.hydrateFocus(active: loadedActive, history: loadedHistory)
+            guard generation == sessionGeneration else { return }
             focusTimer.history = loadedHistory
-            focusTimer.summary = try await summary
-            if let loadedSoundCatalog = try? await soundCatalog {
+            focusTimer.summary = loadedSummary
+            if let loadedSoundCatalog {
                 AudioPlayerManager.shared.configure(catalog: loadedSoundCatalog)
             }
-            apply(try await offlineStore.hydrateFocus(active: loadedActive, history: loadedHistory))
+            apply(snapshot)
+            focusLastRefreshAt = Date()
             updateFocusPolicy()
             focusTimer.errorMessage = nil
         } catch {
-            focusTimer.errorMessage = error.localizedDescription
+            if generation == sessionGeneration {
+                focusTimer.errorMessage = error.localizedDescription
+            }
         }
     }
 

@@ -29,6 +29,7 @@ struct iTuApp: App {
                 }
         }
         .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
         .defaultSize(width: 1_220, height: 780)
 
         MenuBarExtra(isInserted: menuBarItemBinding) {

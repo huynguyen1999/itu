@@ -98,9 +98,7 @@ struct FocusView: View {
         }
         .onAppear {
             timer.configure(settings: model.settingsStore.focusSettings)
-            if audioPlayer.sounds.isEmpty {
-                Task { await model.loadFocus() }
-            }
+            Task { await model.loadFocus() }
         }
     }
 
@@ -781,13 +779,12 @@ struct FocusView: View {
 
     @ViewBuilder
     private func focusRecords(timer: FocusTimer) -> some View {
-        let records = timer.history.filter { session in
-            guard session.status == .completed || session.status == .abandoned else { return false }
-            let label = focusDayLabel(session)
-            return recordSearchQuery.isEmpty || label.localizedCaseInsensitiveContains(recordSearchQuery)
+        let projection = timer.historyProjection
+        let labels = projection.labels.filter {
+            recordSearchQuery.isEmpty || $0.localizedCaseInsensitiveContains(recordSearchQuery)
         }
-        let grouped = Dictionary(grouping: records, by: focusDayLabel)
-        let labels = Array(grouped.keys.sorted().reversed())
+        let records = labels.flatMap { projection.sessionsByDay[$0] ?? [] }
+        let grouped = projection.sessionsByDay
         let visibleLabels = Array(labels.prefix(visibleDayCount))
 
         if timer.isLoading && records.isEmpty {
@@ -916,29 +913,12 @@ struct FocusView: View {
     }
 
     private func isTodayLabel(_ label: String) -> Bool {
-        let todayLabel = Date().formatted(.dateTime.month(.abbreviated).day().year())
+        let todayLabel = Date().formatted(iTuDateSupport.focusDayStyle)
         return label == todayLabel
     }
 
-    private func focusDayLabel(_ session: FocusSession) -> String {
-        let source = session.adjustedStartedAt ?? session.startedAt
-        guard let date = FocusTimer.parseDate(source) else { return source }
-        return date.formatted(.dateTime.month(.abbreviated).day().year())
-    }
-
     private func focusDurationMinutes(_ session: FocusSession) -> Int {
-        let startValue = session.adjustedStartedAt ?? session.startedAt
-        let endValue = session.adjustedCompletedAt ?? session.completedAt ?? startValue
-        guard
-            let start = FocusTimer.parseDate(startValue),
-            let end = FocusTimer.parseDate(endValue)
-        else {
-            return 1
-        }
-        let diff = end.timeIntervalSince(start)
-        guard diff.isFinite && diff > 0 && diff < 86400000 else { return 1 }
-        let seconds = max(0, Int(diff) - max(0, session.accumulatedPauseSecs))
-        return max(1, Int((Double(seconds) / 60.0).rounded()))
+        model.focusTimer.historyProjection.durationMinutes(for: session)
     }
 
     private func openRecordEditor(_ session: FocusSession) {
@@ -1087,9 +1067,7 @@ private struct FocusRecordRow: View {
         let endValue = session.adjustedCompletedAt ?? session.completedAt ?? startValue
         guard let start = FocusTimer.parseDate(startValue),
               let end = FocusTimer.parseDate(endValue) else { return "" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return "\(formatter.string(from: start)) – \(formatter.string(from: end))"
+        return "\(start.formatted(iTuDateSupport.time)) – \(end.formatted(iTuDateSupport.time))"
     }
 
     var body: some View {

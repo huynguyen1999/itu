@@ -297,6 +297,7 @@ model User {
   growthResets                GrowthReset[]
   habitCommitmentPolicies     HabitCommitmentPolicy[]
   commitmentPenalties         GrowthCommitmentPenalty[]
+  syncFieldClocks             SyncFieldClock[]
 }
 
 model Role {
@@ -1475,4 +1476,21 @@ model GrowthRewardRedemption {
 
   @@index([userId, redeemedAt])
   @@index([rewardId, redeemedAt])
+}
+
+model SyncFieldClock {
+  id         String   @id @default(uuid())
+  userId     String
+  entityType String
+  entityId   String
+  fieldName  String
+  editedAt   DateTime
+  deviceId   String
+  mutationId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entityType, entityId, fieldName])
+  @@index([userId, entityType, entityId])
 }

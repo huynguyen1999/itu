@@ -118,7 +118,7 @@ struct HabitsView: View {
                         Spacer()
                         Button("Retry") {
                             guard let range = visibleWeekRange else { return }
-                            Task { await model.refreshHabitOccurrences(from: range.from, to: range.to) }
+                            Task { await model.refreshHabitOccurrences(from: range.from, to: range.to, force: true) }
                         }
                         .buttonStyle(iTuGhostButtonStyle())
                     }
@@ -128,7 +128,7 @@ struct HabitsView: View {
 
                 // Habit Cards Grid
                 if habitGroups.isEmpty {
-                    VStack(spacing: 12) {
+                    LazyVStack(spacing: 12) {
                         Image(systemName: "repeat")
                             .font(.system(size: 36))
                             .foregroundStyle(iTuTheme.inkDim)
@@ -362,9 +362,7 @@ private struct HabitCardRow: View {
     @State private var isHovered = false
 
     private var todayOccurrence: HabitOccurrenceModel? {
-        occurrences.first {
-            $0.habitId == habit.id && $0.localDayString == (weekDays.last?.date ?? "")
-        }
+        model.habitOccurrence(habitId: habit.id, day: weekDays.last?.date ?? "")
     }
 
     var body: some View {
@@ -443,9 +441,7 @@ private struct HabitCardRow: View {
     private var dayCirclesRow: some View {
         HStack(spacing: 8) {
             ForEach(weekDays) { day in
-                let occurrence = occurrences.first {
-                    $0.habitId == habit.id && $0.localDayString == day.date
-                }
+                let occurrence = model.habitOccurrence(habitId: habit.id, day: day.date)
                 HabitOccurrenceButton(
                     habitName: habit.name,
                     dayLabel: day.label,
@@ -1006,19 +1002,10 @@ struct HabitEditorSheet: View {
 
 private extension Date {
     var apiStartOfDay: String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: self) + "T00:00:00.000Z"
+        formatted(iTuDateSupport.day) + "T00:00:00.000Z"
     }
 
     static func fromAPI(_ value: String) -> Date? {
-        if let date = ISO8601DateFormatter().date(from: value) { return date }
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: String(value.prefix(10)))
+        iTuDateSupport.parse(value)
     }
 }

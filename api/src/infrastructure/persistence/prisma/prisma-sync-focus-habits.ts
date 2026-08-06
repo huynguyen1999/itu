@@ -120,14 +120,14 @@ export class PrismaSyncFocusHabits {
             return null;
           }
         }
-        const conflict = fieldConflict(mutation, 'focussession', session);
-        if (conflict) return conflict;
         if (!['pause', 'resume', 'complete', 'abandon', 'extend', 'takeover', 'attach', 'rename'].includes(action)) {
           throw new InvalidSyncMutationException('Invalid focus action');
         }
         if (
           (action === 'complete' && session.status === FocusSessionStatus.COMPLETED) ||
-          (action === 'abandon' && session.status === FocusSessionStatus.ABANDONED)
+          (action === 'abandon' && session.status === FocusSessionStatus.ABANDONED) ||
+          (action === 'pause' && session.status === FocusSessionStatus.PAUSED) ||
+          (action === 'resume' && session.status === FocusSessionStatus.ACTIVE)
         ) {
           return null;
         }

@@ -269,3 +269,49 @@ struct TaskReminderModel: Identifiable, Codable, Equatable, Sendable {
     let status: String
     let persistent: Bool
 }
+
+/// Shared, allocation-free date parsing for API timestamps used by screen projections.
+enum iTuDateSupport {
+    static let iso8601 = Date.ISO8601FormatStyle()
+    static let iso8601Fractional = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+    static let day = Date.VerbatimFormatStyle(
+        format: "\(year: .defaultDigits)-\(month: .twoDigits)-\(day: .twoDigits)",
+        locale: Locale(identifier: "en_US_POSIX"),
+        timeZone: .current,
+        calendar: Calendar(identifier: .gregorian)
+    )
+    static let dayParser = Date.ParseStrategy(
+        format: "\(year: .defaultDigits)-\(month: .twoDigits)-\(day: .twoDigits)",
+        locale: Locale(identifier: "en_US_POSIX"),
+        timeZone: .current,
+        calendar: Calendar(identifier: .gregorian)
+    )
+    static let focusDayStyle = Date.FormatStyle().month(.abbreviated).day().year()
+    static let dueDay = Date.VerbatimFormatStyle(
+        format: "\(day: .twoDigits) \(month: .abbreviated)",
+        locale: Locale(identifier: "en_US_POSIX"),
+        timeZone: .current,
+        calendar: .current
+    )
+    static let time = Date.VerbatimFormatStyle(
+        format: "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits)",
+        locale: .current,
+        timeZone: .current,
+        calendar: .current
+    )
+
+    static func parse(_ value: String) -> Date? {
+        (try? iso8601Fractional.parse(value))
+            ?? (try? iso8601.parse(value))
+            ?? (try? Date(value, strategy: dayParser))
+    }
+
+    static func string(from date: Date) -> String {
+        iso8601.format(date)
+    }
+
+    static func localDayString(from value: String) -> String {
+        guard let date = parse(value) else { return String(value.prefix(10)) }
+        return date.formatted(day)
+    }
+}

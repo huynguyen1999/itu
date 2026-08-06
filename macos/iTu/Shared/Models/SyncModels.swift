@@ -312,6 +312,7 @@ struct UnifiedSyncResponse: Codable, Sendable {
 }
 
 struct OfflineSnapshot: Codable, Equatable, Sendable {
+    var schemaVersion: Int = 2
     var cursor = "0"
     var tasks: [ProductivityTask] = []
     var taskLists: [TaskListModel] = []
@@ -347,6 +348,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
     var lastSyncTime: String?
 
     private enum CodingKeys: String, CodingKey {
+        case schemaVersion
         case cursor
         case tasks
         case taskLists
@@ -386,6 +388,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
         cursor = try values.decodeIfPresent(String.self, forKey: .cursor) ?? "0"
         tasks = try values.decodeIfPresent([ProductivityTask].self, forKey: .tasks) ?? []
         taskLists = try values.decodeIfPresent([TaskListModel].self, forKey: .taskLists) ?? []

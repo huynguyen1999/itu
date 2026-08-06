@@ -72,20 +72,72 @@ extension AppModel {
         }
     }
 
-    func refreshHabitOccurrences(from startDate: String, to endDate: String) async {
+    static func habitOccurrenceKey(habitId: String, day: String) -> String {
+        "\(habitId)\u{1F}\(day)"
+    }
+
+    func habitOccurrence(habitId: String, day: String) -> HabitOccurrenceModel? {
+        habitOccurrencesByHabitAndDay[Self.habitOccurrenceKey(habitId: habitId, day: day)]
+    }
+
+    func refreshHabitOccurrences(from startDate: String, to endDate: String, force: Bool = false) async {
+        let key = "\(startDate):\(endDate)"
+        if let inFlight = habitOccurrenceRefreshTasks[key] {
+            await inFlight.value
+            return
+        }
+        if !force,
+           let lastRefresh = habitOccurrenceRefreshDates[key],
+           Date().timeIntervalSince(lastRefresh) < 5 * 60 {
+            return
+        }
+
+        let generation = sessionGeneration
+        let refreshTask = Task<Void, Never> { [weak self] in
+            await self?.refreshHabitOccurrencesData(
+                from: startDate,
+                to: endDate,
+                key: key,
+                generation: generation
+            )
+        }
+        habitOccurrenceRefreshTasks[key] = refreshTask
+        await refreshTask.value
+        if sessionGeneration == generation {
+            habitOccurrenceRefreshTasks[key] = nil
+        }
+    }
+
+    private func refreshHabitOccurrencesData(
+        from startDate: String,
+        to endDate: String,
+        key: String,
+        generation: Int
+    ) async {
+        let store = offlineStore
+        habitOccurrenceLoadingKeys.insert(key)
         habitOccurrencesLoading = true
         habitOccurrencesErrorMessage = nil
-        defer { habitOccurrencesLoading = false }
+        defer {
+            if generation == sessionGeneration {
+                habitOccurrenceLoadingKeys.remove(key)
+                habitOccurrencesLoading = !habitOccurrenceLoadingKeys.isEmpty
+            }
+        }
 
         do {
             let fetched = try await apiClient.fetchHabitOccurrences(from: startDate, to: endDate)
-            let snapshot = try await offlineStore.updateHabitOccurrences(
+            guard generation == sessionGeneration else { return }
+            let snapshot = try await store.updateHabitOccurrences(
                 fetched,
                 from: startDate,
                 to: endDate
             )
+            guard generation == sessionGeneration else { return }
             apply(snapshot)
+            habitOccurrenceRefreshDates[key] = Date()
         } catch {
+            guard generation == sessionGeneration else { return }
             habitOccurrencesErrorMessage = error.localizedDescription
         }
     }

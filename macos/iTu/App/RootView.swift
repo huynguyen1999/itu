@@ -24,34 +24,42 @@ struct RootView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            if let receipt = model.growthReceiptQueue.first {
-                GrowthReceiptOverlay(presented: receipt) {
-                    model.dismissCurrentGrowthReceipt()
+            VStack(alignment: .trailing, spacing: 10) {
+                if let notice = model.noticeQueue.first {
+                    AppToastHost(notice: notice) {
+                        model.dismissCurrentNotice()
+                    }
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .task(id: notice.id) {
+                        do {
+                            try await Task.sleep(for: .seconds(4))
+                            guard !Task.isCancelled, model.noticeQueue.first?.id == notice.id else { return }
+                            model.dismissCurrentNotice()
+                        } catch {
+                            // Expected on dismissal/replacement
+                        }
+                    }
                 }
-                .padding(18)
-                .transition(.move(edge: .trailing).combined(with: .opacity))
-                .task(id: receipt.id) {
-                    do {
-                        try await Task.sleep(for: .seconds(5))
-                        guard !Task.isCancelled, model.growthReceiptQueue.first?.id == receipt.id else { return }
+
+                if let receipt = model.growthReceiptQueue.first {
+                    GrowthReceiptOverlay(presented: receipt) {
                         model.dismissCurrentGrowthReceipt()
-                    } catch {
-                        // Cancellation is expected when the receipt is manually dismissed or replaced.
+                    }
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .task(id: receipt.id) {
+                        do {
+                            try await Task.sleep(for: .seconds(5))
+                            guard !Task.isCancelled, model.growthReceiptQueue.first?.id == receipt.id else { return }
+                            model.dismissCurrentGrowthReceipt()
+                        } catch {
+                            // Cancellation is expected when the receipt is manually dismissed or replaced.
+                        }
                     }
                 }
             }
+            .padding(18)
         }
+        .animation(.snappy, value: model.noticeQueue.first?.id)
         .animation(.snappy, value: model.growthReceiptQueue.first?.id)
-        .alert(
-            "iTu",
-            isPresented: Binding(
-                get: { model.errorMessage != nil },
-                set: { if !$0 { model.errorMessage = nil } }
-            )
-        ) {
-            Button("OK") { model.errorMessage = nil }
-        } message: {
-            Text(model.errorMessage ?? "")
-        }
     }
 }

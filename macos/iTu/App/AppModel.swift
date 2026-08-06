@@ -188,6 +188,8 @@ final class AppModel {
     var habitTimeBlocks: [HabitTimeBlockModel] = []
     var habitStatsByID: [String: HabitStatsModel] = [:]
     var habitOccurrences: [HabitOccurrenceModel] = []
+    /// O(1) lookup for the visible habit grid. Rebuilt with each offline snapshot.
+    var habitOccurrencesByHabitAndDay: [String: HabitOccurrenceModel] = [:]
     var habitOccurrencesLoading = false
     var habitOccurrencesErrorMessage: String?
     var userCoins: Int = 0
@@ -222,6 +224,17 @@ final class AppModel {
     var statisticsLoading = false
     var statisticsError = false
     var growthReceiptQueue: [PresentedGrowthReceipt] = []
+    var noticeQueue: [AppNotice] = []
+
+    func enqueueNotice(_ notice: AppNotice) {
+        noticeQueue.append(notice)
+    }
+
+    func dismissCurrentNotice() {
+        if !noticeQueue.isEmpty {
+            noticeQueue.removeFirst()
+        }
+    }
 
     enum NotificationRoutePath {
         static let home = "/"
@@ -273,6 +286,15 @@ final class AppModel {
 
     @ObservationIgnored var currentSnapshot = OfflineSnapshot()
     @ObservationIgnored var hydrationTask: Task<Void, Never>?
+    @ObservationIgnored var focusRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var focusLastRefreshAt: Date?
+    @ObservationIgnored var habitOccurrenceRefreshTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored var habitOccurrenceRefreshDates: [String: Date] = [:]
+    @ObservationIgnored var habitOccurrenceLoadingKeys: Set<String> = []
+    @ObservationIgnored var cachedTaskSections: [AppSection: [ProductivityTask]] = [:]
+    @ObservationIgnored var cachedHomeTodayTasks: [ProductivityTask]?
+    @ObservationIgnored var cachedPlanningProjections: [String: [ProductivityTask]] = [:]
+    @ObservationIgnored var cachedTaskProjectionDay: String?
     @ObservationIgnored private(set) var sessionGeneration = 0
 
     /// Invalidates in-flight account work before changing the authenticated
@@ -282,6 +304,15 @@ final class AppModel {
         sessionGeneration &+= 1
         hydrationTask?.cancel()
         hydrationTask = nil
+        focusRefreshTask?.cancel()
+        focusRefreshTask = nil
+        focusLastRefreshAt = nil
+        focusTimer.isLoading = false
+        habitOccurrenceRefreshTasks.values.forEach { $0.cancel() }
+        habitOccurrenceRefreshTasks.removeAll()
+        habitOccurrenceRefreshDates.removeAll()
+        habitOccurrenceLoadingKeys.removeAll()
+        habitOccurrencesLoading = false
     }
 
     func switchAccountIfNeeded(to profile: UserProfile) async throws {
@@ -304,11 +335,21 @@ final class AppModel {
     }
 
     func apply(_ snapshot: OfflineSnapshot) {
+        let tasksChanged = tasks != snapshot.tasks
         currentSnapshot = snapshot
-        tasks = snapshot.tasks
+        if tasksChanged {
+            tasks = snapshot.tasks
+            cachedTaskSections.removeAll(keepingCapacity: true)
+            cachedHomeTodayTasks = nil
+            cachedPlanningProjections.removeAll(keepingCapacity: true)
+            cachedTaskProjectionDay = nil
+        }
         conflicts = snapshot.conflicts
         habits = snapshot.habits
         habitOccurrences = snapshot.habitOccurrences
+        habitOccurrencesByHabitAndDay = snapshot.habitOccurrences.reduce(into: [:]) { index, occurrence in
+            index[Self.habitOccurrenceKey(habitId: occurrence.habitId, day: occurrence.localDayString)] = occurrence
+        }
         cardsByDeckId = snapshot.cardsByDeckId
         taskLists = snapshot.taskLists
         sections = snapshot.sections
@@ -344,11 +385,8 @@ final class AppModel {
     }
 
     func localDateString(offset: Int) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar.current
-        formatter.dateFormat = "yyyy-MM-dd"
         let date = Calendar.current.date(byAdding: .day, value: offset, to: Date()) ?? Date()
-        return formatter.string(from: date)
+        return date.formatted(iTuDateSupport.day)
     }
 
     func startSyncLoop() {

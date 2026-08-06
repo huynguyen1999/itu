@@ -26,25 +26,7 @@ struct HabitOccurrenceModel: Codable, Identifiable, Equatable, Sendable {
     var value: Double
 
     var localDayString: String {
-        let isoFractionalFormatter = ISO8601DateFormatter()
-        isoFractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = isoFractionalFormatter.date(from: occurrenceDate) {
-            let localFormatter = DateFormatter()
-            localFormatter.dateFormat = "yyyy-MM-dd"
-            localFormatter.timeZone = TimeZone.current
-            return localFormatter.string(from: date)
-        }
-
-        let isoStandardFormatter = ISO8601DateFormatter()
-        isoStandardFormatter.formatOptions = [.withInternetDateTime]
-        if let date = isoStandardFormatter.date(from: occurrenceDate) {
-            let localFormatter = DateFormatter()
-            localFormatter.dateFormat = "yyyy-MM-dd"
-            localFormatter.timeZone = TimeZone.current
-            return localFormatter.string(from: date)
-        }
-
-        return String(occurrenceDate.prefix(10))
+        iTuDateSupport.localDayString(from: occurrenceDate)
     }
     private enum CodingKeys: String, CodingKey {
         case id, habitId, occurrenceDate, status, habit, checkIn, progressLogs

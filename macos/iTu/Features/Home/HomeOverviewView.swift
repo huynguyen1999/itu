@@ -38,7 +38,7 @@ struct HomeOverviewView: View {
                 todayTasksSection(todayTasks: todayTasks, completedCount: completedCount)
                 todayHabitsSection
             }
-            .frame(minWidth: 520, maxWidth: .infinity)
+            .frame(minWidth: 320, maxWidth: .infinity)
 
             attributeProfileCard
                 .frame(width: 360)
@@ -324,7 +324,7 @@ struct HomeOverviewView: View {
                 .padding(.vertical, 36)
                 .iTuPanel(radius: 14)
             } else {
-                VStack(spacing: 0) {
+                LazyVStack(spacing: 0) {
                     ForEach(todayTasks) { task in
                         HomeTaskRowView(task: task, onEdit: { openTaskEditor(task) })
                         if task.id != todayTasks.last?.id {
@@ -347,17 +347,15 @@ struct HomeOverviewView: View {
     }
 
     private var todayDateString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: Date())
+        Date().formatted(iTuDateSupport.day)
     }
 
     private var completedTodayHabitCount: Int {
-        todayHabits.filter { habit in
-            model.habitOccurrences.first {
-                $0.habitId == habit.id && $0.localDayString == todayDateString
-            }?.status == .completed
-        }.count
+        todayHabits.reduce(into: 0) { count, habit in
+            if model.habitOccurrence(habitId: habit.id, day: todayDateString)?.status == .completed {
+                count += 1
+            }
+        }
     }
 
     private var todayHabitsSection: some View {
@@ -389,7 +387,7 @@ struct HomeOverviewView: View {
                         .font(.system(size: 12))
                         .foregroundStyle(iTuTheme.inkDim)
                     Button("Retry") {
-                        Task { await model.refreshHabitOccurrences(from: todayDateString, to: todayDateString) }
+                        Task { await model.refreshHabitOccurrences(from: todayDateString, to: todayDateString, force: true) }
                     }
                     .buttonStyle(iTuGhostButtonStyle(height: 30))
                 }
@@ -404,11 +402,9 @@ struct HomeOverviewView: View {
                     .padding(16)
                     .iTuPanel(radius: 14)
             } else {
-                VStack(spacing: 0) {
+                LazyVStack(spacing: 0) {
                     ForEach(todayHabits) { habit in
-                        let occurrence = model.habitOccurrences.first {
-                            $0.habitId == habit.id && $0.localDayString == todayDateString
-                        }
+                        let occurrence = model.habitOccurrence(habitId: habit.id, day: todayDateString)
                         HStack(spacing: 12) {
                             HabitOccurrenceButton(
                                 habitName: habit.name,
@@ -589,7 +585,7 @@ private struct CompactStatTileView: View {
 
 private struct AttributeRadarChartView: View {
     struct AttributeItem: Identifiable {
-        let id = UUID()
+        let id: String
         let name: String
         let level: Int
         let totalXP: Int
@@ -604,6 +600,7 @@ private struct AttributeRadarChartView: View {
         let ceiling = max(1, Int(ceil(Double(attributes.map(\.currentXP).max() ?? 0) * 1.1)))
         items = attributes.map { attribute in
             AttributeItem(
+                id: attribute.id,
                 name: attribute.name,
                 level: attribute.level,
                 totalXP: attribute.currentXP,

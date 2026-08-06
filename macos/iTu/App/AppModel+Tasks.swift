@@ -2,6 +2,19 @@ import Foundation
 
 @MainActor
 extension AppModel {
+    private func invalidateTaskProjections() {
+        cachedTaskSections.removeAll(keepingCapacity: true)
+        cachedHomeTodayTasks = nil
+        cachedPlanningProjections.removeAll(keepingCapacity: true)
+    }
+
+    private func invalidateTaskProjectionsIfDayChanged() {
+        let today = Date().formatted(iTuDateSupport.day)
+        guard cachedTaskProjectionDay != today else { return }
+        cachedTaskProjectionDay = today
+        invalidateTaskProjections()
+    }
+
     func createTaskList(name: String, description: String? = nil, color: String = "TEAL") async {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -146,6 +159,7 @@ extension AppModel {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index].status = status
             tasks[index].completedAt = completedAt
+            invalidateTaskProjections()
         }
         do {
             let result = try await offlineStore.setTaskStatus(
@@ -167,6 +181,7 @@ extension AppModel {
             if let index = tasks.firstIndex(where: { $0.id == task.id }) {
                 tasks[index].status = task.status
                 tasks[index].completedAt = task.completedAt
+                invalidateTaskProjections()
             }
             errorMessage = "Could not update task status: \(error.localizedDescription)"
         }
@@ -220,19 +235,22 @@ extension AppModel {
     }
 
     func tasks(for section: AppSection) -> [ProductivityTask] {
+        invalidateTaskProjectionsIfDayChanged()
         if section == .trash {
             return trashedTasks
+        }
+        if let cached = cachedTaskSections[section] {
+            return cached
         }
         let visible = tasks.filter { $0.deletedAt == nil && $0.parentId == nil }
         let filtered: [ProductivityTask]
         let calendar = Calendar.current
-        let dateFormatter = ISO8601DateFormatter()
         switch section {
         case .home:
             filtered = visible.filter { task in
                 guard task.status != .archived,
                       let dateValue = task.scheduledStartAt ?? task.dueAt,
-                      let date = dateFormatter.date(from: dateValue) else {
+                      let date = iTuDateSupport.parse(dateValue) else {
                     return false
                 }
                 return calendar.isDateInToday(date)
@@ -241,7 +259,7 @@ extension AppModel {
             filtered = visible.filter { task in
                 guard task.status != .archived,
                       let dateValue = task.scheduledStartAt ?? task.dueAt,
-                      let date = dateFormatter.date(from: dateValue) else {
+                      let date = iTuDateSupport.parse(dateValue) else {
                     return false
                 }
                 return calendar.isDateInToday(date)
@@ -252,7 +270,7 @@ extension AppModel {
             filtered = visible.filter { task in
                 guard task.status != .archived,
                       let dateValue = task.scheduledStartAt ?? task.dueAt,
-                      let date = dateFormatter.date(from: dateValue) else {
+                      let date = iTuDateSupport.parse(dateValue) else {
                     return false
                 }
                 return date >= startOfToday && date <= endOf7Days
@@ -266,24 +284,75 @@ extension AppModel {
         default:
             filtered = []
         }
-        return filtered.sorted { lhs, rhs in
+        let result = filtered.sorted { lhs, rhs in
             if lhs.important != rhs.important { return lhs.important }
             return lhs.sortOrder < rhs.sortOrder
         }
+        cachedTaskSections[section] = result
+        return result
+    }
+
+    func planningTasks(
+        for section: AppSection,
+        filterQuery: String,
+        taskListId: String?
+    ) -> [ProductivityTask] {
+        invalidateTaskProjectionsIfDayChanged()
+        let hasQuery = !filterQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let query = filterQuery.lowercased()
+        let key = "\(section.rawValue)|\(taskListId ?? "")|\(query)|\(sortOption.rawValue)|\(hideCompletedTasks)"
+        if let cached = cachedPlanningProjections[key] {
+            return cached
+        }
+
+        var visible = tasks(for: section)
+        if let taskListId {
+            visible = visible.filter { $0.taskListId == taskListId }
+        }
+        if hasQuery {
+            visible = visible.filter { $0.title.lowercased().contains(query) }
+        }
+        if hideCompletedTasks {
+            visible = visible.filter { $0.status != .completed }
+        }
+        switch sortOption {
+        case .manual:
+            visible.sort { $0.sortOrder < $1.sortOrder }
+        case .priority:
+            visible.sort { lhs, rhs in
+                let lhsWeight = lhs.priority == .high ? 3 : lhs.priority == .medium ? 2 : lhs.priority == .low ? 1 : 0
+                let rhsWeight = rhs.priority == .high ? 3 : rhs.priority == .medium ? 2 : rhs.priority == .low ? 1 : 0
+                if lhsWeight != rhsWeight { return lhsWeight > rhsWeight }
+                return lhs.sortOrder < rhs.sortOrder
+            }
+        case .dueDate:
+            visible.sort { lhs, rhs in
+                guard let lhsDue = lhs.dueAt else { return false }
+                guard let rhsDue = rhs.dueAt else { return true }
+                return lhsDue < rhsDue
+            }
+        case .title:
+            visible.sort { $0.title.localizedCompare($1.title) == .orderedAscending }
+        }
+        cachedPlanningProjections[key] = visible
+        return visible
     }
 
     /// Tasks shown in the Home "Today's tasks" section: tasks scheduled or due today
     /// (any status), plus incomplete tasks that are overdue (scheduled or due before today).
     func homeTodayTasks() -> [ProductivityTask] {
+        invalidateTaskProjectionsIfDayChanged()
+        if let cached = cachedHomeTodayTasks {
+            return cached
+        }
         let visible = tasks.filter { $0.deletedAt == nil && $0.parentId == nil }
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: Date())
-        let dateFormatter = ISO8601DateFormatter()
-        return visible
+        let result = visible
             .filter { task in
                 guard task.status != .archived,
                       let dateValue = task.scheduledStartAt ?? task.dueAt,
-                      let date = dateFormatter.date(from: dateValue) else {
+                      let date = iTuDateSupport.parse(dateValue) else {
                     return false
                 }
                 if calendar.isDateInToday(date) {
@@ -296,6 +365,8 @@ extension AppModel {
                 if lhs.important != rhs.important { return lhs.important }
                 return lhs.sortOrder < rhs.sortOrder
             }
+        cachedHomeTodayTasks = result
+        return result
     }
 
     var trashedTasks: [ProductivityTask] {
