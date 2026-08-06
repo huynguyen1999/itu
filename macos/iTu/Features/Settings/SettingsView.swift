@@ -430,6 +430,7 @@ private struct FocusSettingsPanel: View {
 }
 
 private struct FocusPolicySettingsCard: View {
+    @Environment(AppModel.self) private var model
     @Bindable var settings: SettingsStore
     @State private var isImportingApplications = false
 
@@ -440,6 +441,8 @@ private struct FocusPolicySettingsCard: View {
             description: "Optionally restrict distracting applications and websites during a Focus Session."
         ) {
             VStack(alignment: .leading, spacing: 14) {
+                FocusPolicyStatusView(enforcer: model.focusPolicyEnforcer)
+
                 Toggle("Enable Focus Policy", isOn: $settings.focusSettings.focusPolicyEnabled)
 
                 Divider()
@@ -573,6 +576,75 @@ private struct FocusPolicySettingsCard: View {
                     settings.focusSettings.blockedApplications.append(application)
                 }
             }
+        }
+    }
+}
+
+private struct FocusPolicyStatusView: View {
+    let enforcer: FocusPolicyEnforcer
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: iconName)
+                .foregroundStyle(iconColor)
+            Text(text)
+                .font(.system(size: 12))
+                .foregroundStyle(iTuTheme.inkDim)
+            Spacer()
+            if showsOpenSettingsButton {
+                Button("Open System Settings") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(iTuSecondaryButtonStyle(height: 26))
+            }
+        }
+        .padding(10)
+        .background(iTuTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var iconName: String {
+        switch enforcer.status {
+        case .disabled: "shield.slash"
+        case .inactive: "shield.lefthalf.filled"
+        case .active: "checkmark.shield.fill"
+        case .permissionRequired: "exclamationmark.shield.fill"
+        case .enforcementFailed: "xmark.shield.fill"
+        }
+    }
+
+    private var iconColor: Color {
+        switch enforcer.status {
+        case .active: iTuTheme.teal
+        case .permissionRequired, .enforcementFailed: iTuTheme.coral
+        case .disabled, .inactive: iTuTheme.inkDim
+        }
+    }
+
+    private var text: String {
+        switch enforcer.status {
+        case .disabled:
+            return "Policy disabled"
+        case .inactive:
+            return "Policy will start with the next work session"
+        case .active:
+            if let name = enforcer.lastBlockedApplicationName {
+                return "\(name) was blocked"
+            }
+            return "Policy active"
+        case .permissionRequired(let browserName):
+            return "Browser automation permission required for \(browserName)"
+        case .enforcementFailed(let message):
+            return message
+        }
+    }
+
+    private var showsOpenSettingsButton: Bool {
+        switch enforcer.status {
+        case .disabled: false
+        case .inactive, .active, .permissionRequired, .enforcementFailed: true
         }
     }
 }

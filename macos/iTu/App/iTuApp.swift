@@ -48,10 +48,6 @@ struct iTuApp: App {
             SettingsView()
                 .environment(model)
                 .preferredColorScheme(preferredColorScheme)
-                .onChange(of: model.settingsStore.focusSettings) { _, settings in
-                    model.focusTimer.configure(settings: settings)
-                    model.updateFocusPolicy()
-                }
         }
     }
 

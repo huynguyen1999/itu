@@ -265,15 +265,23 @@ final class AppModel {
     init() {
         let cachedUser = SessionCache.loadUser()
         user = cachedUser
-        focusCycleEngine.configure(cyclesBeforeLongBreak: settingsStore.focusSettings.cyclesBeforeLongBreak)
-        focusTimer.setDuration(minutes: settingsStore.focusSettings.defaultWorkMinutes)
-        focusTimer.configure(settings: settingsStore.focusSettings)
         FocusCommandService.shared.register(timer: focusTimer, cycleEngine: focusCycleEngine, settingsStore: settingsStore)
         FocusURLRouter.shared.setHydrated(true, authenticated: cachedUser != nil)
         apiClient = APIClient()
         offlineStore = OfflineStore(accountID: cachedUser?.id ?? "anonymous")
         syncCoordinator = SyncCoordinator(apiClient: apiClient, offlineStore: offlineStore)
-        updateFocusPolicy()
+        settingsStore.onFocusSettingsChanged = { [weak self] settings in
+            self?.applyFocusSettings(settings)
+        }
+        applyFocusSettings(settingsStore.focusSettings)
+    }
+
+    /// Single entry point for applying focus settings, regardless of which UI
+    /// mutated them. Reconfigures the timer and re-enforces the live policy.
+    func applyFocusSettings(_ settings: FocusSettings) {
+        focusCycleEngine.configure(cyclesBeforeLongBreak: settings.cyclesBeforeLongBreak)
+        focusTimer.configure(settings: settings)
+        updateFocusPolicy(settings: settings)
     }
 
     var pendingCount: Int {
@@ -395,10 +403,10 @@ final class AppModel {
         }
     }
 
-    func updateFocusPolicy() {
+    func updateFocusPolicy(settings: FocusSettings? = nil) {
         focusPolicyEnforcer.update(
-            session: user == nil ? nil : focusTimer.activeSession,
-            settings: settingsStore.focusSettings
+            session: focusTimer.activeSession,
+            settings: settings ?? settingsStore.focusSettings
         )
     }
 }

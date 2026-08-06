@@ -280,6 +280,11 @@ struct MatrixSettings: Codable, Equatable {
 @MainActor
 @Observable
 final class SettingsStore {
+    /// Central settings-change hook so every mutation source (main Settings
+    /// page, the macOS Settings window, menu bar) reaches the focus runtime.
+    @ObservationIgnored
+    var onFocusSettingsChanged: ((FocusSettings) -> Void)?
+
     var themeMode: AppThemeMode {
         didSet { save() }
     }
@@ -287,7 +292,10 @@ final class SettingsStore {
         didSet { save() }
     }
     var focusSettings: FocusSettings {
-        didSet { save() }
+        didSet {
+            save()
+            onFocusSettingsChanged?(focusSettings)
+        }
     }
     var matrixSettings: MatrixSettings {
         didSet { save() }
