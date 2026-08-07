@@ -36,19 +36,20 @@ export interface SyncChange {
   complete: boolean;
 }
 
-export interface LegacySyncChange {
+export interface SyncResponseChange {
   cursor?: number;
   entityType: string;
   entityId: string;
   deleted: boolean;
   data: unknown | null;
+  complete?: boolean;
 }
 
 export interface SyncResult {
   acknowledgedMutationIds: string[];
   cursor: string;
   lastSyncTime: string;
-  changes: LegacySyncChange[];
+  changes: SyncResponseChange[];
   conflicts: SyncConflict[];
   mutationOutcomes: SyncMutationOutcome[];
 }
@@ -58,27 +59,7 @@ export interface SyncMutationOutcome {
   growthReceipt?: unknown;
 }
 
-export interface PushMutationsResult {
-  acknowledgedMutationIds: string[];
-  conflicts: SyncConflict[];
-  latestServerCursor: string;
-  mutationOutcomes: SyncMutationOutcome[];
-}
-
-export interface PullChangesResult {
-  cursor: string;
-  lastSyncTime: string;
-  changes: SyncChange[];
-}
-
 export interface ISyncUseCase {
-  pushMutations(
-    userId: string,
-    deviceId: string,
-    clientInstanceId: string,
-    mutations: SyncMutation[],
-  ): Promise<PushMutationsResult>;
-  pullChanges(userId: string, deviceId: string, cursorText: string | undefined): Promise<PullChangesResult>;
   synchronize(
     userId: string,
     deviceId: string,

@@ -311,15 +311,6 @@ export class PrismaSyncRepository implements ISyncRepository {
     );
   }
 
-  async currentCursor(userId: string): Promise<string> {
-    const latest = await this.prisma.syncChange.findFirst({
-      where: { userId },
-      orderBy: { cursor: 'desc' },
-      select: { cursor: true },
-    });
-    return String(latest?.cursor ?? 0);
-  }
-
   private async applyMutation(
     tx: Tx,
     userId: string,

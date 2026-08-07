@@ -22,14 +22,24 @@ export class SyncService implements ISyncUseCase {
     cursorText: string | undefined,
     mutations: SyncMutation[],
   ): Promise<SyncResult> {
-    this.parseCursor(cursorText);
-    const pushed = await this.pushMutations(userId, deviceId, clientInstanceId, mutations);
-    const pulled = await this.pullChanges(userId, deviceId, cursorText);
+    const cursor = this.parseCursor(cursorText);
+
+    const applied = await this.syncRepository.applyMutations(userId, deviceId, mutations);
+
+    await this.enqueueJobs(applied.aiJobsToEnqueue);
+
+    const pulled = await this.syncRepository.changesSince(userId, cursor);
+
+    await this.devices.update(userId, deviceId, { lastKnownSyncCursor: pulled.cursor });
+
+    if (mutations.length > 0) {
+      await this.notifyOtherDevices(userId, deviceId, clientInstanceId, pulled.cursor);
+    }
 
     return {
-      acknowledgedMutationIds: pushed.acknowledgedMutationIds,
+      acknowledgedMutationIds: applied.acknowledgedMutationIds,
       cursor: pulled.cursor,
-      lastSyncTime: pulled.lastSyncTime,
+      lastSyncTime: pulled.lastSyncTime || new Date().toISOString(),
       changes: pulled.changes.map((change) => ({
         cursor: change.cursor,
         entityType: change.resourceType,
@@ -38,37 +48,8 @@ export class SyncService implements ISyncUseCase {
         data: change.resource,
         complete: change.complete,
       })),
-      conflicts: pushed.conflicts,
-      mutationOutcomes: pushed.mutationOutcomes,
-    };
-  }
-
-  async pushMutations(userId: string, deviceId: string, clientInstanceId: string, mutations: SyncMutation[]) {
-    const applied = await this.syncRepository.applyMutations(userId, deviceId, mutations);
-
-    for (const job of applied.aiJobsToEnqueue) {
-      if (job.kind === 'ai.card_generation') await this.queue.enqueueCardSuggestions(job.id);
-      if (job.kind === 'ai.session_feedback') await this.queue.enqueueSessionFeedback(job.id);
-    }
-
-    const latestServerCursor = await this.syncRepository.currentCursor(userId);
-    await this.notifyOtherDevices(userId, deviceId, clientInstanceId, mutations, latestServerCursor);
-
-    return {
-      acknowledgedMutationIds: applied.acknowledgedMutationIds,
       conflicts: applied.conflicts,
-      latestServerCursor,
       mutationOutcomes: applied.mutationOutcomes,
-    };
-  }
-
-  async pullChanges(userId: string, deviceId: string, cursorText: string | undefined) {
-    const changes = await this.syncRepository.changesSince(userId, this.parseCursor(cursorText));
-    await this.devices.update(userId, deviceId, { lastKnownSyncCursor: changes.cursor });
-    return {
-      cursor: changes.cursor,
-      lastSyncTime: changes.lastSyncTime || new Date().toISOString(),
-      changes: changes.changes,
     };
   }
 
@@ -79,15 +60,19 @@ export class SyncService implements ISyncUseCase {
     return cursor;
   }
 
+  private async enqueueJobs(jobs: Array<{ id: string; kind: string }>): Promise<void> {
+    for (const job of jobs) {
+      if (job.kind === 'ai.card_generation') await this.queue.enqueueCardSuggestions(job.id);
+      if (job.kind === 'ai.session_feedback') await this.queue.enqueueSessionFeedback(job.id);
+    }
+  }
+
   private async notifyOtherDevices(
     userId: string,
     originDeviceId: string,
     originClientInstanceId: string,
-    mutations: SyncMutation[],
     cursor: string,
   ): Promise<void> {
-    if (mutations.length === 0) return;
-
     const targets = await this.devices.listNotificationTargets(userId, originDeviceId);
     await this.invalidationNotifier.notifySyncAvailable({
       userId,

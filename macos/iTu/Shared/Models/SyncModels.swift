@@ -40,12 +40,6 @@ struct SyncConflict: Codable, Identifiable, Equatable, Sendable {
     var occurredAt: String?
 }
 
-struct PushMutationsRequest: Codable, Sendable {
-    let deviceId: String
-    let clientInstanceId: String
-    let mutations: [SyncMutationPayload]
-}
-
 struct SyncMutationPayload: Codable, Sendable {
     let id: String
     let kind: String
@@ -63,25 +57,6 @@ struct SyncMutationPayload: Codable, Sendable {
         baseValues = mutation.baseValues
         payload = mutation.payload
         occurredAt = mutation.occurredAt
-    }
-}
-
-struct PushMutationsResponse: Codable, Sendable {
-    let acknowledgedMutationIds: [String]
-    let conflicts: [SyncConflict]
-    let latestServerCursor: String
-    let mutationOutcomes: [SyncMutationOutcome]?
-
-    init(
-        acknowledgedMutationIds: [String],
-        conflicts: [SyncConflict],
-        latestServerCursor: String,
-        mutationOutcomes: [SyncMutationOutcome]? = nil
-    ) {
-        self.acknowledgedMutationIds = acknowledgedMutationIds
-        self.conflicts = conflicts
-        self.latestServerCursor = latestServerCursor
-        self.mutationOutcomes = mutationOutcomes
     }
 }
 
@@ -271,29 +246,14 @@ struct SyncResult: Sendable {
     let cursor: String
 }
 
-struct PullChangesResponse: Codable, Sendable {
-    let cursor: String
-    let lastSyncTime: String?
-    let changes: [SyncChange]
-}
-
-struct SyncChange: Codable, Sendable {
-    let cursor: Int
-    let resourceType: String
-    let resourceId: String
-    let operation: String
-    let resource: JSONValue?
-    let complete: Bool
-}
-
-struct UnifiedSyncRequest: Codable, Sendable {
+struct SyncRequest: Codable, Sendable {
     let deviceId: String
     let clientInstanceId: String
     let cursor: String
     let mutations: [SyncMutationPayload]
 }
 
-struct UnifiedSyncChange: Codable, Sendable {
+struct SyncChange: Codable, Sendable {
     let cursor: Int?
     let entityType: String
     let entityId: String
@@ -302,11 +262,11 @@ struct UnifiedSyncChange: Codable, Sendable {
     let complete: Bool?
 }
 
-struct UnifiedSyncResponse: Codable, Sendable {
+struct SyncResponse: Codable, Sendable {
     let acknowledgedMutationIds: [String]
     let cursor: String
     let lastSyncTime: String?
-    let changes: [UnifiedSyncChange]
+    let changes: [SyncChange]
     let conflicts: [SyncConflict]
     let mutationOutcomes: [SyncMutationOutcome]?
 }

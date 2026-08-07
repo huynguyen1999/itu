@@ -111,7 +111,13 @@ extension OfflineStore {
     }
 
     private func reapplyPendingHabitMutations(optimisticByID: [String: HabitModel]) throws {
-        for mutation in state.mutations where mutation.kind == "habit.update" || mutation.kind == "habit.create" {
+        for mutation in state.mutations where mutation.kind == "habit.update" || mutation.kind == "habit.create" || mutation.kind == "habit.checkin" {
+            if mutation.kind == "habit.checkin" {
+                if let opt = optimisticByID[mutation.entityId], let index = state.habits.firstIndex(where: { $0.id == mutation.entityId }) {
+                    state.habits[index] = opt
+                }
+                continue
+            }
             let habit = state.habits.first(where: { $0.id == mutation.entityId }) ?? optimisticByID[mutation.entityId]
             guard habit != nil else { continue }
             guard var value = habit else { continue }

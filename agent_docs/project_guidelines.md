@@ -143,13 +143,11 @@ The web client writes supported mutations locally first, persists them to Indexe
 
 ### 11.2 Synchronization Protocol
 
-Sync is push-then-pull. The client pushes queued mutations, then pulls server changes after its cursor.
+Offline-first synchronization uses `POST /sync` for bidirectional synchronization. Clients send their local cursor and queued mutations (or `mutations: []` for pull-only operations) and receive acknowledged mutation IDs, conflicts, mutation outcomes, and all server-side changes since that cursor in a single round trip.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `POST` | `/sync` | Combined push and pull round trip |
-| `POST` | `/sync/mutations` | Push queued mutations |
-| `GET` | `/sync/changes` | Pull changes after a cursor |
 
 Mutation records contain a ULID `id`, `kind`, `entityId`, `baseVersion`, `baseValues`, `payload`, and `occurredAt`. The server returns acknowledged mutation IDs, conflicts, and mutation outcomes. Pull responses contain a cursor and complete or partial upsert/delete change records.
 

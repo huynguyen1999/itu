@@ -160,8 +160,8 @@ actor APIClient {
         SessionCache.clearUser()
     }
 
-    func push(_ requestBody: PushMutationsRequest) async throws -> PushMutationsResponse {
-        try await request(path: "/sync/mutations", method: "POST", body: requestBody)
+    func synchronize(_ requestBody: SyncRequest) async throws -> SyncResponse {
+        try await request(path: "/sync", method: "POST", body: requestBody)
     }
 
     func registerSyncDevice(deviceId: String, cursor: String) async throws {
@@ -170,8 +170,6 @@ actor APIClient {
             method: "POST",
             body: [
                 "deviceId": .string(deviceId),
-                // The server currently accepts WEB as the only platform. Keep
-                // the wire contract stable until the additive MACOS enum lands.
                 "platform": .string("WEB"),
                 "lastKnownSyncCursor": .string(cursor)
             ] as [String: JSONValue]
@@ -184,25 +182,6 @@ actor APIClient {
             method: "PATCH",
             body: ["lastKnownSyncCursor": .string(cursor)] as [String: JSONValue]
         )
-    }
-
-    func pull(deviceId: String, cursor: String) async throws -> PullChangesResponse {
-        var components = URLComponents()
-        components.path = "/sync/changes"
-        components.queryItems = [
-            URLQueryItem(name: "deviceId", value: deviceId),
-            URLQueryItem(name: "cursor", value: cursor)
-        ]
-        guard let path = components.string else {
-            throw APIError(statusCode: 0, message: "Unable to construct sync URL", code: nil)
-        }
-        return try await request(path: path, method: "GET", body: Optional<String>.none)
-    }
-
-    /// Unified push+pull: POST /sync returns acknowledged mutations, conflicts,
-    /// and incremental changes in a single round trip.
-    func synchronize(_ requestBody: UnifiedSyncRequest) async throws -> UnifiedSyncResponse {
-        try await request(path: "/sync", method: "POST", body: requestBody)
     }
 
     func token() -> String? {

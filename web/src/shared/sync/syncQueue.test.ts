@@ -138,17 +138,15 @@ describe('coalesceMutation', () => {
   });
 });
 
-describe('SyncQueue transport split', () => {
+describe('SyncQueue transport', () => {
   afterEach(() => {
-    SyncQueue.useUnifiedSync = false;
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
-  it('pulls WebSocket changes without posting the mutation queue', async () => {
-    SyncQueue.useUnifiedSync = false;
+  it('pulls WebSocket changes with POST /sync sending mutations: []', async () => {
     installBrowserGlobals();
     vi.spyOn(offlineSyncStore, 'getCursor').mockResolvedValue('5');
     vi.spyOn(offlineSyncStore, 'setCursor').mockResolvedValue();
@@ -157,9 +155,12 @@ describe('SyncQueue transport split', () => {
     vi.spyOn(offlineSyncStore, 'listMutations').mockResolvedValue([]);
     vi.spyOn(offlineSyncStore, 'listConflicts').mockResolvedValue([]);
     const request = vi.fn().mockResolvedValue({
+      acknowledgedMutationIds: [],
       cursor: '6',
       lastSyncTime: '2026-07-25T00:00:00.000Z',
       changes: [],
+      conflicts: [],
+      mutationOutcomes: [],
     });
     const queue = new SyncQueue({ request } as unknown as HttpClient);
     const phases: string[] = [];
@@ -170,11 +171,16 @@ describe('SyncQueue transport split', () => {
     expect(phases).toContain('syncing');
     expect(queue.getState().phase).toBe('up-to-date');
     expect(request).toHaveBeenCalledTimes(1);
-    expect(request).toHaveBeenCalledWith(expect.stringContaining('/sync/changes?'));
-    expect(request).not.toHaveBeenCalledWith('/sync/mutations', expect.anything());
+    expect(request).toHaveBeenCalledWith(
+      '/sync',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"mutations":[]'),
+      }),
+    );
   });
 
-  it('uses the unified POST /sync endpoint when the feature flag is enabled', async () => {
+  it('uses POST /sync endpoint for flushing mutations', async () => {
     installBrowserGlobals();
     const mutation: ClientSyncMutation = { ...base, id: 'unified-mutation' };
     vi.spyOn(offlineSyncStore, 'listMutations').mockResolvedValue([mutation]);
@@ -201,14 +207,11 @@ describe('SyncQueue transport split', () => {
     });
     const queue = new SyncQueue({ request } as unknown as HttpClient);
     queue.setAuthenticated(true, 'session-a');
-    SyncQueue.useUnifiedSync = true;
 
     await queue.flush(true);
 
     expect(request).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith('/sync', expect.anything());
-    expect(request).not.toHaveBeenCalledWith('/sync/mutations', expect.anything());
-    expect(request).not.toHaveBeenCalledWith(expect.stringContaining('/sync/changes?'), expect.anything());
   });
 
   it('keeps the local queue usable without sending network requests while signed out', async () => {
@@ -246,12 +249,13 @@ describe('SyncQueue transport split', () => {
     queue.setAuthenticated(true, 'session-a');
 
     const flush = queue.flush(true);
-    await vi.waitFor(() => expect(request).toHaveBeenCalledWith('/sync/mutations', expect.anything()));
+    await vi.waitFor(() => expect(request).toHaveBeenCalledWith('/sync', expect.anything()));
     queue.setAuthenticated(true, 'session-b');
     resolvePush({
       acknowledgedMutationIds: ['in-flight-mutation'],
+      cursor: '2',
+      changes: [],
       conflicts: [],
-      latestServerCursor: '2',
       mutationOutcomes: [],
     });
     await flush;
@@ -268,22 +272,29 @@ describe('SyncQueue transport split', () => {
     vi.spyOn(offlineSyncStore, 'listMutations').mockResolvedValue([]);
     vi.spyOn(offlineSyncStore, 'listConflicts').mockResolvedValue([]);
     const request = vi.fn().mockResolvedValue({
+      acknowledgedMutationIds: [],
       cursor: '99',
       lastSyncTime: '2026-07-30T00:00:00.000Z',
       changes: [],
+      conflicts: [],
+      mutationOutcomes: [],
     });
     const queue = new SyncQueue({ request } as unknown as HttpClient);
 
     await queue.pull('99');
 
-    expect(request).toHaveBeenCalledWith(expect.stringContaining('cursor=0'));
+    expect(request).toHaveBeenCalledWith(
+      '/sync',
+      expect.objectContaining({
+        body: expect.stringContaining('"cursor":"0"'),
+      }),
+    );
     expect(offlineSyncStore.setCursor).toHaveBeenCalledWith('99');
   });
 
   it('reconciles changes after a browser tab becomes visible again', async () => {
     installBrowserGlobals();
     const lifecycle = installLifecycleGlobals('visible');
-    vi.spyOn(offlineSyncStore, 'migrateLegacyState').mockResolvedValue();
     vi.spyOn(offlineSyncStore, 'listMutations').mockResolvedValue([]);
     vi.spyOn(offlineSyncStore, 'listConflicts').mockResolvedValue([]);
     const queue = new SyncQueue({ request: vi.fn() } as unknown as HttpClient);
@@ -301,7 +312,6 @@ describe('SyncQueue transport split', () => {
     vi.useFakeTimers();
     installBrowserGlobals();
     installLifecycleGlobals('visible');
-    vi.spyOn(offlineSyncStore, 'migrateLegacyState').mockResolvedValue();
     vi.spyOn(offlineSyncStore, 'listMutations').mockResolvedValue([]);
     vi.spyOn(offlineSyncStore, 'listConflicts').mockResolvedValue([]);
     const queue = new SyncQueue({ request: vi.fn() } as unknown as HttpClient);
@@ -371,7 +381,7 @@ describe('SyncQueue transport split', () => {
     let pushCount = 0;
     const sentBatches: string[][] = [];
     const request = vi.fn().mockImplementation(async (path: string, init?: RequestInit) => {
-      if (path === '/sync/mutations') {
+      if (path === '/sync') {
         pushCount += 1;
         const sent = JSON.parse(String(init?.body)) as { mutations: ClientSyncMutation[] };
         sentBatches.push(sent.mutations.map((mutation) => mutation.id));
@@ -386,12 +396,13 @@ describe('SyncQueue transport split', () => {
         }
         return {
           acknowledgedMutationIds: sent.mutations.map((mutation) => mutation.id),
+          cursor: '6',
+          changes: [],
           conflicts: [],
-          latestServerCursor: '6',
           mutationOutcomes: [],
         };
       }
-      return { cursor: '6', changes: [] };
+      return { acknowledgedMutationIds: [], cursor: '6', changes: [], conflicts: [], mutationOutcomes: [] };
     });
     const queue = new SyncQueue({ request } as unknown as HttpClient);
 
@@ -504,19 +515,20 @@ describe('SyncQueue transport split', () => {
     let pushCount = 0;
     const sentBatches: string[][] = [];
     const request = vi.fn().mockImplementation(async (path: string) => {
-      if (path === '/sync/mutations') {
+      if (path === '/sync') {
         pushCount += 1;
         const sentIds = pending.map((mutation) => mutation.id);
         sentBatches.push(sentIds);
         if (pushCount === 1) await firstPush;
         return {
           acknowledgedMutationIds: sentIds,
+          cursor: '6',
+          changes: [],
           conflicts: [],
-          latestServerCursor: '6',
           mutationOutcomes: [],
         };
       }
-      return { cursor: '6', changes: [] };
+      return { acknowledgedMutationIds: [], cursor: '6', changes: [], conflicts: [], mutationOutcomes: [] };
     });
     const queue = new SyncQueue({ request } as unknown as HttpClient);
     const firstFlush = queue.flush(true);
@@ -561,16 +573,17 @@ describe('SyncQueue transport split', () => {
     });
     vi.spyOn(offlineSyncStore, 'putConflicts').mockResolvedValue();
     const request = vi.fn().mockImplementation(async (path: string, init?: RequestInit) => {
-      if (path === '/sync/mutations') {
+      if (path === '/sync') {
         const sent = JSON.parse(String(init?.body)) as { mutations: ClientSyncMutation[] };
         return {
           acknowledgedMutationIds: sent.mutations.map((mutation) => mutation.id),
+          cursor: '6',
+          changes: [],
           conflicts: [],
-          latestServerCursor: '6',
           mutationOutcomes: [],
         };
       }
-      return { cursor: '6', changes: [] };
+      return { acknowledgedMutationIds: [], cursor: '6', changes: [], conflicts: [], mutationOutcomes: [] };
     });
     const queue = new SyncQueue({ request } as unknown as HttpClient);
 
@@ -581,7 +594,7 @@ describe('SyncQueue transport split', () => {
     expect(retried?.baseVersion).toBeUndefined();
     expect(retried?.baseValues).toBeUndefined();
     expect(request).toHaveBeenCalledWith(
-      '/sync/mutations',
+      '/sync',
       expect.objectContaining({ body: expect.stringContaining(`"id":"${retried?.id}"`) }),
     );
   });

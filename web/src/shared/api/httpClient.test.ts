@@ -28,7 +28,7 @@ describe('HttpClient error responses', () => {
       ),
     );
 
-    const request = new HttpClient().request('/sync/mutations');
+    const request = new HttpClient().request('/sync');
 
     await expect(request).rejects.toMatchObject({
       status: 400,

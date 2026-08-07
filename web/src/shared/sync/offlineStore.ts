@@ -82,24 +82,6 @@ export class OfflineSyncStore {
     return this.databasePromise;
   }
 
-  async migrateLegacyState(): Promise<void> {
-    const rawMutations = localStorage.getItem('itu_sync_mutation_queue_v1');
-    const legacyCursor = localStorage.getItem('itu_sync_cursor_v1');
-    if (rawMutations) {
-      try {
-        const mutations = JSON.parse(rawMutations) as ClientSyncMutation[];
-        for (const mutation of mutations) await this.putMutation(mutation);
-        localStorage.removeItem('itu_sync_mutation_queue_v1');
-      } catch {
-        // Keep unreadable legacy data in place for manual recovery.
-      }
-    }
-    if (legacyCursor && (await this.getCursor()) === '0') {
-      await this.setCursor(legacyCursor);
-      localStorage.removeItem('itu_sync_cursor_v1');
-    }
-  }
-
   async listMutations(): Promise<ClientSyncMutation[]> {
     const database = await this.database();
     return requestResult(database.transaction(MUTATION_STORE).objectStore(MUTATION_STORE).getAll());

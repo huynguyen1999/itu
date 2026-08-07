@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { PullSyncChangesDto, PushSyncMutationsDto, SyncRequestDto } from './sync.dto';
+import { SyncRequestDto } from './sync.dto';
 
 interface SyncContractFixture {
   version: number;
@@ -43,11 +43,9 @@ describe('SyncRequestDto', () => {
 
     expect(errors).toEqual([]);
   });
-});
 
-describe('split sync DTOs', () => {
-  it('accepts the canonical cross-client push fixture without local retry metadata', async () => {
-    const dto = plainToInstance(PushSyncMutationsDto, syncContract.pushRequest);
+  it('accepts the canonical cross-client push fixture via SyncRequestDto without local retry metadata', async () => {
+    const dto = plainToInstance(SyncRequestDto, syncContract.pushRequest);
 
     expect(syncContract.version).toBe(1);
     expect(syncContract.queuedMutation).toMatchObject({ attemptCount: 2, lastErrorCode: 'SERVER' });
@@ -55,19 +53,12 @@ describe('split sync DTOs', () => {
     expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
   });
 
-  it('accepts a mutation-only upload without a download cursor', async () => {
-    const dto = plainToInstance(PushSyncMutationsDto, {
+  it('accepts a pull-only sync request with empty mutations array', async () => {
+    const dto = plainToInstance(SyncRequestDto, {
       deviceId: 'device-123456',
       clientInstanceId: 'client-123456',
-      mutations: [],
-    });
-    expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
-  });
-
-  it('accepts a cursor-only change request for a registered device', async () => {
-    const dto = plainToInstance(PullSyncChangesDto, {
-      deviceId: 'device-123456',
       cursor: '42',
+      mutations: [],
     });
     expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
   });

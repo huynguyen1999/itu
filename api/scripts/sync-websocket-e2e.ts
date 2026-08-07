@@ -119,8 +119,8 @@ async function updateTaskThroughSync(accessToken: string, task: Task): Promise<v
   const response = await request<{
     acknowledgedMutationIds: string[];
     conflicts: unknown[];
-    latestServerCursor: string;
-  }>('/sync/mutations', {
+    cursor: string;
+  }>('/sync', {
     method: 'POST',
     accessToken,
     body: JSON.stringify({

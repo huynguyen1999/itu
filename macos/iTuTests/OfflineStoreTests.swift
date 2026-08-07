@@ -259,20 +259,18 @@ final class OfflineStoreTests: XCTestCase {
         let result = try await store.applySync(
             acknowledgedMutationIds: [mutationID],
             conflicts: [],
-            pull: PullChangesResponse(
-                cursor: "42",
-                lastSyncTime: "2026-07-31T00:00:00.000Z",
-                changes: [
-                    SyncChange(
-                        cursor: 42,
-                        resourceType: "task",
-                        resourceId: task.id,
-                        operation: "UPSERT",
-                        resource: resource,
-                        complete: true
-                    )
-                ]
-            )
+            changes: [
+                SyncChange(
+                    cursor: 42,
+                    entityType: "task",
+                    entityId: task.id,
+                    deleted: false,
+                    data: resource,
+                    complete: true
+                )
+            ],
+            cursor: "42",
+            lastSyncTime: "2026-07-31T00:00:00.000Z"
         )
 
         XCTAssertEqual(result.cursor, "42")
@@ -382,7 +380,8 @@ final class OfflineStoreTests: XCTestCase {
         let conflicted = try await store.applySync(
             acknowledgedMutationIds: [createMutationID],
             conflicts: [conflict],
-            pull: PullChangesResponse(cursor: "4", lastSyncTime: nil, changes: [])
+            changes: [],
+            cursor: "4"
         )
         let savedConflict = try XCTUnwrap(conflicted.conflicts.first)
 
@@ -971,11 +970,8 @@ final class OfflineStoreTests: XCTestCase {
         let result = try await store.applySync(
             acknowledgedMutationIds: [],
             conflicts: [],
-            pull: PullChangesResponse(
-                cursor: "4",
-                lastSyncTime: nil,
-                changes: [SyncChange(cursor: 4, resourceType: "growthattributemapping", resourceId: "skill-focus", operation: "UPSERT", resource: jsonValue, complete: false)]
-            )
+            changes: [SyncChange(cursor: 4, entityType: "growthattributemapping", entityId: "skill-focus", deleted: false, data: jsonValue, complete: false)],
+            cursor: "4"
         )
 
         XCTAssertEqual(result.growthAttributeMappings["skill-focus"]?.first?.attributeId, "attr-1")
@@ -1072,7 +1068,7 @@ final class OfflineStoreTests: XCTestCase {
         XCTAssertEqual(failed.mutations.last?.attemptCount, 1)
         let retried = try await store.retryMutation(mutation.id)
         XCTAssertNil(retried.mutations.last?.lastErrorCode)
-        let acked = try await store.applySync(acknowledgedMutationIds: [mutation.id], conflicts: [], pull: PullChangesResponse(cursor: retried.cursor, lastSyncTime: nil, changes: []))
+        let acked = try await store.applySync(acknowledgedMutationIds: [mutation.id], conflicts: [], changes: [], cursor: retried.cursor)
         XCTAssertTrue(acked.mutations.isEmpty)
     }
 
@@ -1462,7 +1458,7 @@ final class OfflineStoreTests: XCTestCase {
     }
 
     func testGrowthTaskRewardDefaultPersistsAccountBudgetAndWeights() async throws {
-        let store = OfflineStore(accountID: "test-user", baseURL: temporaryDirectory)
+        let store = OfflineStore(accountID: "reward-default-user", baseURL: temporaryDirectory)
         _ = try await store.load()
         let snapshot = try await store.upsertGrowthTaskRewardDefault(
             taskListID: nil,
@@ -1474,11 +1470,11 @@ final class OfflineStoreTests: XCTestCase {
         )
         let value = try XCTUnwrap(snapshot.growthTaskRewardDefaults["GLOBAL"])
         XCTAssertEqual(value.accountXp, 100)
-        XCTAssertEqual(value.skillAwards.map(\.skillId), ["a", "extra", "z"])
+        XCTAssertEqual(value.skillAwards.map(\.skillId), ["a", "extra", "ignored"])
         XCTAssertEqual(value.itemAwards.first?.quantity, 2)
         XCTAssertEqual(snapshot.mutations.last?.kind, "growthtaskrewarddefault.upsert")
 
-        let reloaded = try await OfflineStore(accountID: "test-user", baseURL: temporaryDirectory).load()
+        let reloaded = try await OfflineStore(accountID: "reward-default-user", baseURL: temporaryDirectory).load()
         XCTAssertEqual(reloaded.growthTaskRewardDefaults["GLOBAL"]?.accountXp, 100)
     }
 
@@ -1532,20 +1528,18 @@ final class OfflineStoreTests: XCTestCase {
         let result = try await store.applySync(
             acknowledgedMutationIds: [createMutationID],
             conflicts: [],
-            pull: PullChangesResponse(
-                cursor: "2",
-                lastSyncTime: "2026-07-31T00:00:00.000Z",
-                changes: [
-                    SyncChange(
-                        cursor: 2,
-                        resourceType: "task",
-                        resourceId: task.id,
-                        operation: "UPSERT",
-                        resource: resource,
-                        complete: true
-                    )
-                ]
-            )
+            changes: [
+                SyncChange(
+                    cursor: 2,
+                    entityType: "task",
+                    entityId: task.id,
+                    deleted: false,
+                    data: resource,
+                    complete: true
+                )
+            ],
+            cursor: "2",
+            lastSyncTime: "2026-07-31T00:00:00.000Z"
         )
 
         XCTAssertEqual(result.mutations.count, edited.mutations.count - 1)
@@ -1706,20 +1700,18 @@ final class OfflineStoreTests: XCTestCase {
         let result = try await store.applySync(
             acknowledgedMutationIds: [],
             conflicts: [],
-            pull: PullChangesResponse(
-                cursor: "8",
-                lastSyncTime: "2026-07-31T00:11:00Z",
-                changes: [
-                    SyncChange(
-                        cursor: 8,
-                        resourceType: "focussession",
-                        resourceId: stale.id,
-                        operation: "UPSERT",
-                        resource: resource,
-                        complete: true
-                    )
-                ]
-            )
+            changes: [
+                SyncChange(
+                    cursor: 8,
+                    entityType: "focussession",
+                    entityId: stale.id,
+                    deleted: false,
+                    data: resource,
+                    complete: true
+                )
+            ],
+            cursor: "8",
+            lastSyncTime: "2026-07-31T00:11:00Z"
         )
 
         XCTAssertEqual(result.focusSessions.first?.status, .paused)
@@ -1755,18 +1747,16 @@ final class OfflineStoreTests: XCTestCase {
         let pulled = try await store.applySync(
             acknowledgedMutationIds: [mutation.id],
             conflicts: [],
-            pull: PullChangesResponse(
-                cursor: "9",
-                lastSyncTime: "2026-07-31T00:11:00Z",
-                changes: [SyncChange(
-                    cursor: 9,
-                    resourceType: "focussession",
-                    resourceId: stale.id,
-                    operation: "UPSERT",
-                    resource: resource,
-                    complete: true
-                )]
-            )
+            changes: [SyncChange(
+                cursor: 9,
+                entityType: "focussession",
+                entityId: stale.id,
+                deleted: false,
+                data: resource,
+                complete: true
+            )],
+            cursor: "9",
+            lastSyncTime: "2026-07-31T00:11:00Z"
         )
 
         XCTAssertEqual(pulled.focusSessions.first?.status, .paused)
@@ -1778,16 +1768,16 @@ final class OfflineStoreTests: XCTestCase {
     }
 
     func testTaskMoveToListPersistsTaskListIdOnlyWhenFlagSet() async throws {
-        let store = OfflineStore(accountID: "test-user", baseURL: temporaryDirectory)
+        let store = OfflineStore(accountID: "move-list-user", baseURL: temporaryDirectory)
         _ = try await store.load()
         let (_, created) = try await store.createTask(title: "Move me", taskListId: "list-1")
-        let task = try XCTUnwrap(created.tasks.first)
+        let task = try XCTUnwrap(created.tasks.first(where: { $0.title == "Move me" }))
 
         // Unrelated edit must NOT clear or change the list.
         let unrelated = try await store.editTask(
             id: task.id,
             edits: TaskEdits(
-                title: "Move me",
+                title: "Move me updated",
                 descriptionMarkdown: task.descriptionMarkdown,
                 priority: task.priority,
                 important: task.important,
@@ -1795,7 +1785,8 @@ final class OfflineStoreTests: XCTestCase {
                 estimatedMinutes: task.estimatedMinutes
             )
         )
-        XCTAssertEqual(unrelated.tasks.first?.taskListId, "list-1")
+        let unrelatedTask = try XCTUnwrap(unrelated.tasks.first(where: { $0.id == task.id }))
+        XCTAssertEqual(unrelatedTask.taskListId, "list-1")
         XCTAssertNil(unrelated.mutations.last?.payload["taskListId"])
 
         // Explicit move writes taskListId into the update mutation.
@@ -1812,7 +1803,8 @@ final class OfflineStoreTests: XCTestCase {
                 changesTaskListId: true
             )
         )
-        XCTAssertEqual(moved.tasks.first?.taskListId, "list-2")
+        let movedTask = try XCTUnwrap(moved.tasks.first(where: { $0.id == task.id }))
+        XCTAssertEqual(movedTask.taskListId, "list-2")
         XCTAssertEqual(moved.mutations.last?.payload["taskListId"], .string("list-2"))
 
         // Moving back to Inbox clears the list explicitly.
@@ -1829,17 +1821,21 @@ final class OfflineStoreTests: XCTestCase {
                 changesTaskListId: true
             )
         )
-        XCTAssertNil(toInbox.tasks.first?.taskListId)
+        let toInboxTask = try XCTUnwrap(toInbox.tasks.first(where: { $0.id == task.id }))
+        XCTAssertNil(toInboxTask.taskListId)
         XCTAssertEqual(toInbox.mutations.last?.payload["taskListId"], .null)
     }
 
     func testReorderTasksEmitsSortOrderUpdatesInOrder() async throws {
-        let store = OfflineStore(accountID: "test-user", baseURL: temporaryDirectory)
+        let store = OfflineStore(accountID: "reorder-tasks-user", baseURL: temporaryDirectory)
         _ = try await store.load()
-        let (_, first) = try await store.createTask(title: "A")
-        let (_, second) = try await store.createTask(title: "B")
-        let (_, third) = try await store.createTask(title: "C")
-        let ids = [first.tasks[0].id, second.tasks[0].id, third.tasks[0].id]
+        let (_, firstSnap) = try await store.createTask(title: "A")
+        let firstTask = try XCTUnwrap(firstSnap.tasks.first(where: { $0.title == "A" }))
+        let (_, secondSnap) = try await store.createTask(title: "B")
+        let secondTask = try XCTUnwrap(secondSnap.tasks.first(where: { $0.title == "B" }))
+        let (_, thirdSnap) = try await store.createTask(title: "C")
+        let thirdTask = try XCTUnwrap(thirdSnap.tasks.first(where: { $0.title == "C" }))
+        let ids = [firstTask.id, secondTask.id, thirdTask.id]
 
         let reordered = try await store.reorderTasks(orderedIds: [ids[2], ids[0], ids[1]])
         let updates = reordered.mutations.filter { $0.kind == "task.update" && $0.payload["sortOrder"] != nil }

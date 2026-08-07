@@ -8,7 +8,7 @@ Native SwiftUI client for iTu. The application targets macOS 14 or later and inc
 - Per-account offline task storage in Application Support.
 - Local-first task creation, editing, completion, reopening, and deletion.
 - A persistent mutation outbox using the existing iTu ULID and sync contracts.
-- Push-then-pull reconciliation through `/sync/mutations` and `/sync/changes`.
+- Bidirectional synchronization through `POST /sync` for mutations and server changes.
 - WebSocket invalidation through `/ws/sync`, with a 15-second reconciliation fallback.
 - Persistent manual sync conflicts.
 - Today, Inbox, Completed, Focus, and Conflicts views.

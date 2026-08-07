@@ -58,39 +58,9 @@ export class SyncRequestDto {
   @IsString()
   cursor?: string;
 
-  @IsOptional()
-  @IsString()
-  lastSyncTime?: string;
-
   @IsArray()
   @ArrayMaxSize(500)
   @ValidateNested({ each: true })
   @Type(() => SyncMutationDto)
   mutations!: SyncMutationDto[];
-}
-
-export class PushSyncMutationsDto {
-  @IsString()
-  @Length(12, 128)
-  deviceId!: string;
-
-  @IsString()
-  @Length(12, 128)
-  clientInstanceId!: string;
-
-  @IsArray()
-  @ArrayMaxSize(500)
-  @ValidateNested({ each: true })
-  @Type(() => SyncMutationDto)
-  mutations!: SyncMutationDto[];
-}
-
-export class PullSyncChangesDto {
-  @IsString()
-  @Length(12, 128)
-  deviceId!: string;
-
-  @IsOptional()
-  @IsString()
-  cursor?: string;
 }

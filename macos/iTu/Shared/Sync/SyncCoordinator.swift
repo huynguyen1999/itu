@@ -21,10 +21,6 @@ final class SyncCoordinator {
     private(set) var isActive = false
     private(set) var generation = 0
 
-    /// Feature flag: use the unified POST /sync (push+pull) endpoint. Defaults
-    /// to the split /sync/mutations + /sync/changes flow when unset or "false".
-    static var useUnifiedSync = ProcessInfo.processInfo.environment["ITU_USE_UNIFIED_SYNC"] == "true"
-
     init(apiClient: APIClient, offlineStore: OfflineStore? = nil) {
         self.apiClient = apiClient
         self.offlineStore = offlineStore
@@ -154,60 +150,21 @@ final class SyncCoordinator {
             return date <= Date()
         }
         do {
-            let pushed: PushMutationsResponse
-            let pull: PullChangesResponse
-            if Self.useUnifiedSync {
-                let unified = try await apiClient.synchronize(UnifiedSyncRequest(
-                    deviceId: deviceId,
-                    clientInstanceId: clientInstanceId,
-                    cursor: before.cursor,
-                    mutations: readyMutations.map(SyncMutationPayload.init)
-                ))
-                guard runGeneration == generation else { return SyncResult(snapshot: await offlineStore.snapshot(), outcomes: [], conflicts: [], cursor: before.cursor) }
-                pushed = PushMutationsResponse(
-                    acknowledgedMutationIds: unified.acknowledgedMutationIds,
-                    conflicts: unified.conflicts,
-                    latestServerCursor: unified.cursor,
-                    mutationOutcomes: unified.mutationOutcomes
-                )
-                pull = PullChangesResponse(
-                    cursor: unified.cursor,
-                    lastSyncTime: unified.lastSyncTime,
-                    changes: unified.changes.map { change in
-                        SyncChange(
-                            cursor: change.cursor ?? 0,
-                            resourceType: change.entityType,
-                            resourceId: change.entityId,
-                            operation: change.deleted ? "DELETE" : "UPSERT",
-                            resource: change.data,
-                            complete: change.complete ?? false
-                        )
-                    }
-                )
-            } else {
-                pushed = readyMutations.isEmpty
-                    ? PushMutationsResponse(acknowledgedMutationIds: [], conflicts: [], latestServerCursor: before.cursor)
-                    : try await apiClient.push(PushMutationsRequest(
-                        deviceId: deviceId,
-                        clientInstanceId: clientInstanceId,
-                        mutations: readyMutations.map(SyncMutationPayload.init)
-                    ))
-                guard runGeneration == generation else { return SyncResult(snapshot: await offlineStore.snapshot(), outcomes: [], conflicts: [], cursor: before.cursor) }
-                pull = try await apiClient.pull(deviceId: deviceId, cursor: before.cursor)
-            }
+            let response = try await apiClient.synchronize(SyncRequest(
+                deviceId: deviceId,
+                clientInstanceId: clientInstanceId,
+                cursor: before.cursor,
+                mutations: readyMutations.map(SyncMutationPayload.init)
+            ))
             guard runGeneration == generation else { return SyncResult(snapshot: await offlineStore.snapshot(), outcomes: [], conflicts: [], cursor: before.cursor) }
-            let snapshot = try await offlineStore.applySync(
-                acknowledgedMutationIds: pushed.acknowledgedMutationIds,
-                conflicts: pushed.conflicts,
-                pull: pull
-            )
-            try? await apiClient.updateSyncDevice(deviceId: deviceId, cursor: pull.cursor)
+            let snapshot = try await offlineStore.applySync(response)
+            try? await apiClient.updateSyncDevice(deviceId: deviceId, cursor: response.cursor)
             if socketTask == nil { await registerAndConnect() }
             return SyncResult(
                 snapshot: snapshot,
-                outcomes: pushed.mutationOutcomes ?? [],
-                conflicts: pushed.conflicts,
-                cursor: pull.cursor
+                outcomes: response.mutationOutcomes ?? [],
+                conflicts: response.conflicts,
+                cursor: response.cursor
             )
         } catch {
             let isOffline = ConnectivityMonitor.shared.state == .offline
@@ -274,11 +231,8 @@ final class SyncCoordinator {
                 }
                 if let invalidation = try? JSONDecoder().decode(SyncInvalidationMessage.self, from: data),
                    invalidation.type == "SYNC_AVAILABLE" {
-                    guard connectionGeneration == generation, let store = offlineStore else { continue }
-                    let localCursor = await store.snapshot().cursor
-                    if Self.isCursorNewer(invalidation.cursor, than: localCursor) {
-                        await syncAction?()
-                    }
+                    guard connectionGeneration == generation else { continue }
+                    requestFlush(urgent: true)
                 }
             } catch {
                 guard connectionGeneration == generation else { return }

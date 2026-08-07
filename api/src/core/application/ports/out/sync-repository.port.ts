@@ -26,5 +26,4 @@ export interface SyncChangesResult {
 export interface ISyncRepository {
   applyMutations(userId: string, deviceId: string, mutations: SyncMutation[]): Promise<ApplySyncMutationsResult>;
   changesSince(userId: string, cursor: number): Promise<SyncChangesResult>;
-  currentCursor(userId: string): Promise<string>;
 }

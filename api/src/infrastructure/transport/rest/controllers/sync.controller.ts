@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { REST_ROUTES } from '@core/application/constants/app.constants';
 import { SyncService } from '@core/application/use-cases/sync.service';
 import { AuthGuard } from '../guards/auth.guard';
-import { PullSyncChangesDto, PushSyncMutationsDto, SyncRequestDto } from '../dto/sync.dto';
+import { SyncRequestDto } from '../dto/sync.dto';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
 
 @UseGuards(AuthGuard)
@@ -20,15 +20,5 @@ export class SyncController {
   @Post()
   synchronize(@Req() request: AuthenticatedRequest, @Body() dto: SyncRequestDto) {
     return this.sync.synchronize(request.user.sub, dto.deviceId, dto.clientInstanceId, dto.cursor, dto.mutations);
-  }
-
-  @Post('mutations')
-  pushMutations(@Req() request: AuthenticatedRequest, @Body() dto: PushSyncMutationsDto) {
-    return this.sync.pushMutations(request.user.sub, dto.deviceId, dto.clientInstanceId, dto.mutations);
-  }
-
-  @Get('changes')
-  pullChanges(@Req() request: AuthenticatedRequest, @Query() dto: PullSyncChangesDto) {
-    return this.sync.pullChanges(request.user.sub, dto.deviceId, dto.cursor);
   }
 }

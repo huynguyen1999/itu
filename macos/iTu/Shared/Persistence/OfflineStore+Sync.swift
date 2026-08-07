@@ -36,10 +36,23 @@ extension OfflineStore {
     }
 
     @discardableResult
+    func applySync(_ response: SyncResponse) throws -> OfflineSnapshot {
+        try applySync(
+            acknowledgedMutationIds: response.acknowledgedMutationIds,
+            conflicts: response.conflicts,
+            changes: response.changes,
+            cursor: response.cursor,
+            lastSyncTime: response.lastSyncTime
+        )
+    }
+
+    @discardableResult
     func applySync(
         acknowledgedMutationIds: [String],
         conflicts: [SyncConflict],
-        pull: PullChangesResponse
+        changes: [SyncChange],
+        cursor: String,
+        lastSyncTime: String? = nil
     ) throws -> OfflineSnapshot {
         let optimisticTasksByID = Dictionary(uniqueKeysWithValues: state.tasks.map { ($0.id, $0) })
         let optimisticFocusByID = Dictionary(uniqueKeysWithValues: state.focusSessions.map { ($0.id, $0) })
@@ -95,12 +108,12 @@ extension OfflineStore {
             state.mutations[index].nextRetryAt = nil
         }
 
-        for change in pull.changes where change.resourceType == "task" {
-            if change.operation == "DELETE" {
-                state.tasks.removeAll { $0.id == change.resourceId }
+        for change in changes where change.entityType == "task" {
+            if change.deleted {
+                state.tasks.removeAll { $0.id == change.entityId }
                 continue
             }
-            guard let resource = change.resource else { continue }
+            guard let resource = change.data else { continue }
             let data = try encoder.encode(resource)
             let task = try decoder.decode(ProductivityTask.self, from: data)
             if let index = state.tasks.firstIndex(where: { $0.id == task.id }) {
@@ -109,12 +122,12 @@ extension OfflineStore {
                 state.tasks.append(task)
             }
         }
-        for change in pull.changes where change.resourceType == "tasklist" {
-            if change.operation == "DELETE" {
-                state.taskLists.removeAll { $0.id == change.resourceId }
+        for change in changes where change.entityType == "tasklist" {
+            if change.deleted {
+                state.taskLists.removeAll { $0.id == change.entityId }
                 continue
             }
-            guard let resource = change.resource,
+            guard let resource = change.data,
                   let data = try? encoder.encode(resource),
                   let list = try? decoder.decode(TaskListModel.self, from: data) else { continue }
             if let index = state.taskLists.firstIndex(where: { $0.id == list.id }) {
@@ -123,12 +136,12 @@ extension OfflineStore {
                 state.taskLists.append(list)
             }
         }
-        for change in pull.changes where change.resourceType == "focussession" {
-            if change.operation == "DELETE" {
-                state.focusSessions.removeAll { $0.id == change.resourceId }
+        for change in changes where change.entityType == "focussession" {
+            if change.deleted {
+                state.focusSessions.removeAll { $0.id == change.entityId }
                 continue
             }
-            guard let resource = change.resource else { continue }
+            guard let resource = change.data else { continue }
             let data = try encoder.encode(resource)
             let incoming = try decoder.decode(FocusSession.self, from: data)
             if let local = optimisticFocusByID[incoming.id], local.version >= incoming.version {
@@ -137,12 +150,12 @@ extension OfflineStore {
                 upsertFocusSession(incoming)
             }
         }
-        for change in pull.changes where change.resourceType == "habit" {
-            if change.operation == "DELETE" {
-                state.habits.removeAll { $0.id == change.resourceId }
+        for change in changes where change.entityType == "habit" {
+            if change.deleted {
+                state.habits.removeAll { $0.id == change.entityId }
                 continue
             }
-            guard let resource = change.resource else { continue }
+            guard let resource = change.data else { continue }
             if let data = try? encoder.encode(resource),
                let habit = try? decoder.decode(HabitModel.self, from: data) {
                 if let index = state.habits.firstIndex(where: { $0.id == habit.id }) {
@@ -152,12 +165,12 @@ extension OfflineStore {
                 }
             }
         }
-        for change in pull.changes where change.resourceType == "habitoccurrence" {
-            if change.operation == "DELETE" {
-                state.habitOccurrences.removeAll { $0.id == change.resourceId }
+        for change in changes where change.entityType == "habitoccurrence" {
+            if change.deleted {
+                state.habitOccurrences.removeAll { $0.id == change.entityId }
                 continue
             }
-            guard let resource = change.resource else { continue }
+            guard let resource = change.data else { continue }
             if let data = try? encoder.encode(resource),
                let occurrence = try? decoder.decode(HabitOccurrenceModel.self, from: data) {
                 if let index = state.habitOccurrences.firstIndex(where: { $0.id == occurrence.id }) {
@@ -167,12 +180,12 @@ extension OfflineStore {
                 }
             }
         }
-        for change in pull.changes where change.resourceType == "deck" {
-            if change.operation == "DELETE" {
-                state.decks.removeAll { $0.id == change.resourceId }
+        for change in changes where change.entityType == "deck" {
+            if change.deleted {
+                state.decks.removeAll { $0.id == change.entityId }
                 continue
             }
-            guard let resource = change.resource else { continue }
+            guard let resource = change.data else { continue }
             if let data = try? encoder.encode(resource),
                let deck = try? decoder.decode(DeckModel.self, from: data) {
                 if let index = state.decks.firstIndex(where: { $0.id == deck.id }) {
@@ -182,14 +195,14 @@ extension OfflineStore {
                 }
             }
         }
-        for change in pull.changes where change.resourceType == "card" {
-            if change.operation == "DELETE" {
+        for change in changes where change.entityType == "card" {
+            if change.deleted {
                 for deckID in state.cardsByDeckId.keys {
-                    state.cardsByDeckId[deckID]?.removeAll { $0.id == change.resourceId }
+                    state.cardsByDeckId[deckID]?.removeAll { $0.id == change.entityId }
                 }
                 continue
             }
-            guard let resource = change.resource,
+            guard let resource = change.data,
                   let data = try? encoder.encode(resource),
                   let card = try? decoder.decode(CardModel.self, from: data) else { continue }
             var cards = state.cardsByDeckId[card.deckId] ?? []
@@ -201,12 +214,12 @@ extension OfflineStore {
             state.cardsByDeckId[card.deckId] = cards
             updateDeckCardCount(deckId: card.deckId, cards: cards)
         }
-        for change in pull.changes where change.resourceType == "growthskill" {
-            if change.operation == "DELETE" {
-                state.skills.removeAll { $0.id == change.resourceId }
+        for change in changes where change.entityType == "growthskill" {
+            if change.deleted {
+                state.skills.removeAll { $0.id == change.entityId }
                 continue
             }
-            guard let resource = change.resource else { continue }
+            guard let resource = change.data else { continue }
             if let data = try? encoder.encode(resource),
                let dto = try? decoder.decode(GrowthSkillDTO.self, from: data) {
                 let skill = Self.skillNode(dto)
@@ -217,23 +230,23 @@ extension OfflineStore {
                 }
             }
         }
-        for change in pull.changes where change.resourceType == "growthprofile" {
-            if change.operation == "DELETE" {
+        for change in changes where change.entityType == "growthprofile" {
+            if change.deleted {
                 state.growthProfile = nil
                 continue
             }
-            guard let resource = change.resource,
+            guard let resource = change.data,
                   let data = try? encoder.encode(resource),
                   let profile = try? decoder.decode(GrowthProfileDTO.self, from: data) else { continue }
             state.growthProfile = profile
         }
-        for change in pull.changes where change.resourceType == "growthattributemapping" {
-            if change.operation == "DELETE" {
-                state.growthAttributeMappings.removeValue(forKey: change.resourceId)
+        for change in changes where change.entityType == "growthattributemapping" {
+            if change.deleted {
+                state.growthAttributeMappings.removeValue(forKey: change.entityId)
                 continue
             }
-            guard let mappings = Self.decodeGrowthAttributeMappings(change.resource) else { continue }
-            state.growthAttributeMappings[change.resourceId] = mappings
+            guard let mappings = Self.decodeGrowthAttributeMappings(change.data) else { continue }
+            state.growthAttributeMappings[change.entityId] = mappings
         }
         try reapplyPendingTaskMutations(optimisticTasksByID: optimisticTasksByID)
         try reapplyPendingTaskListMutations(optimisticByID: optimisticTaskListsByID)
@@ -285,8 +298,8 @@ extension OfflineStore {
         for deckID in cardDeckIDs {
             try reapplyPendingCardMutations(deckId: deckID, optimisticCardsByID: optimisticCardsByID)
         }
-        state.cursor = pull.cursor
-        state.lastSyncTime = pull.lastSyncTime
+        state.cursor = cursor
+        state.lastSyncTime = lastSyncTime
         try persist()
         return state
     }

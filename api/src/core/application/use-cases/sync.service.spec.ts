@@ -94,72 +94,36 @@ describe('SyncService', () => {
     });
   });
 
-  it('pushes mutations without advancing the downloaded device cursor', async () => {
+  it('pulls changes via synchronize with empty mutations array and advances device cursor without invalidation', async () => {
     const syncRepository: jest.Mocked<ISyncRepository> = {
       applyMutations: jest.fn().mockResolvedValue({
-        acknowledgedMutationIds: ['mutation-1'],
+        acknowledgedMutationIds: [],
         conflicts: [],
         aiJobsToEnqueue: [],
       }),
-      changesSince: jest.fn(),
-      currentCursor: jest.fn().mockResolvedValue('51'),
-    };
-    const devices = createDevices();
-    devices.listNotificationTargets.mockResolvedValue([]);
-    const service = new SyncService(syncRepository, createQueue(), devices, createNotifier());
-
-    const result = await service.pushMutations('user-1', 'device-1', 'client-1', [
-      {
-        id: 'mutation-1',
-        kind: 'task.update',
-        entityId: 'task-1',
-        payload: { title: 'Changed' },
-        occurredAt: '2026-07-25T00:00:00.000Z',
-      },
-    ]);
-
-    expect(result.latestServerCursor).toBe('51');
-    expect(devices.update).not.toHaveBeenCalled();
-    expect(syncRepository.changesSince).not.toHaveBeenCalled();
-  });
-
-  it('pulls changes and advances only the requesting device cursor', async () => {
-    const syncRepository: jest.Mocked<ISyncRepository> = {
-      applyMutations: jest.fn(),
       changesSince: jest.fn().mockResolvedValue({ cursor: '52', lastSyncTime: now.toISOString(), changes: [] }),
-      currentCursor: jest.fn(),
     };
     const devices = createDevices();
-    const service = new SyncService(syncRepository, createQueue(), devices, createNotifier());
+    const notifier = createNotifier();
+    const service = new SyncService(syncRepository, createQueue(), devices, notifier);
 
-    await service.pullChanges('user-1', 'device-1', '51');
+    const result = await service.synchronize('user-1', 'device-1', 'client-1', '51', []);
 
     expect(syncRepository.changesSince).toHaveBeenCalledWith('user-1', 51);
     expect(devices.update).toHaveBeenCalledWith('user-1', 'device-1', { lastKnownSyncCursor: '52' });
-    expect(syncRepository.applyMutations).not.toHaveBeenCalled();
+    expect(devices.listNotificationTargets).not.toHaveBeenCalled();
+    expect(notifier.notifySyncAvailable).not.toHaveBeenCalled();
+    expect(result.cursor).toBe('52');
   });
 
   it('rejects invalid cursors before applying mutations', async () => {
     const syncRepository: jest.Mocked<ISyncRepository> = {
       applyMutations: jest.fn(),
       changesSince: jest.fn(),
-      currentCursor: jest.fn(),
     };
-    const queue: jest.Mocked<IQueueJobHandler> = {
-      enqueueCardSuggestions: jest.fn(),
-      enqueueSessionFeedback: jest.fn(),
-      enqueueScheduledJob: jest.fn(),
-      enqueueSyncInvalidation: jest.fn(),
-    };
-    const devices: jest.Mocked<ISyncDeviceRepository> = {
-      upsert: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-      listNotificationTargets: jest.fn(),
-    };
-    const invalidationNotifier: jest.Mocked<ISyncInvalidationNotifier> = {
-      notifySyncAvailable: jest.fn(),
-    };
+    const queue = createQueue();
+    const devices = createDevices();
+    const invalidationNotifier = createNotifier();
 
     const service = new SyncService(syncRepository, queue, devices, invalidationNotifier);
 
@@ -180,23 +144,10 @@ describe('SyncService', () => {
         cursor: '42',
         changes: [],
       }),
-      currentCursor: jest.fn(),
     };
-    const queue: jest.Mocked<IQueueJobHandler> = {
-      enqueueCardSuggestions: jest.fn(),
-      enqueueSessionFeedback: jest.fn(),
-      enqueueScheduledJob: jest.fn(),
-      enqueueSyncInvalidation: jest.fn(),
-    };
-    const devices: jest.Mocked<ISyncDeviceRepository> = {
-      upsert: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-      listNotificationTargets: jest.fn(),
-    };
-    const invalidationNotifier: jest.Mocked<ISyncInvalidationNotifier> = {
-      notifySyncAvailable: jest.fn(),
-    };
+    const queue = createQueue();
+    const devices = createDevices();
+    const invalidationNotifier = createNotifier();
 
     const service = new SyncService(syncRepository, queue, devices, invalidationNotifier);
 
