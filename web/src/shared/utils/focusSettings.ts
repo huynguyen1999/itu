@@ -31,7 +31,7 @@ export function getStoredFocusSettings(): FocusUserSettings {
     const stored = localStorage.getItem(SETTINGS_KEY);
     if (!stored) return DEFAULT_FOCUS_SETTINGS;
     const parsed = JSON.parse(stored) as Partial<FocusUserSettings>;
-    const countExceeded = parsed.countExceededFocusTime ?? (parsed.autoContinueOvertime ?? true);
+    const countExceeded = parsed.countExceededFocusTime ?? parsed.autoContinueOvertime ?? true;
     return {
       ...DEFAULT_FOCUS_SETTINGS,
       ...parsed,

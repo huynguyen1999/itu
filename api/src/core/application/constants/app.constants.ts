@@ -184,6 +184,7 @@ export const REST_ROUTES = {
   trashCardDelete: 'cards/:cardId',
   trashCardImageDelete: 'card-images/:imageId',
   trashTaskDelete: 'tasks/:taskId',
+  journal: 'journal',
 } as const;
 
 export const ROUTE_PARAMS = {

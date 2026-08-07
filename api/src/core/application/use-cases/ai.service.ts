@@ -1,26 +1,29 @@
-import { IAiUseCase } from '@core/application/ports/in/ai-use-case.port';
-import {
+import { Inject, Injectable } from '@nestjs/common';
+import { TOKENS } from '@core/application/constants/tokens';
+import type { IAiUseCase } from '@core/application/ports/in/ai-use-case.port';
+import type {
   IAiFeedbackRepository,
   IAiJobRepository,
   IStudySessionRepository,
 } from '@core/application/ports/out/repositories.port';
-import { IAiProvider, ILogger, IMediaStorage, IQueueJobHandler } from '@core/application/ports/out/services.port';
-import { CardGrading } from '@core/application/ports/out/service-types.port';
+import type { IAiProvider, ILogger, IMediaStorage, IQueueJobHandler } from '@core/application/ports/out/services.port';
+import type { CardGrading } from '@core/application/ports/out/service-types.port';
 import { AiJobType } from '@core/domain/enums';
 import { AiJobModel, AiSessionFeedbackModel } from '@core/domain/models';
 import { EntityNotFoundException } from '@core/domain/exceptions';
 import { AI_CONSTANTS } from '@core/application/constants/app.constants';
 import { hydrateSessionReviewImages } from './ai-session-images';
 
+@Injectable()
 export class AiService implements IAiUseCase {
   constructor(
-    private readonly jobs: IAiJobRepository,
-    private readonly feedback: IAiFeedbackRepository,
-    private readonly sessions: IStudySessionRepository,
-    private readonly queue: IQueueJobHandler,
-    private readonly logger: ILogger,
-    private readonly ai: IAiProvider,
-    private readonly media: IMediaStorage,
+    @Inject(TOKENS.AI_JOB_REPOSITORY) private readonly jobs: IAiJobRepository,
+    @Inject(TOKENS.AI_FEEDBACK_REPOSITORY) private readonly feedback: IAiFeedbackRepository,
+    @Inject(TOKENS.STUDY_SESSION_REPOSITORY) private readonly sessions: IStudySessionRepository,
+    @Inject(TOKENS.QUEUE_JOB_HANDLER) private readonly queue: IQueueJobHandler,
+    @Inject(TOKENS.LOGGER) private readonly logger: ILogger,
+    @Inject(TOKENS.AI_PROVIDER) private readonly ai: IAiProvider,
+    @Inject(TOKENS.MEDIA_STORAGE) private readonly media: IMediaStorage,
   ) {}
 
   async suggestCards(userId: string, pastedText: string): Promise<AiJobModel> {

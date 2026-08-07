@@ -1,11 +1,13 @@
-import {
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { TOKENS } from '@core/application/constants/tokens';
+import type {
   IStudyUseCase,
   CompleteSessionCommand,
   DueReviewItem,
   StartSessionCommand,
   SubmitReviewCommand,
 } from '@core/application/ports/in/study-use-case.port';
-import {
+import type {
   ICardRepository,
   IAiFeedbackRepository,
   IReviewStateRepository,
@@ -19,13 +21,14 @@ import { StudySessionHistoryData } from '@core/application/ports/out/repository-
 import { SessionReviewItem } from '@core/application/ports/out/service-types.port';
 import { SrsSchedulerService } from './srs-scheduler.service';
 
+@Injectable()
 export class StudyService implements IStudyUseCase {
   constructor(
-    private readonly reviewStates: IReviewStateRepository,
-    private readonly sessions: IStudySessionRepository,
-    private readonly cards: ICardRepository,
+    @Inject(TOKENS.REVIEW_STATE_REPOSITORY) private readonly reviewStates: IReviewStateRepository,
+    @Inject(TOKENS.STUDY_SESSION_REPOSITORY) private readonly sessions: IStudySessionRepository,
+    @Inject(TOKENS.CARD_REPOSITORY) private readonly cards: ICardRepository,
     private readonly scheduler: SrsSchedulerService,
-    private readonly feedback?: IAiFeedbackRepository,
+    @Optional() @Inject(TOKENS.AI_FEEDBACK_REPOSITORY) private readonly feedback?: IAiFeedbackRepository,
   ) {}
 
   due(userId: string, deckId?: string): Promise<DueReviewItem[]> {
@@ -43,6 +46,17 @@ export class StudyService implements IStudyUseCase {
     });
   }
 
+  private isSameReviewPayload(existing: any, sessionId: string, command: SubmitReviewCommand): boolean {
+    return (
+      existing.sessionId === sessionId &&
+      existing.cardId === command.cardId &&
+      existing.direction === command.direction &&
+      existing.grade === command.grade &&
+      (existing.userAnswer ?? null) === (this.normalizeUserAnswer(command.userAnswer) ?? null) &&
+      (existing.responseMs ?? null) === (command.responseMs ?? null)
+    );
+  }
+
   async submitReview(userId: string, sessionId: string, command: SubmitReviewCommand): Promise<DueReviewItem> {
     const session = await this.sessions.findById(userId, sessionId);
     if (!session) throw new EntityNotFoundException('StudySession', sessionId);
@@ -52,7 +66,7 @@ export class StudyService implements IStudyUseCase {
     if (command.idempotencyKey) {
       const existing = await this.sessions.findReviewLogByIdempotencyKey?.(userId, command.idempotencyKey);
       if (existing) {
-        if (existing.sessionId !== sessionId || existing.cardId !== command.cardId || existing.direction !== command.direction || existing.grade !== command.grade || (existing.userAnswer ?? null) !== (this.normalizeUserAnswer(command.userAnswer) ?? null) || (existing.responseMs ?? null) !== (command.responseMs ?? null)) {
+        if (!this.isSameReviewPayload(existing, sessionId, command)) {
           throw new InvalidReviewException('Review idempotency key was reused with a different payload');
         }
         const [state, card] = await Promise.all([

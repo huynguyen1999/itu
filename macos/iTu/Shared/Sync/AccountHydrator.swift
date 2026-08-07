@@ -1,24 +1,14 @@
 import Foundation
 
-enum HydratedResource<Value: Sendable>: Sendable {
-    case success(Value)
-    case failure
-
-    var value: Value? {
-        guard case let .success(value) = self else { return nil }
-        return value
-    }
-}
-
 struct AccountHydrationResult: Sendable {
     let snapshot: OfflineSnapshot
-    let habitTimeBlocks: HydratedResource<[HabitTimeBlockModel]>
-    let studySessionHistory: HydratedResource<[StudySessionHistoryItem]>
-    let notifications: HydratedResource<[AppNotificationModel]>
+    let habitTimeBlocks: [HabitTimeBlockModel]?
+    let studySessionHistory: [StudySessionHistoryItem]?
+    let notifications: [AppNotificationModel]?
 }
 
 /// Fetches account resources independently, then applies one local snapshot.
-/// A failed resource is represented as `.failure`; an empty successful response
+/// A failed resource is represented as `nil`; an empty successful response
 /// remains authoritative and is applied as an empty collection.
 final class AccountHydrator: @unchecked Sendable {
     private let apiClient: APIClient
@@ -54,9 +44,9 @@ final class AccountHydrator: @unchecked Sendable {
         async let mappings = fetch { try await self.apiClient.fetchGrowthAttributeMappings() }
 
         let fetchedDecks = await decks
-        var cardsByDeck: [String: HydratedResource<[CardModel]>] = [:]
-        if let deckValues = fetchedDecks.value {
-            await withTaskGroup(of: (String, HydratedResource<[CardModel]>).self) { group in
+        var cardsByDeck: [String: [CardModel]?] = [:]
+        if let deckValues = fetchedDecks {
+            await withTaskGroup(of: (String, [CardModel]?).self) { group in
                 for deck in deckValues {
                     group.addTask { (deck.id, await self.fetch { try await self.apiClient.fetchCards(deckId: deck.id) }) }
                 }
@@ -83,30 +73,30 @@ final class AccountHydrator: @unchecked Sendable {
 
     private func fetch<Value: Sendable>(
         _ operation: @escaping @Sendable () async throws -> Value
-    ) async -> HydratedResource<Value> {
-        do { return .success(try await operation()) } catch { return .failure }
+    ) async -> Value? {
+        do { return try await operation() } catch { return nil }
     }
 }
 
 struct AccountHydrationResources: Sendable {
-    let tasks: HydratedResource<[ProductivityTask]>
-    let lists: HydratedResource<[TaskListModel]>
-    let sections: HydratedResource<[TaskSectionModel]>
-    let tags: HydratedResource<[TagModel]>
-    let metadata: HydratedResource<[TaskMetadataDTO]>
-    let habits: HydratedResource<[HabitModel]>
-    let growth: HydratedResource<GrowthOverviewDTO>
-    let skills: HydratedResource<[GrowthSkillDTO]>
-    let attributes: HydratedResource<[GrowthSkillDTO]>
-    let rewards: HydratedResource<[GrowthRewardDTO]>
-    let inventory: HydratedResource<[GrowthInventoryDTO]>
-    let ledger: HydratedResource<[GrowthLedgerDTO]>
-    let decks: HydratedResource<[DeckModel]>
-    let cards: [String: HydratedResource<[CardModel]>]
-    let profile: HydratedResource<GrowthProfileDTO>
-    let presets: HydratedResource<[String: [String: GrowthRewardRuleDTO]]>
-    let taskRules: HydratedResource<[GrowthEarningRuleDTO]>
-    let habitRules: HydratedResource<[GrowthEarningRuleDTO]>
-    let rewardDefaults: HydratedResource<[GrowthTaskRewardDefaultDTO]>
-    let mappings: HydratedResource<[GrowthAttributeMappingDTO]>
+    let tasks: [ProductivityTask]?
+    let lists: [TaskListModel]?
+    let sections: [TaskSectionModel]?
+    let tags: [TagModel]?
+    let metadata: [TaskMetadataDTO]?
+    let habits: [HabitModel]?
+    let growth: GrowthOverviewDTO?
+    let skills: [GrowthSkillDTO]?
+    let attributes: [GrowthSkillDTO]?
+    let rewards: [GrowthRewardDTO]?
+    let inventory: [GrowthInventoryDTO]?
+    let ledger: [GrowthLedgerDTO]?
+    let decks: [DeckModel]?
+    let cards: [String: [CardModel]?]
+    let profile: GrowthProfileDTO?
+    let presets: [String: [String: GrowthRewardRuleDTO]]?
+    let taskRules: [GrowthEarningRuleDTO]?
+    let habitRules: [GrowthEarningRuleDTO]?
+    let rewardDefaults: [GrowthTaskRewardDefaultDTO]?
+    let mappings: [GrowthAttributeMappingDTO]?
 }

@@ -1,7 +1,6 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { REST_ROUTES, ROUTE_PARAMS } from '@core/application/constants/app.constants';
-import { TOKENS } from '@core/application/constants/tokens';
-import type { IDeckUseCase } from '@core/application/ports/in/deck-use-case.port';
+import { DeckService } from '@core/application/use-cases/deck.service';
 import { AuthGuard } from '../guards/auth.guard';
 import { CreateDeckDto, UpdateDeckDto } from '../dto/decks.dto';
 import { CursorPageQueryDto } from '../dto/pagination.dto';
@@ -10,7 +9,7 @@ import type { AuthenticatedRequest } from '../types/authenticated-request';
 @UseGuards(AuthGuard)
 @Controller(REST_ROUTES.decks)
 export class DecksController {
-  constructor(@Inject(TOKENS.DECK_USE_CASE) private readonly decks: IDeckUseCase) {}
+  constructor(private readonly decks: DeckService) {}
 
   /**
    * List user's flashcard decks.

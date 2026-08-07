@@ -6,17 +6,17 @@ extension OfflineStore {
         let originalState = state
         suppressPersistence = true
         do {
-            if let fetched = resources.tasks.value { try applyHydratedTasks(fetched) }
-            if let fetched = resources.lists.value { try applyHydratedLists(fetched) }
-            if let sections = resources.sections.value, let tags = resources.tags.value {
+            if let fetched = resources.tasks { try applyHydratedTasks(fetched) }
+            if let fetched = resources.lists { try applyHydratedLists(fetched) }
+            if let sections = resources.sections, let tags = resources.tags {
                 state.sections = sections
                 state.tags = tags
             } else {
-                if let sections = resources.sections.value { state.sections = sections }
-                if let tags = resources.tags.value { state.tags = tags }
+                if let sections = resources.sections { state.sections = sections }
+                if let tags = resources.tags { state.tags = tags }
             }
-            if let metadata = resources.metadata.value { try updateTaskMetadata(metadata) }
-            if let habits = resources.habits.value {
+            if let metadata = resources.metadata { try updateTaskMetadata(metadata) }
+            if let habits = resources.habits {
                 let optimistic = Dictionary(uniqueKeysWithValues: state.habits.map { ($0.id, $0) })
                 let pending = Set(state.mutations.filter { $0.kind.hasPrefix("habit.") }.map(\.entityId))
                 let retained = state.habits.filter { existing in
@@ -28,41 +28,41 @@ extension OfflineStore {
             let optimisticSkills = Dictionary(uniqueKeysWithValues: state.skills.map { ($0.id, $0) })
             let optimisticShopItems = Dictionary(uniqueKeysWithValues: state.shopItems.map { ($0.id, $0) })
             let optimisticInventory = Dictionary(uniqueKeysWithValues: state.inventoryItems.map { ($0.id, $0) })
-            if let growth = resources.growth.value { try updateGrowthOverview(growth) }
-            if let skills = resources.skills.value {
+            if let growth = resources.growth { try updateGrowthOverview(growth) }
+            if let skills = resources.skills {
                 try updateGrowthSkills(skills)
                 try reapplyPendingGrowthSkillMutations(optimisticByID: optimisticSkills)
-            } else if resources.growth.value != nil {
+            } else if resources.growth != nil {
                 // The overview endpoint may carry the authoritative skill list
                 // when the dedicated skills request fails or is omitted.
                 try reapplyPendingGrowthSkillMutations(optimisticByID: optimisticSkills)
             }
-            if let attributes = resources.attributes.value { try updateGrowthAttributes(attributes) }
-            if let rewards = resources.rewards.value { try updateGrowthRewards(rewards) }
-            if let inventory = resources.inventory.value { try updateGrowthInventory(inventory) }
-            if resources.growth.value != nil || resources.rewards.value != nil || resources.inventory.value != nil {
+            if let attributes = resources.attributes { try updateGrowthAttributes(attributes) }
+            if let rewards = resources.rewards { try updateGrowthRewards(rewards) }
+            if let inventory = resources.inventory { try updateGrowthInventory(inventory) }
+            if resources.growth != nil || resources.rewards != nil || resources.inventory != nil {
                 reapplyPendingGrowthRewardRedemptions(
                     optimisticShopItems: optimisticShopItems,
                     optimisticInventory: optimisticInventory,
-                    debitCoins: resources.growth.value != nil
+                    debitCoins: resources.growth != nil
                 )
             }
-            if let ledger = resources.ledger.value { try updateGrowthLedger(ledger) }
-            if let decks = resources.decks.value { try applyHydratedDecks(decks) }
+            if let ledger = resources.ledger { try updateGrowthLedger(ledger) }
+            if let decks = resources.decks { try applyHydratedDecks(decks) }
             for (deckID, cards) in resources.cards {
-                if let cards = cards.value { try updateCards(deckId: deckID, cards: cards) }
+                if let cards { try updateCards(deckId: deckID, cards: cards) }
             }
-            if let profile = resources.profile.value { try updateGrowthProfile(profile) }
-            if let presets = resources.presets.value { try updateGrowthRewardPresetSettings(presets) }
-            if let taskRules = resources.taskRules.value, let habitRules = resources.habitRules.value {
+            if let profile = resources.profile { try updateGrowthProfile(profile) }
+            if let presets = resources.presets { try updateGrowthRewardPresetSettings(presets) }
+            if let taskRules = resources.taskRules, let habitRules = resources.habitRules {
                 try updateGrowthEarningRules(taskRules + habitRules)
-            } else if let taskRules = resources.taskRules.value {
+            } else if let taskRules = resources.taskRules {
                 try updateGrowthEarningRules(taskRules)
-            } else if let habitRules = resources.habitRules.value {
+            } else if let habitRules = resources.habitRules {
                 try updateGrowthEarningRules(habitRules)
             }
-            if let defaults = resources.rewardDefaults.value { try updateGrowthTaskRewardDefaults(defaults) }
-            if let mappings = resources.mappings.value { try updateGrowthAttributeMappings(mappings) }
+            if let defaults = resources.rewardDefaults { try updateGrowthTaskRewardDefaults(defaults) }
+            if let mappings = resources.mappings { try updateGrowthAttributeMappings(mappings) }
             suppressPersistence = false
             try persist()
             return state

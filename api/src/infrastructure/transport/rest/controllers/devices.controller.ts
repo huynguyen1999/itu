@@ -1,7 +1,6 @@
-import { Body, Controller, Delete, Inject, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { REST_ROUTES, ROUTE_PARAMS } from '@core/application/constants/app.constants';
-import { TOKENS } from '@core/application/constants/tokens';
-import type { IDevicesUseCase } from '@core/application/ports/in/devices-use-case.port';
+import { DevicesService } from '@core/application/use-cases/devices.service';
 import { AuthGuard } from '../guards/auth.guard';
 import { RegisterDeviceDto, UpdateDeviceDto } from '../dto/devices.dto';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
@@ -9,7 +8,7 @@ import type { AuthenticatedRequest } from '../types/authenticated-request';
 @UseGuards(AuthGuard)
 @Controller(REST_ROUTES.devices)
 export class DevicesController {
-  constructor(@Inject(TOKENS.DEVICES_USE_CASE) private readonly devices: IDevicesUseCase) {}
+  constructor(private readonly devices: DevicesService) {}
 
   /**
    * Register push notification token & device.

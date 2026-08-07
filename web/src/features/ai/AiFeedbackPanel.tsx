@@ -9,6 +9,7 @@ import { BrainCircuit, CheckCircle2, Target } from 'lucide-react';
 import { MarkdownPreview } from '../../shared/markdown/MarkdownPreview';
 import { useSync } from '@/shared/sync/SyncProvider';
 import { studyCompletionMessage, studyReceiptAccountXp } from '../review/studyReward';
+import { parseSseEventLine } from '../../shared/utils/sse';
 
 interface DisplayFeedback {
   id: string;
@@ -107,29 +108,25 @@ export function AiFeedbackPanel({
         const decoder = new TextDecoder();
 
         const processLine = (line: string) => {
-          if (!line.startsWith('data: ')) return;
-          try {
-            const parsed = JSON.parse(line.slice(6));
-            if (parsed.error) {
-              throw new Error(parsed.error);
-            }
-            const chunk = parsed.chunk;
-            if (chunk) {
-              currentSummaryText += chunk;
-              setAccumulatedText(currentSummaryText);
-              setStreamedFeedback((prev) => ({
-                id: sessionId,
-                userId: '',
-                sessionId,
-                summary: currentSummaryText,
-                cardGradings: prev?.cardGradings || [],
-                confidence: prev?.confidence ?? null,
-                gradePoint: prev?.gradePoint ?? null,
-                createdAt: new Date().toISOString(),
-              }));
-            }
-          } catch (e) {
-            if (line.includes('event: error')) throw e;
+          const parsedLine = parseSseEventLine<{ chunk?: string; error?: string }>(line);
+          if (!parsedLine.isData || !parsedLine.data) return;
+          if (parsedLine.error) {
+            throw new Error(parsedLine.error);
+          }
+          const chunk = parsedLine.data.chunk;
+          if (chunk) {
+            currentSummaryText += chunk;
+            setAccumulatedText(currentSummaryText);
+            setStreamedFeedback((prev) => ({
+              id: sessionId,
+              userId: '',
+              sessionId,
+              summary: currentSummaryText,
+              cardGradings: prev?.cardGradings || [],
+              confidence: prev?.confidence ?? null,
+              gradePoint: prev?.gradePoint ?? null,
+              createdAt: new Date().toISOString(),
+            }));
           }
         };
 

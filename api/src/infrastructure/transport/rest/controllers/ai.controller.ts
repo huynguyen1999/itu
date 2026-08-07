@@ -1,8 +1,7 @@
-import { Body, Controller, Get, Inject, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import { REST_ROUTES, ROUTE_PARAMS } from '@core/application/constants/app.constants';
-import { TOKENS } from '@core/application/constants/tokens';
-import type { IAiUseCase } from '@core/application/ports/in/ai-use-case.port';
+import { AiService } from '@core/application/use-cases/ai.service';
 import { AuthGuard } from '../guards/auth.guard';
 import { AiRateLimitGuard } from '../guards/ai-rate-limit.guard';
 import { AiCardSuggestionDto, AiSessionGradingDto } from '../dto/cards.dto';
@@ -16,7 +15,7 @@ import { allowedResponseOrigin } from '../cors-origin';
 @RequirePermissions(PERMISSIONS.aiUse)
 @Controller(REST_ROUTES.ai)
 export class AiController {
-  constructor(@Inject(TOKENS.AI_USE_CASE) private readonly ai: IAiUseCase) {}
+  constructor(private readonly ai: AiService) {}
 
   /**
    * Request AI flashcard suggestions.

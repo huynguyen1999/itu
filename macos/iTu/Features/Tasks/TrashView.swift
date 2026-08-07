@@ -254,8 +254,7 @@ private struct TrashDeckCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Image(systemName: deck.icon)
-                    .foregroundStyle(iTuTheme.teal)
+                DeckIconView(icon: deck.icon, size: 16, color: iTuTheme.teal)
                     .frame(width: 30, height: 30)
                     .background(iTuTheme.mintTint)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))

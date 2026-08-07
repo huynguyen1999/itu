@@ -34,6 +34,10 @@ const QUERY_PREFIXES: Record<string, string[]> = {
   growthrewardpresetsetting: ['growth'],
   growthtaskrewarddefault: ['growth'],
   growthattributemapping: ['growth'],
+  journalentry: ['journal-entries', 'journal-dashboard', 'journal'],
+  journaltemplate: ['journal-templates', 'journal'],
+  journaltag: ['journal-tags', 'journal'],
+  exercisedefinition: ['exercise-definitions', 'journal'],
 };
 
 const OPTIMISTIC_INSERT_PREFIXES: Record<string, string[]> = {
@@ -42,6 +46,10 @@ const OPTIMISTIC_INSERT_PREFIXES: Record<string, string[]> = {
   deck: ['deck', 'decks'],
   card: ['cards'],
   habit: ['habits'],
+  journalentry: ['journal-entries'],
+  journaltemplate: ['journal-templates'],
+  journaltag: ['journal-tags'],
+  exercisedefinition: ['exercise-definitions'],
 };
 
 export function applySyncChanges(queryClient: QueryClient, response: SyncResponse): void {

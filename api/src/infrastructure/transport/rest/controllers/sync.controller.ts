@@ -1,7 +1,6 @@
-import { Body, Controller, Get, Inject, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { REST_ROUTES } from '@core/application/constants/app.constants';
-import { TOKENS } from '@core/application/constants/tokens';
-import type { ISyncUseCase } from '@core/application/ports/in/sync-use-case.port';
+import { SyncService } from '@core/application/use-cases/sync.service';
 import { AuthGuard } from '../guards/auth.guard';
 import { PullSyncChangesDto, PushSyncMutationsDto, SyncRequestDto } from '../dto/sync.dto';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
@@ -9,7 +8,7 @@ import type { AuthenticatedRequest } from '../types/authenticated-request';
 @UseGuards(AuthGuard)
 @Controller(REST_ROUTES.sync)
 export class SyncController {
-  constructor(@Inject(TOKENS.SYNC_USE_CASE) private readonly sync: ISyncUseCase) {}
+  constructor(private readonly sync: SyncService) {}
 
   /**
    * Synchronize offline mutations and pull incremental changes.

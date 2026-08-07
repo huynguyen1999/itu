@@ -22,6 +22,7 @@ import {
   CircleDot,
   MoreHorizontal,
   User,
+  BookOpen,
 } from 'lucide-react';
 import {
   CSSProperties,
@@ -64,6 +65,7 @@ export const workspaceNavigation = [
   { to: '/statistics', label: 'Statistics', icon: BarChart3, end: false },
   { to: '/growth', label: 'Growth', icon: Sprout, end: false },
   { to: '/learn', label: 'Learn', icon: Brain, end: false },
+  { to: '/journal', label: 'Journal', icon: BookOpen, end: false },
   { to: '/trash', label: 'Trash', icon: Trash2, end: false },
 ] as const;
 
@@ -91,7 +93,13 @@ function groupWorkspaceNavigation(items: readonly WorkspaceNavigationItem[]) {
   ].filter((group) => group.items.length > 0);
 }
 
-export function Layout({ planningSidebar, globalFocusTimer }: { planningSidebar?: ReactNode; globalFocusTimer?: ReactNode }) {
+export function Layout({
+  planningSidebar,
+  globalFocusTimer,
+}: {
+  planningSidebar?: ReactNode;
+  globalFocusTimer?: ReactNode;
+}) {
   const auth = useAuth();
   const theme = useTheme();
   const location = useLocation();

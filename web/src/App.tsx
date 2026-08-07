@@ -15,6 +15,7 @@ import { FocusAudioProvider, FocusPage, GlobalFocusTimer } from './features/focu
 import { HabitsPage } from './features/habits';
 import { LearnWorkspace } from './features/learn';
 import { GrowthPage } from './features/growth';
+import { JournalWorkspace } from './features/journal/JournalWorkspace';
 import { PlanningProvider } from './features/planning/PlanningContext';
 import { GrowthRewardReceiptHost } from './features/growth/components/growth-reward-receipt';
 
@@ -51,6 +52,7 @@ export function App() {
         <Route path="/auth" element={<AuthPage />} />
         <Route element={<Protected />}>
           <Route index element={<TodayPage />} />
+          <Route path="/journal/*" element={<JournalWorkspace />} />
           <Route path="/statistics" element={<StatisticsPage />} />
           <Route path="/plan" element={<PlanningPage />} />
           <Route path="/plan/today" element={<PlanningPage view="today" />} />

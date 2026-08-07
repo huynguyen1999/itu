@@ -254,9 +254,7 @@ private struct DeckCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                Image(systemName: deck.icon)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(iTuTheme.teal)
+                DeckIconView(icon: deck.icon, size: 20, color: iTuTheme.teal)
                     .frame(width: 42, height: 42)
                     .background(iTuTheme.mintTint)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

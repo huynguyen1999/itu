@@ -28,7 +28,7 @@ import {
   REST_ROUTES,
 } from '@core/application/constants/app.constants';
 import { TOKENS } from '@core/application/constants/tokens';
-import type { IAuthUseCase } from '@core/application/ports/in/auth-use-case.port';
+import { AuthService } from '@core/application/use-cases/auth.service';
 import type { ILogger } from '@core/application/ports/out/services.port';
 import {
   ChangePasswordDto,
@@ -55,7 +55,7 @@ const REFRESH_COOKIE = 'itu_refresh';
 @Controller(REST_ROUTES.auth)
 export class AuthController {
   constructor(
-    @Inject(TOKENS.AUTH_USE_CASE) private readonly auth: IAuthUseCase,
+    private readonly auth: AuthService,
     @Inject(TOKENS.LOGGER) private readonly logger: ILogger,
     private readonly config: ConfigService,
   ) {}

@@ -1,5 +1,22 @@
 import { GrowthProgressKind } from '@prisma/client';
 
+export const STARTER_SKILL_KEYS = {
+  attributeGeneral: 'attribute-general',
+  attributeIntelligence: 'attribute-intelligence',
+  attributeStrength: 'attribute-strength',
+  attributeDexterity: 'attribute-dexterity',
+  attributeResilience: 'attribute-resilience',
+  attributeCreativity: 'attribute-creativity',
+  attributeCharisma: 'attribute-charisma',
+  legacyCreativity: 'creativity',
+  skillProgramming: 'skill-programming',
+  skillWriting: 'skill-writing',
+  skillLanguage: 'skill-language',
+  skillArt: 'skill-art',
+  skillFitness: 'skill-fitness',
+  skillCooking: 'skill-cooking',
+} as const;
+
 export interface StarterSkillDefinition {
   key: string;
   name: string;
@@ -11,7 +28,7 @@ export interface StarterSkillDefinition {
 
 export const STARTER_SKILLS: StarterSkillDefinition[] = [
   {
-    key: 'attribute-general',
+    key: STARTER_SKILL_KEYS.attributeGeneral,
     name: 'General',
     description: 'Progress that applies across every kind of task.',
     icon: 'SPARKLES',
@@ -19,7 +36,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.ATTRIBUTE,
   },
   {
-    key: 'attribute-intelligence',
+    key: STARTER_SKILL_KEYS.attributeIntelligence,
     name: 'Intelligence',
     description: 'Learning, reasoning, research, and problem-solving.',
     icon: 'BRAIN',
@@ -27,7 +44,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.ATTRIBUTE,
   },
   {
-    key: 'attribute-strength',
+    key: STARTER_SKILL_KEYS.attributeStrength,
     name: 'Strength',
     description: 'Power, discipline, physical effort, and carrying hard things through.',
     icon: 'DUMBBELL',
@@ -35,7 +52,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.ATTRIBUTE,
   },
   {
-    key: 'attribute-dexterity',
+    key: STARTER_SKILL_KEYS.attributeDexterity,
     name: 'Dexterity',
     description: 'Coordination, precision, speed, and hands-on practice.',
     icon: 'CROSSHAIR',
@@ -43,7 +60,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.ATTRIBUTE,
   },
   {
-    key: 'attribute-resilience',
+    key: STARTER_SKILL_KEYS.attributeResilience,
     name: 'Resilience',
     description: 'Recovery, consistency, adaptability, and handling pressure.',
     icon: 'SHIELD',
@@ -51,7 +68,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.ATTRIBUTE,
   },
   {
-    key: 'attribute-creativity',
+    key: STARTER_SKILL_KEYS.attributeCreativity,
     name: 'Creativity',
     description: 'Original thinking, imagination, design, and making.',
     icon: 'LIGHTBULB',
@@ -59,7 +76,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.ATTRIBUTE,
   },
   {
-    key: 'attribute-charisma',
+    key: STARTER_SKILL_KEYS.attributeCharisma,
     name: 'Charisma',
     description: 'Communication, empathy, confidence, and relationships.',
     icon: 'MESSAGE_CIRCLE',
@@ -67,7 +84,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.ATTRIBUTE,
   },
   {
-    key: 'skill-programming',
+    key: STARTER_SKILL_KEYS.skillProgramming,
     name: 'Programming',
     description: 'Building software and strengthening technical fluency.',
     icon: 'CODE_2',
@@ -75,7 +92,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.SKILL,
   },
   {
-    key: 'skill-writing',
+    key: STARTER_SKILL_KEYS.skillWriting,
     name: 'Writing',
     description: 'Clear, thoughtful, and expressive written communication.',
     icon: 'PEN_LINE',
@@ -83,7 +100,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.SKILL,
   },
   {
-    key: 'skill-language',
+    key: STARTER_SKILL_KEYS.skillLanguage,
     name: 'Language',
     description: 'Vocabulary, comprehension, speaking, and listening.',
     icon: 'LANGUAGES',
@@ -91,7 +108,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.SKILL,
   },
   {
-    key: 'skill-art',
+    key: STARTER_SKILL_KEYS.skillArt,
     name: 'Art',
     description: 'Visual expression, craft, and creative technique.',
     icon: 'PALETTE',
@@ -99,7 +116,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.SKILL,
   },
   {
-    key: 'skill-fitness',
+    key: STARTER_SKILL_KEYS.skillFitness,
     name: 'Fitness',
     description: 'Strength, mobility, endurance, and physical wellbeing.',
     icon: 'DUMBBELL',
@@ -107,7 +124,7 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.SKILL,
   },
   {
-    key: 'skill-cooking',
+    key: STARTER_SKILL_KEYS.skillCooking,
     name: 'Cooking',
     description: 'Kitchen technique, nutrition, and confident meal-making.',
     icon: 'COOKING_POT',
@@ -115,3 +132,50 @@ export const STARTER_SKILLS: StarterSkillDefinition[] = [
     kind: GrowthProgressKind.SKILL,
   },
 ];
+
+export interface StarterMappingRoute {
+  skillKey: string;
+  primaryKey: string;
+  secondaryKey: string;
+  primaryWeight: number;
+  secondaryWeight: number;
+}
+
+export const STARTER_ATTRIBUTE_MAPPING_ROUTES: StarterMappingRoute[] = [
+  {
+    skillKey: STARTER_SKILL_KEYS.skillProgramming,
+    primaryKey: STARTER_SKILL_KEYS.attributeIntelligence,
+    secondaryKey: STARTER_SKILL_KEYS.attributeCreativity,
+    primaryWeight: 80,
+    secondaryWeight: 20,
+  },
+  {
+    skillKey: STARTER_SKILL_KEYS.skillWriting,
+    primaryKey: STARTER_SKILL_KEYS.attributeCreativity,
+    secondaryKey: STARTER_SKILL_KEYS.attributeCharisma,
+    primaryWeight: 70,
+    secondaryWeight: 30,
+  },
+  {
+    skillKey: STARTER_SKILL_KEYS.skillFitness,
+    primaryKey: STARTER_SKILL_KEYS.attributeStrength,
+    secondaryKey: STARTER_SKILL_KEYS.attributeResilience,
+    primaryWeight: 70,
+    secondaryWeight: 30,
+  },
+  {
+    skillKey: STARTER_SKILL_KEYS.skillCooking,
+    primaryKey: STARTER_SKILL_KEYS.attributeDexterity,
+    secondaryKey: STARTER_SKILL_KEYS.attributeCreativity,
+    primaryWeight: 70,
+    secondaryWeight: 30,
+  },
+  {
+    skillKey: STARTER_SKILL_KEYS.skillLanguage,
+    primaryKey: STARTER_SKILL_KEYS.attributeIntelligence,
+    secondaryKey: STARTER_SKILL_KEYS.attributeCharisma,
+    primaryWeight: 70,
+    secondaryWeight: 30,
+  },
+];
+

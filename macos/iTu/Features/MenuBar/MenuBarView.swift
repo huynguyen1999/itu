@@ -11,7 +11,7 @@ enum MenuBarTab: String, CaseIterable, Identifiable {
 
 struct MenuBarView: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.openWindow) private var openWindow
+    var onOpenMainWindow: @MainActor () -> Void = {}
 
     @State private var selectedTab: MenuBarTab = .timer
     @State private var isEditingTitle = false
@@ -1229,7 +1229,7 @@ struct MenuBarView: View {
             existingWindow.orderFrontRegardless()
             NSApp.activate(ignoringOtherApps: true)
         } else {
-            openWindow(id: "main")
+            onOpenMainWindow()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 NSApp.activate(ignoringOtherApps: true)
                 if let newWin = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeMain }) {

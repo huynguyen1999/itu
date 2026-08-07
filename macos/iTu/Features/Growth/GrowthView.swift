@@ -295,7 +295,7 @@ struct GrowthView: View {
                     ForEach(skills) { skill in
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 12) {
-                                Image(systemName: skill.icon)
+                                Image(systemName: GrowthIconDescriptor.resolve(skill.icon).systemImage)
                                     .font(.system(size: 20, weight: .semibold))
                                     .foregroundStyle(iTuTheme.teal)
                                     .frame(width: 44, height: 44)
@@ -454,7 +454,7 @@ struct GrowthView: View {
                     ForEach(visibleItems) { item in
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 12) {
-                                Image(systemName: item.icon)
+                                Image(systemName: GrowthIconDescriptor.resolve(item.icon).systemImage)
                                     .font(.system(size: 20))
                                     .foregroundStyle(iTuTheme.gold)
                                     .frame(width: 40, height: 40)
@@ -521,7 +521,7 @@ struct GrowthView: View {
                     ForEach(visibleItems) { item in
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Image(systemName: item.icon)
+                                Image(systemName: GrowthIconDescriptor.resolve(item.icon).systemImage)
                                     .foregroundStyle(iTuTheme.teal)
                                 Spacer()
                                 Text("\(item.quantity) owned")
@@ -902,7 +902,7 @@ private struct AttributeCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Image(systemName: attr.icon)
+                Image(systemName: GrowthIconDescriptor.resolve(attr.icon).systemImage)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(iTuTheme.teal)
 

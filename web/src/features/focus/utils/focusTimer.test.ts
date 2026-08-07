@@ -91,4 +91,3 @@ describe('focus timer', () => {
     expect(parseDurationInput('300', 25)).toBe(180);
   });
 });
-

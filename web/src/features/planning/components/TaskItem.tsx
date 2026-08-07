@@ -1,25 +1,10 @@
 import { useState, type DragEvent, type MouseEvent } from 'react';
-import {
-  Bell,
-  Calendar,
-  Check,
-  CircleAlert,
-  Clock3,
-  CloudOff,
-  Flag,
-  List,
-  Play,
-  RefreshCw,
-  X,
-} from 'lucide-react';
+import { Bell, Calendar, Check, CircleAlert, Clock3, CloudOff, Flag, List, Play, RefreshCw, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { ProductivityTask } from '@/shared/api/types';
 import type { ClientSyncMutation, SyncConflict, SyncState } from '@/shared/sync/syncQueue';
 import { Button } from '@/shared/ui/button';
-import {
-  GrowthRewardChip,
-  type GrowthRewardChipModel,
-} from '@/shared/ui/GrowthRewardChip';
+import { GrowthRewardChip, type GrowthRewardChipModel } from '@/shared/ui/GrowthRewardChip';
 import { nextTaskStatus } from '../utils/taskStatus';
 
 export { GrowthRewardChip, groupedGrowthRewardChips } from '@/shared/ui/GrowthRewardChip';

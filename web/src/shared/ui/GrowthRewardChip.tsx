@@ -71,7 +71,11 @@ export function groupedGrowthRewardChips(rule: GrowthEarningRule): GrowthRewardC
 export function GrowthRewardChip({ chip }: { chip: GrowthRewardChipModel }) {
   if (chip.kind === 'account') {
     return (
-      <span className="itu-reward-chip is-xp" title={`+${chip.accountXp} Account XP`} aria-label={`plus ${chip.accountXp} Account XP`}>
+      <span
+        className="itu-reward-chip is-xp"
+        title={`+${chip.accountXp} Account XP`}
+        aria-label={`plus ${chip.accountXp} Account XP`}
+      >
         <Zap />+{chip.accountXp} XP
       </span>
     );

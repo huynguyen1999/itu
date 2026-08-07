@@ -6,6 +6,7 @@ struct GrowthIconDescriptor: Identifiable, Hashable, Sendable {
     let id: String
     let label: String
     let systemImage: String
+    var isTextGlyph: Bool = false
 
     static let presets: [GrowthIconDescriptor] = {
         let entries: [(String, String, String)] = [
@@ -61,20 +62,71 @@ struct GrowthIconDescriptor: Identifiable, Hashable, Sendable {
             ("WAVES", "Calm", "water.waves"), ("WEIGHT", "Training", "figure.strengthtraining.traditional"),
             ("ZAP", "Energy Burst", "bolt")
         ]
-        return entries.map(GrowthIconDescriptor.init)
+        return entries.map { GrowthIconDescriptor(id: $0.0, label: $0.1, systemImage: $0.2) }
     }()
+
+    private static let emojiMap: [String: (id: String, systemImage: String)] = [
+        "🏃": ("BIKE", "figure.run"),
+        "🏃‍♂️": ("BIKE", "figure.run"),
+        "🏃‍♀️": ("BIKE", "figure.run"),
+        "⚡": ("ZAP", "bolt"),
+        "🏠": ("HOUSE", "house"),
+        "🎯": ("TARGET", "target"),
+        "📚": ("LIBRARY", "books.vertical"),
+        "🔥": ("FLAME", "flame"),
+        "💡": ("LIGHTBULB", "lightbulb"),
+        "💪": ("WEIGHT", "figure.strengthtraining.traditional"),
+        "🧠": ("BRAIN", "brain.head.profile"),
+        "❤️": ("HEART_PULSE", "heart.fill"),
+        "⭐": ("STAR", "star"),
+        "☕": ("COFFEE", "cup.and.saucer"),
+        "🎨": ("PALETTE", "paintpalette"),
+        "🎵": ("MUSIC", "music.note"),
+        "📷": ("CAMERA", "camera"),
+        "🏆": ("TROPHY", "trophy"),
+        "💻": ("LAPTOP", "laptopcomputer"),
+        "🌱": ("SPROUT", "leaf"),
+        "⏰": ("ALARM_CLOCK", "alarm"),
+        "📅": ("CALENDAR_CHECK", "calendar.badge.checkmark"),
+        "📝": ("NOTEBOOK_PEN", "note.text"),
+        "📌": ("BOOKMARK", "bookmark"),
+        "🚀": ("ROCKET", "paperplane"),
+        "🛡️": ("SHIELD", "shield"),
+        "💰": ("CIRCLE_DOLLAR_SIGN", "dollarsign.circle"),
+        "🎁": ("GIFT", "gift"),
+        "🌍": ("GLOBE", "globe"),
+        "🌙": ("MOON", "moon"),
+        "☀️": ("SUN", "sun.max"),
+        "🧘": ("FLOWER_2", "figure.mind.and.body"),
+        "🍎": ("APPLE", "apple.logo")
+    ]
 
     static func resolve(_ value: String?) -> GrowthIconDescriptor {
         guard let value, !value.isEmpty else { return fallback }
         if let preset = presets.first(where: { $0.id == value.uppercased() }) { return preset }
+        if let mapped = emojiMap[value] {
+            let label = value.replacingOccurrences(of: ".", with: " ").capitalized
+            return GrowthIconDescriptor(id: mapped.id, label: label, systemImage: mapped.systemImage, isTextGlyph: false)
+        }
         let label = value.replacingOccurrences(of: ".", with: " ").capitalized
-        return GrowthIconDescriptor(id: value, label: label, systemImage: supported(value) ? value : fallback.systemImage)
+        if supported(value) {
+            return GrowthIconDescriptor(id: value, label: label, systemImage: value, isTextGlyph: false)
+        }
+        return GrowthIconDescriptor(id: value, label: label, systemImage: fallback.systemImage, isTextGlyph: true)
     }
 
     static let fallback = GrowthIconDescriptor(id: "SPARKLES", label: "Growth", systemImage: "sparkles")
 
     private static func supported(_ name: String) -> Bool {
-        NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
+        guard isPossibleSFSymbolName(name) else { return false }
+        return NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
+    }
+
+    private static func isPossibleSFSymbolName(_ name: String) -> Bool {
+        guard !name.isEmpty else { return false }
+        return name.utf8.allSatisfy { byte in
+            (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 46 || byte == 45 || byte == 95
+        }
     }
 }
 
@@ -89,10 +141,16 @@ struct GrowthIconView: View {
                 RemoteGrowthIconView(source: icon, size: size, fallbackColor: color)
             } else {
                 let descriptor = GrowthIconDescriptor.resolve(icon)
-                Image(systemName: descriptor.systemImage)
-                    .resizable()
-                    .scaledToFit()
-                    .accessibilityLabel(descriptor.label)
+                if descriptor.isTextGlyph, let icon, !icon.isEmpty {
+                    Text(icon)
+                        .font(.system(size: size * 0.85))
+                        .lineLimit(1)
+                } else {
+                    Image(systemName: descriptor.systemImage)
+                        .resizable()
+                        .scaledToFit()
+                        .accessibilityLabel(descriptor.label)
+                }
             }
         }
         .frame(width: size, height: size)

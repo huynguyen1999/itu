@@ -3,17 +3,37 @@ import type { ClientSyncMutation, SyncConflict } from './syncQueue';
 import { createUlid } from './syncIdentity';
 
 const DATABASE_NAME = 'itu-offline-sync';
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const META_STORE = 'meta';
 const MUTATION_STORE = 'mutations';
 const CONFLICT_STORE = 'conflicts';
 const CACHE_STORE = 'cache';
 const LEASE_STORE = 'lease';
+const JOURNAL_ATTACHMENT_BLOB_STORE = 'journal-attachment-blobs';
+const JOURNAL_ATTACHMENT_UPLOAD_STATE_STORE = 'journal-attachment-upload-state';
 
 export interface SyncLease {
   ownerId: string;
   token: string;
   expiresAt: number;
+}
+
+export interface JournalAttachmentBlobRecord {
+  id: string;
+  entryId: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  blob: Blob;
+  createdAt: number;
+}
+
+export interface JournalAttachmentUploadStateRecord {
+  attachmentId: string;
+  attemptCount: number;
+  lastAttemptAt?: string;
+  status: 'PENDING' | 'UPLOADING' | 'FAILED' | 'SUCCESS';
+  lastError?: string;
 }
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
@@ -49,6 +69,12 @@ export class OfflineSyncStore {
         }
         if (!database.objectStoreNames.contains(CACHE_STORE)) database.createObjectStore(CACHE_STORE);
         if (!database.objectStoreNames.contains(LEASE_STORE)) database.createObjectStore(LEASE_STORE);
+        if (!database.objectStoreNames.contains(JOURNAL_ATTACHMENT_BLOB_STORE)) {
+          database.createObjectStore(JOURNAL_ATTACHMENT_BLOB_STORE, { keyPath: 'id' });
+        }
+        if (!database.objectStoreNames.contains(JOURNAL_ATTACHMENT_UPLOAD_STATE_STORE)) {
+          database.createObjectStore(JOURNAL_ATTACHMENT_UPLOAD_STATE_STORE, { keyPath: 'attachmentId' });
+        }
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error ?? new Error('Unable to open offline database'));

@@ -34,3 +34,4 @@ export function createUlid(date = new Date()): string {
 
   return timeChars.join('') + random.slice(0, RANDOM_LENGTH);
 }
+

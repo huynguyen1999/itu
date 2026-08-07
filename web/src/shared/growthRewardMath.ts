@@ -9,12 +9,7 @@ export function selectGrowthRewardWeights<T extends GrowthRewardWeight>(
   archivedSkillIds: ReadonlySet<string> = new Set(),
 ): T[] {
   return awards
-    .filter(
-      (award) =>
-        Number.isFinite(award.xpReward) &&
-        award.xpReward > 0 &&
-        !archivedSkillIds.has(award.skillId),
-    )
+    .filter((award) => Number.isFinite(award.xpReward) && award.xpReward > 0 && !archivedSkillIds.has(award.skillId))
     .sort((left, right) => left.skillId.localeCompare(right.skillId))
     .slice(0, 3);
 }

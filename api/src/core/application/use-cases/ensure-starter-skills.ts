@@ -1,6 +1,10 @@
 import { GrowthOnboardingState, GrowthProgressKind } from '@prisma/client';
 import { createUlid } from '@core/application/ulid';
-import { STARTER_SKILLS } from './growth-starter-skills';
+import {
+  STARTER_SKILLS,
+  STARTER_SKILL_KEYS,
+  STARTER_ATTRIBUTE_MAPPING_ROUTES,
+} from './growth-starter-skills';
 
 type Tx = Record<string, any>;
 
@@ -19,7 +23,7 @@ export async function ensureStarterSkills(
 
   const general = existing.filter(
     (entry: any) => entry.kind === GrowthProgressKind.ATTRIBUTE &&
-      (entry.starterKey === 'attribute-general' || entry.name.toLocaleLowerCase() === 'general'),
+      (entry.starterKey === STARTER_SKILL_KEYS.attributeGeneral || entry.name.toLocaleLowerCase() === 'general'),
   );
   for (const entry of general) {
     if (!entry.archivedAt) await tx.growthSkill.update({ where: { id: entry.id }, data: { archivedAt: new Date() } });
@@ -29,8 +33,8 @@ export async function ensureStarterSkills(
     if (existingKeys.has(starter.key)) continue;
 
     // Migrate legacy 'creativity' key to 'attribute-creativity'
-    if (starter.key === 'attribute-creativity') {
-      const legacy = existing.find((entry: any) => entry.starterKey === 'creativity');
+    if (starter.key === STARTER_SKILL_KEYS.attributeCreativity) {
+      const legacy = existing.find((entry: any) => entry.starterKey === STARTER_SKILL_KEYS.legacyCreativity);
       if (legacy) {
         await tx.growthSkill.update({
           where: { id: legacy.id },
@@ -47,7 +51,7 @@ export async function ensureStarterSkills(
     if (matchingEntry && !matchingEntry.starterKey) {
       await tx.growthSkill.update({
         where: { id: matchingEntry.id },
-        data: { starterKey: starter.key, ...(starter.key === 'attribute-general' ? { archivedAt: new Date() } : {}) },
+        data: { starterKey: starter.key, ...(starter.key === STARTER_SKILL_KEYS.attributeGeneral ? { archivedAt: new Date() } : {}) },
       });
       existingKeys.add(starter.key);
       continue;
@@ -66,7 +70,7 @@ export async function ensureStarterSkills(
         cycleId,
         baseXp: 100,
         sortOrder: sortOrder++,
-        ...(starter.key === 'attribute-general' ? { archivedAt: new Date() } : {}),
+        ...(starter.key === STARTER_SKILL_KEYS.attributeGeneral ? { archivedAt: new Date() } : {}),
       },
     });
     existingKeys.add(starter.key);
@@ -80,27 +84,20 @@ export async function ensureStarterSkills(
     const skills = await tx.growthSkill.findMany({ where: { userId, kind: GrowthProgressKind.SKILL, archivedAt: null } });
     const attributes = await tx.growthSkill.findMany({ where: { userId, kind: GrowthProgressKind.ATTRIBUTE, archivedAt: null } });
     const byKey = new Map<string, any>(attributes.map((entry: any) => [entry.starterKey, entry]));
-    const routes: Array<[string, string, string, number, number]> = [
-      ['skill-programming', 'attribute-intelligence', 'attribute-creativity', 80, 20],
-      ['skill-writing', 'attribute-creativity', 'attribute-charisma', 70, 30],
-      ['skill-fitness', 'attribute-strength', 'attribute-resilience', 70, 30],
-      ['skill-cooking', 'attribute-dexterity', 'attribute-creativity', 70, 30],
-      ['skill-language', 'attribute-intelligence', 'attribute-charisma', 70, 30],
-    ];
     const existingMappings = await tx.growthAttributeMapping.findMany({ where: { userId }, select: { skillId: true, slot: true } });
     const mappedSkillIds = new Set(existingMappings.map((entry: { skillId: string }) => entry.skillId));
     const mappings: Array<{ id: string; userId: string; skillId: string; attributeId: string; slot: 'PRIMARY' | 'SECONDARY'; weight: number }> = [];
-    for (const [skillKey, primaryKey, secondaryKey, primaryWeight, secondaryWeight] of routes) {
-      const skill = skills.find((entry: any) => entry.starterKey === skillKey);
-      const primary = byKey.get(primaryKey);
-      const secondary = byKey.get(secondaryKey);
+    for (const route of STARTER_ATTRIBUTE_MAPPING_ROUTES) {
+      const skill = skills.find((entry: any) => entry.starterKey === route.skillKey);
+      const primary = byKey.get(route.primaryKey);
+      const secondary = byKey.get(route.secondaryKey);
       if (!skill || !primary || !secondary) continue;
       // Any existing row means the user has customized this route; do not
       // silently restore an omitted optional secondary slot.
       if (mappedSkillIds.has(skill.id)) continue;
       mappings.push(
-        { id: createUlid(), userId, skillId: skill.id, attributeId: primary.id, slot: 'PRIMARY', weight: primaryWeight },
-        { id: createUlid(), userId, skillId: skill.id, attributeId: secondary.id, slot: 'SECONDARY', weight: secondaryWeight },
+        { id: createUlid(), userId, skillId: skill.id, attributeId: primary.id, slot: 'PRIMARY', weight: route.primaryWeight },
+        { id: createUlid(), userId, skillId: skill.id, attributeId: secondary.id, slot: 'SECONDARY', weight: route.secondaryWeight },
       );
     }
     if (mappings.length) await tx.growthAttributeMapping.createMany({ data: mappings, skipDuplicates: true });

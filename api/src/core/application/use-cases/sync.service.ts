@@ -1,15 +1,18 @@
-import { ISyncUseCase, SyncMutation, SyncResult } from '@core/application/ports/in/sync-use-case.port';
-import { ISyncRepository } from '@core/application/ports/out/sync-repository.port';
-import { ISyncDeviceRepository } from '@core/application/ports/out/repositories.port';
-import { IQueueJobHandler, ISyncInvalidationNotifier } from '@core/application/ports/out/services.port';
+import { Inject, Injectable } from '@nestjs/common';
+import { TOKENS } from '@core/application/constants/tokens';
+import type { ISyncUseCase, SyncMutation, SyncResult } from '@core/application/ports/in/sync-use-case.port';
+import type { ISyncRepository } from '@core/application/ports/out/sync-repository.port';
+import type { ISyncDeviceRepository } from '@core/application/ports/out/repositories.port';
+import type { IQueueJobHandler, ISyncInvalidationNotifier } from '@core/application/ports/out/services.port';
 import { InvalidSyncMutationException } from '@core/domain/exceptions';
 
+@Injectable()
 export class SyncService implements ISyncUseCase {
   constructor(
-    private readonly syncRepository: ISyncRepository,
-    private readonly queue: IQueueJobHandler,
-    private readonly devices: ISyncDeviceRepository,
-    private readonly invalidationNotifier: ISyncInvalidationNotifier,
+    @Inject(TOKENS.SYNC_REPOSITORY) private readonly syncRepository: ISyncRepository,
+    @Inject(TOKENS.QUEUE_JOB_HANDLER) private readonly queue: IQueueJobHandler,
+    @Inject(TOKENS.SYNC_DEVICE_REPOSITORY) private readonly devices: ISyncDeviceRepository,
+    @Inject(TOKENS.SYNC_INVALIDATION_NOTIFIER) private readonly invalidationNotifier: ISyncInvalidationNotifier,
   ) {}
 
   async synchronize(

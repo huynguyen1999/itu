@@ -161,26 +161,28 @@ describe('TaskItem', () => {
 
     expect(chips[0]).toMatchObject({ kind: 'account', accountXp: 50 });
     expect(chips.filter((chip) => chip.kind === 'progress').map((chip) => chip.xpReward)).toEqual([35, 15]);
-    const markup = renderToStaticMarkup(<TaskItem
-      task={task}
-      density="standard"
-      compact
-      selected={false}
-      showDetails
-      showTaskList
-      growthChips={chips}
-      syncPresentation={IDLE_TASK_SYNC_PRESENTATION}
-      draggable={false}
-      dropEdge={null}
-      onSelect={vi.fn()}
-      onStatusChange={vi.fn()}
-      onRetrySync={vi.fn().mockResolvedValue(undefined)}
-      onDragStart={vi.fn()}
-      onDragOver={vi.fn()}
-      onDragLeave={vi.fn()}
-      onDrop={vi.fn()}
-      onDragEnd={vi.fn()}
-    />);
+    const markup = renderToStaticMarkup(
+      <TaskItem
+        task={task}
+        density="standard"
+        compact
+        selected={false}
+        showDetails
+        showTaskList
+        growthChips={chips}
+        syncPresentation={IDLE_TASK_SYNC_PRESENTATION}
+        draggable={false}
+        dropEdge={null}
+        onSelect={vi.fn()}
+        onStatusChange={vi.fn()}
+        onRetrySync={vi.fn().mockResolvedValue(undefined)}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDragLeave={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />,
+    );
     expect(markup).toContain('+50 Account XP');
     expect(markup).toContain('+35 Skill XP');
     expect(markup).toContain('+15 Skill XP');

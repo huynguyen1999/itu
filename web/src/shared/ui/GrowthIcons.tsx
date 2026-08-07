@@ -265,4 +265,3 @@ export function GrowthIconMark({ icon, className = 'h-5 w-5' }: { icon: string; 
     </span>
   );
 }
-

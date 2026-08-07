@@ -1,13 +1,16 @@
-import {
+import { Inject, Injectable } from '@nestjs/common';
+import { TOKENS } from '@core/application/constants/tokens';
+import type {
   IDevicesUseCase,
   RegisterSyncDeviceInput,
   UpdateSyncDeviceInput,
 } from '@core/application/ports/in/devices-use-case.port';
-import { ISyncDeviceRepository } from '@core/application/ports/out/repositories.port';
+import type { ISyncDeviceRepository } from '@core/application/ports/out/repositories.port';
 import { EntityNotFoundException, ForbiddenResourceException } from '@core/domain/exceptions';
 
+@Injectable()
 export class DevicesService implements IDevicesUseCase {
-  constructor(private readonly devices: ISyncDeviceRepository) {}
+  constructor(@Inject(TOKENS.SYNC_DEVICE_REPOSITORY) private readonly devices: ISyncDeviceRepository) {}
 
   async register(userId: string, input: RegisterSyncDeviceInput) {
     const device = await this.devices.upsert(userId, {

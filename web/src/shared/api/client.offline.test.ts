@@ -102,7 +102,11 @@ describe('offline-first productivity mutations', () => {
   it('sends focus-adjust concurrency fields in the direct PATCH body', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(new Response(JSON.stringify(focus), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify(focus), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+        ),
     );
     const client = new ApiClient();
     await client.adjustFocus(
@@ -173,5 +177,4 @@ describe('offline-first productivity mutations', () => {
     expect(mutations[2]).toMatchObject({ payload: { action: 'undo', idempotencyKey: 'habit-undo' } });
     expect(checkIn).toMatchObject({ status: 'PENDING' });
   });
-
 });

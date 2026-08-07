@@ -39,6 +39,52 @@ export class ApiClient extends HttpClient {
     this.offlineMutationHandler = handler;
   }
 
+  enqueueOfflineMutation<T>(input: OfflineMutationInput<T>, fallback: () => Promise<T>): Promise<T> {
+    return this.offlineMutation(input, fallback);
+  }
+
+  async get<T>(path: string, init?: RequestInit & { params?: Record<string, any> }): Promise<{ data: T }> {
+    let url = path;
+    if (init?.params) {
+      const cleanParams: Record<string, string> = {};
+      Object.entries(init.params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) cleanParams[k] = String(v);
+      });
+      const search = new URLSearchParams(cleanParams).toString();
+      if (search) url += (url.includes('?') ? '&' : '?') + search;
+    }
+    const res = await this.request<T>(url, { method: 'GET', ...init });
+    return { data: res };
+  }
+
+  async post<T>(path: string, body?: any, init?: RequestInit): Promise<{ data: T }> {
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+    const headers: Record<string, string> = { ...(init?.headers as any) };
+    if (!isFormData) headers['Content-Type'] = 'application/json';
+    const res = await this.request<T>(path, {
+      method: 'POST',
+      body: isFormData ? body : JSON.stringify(body),
+      headers,
+      ...init,
+    });
+    return { data: res };
+  }
+
+  async patch<T>(path: string, body?: any, init?: RequestInit): Promise<{ data: T }> {
+    const res = await this.request<T>(path, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json', ...(init?.headers as any) },
+      ...init,
+    });
+    return { data: res };
+  }
+
+  async delete<T>(path: string, init?: RequestInit): Promise<{ data: T }> {
+    const res = await this.request<T>(path, { method: 'DELETE', ...init });
+    return { data: res };
+  }
+
   private offlineMutation<T>(input: OfflineMutationInput<T>, fallback: () => Promise<T>): Promise<T> {
     return this.offlineMutationHandler ? this.offlineMutationHandler(input) : fallback();
   }

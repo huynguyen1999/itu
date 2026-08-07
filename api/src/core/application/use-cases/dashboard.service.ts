@@ -1,21 +1,24 @@
-import {
+import { Inject, Injectable } from '@nestjs/common';
+import { TOKENS } from '@core/application/constants/tokens';
+import type {
   DashboardSummary,
   DeckStats,
   IDashboardUseCase,
   StudyCalendarDay,
 } from '@core/application/ports/in/dashboard-use-case.port';
-import {
+import type {
   IDeckRepository,
   IReviewStateRepository,
   IStudySessionRepository,
 } from '@core/application/ports/out/repositories.port';
 import { EntityNotFoundException } from '@core/domain/exceptions';
 
+@Injectable()
 export class DashboardService implements IDashboardUseCase {
   constructor(
-    private readonly decks: IDeckRepository,
-    private readonly reviewStates: IReviewStateRepository,
-    private readonly sessions: IStudySessionRepository,
+    @Inject(TOKENS.DECK_REPOSITORY) private readonly decks: IDeckRepository,
+    @Inject(TOKENS.REVIEW_STATE_REPOSITORY) private readonly reviewStates: IReviewStateRepository,
+    @Inject(TOKENS.STUDY_SESSION_REPOSITORY) private readonly sessions: IStudySessionRepository,
   ) {}
 
   async summary(userId: string): Promise<DashboardSummary> {

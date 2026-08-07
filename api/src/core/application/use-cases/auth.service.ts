@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { TOKENS } from '@core/application/constants/tokens';
 import {
   DomainException,
   EntityNotFoundException,
@@ -5,7 +7,7 @@ import {
   TermsNotAcceptedException,
 } from '@core/domain/exceptions';
 import { createHash, randomBytes, randomUUID } from 'crypto';
-import {
+import type {
   IAuthUseCase,
   AuthResult,
   ChangePasswordCommand,
@@ -15,27 +17,28 @@ import {
   RegisterCommand,
   UpdateProfileCommand,
 } from '@core/application/ports/in/auth-use-case.port';
-import {
+import type {
   IOAuthHandoffRepository,
   IRefreshSessionRepository,
   IUserRepository,
 } from '@core/application/ports/out/repositories.port';
 import type { IAccessRepository } from '@core/application/ports/out/access-repository.port';
-import { IPasswordHasher, IQueueJobHandler, ITokenService } from '@core/application/ports/out/services.port';
+import type { IPasswordHasher, IQueueJobHandler, ITokenService } from '@core/application/ports/out/services.port';
 import { DELETION_CONSTANTS } from '@core/application/constants/app.constants';
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const OAUTH_HANDOFF_TTL_MS = 2 * 60 * 1000;
 
+@Injectable()
 export class AuthService implements IAuthUseCase {
   constructor(
-    private readonly users: IUserRepository,
-    private readonly hasher: IPasswordHasher,
-    private readonly tokens: ITokenService,
-    private readonly queue: IQueueJobHandler,
-    private readonly refreshSessions: IRefreshSessionRepository,
-    private readonly oauthHandoffs: IOAuthHandoffRepository,
-    private readonly access: IAccessRepository,
+    @Inject(TOKENS.USER_REPOSITORY) private readonly users: IUserRepository,
+    @Inject(TOKENS.PASSWORD_HASHER) private readonly hasher: IPasswordHasher,
+    @Inject(TOKENS.TOKEN_SERVICE) private readonly tokens: ITokenService,
+    @Inject(TOKENS.QUEUE_JOB_HANDLER) private readonly queue: IQueueJobHandler,
+    @Inject(TOKENS.REFRESH_SESSION_REPOSITORY) private readonly refreshSessions: IRefreshSessionRepository,
+    @Inject(TOKENS.OAUTH_HANDOFF_REPOSITORY) private readonly oauthHandoffs: IOAuthHandoffRepository,
+    @Inject(TOKENS.ACCESS_REPOSITORY) private readonly access: IAccessRepository,
   ) {}
 
   async register(command: RegisterCommand): Promise<AuthResult> {
@@ -147,6 +150,14 @@ export class AuthService implements IAuthUseCase {
     return this.buildResult(user);
   }
 
+  private async validateUniqueUsername(userId: string, currentUsername: string | null | undefined, requestedUsername: string): Promise<void> {
+    if (requestedUsername === currentUsername) return;
+    const existing = await this.users.findByUsername(requestedUsername);
+    if (existing && existing.id !== userId) {
+      throw new DomainException('Username is already taken', 'DUPLICATE_USERNAME', 409);
+    }
+  }
+
   async updateProfile(userId: string, command: UpdateProfileCommand): Promise<AuthResult> {
     const currentUser = await this.users.findById(userId);
     if (!currentUser) {
@@ -156,11 +167,8 @@ export class AuthService implements IAuthUseCase {
     let usernameToUpdate: string | null | undefined = undefined;
     if (command.username !== undefined) {
       const normalized = command.username?.trim().toLowerCase() || null;
-      if (normalized && normalized !== currentUser.username) {
-        const existing = await this.users.findByUsername(normalized);
-        if (existing && existing.id !== userId) {
-          throw new DomainException('Username is already taken', 'DUPLICATE_USERNAME', 409);
-        }
+      if (normalized) {
+        await this.validateUniqueUsername(userId, currentUser.username, normalized);
       }
       usernameToUpdate = normalized;
     }
@@ -178,9 +186,8 @@ export class AuthService implements IAuthUseCase {
   async changePassword(userId: string, command: ChangePasswordCommand): Promise<void> {
     const user = await this.users.findById(userId);
     if (!user) throw new InvalidCredentialsException();
-    if (user.passwordHash) {
-      const valid = await this.hasher.compare(command.currentPassword, user.passwordHash);
-      if (!valid) throw new InvalidCredentialsException('Current password is incorrect');
+    if (user.passwordHash && !(await this.hasher.compare(command.currentPassword, user.passwordHash))) {
+      throw new InvalidCredentialsException('Current password is incorrect');
     }
     const passwordHash = await this.hasher.hash(command.newPassword);
     await this.users.updatePassword(userId, passwordHash);
@@ -197,7 +204,7 @@ export class AuthService implements IAuthUseCase {
     const user = await this.users.findById(userId);
     if (!user) throw new EntityNotFoundException('User', userId);
     if (user.passwordHash) {
-      const valid = password ? await this.hasher.compare(password, user.passwordHash) : false;
+      const valid = Boolean(password && (await this.hasher.compare(password, user.passwordHash)));
       if (!valid) throw new InvalidCredentialsException('Password is required to delete this account');
     }
     const runAt = new Date();

@@ -748,7 +748,7 @@ struct HabitEditorSheet: View {
     @State private var name: String = ""
     @State private var description: String = ""
     @State private var frequency: HabitFrequency = .daily
-    @State private var icon: String = "brain"
+    @State private var icon: String = "✅"
     @State private var targetValue: Double = 1
     @State private var targetType: String = "COUNT"
     @State private var unit: String = ""
@@ -790,6 +790,32 @@ struct HabitEditorSheet: View {
                         .foregroundStyle(iTuTheme.inkFaint)
                     TextField("e.g., 10 minutes of mindfulness", text: $description)
                         .textFieldStyle(.roundedBorder)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("ICON")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(["✅", "🎯", "📅", "⭐", "🔥", "⚡", "🏆", "💯", "💧", "☕", "🍵", "🍎", "🥗", "💪", "🏃", "🚶", "🧘", "😴", "🛌", "📖", "📚", "🧠", "🎓", "📝", "🎨", "🌱", "🌿", "🌳", "🌊", "🏠", "🧹", "🐕", "🪴", "🚭", "📵", "🍬", "🍷"], id: \.self) { emoji in
+                                Button {
+                                    icon = emoji
+                                } label: {
+                                    Text(emoji)
+                                        .font(.system(size: 18))
+                                        .frame(width: 32, height: 32)
+                                        .background(icon == emoji ? iTuTheme.teal.opacity(0.2) : iTuTheme.surfaceMuted)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .stroke(icon == emoji ? iTuTheme.teal : Color.clear, lineWidth: 1.5)
+                                        }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {

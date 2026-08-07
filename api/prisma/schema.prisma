@@ -295,9 +295,14 @@ model User {
   growthProfile               GrowthProfile?
   growthCycles                GrowthCycle[]
   growthResets                GrowthReset[]
-  habitCommitmentPolicies     HabitCommitmentPolicy[]
+  growthCommitmentPolicies     HabitCommitmentPolicy[]
   commitmentPenalties         GrowthCommitmentPenalty[]
   syncFieldClocks             SyncFieldClock[]
+  journalEntries              JournalEntry[]
+  journalTemplates            JournalTemplate[]
+  journalTags                 JournalTag[]
+  exerciseDefinitions         ExerciseDefinition[]
+  journalAttachments         JournalAttachment[]
 }
 
 model Role {
@@ -1494,3 +1499,210 @@ model SyncFieldClock {
   @@unique([userId, entityType, entityId, fieldName])
   @@index([userId, entityType, entityId])
 }
+
+enum JournalEntryKind {
+  NOTE
+  WEEKLY_REVIEW
+  EXPENSE
+  WORKOUT
+}
+
+enum ExpenseCategory {
+  FOOD
+  TRANSPORT
+  SHOPPING
+  BILLS
+  HEALTH
+  EDUCATION
+  ENTERTAINMENT
+  FITNESS
+  TRAVEL
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  E_WALLET
+  OTHER
+}
+
+enum WeightUnit {
+  KG
+  LBS
+}
+
+model JournalEntry {
+  id              String                 @id
+  userId          String
+  kind            JournalEntryKind
+  title           String
+  contentMarkdown String                 @default("")
+  entryDate       DateTime               @db.Date
+  timezone        String                 @default("UTC")
+  templateId      String?
+  version         Int                    @default(1)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  deletedAt       DateTime?
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template        JournalTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  weeklyReview    JournalWeeklyReview?
+  expense         JournalExpense?
+  workout         JournalWorkout?
+  revisions       JournalEntryRevision[]
+  tags            JournalTagAssignment[]
+  attachments     JournalAttachment[]
+
+  @@index([userId, entryDate])
+  @@index([userId, kind, entryDate])
+  @@index([userId, deletedAt])
+}
+
+model JournalWeeklyReview {
+  entryId         String       @id
+  periodStart     DateTime     @db.Date
+  periodEnd       DateTime     @db.Date
+  summarySnapshot Json
+  entry           JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([periodStart, periodEnd])
+}
+
+model JournalExpense {
+  entryId       String          @id
+  amount        Decimal         @db.Decimal(18, 2)
+  currency      String          @default("VND")
+  category      ExpenseCategory @default(OTHER)
+  merchant      String?
+  paymentMethod PaymentMethod   @default(CASH)
+  transactionAt DateTime        @default(now())
+  entry         JournalEntry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([category])
+  @@index([transactionAt])
+}
+
+model ExerciseDefinition {
+  id                String                   @id
+  userId            String
+  name              String
+  normalizedName    String
+  defaultWeightUnit WeightUnit               @default(KG)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  user              User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutExercises  JournalWorkoutExercise[]
+
+  @@unique([userId, normalizedName])
+  @@index([userId, name])
+}
+
+model JournalWorkout {
+  entryId         String                   @id
+  startedAt       DateTime?
+  durationMinutes Int?
+  entry           JournalEntry             @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  exercises       JournalWorkoutExercise[]
+}
+
+model JournalWorkoutExercise {
+  id             String             @id
+  workoutEntryId String
+  exerciseId     String
+  sortOrder      Int                @default(0)
+  note           String?
+  workout        JournalWorkout     @relation(fields: [workoutEntryId], references: [entryId], onDelete: Cascade)
+  exercise       ExerciseDefinition @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  sets           JournalWorkoutSet[]
+
+  @@index([workoutEntryId, sortOrder])
+  @@index([exerciseId])
+}
+
+model JournalWorkoutSet {
+  id                String                 @id
+  workoutExerciseId String
+  sortOrder         Int                    @default(0)
+  reps              Int
+  weight            Decimal                @db.Decimal(8, 2)
+  workoutExercise   JournalWorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+
+  @@index([workoutExerciseId, sortOrder])
+}
+
+model JournalTemplate {
+  id            String           @id
+  userId        String
+  name          String
+  entryKind     JournalEntryKind
+  titleTemplate String           @default("")
+  bodyMarkdown  String           @default("")
+  defaults      Json             @default("{}")
+  builtIn       Boolean          @default(false)
+  archivedAt    DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  version       Int              @default(1)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries       JournalEntry[]
+
+  @@index([userId, entryKind, archivedAt])
+}
+
+model JournalTag {
+  id        String                 @id
+  userId    String
+  name      String
+  color     String                 @default("SLATE")
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries   JournalTagAssignment[]
+
+  @@unique([userId, name])
+  @@index([userId, name])
+}
+
+model JournalTagAssignment {
+  entryId String
+  tagId   String
+  entry   JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  tag     JournalTag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([entryId, tagId])
+  @@index([tagId])
+}
+
+model JournalAttachment {
+  id         String       @id
+  userId     String
+  entryId    String
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  storageKey String
+  createdAt  DateTime     @default(now())
+  deletedAt  DateTime?
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entry      JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([userId, entryId])
+  @@index([userId, deletedAt])
+}
+
+model JournalEntryRevision {
+  id             String       @id
+  entryId        String
+  revisionNumber Int
+  snapshot       Json
+  mutationId     String?
+  deviceId       String?
+  createdAt      DateTime     @default(now())
+  entry          JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, revisionNumber])
+  @@index([entryId, createdAt])
+}
+

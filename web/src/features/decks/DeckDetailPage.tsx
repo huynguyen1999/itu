@@ -23,6 +23,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/shared/ui/card';
 import { CardImporterModal } from './components/CardImporterModal';
 import { DeckCardItem } from './components/DeckCardItem';
 import { Button } from '@/shared/ui/button';
+import { parseSseEventLine } from '../../shared/utils/sse';
 import { Input } from '@/shared/ui/input';
 import { Textarea } from '@/shared/ui/textarea';
 import { Skeleton } from '@/shared/ui/skeleton';
@@ -200,40 +201,25 @@ export function DeckDetailPage() {
           buffer = events.pop() || '';
 
           for (const event of events) {
-            const line = event.trim();
-            if (line.startsWith('data: ')) {
-              try {
-                const parsed = JSON.parse(line.slice(6));
-                if (parsed.error) {
-                  throw new Error(parsed.error);
-                }
-                const chunk = parsed.chunk;
-                if (chunk) {
-                  accumulatedText += chunk;
-
-                  const parsedCards = parsePartialCards(accumulatedText);
-                  if (parsedCards.length > 0) {
-                    setSuggestions(parsedCards);
-                  }
-                }
-              } catch (e) {
-                if (line.includes('event: error')) {
-                  throw e;
-                }
+            const parsedLine = parseSseEventLine<{ chunk?: string; error?: string }>(event);
+            if (!parsedLine.isData || !parsedLine.data) continue;
+            if (parsedLine.error) {
+              throw new Error(parsedLine.error);
+            }
+            if (parsedLine.data.chunk) {
+              accumulatedText += parsedLine.data.chunk;
+              const parsedCards = parsePartialCards(accumulatedText);
+              if (parsedCards.length > 0) {
+                setSuggestions(parsedCards);
               }
             }
           }
         }
 
         if (buffer.trim()) {
-          const line = buffer.trim();
-          if (line.startsWith('data: ')) {
-            try {
-              const parsed = JSON.parse(line.slice(6));
-              if (parsed.chunk) {
-                accumulatedText += parsed.chunk;
-              }
-            } catch {}
+          const parsedLine = parseSseEventLine<{ chunk?: string }>(buffer);
+          if (parsedLine.isData && parsedLine.data?.chunk) {
+            accumulatedText += parsedLine.data.chunk;
           }
         }
         const finalCards = parsePartialCards(accumulatedText);

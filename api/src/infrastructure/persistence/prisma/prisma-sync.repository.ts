@@ -19,6 +19,7 @@ import { PrismaSyncStudyMutations } from './prisma-sync-study-mutations';
 import { PrismaSyncFocusHabits } from './prisma-sync-focus-habits';
 import { PrismaSyncTasks } from './prisma-sync-tasks';
 import { PrismaSyncGrowthMutations } from './prisma-sync-growth-mutations';
+import { PrismaSyncJournal, JOURNAL_SYNC_INCLUDE } from './prisma-sync-journal';
 import { TASK_SYNC_INCLUDE, Tx } from './prisma-sync-mutation.shared';
 import { mapCard, mapDeck } from './prisma.mappers';
 import { deriveUrgency } from '@core/application/use-cases/productivity-rules';
@@ -46,6 +47,7 @@ export class PrismaSyncRepository implements ISyncRepository {
   private readonly focusHabitsMutations = new PrismaSyncFocusHabits();
   private readonly taskMutations = new PrismaSyncTasks();
   private readonly growthMutations = new PrismaSyncGrowthMutations();
+  private readonly journalMutations = new PrismaSyncJournal();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -330,6 +332,7 @@ export class PrismaSyncRepository implements ISyncRepository {
       this.focusHabitsMutations,
       this.taskMutations,
       this.growthMutations,
+      this.journalMutations,
     ].find((candidate) => candidate.kinds.includes(mutation.kind));
     if (!handler) throw new InvalidSyncMutationException(`Unsupported sync mutation kind: ${mutation.kind}`);
     const conflict = await handler.applyMutation(tx, userId, mutation, outcome);
@@ -374,6 +377,10 @@ export class PrismaSyncRepository implements ISyncRepository {
       growthRewardRedemptions,
       growthItemCategories,
       growthInventoryTransactions,
+      journalEntries,
+      journalTemplates,
+      journalTags,
+      exerciseDefinitions,
     ] = await Promise.all([
       this.prisma.deck.findMany({ where: { userId, archived: false } }),
       this.prisma.card.findMany({ where: { userId, status: CardStatus.ACTIVE, deck: { archived: false } } }),
@@ -431,6 +438,10 @@ export class PrismaSyncRepository implements ISyncRepository {
       this.prisma.growthRewardRedemption.findMany({ where: { userId } }),
       this.prisma.growthItemCategory.findMany({ where: { userId } }),
       this.prisma.growthInventoryTransaction.findMany({ where: { userId } }),
+      this.prisma.journalEntry.findMany({ where: { userId, deletedAt: null }, include: JOURNAL_SYNC_INCLUDE }),
+      this.prisma.journalTemplate.findMany({ where: { userId, archivedAt: null } }),
+      this.prisma.journalTag.findMany({ where: { userId } }),
+      this.prisma.exerciseDefinition.findMany({ where: { userId } }),
     ]);
     const rows: Array<{ entityType: string; entityId: string; deleted: false; data: Prisma.JsonValue }> = [];
     const add = (entityType: string, values: Array<{ id: string }>) => {
@@ -476,6 +487,10 @@ export class PrismaSyncRepository implements ISyncRepository {
     add('growthrewardredemption', growthRewardRedemptions);
     add('growthitemcategory', growthItemCategories);
     add('growthinventorytransaction', growthInventoryTransactions);
+    add('journalentry', journalEntries as any);
+    add('journaltemplate', journalTemplates as any);
+    add('journaltag', journalTags as any);
+    add('exercisedefinition', exerciseDefinitions as any);
     return rows;
   }
 }

@@ -1,14 +1,13 @@
-import { Controller, Get, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { REST_ROUTES, ROUTE_PARAMS } from '@core/application/constants/app.constants';
-import { TOKENS } from '@core/application/constants/tokens';
-import type { IDashboardUseCase } from '@core/application/ports/in/dashboard-use-case.port';
+import { DashboardService } from '@core/application/use-cases/dashboard.service';
 import { AuthGuard } from '../guards/auth.guard';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
 
 @UseGuards(AuthGuard)
 @Controller(REST_ROUTES.dashboard)
 export class DashboardController {
-  constructor(@Inject(TOKENS.DASHBOARD_USE_CASE) private readonly dashboard: IDashboardUseCase) {}
+  constructor(private readonly dashboard: DashboardService) {}
 
   /**
    * Get user productivity & study dashboard summary.

@@ -4,7 +4,6 @@ import {
   Controller,
   Delete,
   Get,
-  Inject,
   Param,
   Patch,
   Post,
@@ -13,8 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { MEDIA_ERRORS, REST_ROUTES, ROUTE_PARAMS } from '@core/application/constants/app.constants';
-import { TOKENS } from '@core/application/constants/tokens';
-import type { ICardUseCase } from '@core/application/ports/in/card-use-case.port';
+import { CardService } from '@core/application/use-cases/card.service';
 import { CardSide } from '@core/domain/enums';
 import { AuthGuard } from '../guards/auth.guard';
 import { CreateCardDto, UpdateCardDto, ImportCardsDto, MoveCardsDto, toCardImageResponseDto } from '../dto/cards.dto';
@@ -27,7 +25,7 @@ import { PERMISSIONS } from '@core/application/constants/permissions';
 @UseGuards(AuthGuard)
 @Controller()
 export class CardsController {
-  constructor(@Inject(TOKENS.CARD_USE_CASE) private readonly cards: ICardUseCase) {}
+  constructor(private readonly cards: CardService) {}
 
   /**
    * Import flashcard decks and cards in bulk.

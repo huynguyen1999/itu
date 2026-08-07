@@ -178,13 +178,21 @@ async function awardGrowthActivityInternal(
         select: { entryKey: true, metadata: true, reversalOf: { select: { entryKey: true } } },
       })
     : [];
+
+  const extractLifecycleKey = (row: any, originalKeyOverride?: string): string => {
+    const metadata = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>)
+      : {};
+    if (typeof metadata.lifecycleOrdinal === 'number') {
+      return `lc${metadata.lifecycleOrdinal}`;
+    }
+    const key = originalKeyOverride ?? row.reversalOf?.entryKey ?? '';
+    const match = key.match(/:lc(\d+):/);
+    return match ? `lc${match[1]}` : 'lc0';
+  };
+
   const reversalLifecycles = new Set(
-    reversalRows.map((row: any) => {
-      const metadata = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata as Record<string, unknown> : {};
-      if (typeof metadata.lifecycleOrdinal === 'number') return `lc${metadata.lifecycleOrdinal}`;
-      const originalKey = row.reversalOf?.entryKey ?? '';
-      return originalKey.match(/:lc(\d+):/)?.[1] ?? 'lc0';
-    }),
+    reversalRows.map((row: any) => extractLifecycleKey(row)),
   );
   // Inventory-only awards have no ledger reversal row. Include their
   // compensating transactions in the same lifecycle set, keyed by the
@@ -203,11 +211,11 @@ async function awardGrowthActivityInternal(
     for (const row of inventoryRows) {
       if (row.kind !== 'REVERSAL') continue;
       const metadata = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
-        ? row.metadata as Record<string, unknown>
+        ? (row.metadata as Record<string, unknown>)
         : {};
       const originalId = typeof metadata.originalTransactionId === 'string' ? metadata.originalTransactionId : undefined;
       const originalKey = originalId ? awardKeys.get(originalId) ?? '' : '';
-      reversalLifecycles.add(originalKey.match(/:lc(\d+):/)?.[1] ? `lc${originalKey.match(/:lc(\d+):/)?.[1]}` : 'lc0');
+      reversalLifecycles.add(extractLifecycleKey(row, originalKey));
     }
   }
   const reversalsCount = reversalLifecycles.size ? reversalLifecycles.size : await tx.growthLedgerEntry.count({

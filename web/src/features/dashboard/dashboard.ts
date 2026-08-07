@@ -15,12 +15,10 @@ export function summarizeTodayActivity(days: StudyCalendarDay[]) {
 }
 
 export function growthProfileItems(skills: GrowthSkill[]) {
-  return skills
-    .filter(isSelectableGrowthEntry)
-    .sort((left, right) => {
-      if (left.kind !== right.kind) return left.kind === 'ATTRIBUTE' ? -1 : 1;
-      return left.sortOrder - right.sortOrder;
-    });
+  return skills.filter(isSelectableGrowthEntry).sort((left, right) => {
+    if (left.kind !== right.kind) return left.kind === 'ATTRIBUTE' ? -1 : 1;
+    return left.sortOrder - right.sortOrder;
+  });
 }
 
 export function growthAttributeItems(skills: GrowthSkill[]) {

@@ -250,11 +250,14 @@ export class Sync {
       return;
     }
     const receipts = (response.mutationOutcomes ?? [])
-      .filter((outcome): outcome is typeof outcome & { growthReceipt: GrowthAwardReceipt } => Boolean(outcome.growthReceipt))
+      .filter((outcome): outcome is typeof outcome & { growthReceipt: GrowthAwardReceipt } =>
+        Boolean(outcome.growthReceipt),
+      )
       .map((outcome) => ({ receipt: outcome.growthReceipt, key: outcome.mutationId, authoritative: true }));
     this.appendGrowthReceipts(receipts);
     this.removeGrowthReceipts(new Set(response.conflicts.map((conflict) => conflict.mutationId)));
-    if (response.conflicts.length) await this.queryClient.invalidateQueries({ queryKey: ['growth'], refetchType: 'active' });
+    if (response.conflicts.length)
+      await this.queryClient.invalidateQueries({ queryKey: ['growth'], refetchType: 'active' });
     await invalidateSyncChanges(this.queryClient, response);
   };
 
@@ -631,12 +634,12 @@ export function growthCompletionTransition(
     );
     const totalValue = currentValue + inputValue;
     const targetReached = habit.direction === 'LIMIT' ? totalValue <= targetValue : totalValue >= targetValue;
-    const requiredChecklistIncomplete = (Array.isArray(cachedEntity?.checklistItems) ? cachedEntity.checklistItems : []).some(
-      (item) => {
-        const checklistItem = recordValue(item);
-        return checklistItem?.required === true && !checklistItem.completedAt;
-      },
-    );
+    const requiredChecklistIncomplete = (
+      Array.isArray(cachedEntity?.checklistItems) ? cachedEntity.checklistItems : []
+    ).some((item) => {
+      const checklistItem = recordValue(item);
+      return checklistItem?.required === true && !checklistItem.completedAt;
+    });
     return {
       sourceType: 'HABIT',
       sourceId: input.entityId,
@@ -680,7 +683,9 @@ function loadReceiptKeys() {
   try {
     const raw = window.localStorage.getItem(RECEIPT_KEYS_STORAGE);
     const values = raw ? JSON.parse(raw) : [];
-    return new Set<string>(Array.isArray(values) ? values.filter((value): value is string => typeof value === 'string') : []);
+    return new Set<string>(
+      Array.isArray(values) ? values.filter((value): value is string => typeof value === 'string') : [],
+    );
   } catch {
     return new Set<string>();
   }

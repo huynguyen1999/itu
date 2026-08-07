@@ -19,8 +19,7 @@ const BUILTIN_SOUND_DOWNLOAD_STATUS = {
   failed: 'failed',
 } as const;
 
-type BuiltinSoundDownloadStatus =
-  (typeof BUILTIN_SOUND_DOWNLOAD_STATUS)[keyof typeof BUILTIN_SOUND_DOWNLOAD_STATUS];
+type BuiltinSoundDownloadStatus = (typeof BUILTIN_SOUND_DOWNLOAD_STATUS)[keyof typeof BUILTIN_SOUND_DOWNLOAD_STATUS];
 
 interface FocusAudioContextValue {
   sounds: FocusSound[];
@@ -251,15 +250,18 @@ export function FocusAudioProvider({ children }: { children: ReactNode }) {
     [persist, settings],
   );
 
-  const seek = useCallback((seconds: number) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : playbackDuration;
-    if (!duration) return;
-    const nextPosition = Math.max(0, Math.min(duration, seconds));
-    audio.currentTime = nextPosition;
-    setPlaybackPosition(nextPosition);
-  }, [playbackDuration]);
+  const seek = useCallback(
+    (seconds: number) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : playbackDuration;
+      if (!duration) return;
+      const nextPosition = Math.max(0, Math.min(duration, seconds));
+      audio.currentTime = nextPosition;
+      setPlaybackPosition(nextPosition);
+    },
+    [playbackDuration],
+  );
 
   const preview = useCallback(
     async (soundKey: string) => {
@@ -384,7 +386,8 @@ export function FocusAudioProvider({ children }: { children: ReactNode }) {
       if (!sound || sound.source === 'BUILTIN') return;
       await api.deleteFocusSound(sound.id);
       if (settings.selectedSoundKey === sound.id) {
-        const fallback = sounds.find((item) => item.id !== sound.id)?.id ?? DEFAULT_FOCUS_AUDIO_SETTINGS.selectedSoundKey;
+        const fallback =
+          sounds.find((item) => item.id !== sound.id)?.id ?? DEFAULT_FOCUS_AUDIO_SETTINGS.selectedSoundKey;
         persist({ ...settings, selectedSoundKey: fallback });
         stop();
       }
@@ -398,15 +401,12 @@ export function FocusAudioProvider({ children }: { children: ReactNode }) {
       const sound = sounds.find((item) => item.id === soundKey);
       if (!sound || sound.source === 'BUILTIN') return;
       const updated = await api.updateFocusSound(sound.id, { name });
-      queryClient.setQueryData<{ sounds: FocusSound[]; preferences: unknown[] }>(
-        ['focus', 'sounds'],
-        (current) => {
-          if (!current) return current;
-          const nextSounds = current.sounds.map((item) => (item.id === updated.id ? { ...item, ...updated } : item));
-          saveFocusSoundCatalog(nextSounds);
-          return { ...current, sounds: nextSounds };
-        },
-      );
+      queryClient.setQueryData<{ sounds: FocusSound[]; preferences: unknown[] }>(['focus', 'sounds'], (current) => {
+        if (!current) return current;
+        const nextSounds = current.sounds.map((item) => (item.id === updated.id ? { ...item, ...updated } : item));
+        saveFocusSoundCatalog(nextSounds);
+        return { ...current, sounds: nextSounds };
+      });
       await queryClient.invalidateQueries({ queryKey: ['focus', 'sounds'] });
     },
     [queryClient, sounds],

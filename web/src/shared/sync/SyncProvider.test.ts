@@ -50,7 +50,12 @@ describe('growth receipt lifecycle reconciliation', () => {
   it('replaces an optimistic receipt with the authoritative outcome', () => {
     const recent = new Set<string>();
     const optimistic = new Set<string>();
-    const local = mergeGrowthReceiptEntries([], [{ receipt: receipt('local', 5), key: 'mutation-1' }], recent, optimistic);
+    const local = mergeGrowthReceiptEntries(
+      [],
+      [{ receipt: receipt('local', 5), key: 'mutation-1' }],
+      recent,
+      optimistic,
+    );
     const authoritative = mergeGrowthReceiptEntries(
       local,
       [{ receipt: receipt('server', 7), key: 'mutation-1', authoritative: true }],

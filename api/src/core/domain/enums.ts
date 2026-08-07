@@ -84,3 +84,37 @@ export enum ScheduledJobStatus {
 export enum SyncDevicePlatform {
   WEB = 'WEB',
 }
+
+export enum JournalEntryKind {
+  NOTE = 'NOTE',
+  WEEKLY_REVIEW = 'WEEKLY_REVIEW',
+  EXPENSE = 'EXPENSE',
+  WORKOUT = 'WORKOUT',
+}
+
+export enum ExpenseCategory {
+  FOOD = 'FOOD',
+  TRANSPORT = 'TRANSPORT',
+  SHOPPING = 'SHOPPING',
+  BILLS = 'BILLS',
+  HEALTH = 'HEALTH',
+  EDUCATION = 'EDUCATION',
+  ENTERTAINMENT = 'ENTERTAINMENT',
+  FITNESS = 'FITNESS',
+  TRAVEL = 'TRAVEL',
+  OTHER = 'OTHER',
+}
+
+export enum PaymentMethod {
+  CASH = 'CASH',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+  CARD = 'CARD',
+  E_WALLET = 'E_WALLET',
+  OTHER = 'OTHER',
+}
+
+export enum WeightUnit {
+  KG = 'KG',
+  LBS = 'LBS',
+}
+

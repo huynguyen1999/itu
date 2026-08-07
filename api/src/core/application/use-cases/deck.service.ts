@@ -1,18 +1,21 @@
-import {
+import { Inject, Injectable } from '@nestjs/common';
+import { TOKENS } from '@core/application/constants/tokens';
+import type {
   IDeckUseCase,
   CreateDeckCommand,
   DeckListItem,
   UpdateDeckCommand,
 } from '@core/application/ports/in/deck-use-case.port';
-import { ICardRepository, IDeckRepository } from '@core/application/ports/out/repositories.port';
+import type { ICardRepository, IDeckRepository } from '@core/application/ports/out/repositories.port';
 import { DeckModel } from '@core/domain/models';
 import { EntityNotFoundException, ProtectedDefaultDeckException } from '@core/domain/exceptions';
 import { CursorPage, CursorPageOptions } from '@core/application/ports/pagination.port';
 
+@Injectable()
 export class DeckService implements IDeckUseCase {
   constructor(
-    private readonly decks: IDeckRepository,
-    private readonly cards: ICardRepository,
+    @Inject(TOKENS.DECK_REPOSITORY) private readonly decks: IDeckRepository,
+    @Inject(TOKENS.CARD_REPOSITORY) private readonly cards: ICardRepository,
   ) {}
 
   async list(userId: string, options?: CursorPageOptions): Promise<CursorPage<DeckListItem>> {

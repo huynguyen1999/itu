@@ -9,6 +9,6 @@ import { LocalMediaStorage } from './local-media-storage';
   imports: [AuthModule, PersistenceModule],
   controllers: [MediaController],
   providers: [LocalMediaStorage, { provide: TOKENS.MEDIA_STORAGE, useExisting: LocalMediaStorage }],
-  exports: [TOKENS.MEDIA_STORAGE],
+  exports: [LocalMediaStorage, TOKENS.MEDIA_STORAGE],
 })
 export class MediaModule {}

@@ -1,14 +1,13 @@
-import { Controller, Delete, Get, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { REST_ROUTES, ROUTE_PARAMS } from '@core/application/constants/app.constants';
-import { TOKENS } from '@core/application/constants/tokens';
-import type { ITrashUseCase } from '@core/application/ports/in/trash-use-case.port';
+import { TrashService } from '@core/application/use-cases/trash.service';
 import { AuthGuard } from '../guards/auth.guard';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
 
 @UseGuards(AuthGuard)
 @Controller(REST_ROUTES.trash)
 export class TrashController {
-  constructor(@Inject(TOKENS.TRASH_USE_CASE) private readonly trash: ITrashUseCase) {}
+  constructor(private readonly trash: TrashService) {}
 
   /**
    * List trash items.

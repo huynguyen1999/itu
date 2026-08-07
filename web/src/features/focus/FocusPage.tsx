@@ -20,13 +20,15 @@ import { useSync } from '@/shared/sync/SyncProvider';
 import { Button } from '@/shared/ui/button';
 import { Card } from '@/shared/ui/card';
 import { PageHeader } from '@/shared/ui/PageHeader';
-import { createOptimisticFocusSession, focusDisplaySeconds, focusElapsedSeconds, formatFocusTime, validFocusMinutes } from './utils/focusTimer';
-import { playFinishChime } from '@/shared/utils/sound';
 import {
-  FocusSettingsModal,
-  getStoredFocusSettings,
-  type FocusUserSettings,
-} from './components/FocusSettingsModal';
+  createOptimisticFocusSession,
+  focusDisplaySeconds,
+  focusElapsedSeconds,
+  formatFocusTime,
+  validFocusMinutes,
+} from './utils/focusTimer';
+import { playFinishChime } from '@/shared/utils/sound';
+import { FocusSettingsModal, getStoredFocusSettings, type FocusUserSettings } from './components/FocusSettingsModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog';
 import { Input } from '@/shared/ui/input';
 import { useFocusAudio } from './components/FocusAudioProvider';
@@ -94,9 +96,13 @@ export function FocusPage() {
   const [editStartedAt, setEditStartedAt] = useState('');
   const [editCompletedAt, setEditCompletedAt] = useState('');
   const [editTaskId, setEditTaskId] = useState('');
-  const isTimeRangeInvalid = Boolean(editStartedAt && editCompletedAt && new Date(editCompletedAt) <= new Date(editStartedAt));
+  const isTimeRangeInvalid = Boolean(
+    editStartedAt && editCompletedAt && new Date(editCompletedAt) <= new Date(editStartedAt),
+  );
   const [userSettings, setUserSettings] = useState<FocusUserSettings>(getStoredFocusSettings);
-  const [selectedDurationSeconds, setSelectedDurationSeconds] = useState(() => getStoredFocusSettings().defaultWorkMinutes * 60);
+  const [selectedDurationSeconds, setSelectedDurationSeconds] = useState(
+    () => getStoredFocusSettings().defaultWorkMinutes * 60,
+  );
   const [editMinutes, setEditMinutes] = useState(String(getStoredFocusSettings().defaultWorkMinutes));
   const [editSeconds, setEditSeconds] = useState('00');
   const timeEditContainerRef = useRef<HTMLDivElement>(null);
@@ -169,7 +175,14 @@ export function FocusPage() {
   const soundNeedsDownload = Boolean(
     audio.settings.enabled && selectedSoundIsBuiltin && !selectedSoundIsCached && !selectedSoundJustDownloaded,
   );
-  const soundStatusLabel = getSoundStatusLabel(audio.settings.enabled, audio.settings.muted, audio.isPlaying, selectedSoundIsDownloading, selectedSoundIsCached || selectedSoundJustDownloaded, soundNeedsDownload);
+  const soundStatusLabel = getSoundStatusLabel(
+    audio.settings.enabled,
+    audio.settings.muted,
+    audio.isPlaying,
+    selectedSoundIsDownloading,
+    selectedSoundIsCached || selectedSoundJustDownloaded,
+    soundNeedsDownload,
+  );
   const canControlAudio = Boolean(audio.settings.enabled && audio.selectedSound);
 
   // Check finish notification / chime / auto-completion
@@ -198,7 +211,9 @@ export function FocusPage() {
       // If WORK session and countExceededFocusTime is false, auto-complete at 00:00 (audio continues!)
       // If SHORT_BREAK or LONG_BREAK session, breaks always auto-complete at 00:00 (audio continues!)
       const isWork = active.data.phase === 'WORK';
-      const shouldAutoComplete = isWork ? !(userSettings.countExceededFocusTime ?? userSettings.autoContinueOvertime) : true;
+      const shouldAutoComplete = isWork
+        ? !(userSettings.countExceededFocusTime ?? userSettings.autoContinueOvertime)
+        : true;
       if (shouldAutoComplete) {
         action.mutate({
           operation: 'complete',
@@ -278,7 +293,12 @@ export function FocusPage() {
   });
 
   const attachTask = useMutation({
-    mutationFn: ({ taskId, session, idempotencyKey, expectedVersion }: {
+    mutationFn: ({
+      taskId,
+      session,
+      idempotencyKey,
+      expectedVersion,
+    }: {
       taskId: string | null;
       session: FocusSession;
       idempotencyKey: string;
@@ -303,7 +323,12 @@ export function FocusPage() {
   });
 
   const renameTitle = useMutation({
-    mutationFn: ({ customTitle, session, idempotencyKey, expectedVersion }: {
+    mutationFn: ({
+      customTitle,
+      session,
+      idempotencyKey,
+      expectedVersion,
+    }: {
       customTitle: string;
       session: FocusSession;
       idempotencyKey: string;
@@ -388,7 +413,10 @@ export function FocusPage() {
     setTaskSearch('');
   };
 
-  const runFocusAction = (operation: 'pause' | 'resume' | 'complete' | 'abandon' | 'extend', options: { category?: string; extendSeconds?: number } = {}) => {
+  const runFocusAction = (
+    operation: 'pause' | 'resume' | 'complete' | 'abandon' | 'extend',
+    options: { category?: string; extendSeconds?: number } = {},
+  ) => {
     const session = active.data;
     if (!session) return;
     action.mutate({
@@ -468,7 +496,8 @@ export function FocusPage() {
     setIsEditingTime(false);
     if (timerMode === 'FOCUS') setTimerMode('FOCUS'); // re-trigger display
   };
-  const currentTitle = active.data?.customTitle || active.data?.taskTitleSnapshot || customTitle || selectedTaskObj?.title || 'Focus';
+  const currentTitle =
+    active.data?.customTitle || active.data?.taskTitleSnapshot || customTitle || selectedTaskObj?.title || 'Focus';
 
   const startFocus = () => {
     setLastCompletedSession(null);
@@ -545,9 +574,7 @@ export function FocusPage() {
                   disabled={Boolean(active.data)}
                   onClick={() => handleModeSwitch(mode)}
                   className={`flex-1 rounded-lg py-1.5 text-center text-xs font-semibold transition-all disabled:opacity-50 ${
-                    isSelected
-                      ? 'bg-card text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
+                    isSelected ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {labels[mode]}
@@ -686,7 +713,10 @@ export function FocusPage() {
                   ref={timeEditContainerRef}
                   className="inline-flex items-center justify-center font-mono text-[42px] sm:text-[52px] font-semibold tracking-tight tabular-nums leading-none text-foreground"
                   onBlur={(e) => {
-                    if (timeEditContainerRef.current && timeEditContainerRef.current.contains(e.relatedTarget as Node)) {
+                    if (
+                      timeEditContainerRef.current &&
+                      timeEditContainerRef.current.contains(e.relatedTarget as Node)
+                    ) {
                       return;
                     }
                     applyInlineTime();
@@ -851,8 +881,8 @@ export function FocusPage() {
                     size="lg"
                     className="rounded-full h-10 sm:h-12 px-3.5 sm:px-6 text-xs sm:text-sm font-semibold shrink-0 itu-primary-action"
                     onClick={() => runFocusAction('complete')}
-                    title={active.data?.phase === 'WORK' ? "Complete session" : "End Break"}
-                    aria-label={active.data?.phase === 'WORK' ? "Complete focus session" : "End break"}
+                    title={active.data?.phase === 'WORK' ? 'Complete session' : 'End Break'}
+                    aria-label={active.data?.phase === 'WORK' ? 'Complete focus session' : 'End break'}
                   >
                     <Check className="mr-1.5 h-3.5 sm:h-4 w-3.5 sm:w-4 shrink-0" />
                     {active.data?.phase === 'WORK' ? 'Complete' : 'End Break'}
@@ -1056,7 +1086,6 @@ export function FocusPage() {
         </div>
       </div>
 
-
       {/* ── Edit Record Dialog ── */}
       <Dialog
         open={Boolean(editingSession)}
@@ -1102,9 +1131,7 @@ export function FocusPage() {
                   ))}
               </select>
             </div>
-            {isTimeRangeInvalid && (
-              <p className="text-xs text-destructive">End time must be after start time.</p>
-            )}
+            {isTimeRangeInvalid && <p className="text-xs text-destructive">End time must be after start time.</p>}
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEditingSession(null)}>

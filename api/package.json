@@ -20,8 +20,7 @@
     "prisma:migrate": "dotenv -e .env -- prisma migrate dev",
     "prisma:migration:create": "dotenv -e .env -- prisma migrate dev --create-only",
     "prisma:deploy": "dotenv -e .env -- prisma migrate deploy",
-    "prisma:seed": "dotenv -e .env -- tsx prisma/seed.ts",
-    "prisma:seed2": "dotenv -e .env -- tsx prisma/seed2.ts"
+    "prisma:seed": "dotenv -e .env -- tsx prisma/seed.ts"
   },
   "dependencies": {
     "@fastify/compress": "^9.0.0",

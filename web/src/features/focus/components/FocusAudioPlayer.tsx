@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Loader2, Maximize2, Minimize2, Music, Pause, Play, Square, Volume1, Volume2, VolumeX } from 'lucide-react';
+import {
+  Download,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  Music,
+  Pause,
+  Play,
+  Square,
+  Volume1,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFocusAudio } from './FocusAudioProvider';
 
@@ -54,13 +66,12 @@ export function FocusAudioPlayerCard({
 
   const soundNeedsDownload = Boolean(
     audio.settings.enabled &&
-      selectedSoundIsBuiltin &&
-      !selectedSoundIsCached &&
-      selectedSoundDownloadStatus !== 'downloaded',
+    selectedSoundIsBuiltin &&
+    !selectedSoundIsCached &&
+    selectedSoundDownloadStatus !== 'downloaded',
   );
 
-  const duration =
-    Number.isFinite(audio.playbackDuration) && audio.playbackDuration > 0 ? audio.playbackDuration : 0;
+  const duration = Number.isFinite(audio.playbackDuration) && audio.playbackDuration > 0 ? audio.playbackDuration : 0;
   const visiblePosition = scrubPosition ?? audio.playbackPosition;
   const progressRatio = duration > 0 ? Math.min(1, Math.max(0, visiblePosition / duration)) : 0;
 
@@ -131,18 +142,13 @@ export function FocusAudioPlayerCard({
       <div className="relative z-10 mb-5 flex items-center justify-between gap-3">
         <div
           onClick={onClickHeader}
-          className={cn(
-            'flex items-center gap-3',
-            onClickHeader && 'cursor-pointer group select-none',
-          )}
+          className={cn('flex items-center gap-3', onClickHeader && 'cursor-pointer group select-none')}
         >
           <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl border border-[#1c352c] bg-gradient-to-br from-[#163a30] to-[#0d211b] text-[#52e8c4] shadow-sm transition-transform group-hover:scale-105">
             <Music className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7fa89c]">
-              Background sound
-            </div>
+            <div className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7fa89c]">Background sound</div>
             <div className="font-sans text-[15px] font-semibold text-[#eaf4ef] group-hover:text-[#52e8c4] transition-colors">
               {audio.selectedSound?.name ?? 'Select track'}
             </div>
@@ -182,9 +188,7 @@ export function FocusAudioPlayerCard({
         <span
           className={cn(
             'h-2 w-2 rounded-full transition-all duration-300',
-            audio.isPlaying && audio.settings.enabled
-              ? 'bg-[#52e8c4] shadow-[0_0_8px_#52e8c4]'
-              : 'bg-[#4c6a61]',
+            audio.isPlaying && audio.settings.enabled ? 'bg-[#52e8c4] shadow-[0_0_8px_#52e8c4]' : 'bg-[#4c6a61]',
           )}
         />
         <span className="truncate">{statusLabel}</span>
@@ -330,9 +334,7 @@ export function FocusAudioPlayerCard({
               volOpen ? 'pointer-events-auto opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
             )}
           >
-            <span className="font-mono text-[10px] font-medium text-[#52e8c4]">
-              {volumePercent}%
-            </span>
+            <span className="font-mono text-[10px] font-medium text-[#52e8c4]">{volumePercent}%</span>
             <div
               role="slider"
               aria-label="Volume slider"
@@ -407,9 +409,9 @@ export function FocusAudioPill({
 
   const soundNeedsDownload = Boolean(
     audio.settings.enabled &&
-      selectedSoundIsBuiltin &&
-      !selectedSoundIsCached &&
-      selectedSoundDownloadStatus !== 'downloaded',
+    selectedSoundIsBuiltin &&
+    !selectedSoundIsCached &&
+    selectedSoundDownloadStatus !== 'downloaded',
   );
 
   const statusText = audio.isPlaying ? 'Playing' : 'Paused';

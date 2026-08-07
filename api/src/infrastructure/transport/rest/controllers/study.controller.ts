@@ -1,7 +1,6 @@
-import { Body, Controller, Get, Inject, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { QUERY_PARAMS, REST_ROUTES, ROUTE_PARAMS } from '@core/application/constants/app.constants';
-import { TOKENS } from '@core/application/constants/tokens';
-import type { IStudyUseCase } from '@core/application/ports/in/study-use-case.port';
+import { StudyService } from '@core/application/use-cases/study.service';
 import { AuthGuard } from '../guards/auth.guard';
 import { CompleteSessionDto, StartSessionDto, SubmitReviewDto } from '../dto/study.dto';
 import { CursorPageQueryDto } from '../dto/pagination.dto';
@@ -10,7 +9,7 @@ import type { AuthenticatedRequest } from '../types/authenticated-request';
 @UseGuards(AuthGuard)
 @Controller(REST_ROUTES.study)
 export class StudyController {
-  constructor(@Inject(TOKENS.STUDY_USE_CASE) private readonly study: IStudyUseCase) {}
+  constructor(private readonly study: StudyService) {}
 
   /**
    * Get due review flashcards.

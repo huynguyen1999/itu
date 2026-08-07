@@ -237,9 +237,9 @@ extension AppModel {
                 let result = try await AccountHydrator(apiClient: apiClient, offlineStore: store).hydrate()
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == userID else { return }
                 apply(result.snapshot)
-                if case let .success(value) = result.habitTimeBlocks { habitTimeBlocks = value }
-                if case let .success(value) = result.studySessionHistory { studySessionHistory = value }
-                if case let .success(value) = result.notifications { notifications = value }
+                if let value = result.habitTimeBlocks { habitTimeBlocks = value }
+                if let value = result.studySessionHistory { studySessionHistory = value }
+                if let value = result.notifications { notifications = value }
             } catch {
                 // Background hydration is deliberately silent; local state remains visible.
             }

@@ -24,6 +24,20 @@ import { PrismaProductivityRepository } from './prisma/prisma-productivity.repos
 import { PrismaGrowthRepository } from './prisma/prisma-growth.repository';
 import { PrismaGrowthShop } from './prisma/prisma-growth-shop';
 import { PrismaProductivityHabits } from './prisma/prisma-productivity-habits';
+import {
+  PrismaJournalRepository,
+  PrismaJournalTemplateRepository,
+  PrismaJournalTagRepository,
+  PrismaExerciseDefinitionRepository,
+  PrismaJournalAttachmentRepository,
+} from './prisma/prisma-journal.repository';
+import {
+  JOURNAL_REPOSITORY,
+  JOURNAL_TEMPLATE_REPOSITORY,
+  JOURNAL_TAG_REPOSITORY,
+  EXERCISE_DEFINITION_REPOSITORY,
+  JOURNAL_ATTACHMENT_REPOSITORY,
+} from '@core/application/use-cases/journal/journal.service';
 
 @Module({
   providers: [
@@ -49,6 +63,11 @@ import { PrismaProductivityHabits } from './prisma/prisma-productivity-habits';
     PrismaProductivityHabits,
     PrismaGrowthRepository,
     PrismaGrowthShop,
+    PrismaJournalRepository,
+    PrismaJournalTemplateRepository,
+    PrismaJournalTagRepository,
+    PrismaExerciseDefinitionRepository,
+    PrismaJournalAttachmentRepository,
     { provide: TOKENS.USER_REPOSITORY, useExisting: PrismaUserRepository },
     { provide: TOKENS.DECK_REPOSITORY, useExisting: PrismaDeckRepository },
     { provide: TOKENS.REFRESH_SESSION_REPOSITORY, useExisting: PrismaRefreshSessionRepository },
@@ -65,11 +84,42 @@ import { PrismaProductivityHabits } from './prisma/prisma-productivity-habits';
     { provide: TOKENS.REMINDER_REPOSITORY, useExisting: PrismaReminderRepository },
     { provide: TOKENS.SYNC_DEVICE_REPOSITORY, useExisting: PrismaSyncDeviceRepository },
     { provide: TOKENS.ACCESS_REPOSITORY, useExisting: PrismaAccessRepository },
-  { provide: TOKENS.PRODUCTIVITY_REPOSITORY, useExisting: PrismaProductivityRepository },
+    { provide: TOKENS.PRODUCTIVITY_REPOSITORY, useExisting: PrismaProductivityRepository },
     { provide: TOKENS.GROWTH_REPOSITORY, useExisting: PrismaGrowthRepository },
+    { provide: JOURNAL_REPOSITORY, useClass: PrismaJournalRepository },
+    { provide: JOURNAL_TEMPLATE_REPOSITORY, useClass: PrismaJournalTemplateRepository },
+    { provide: JOURNAL_TAG_REPOSITORY, useClass: PrismaJournalTagRepository },
+    { provide: EXERCISE_DEFINITION_REPOSITORY, useClass: PrismaExerciseDefinitionRepository },
+    { provide: JOURNAL_ATTACHMENT_REPOSITORY, useClass: PrismaJournalAttachmentRepository },
   ],
   exports: [
     PrismaService,
+    PrismaUserRepository,
+    PrismaDeckRepository,
+    PrismaRefreshSessionRepository,
+    PrismaOAuthHandoffRepository,
+    PrismaRateLimitRepository,
+    PrismaCardRepository,
+    PrismaReviewStateRepository,
+    PrismaStudySessionRepository,
+    PrismaAiJobRepository,
+    PrismaAiFeedbackRepository,
+    PrismaSyncRepository,
+    PrismaTrashRepository,
+    PrismaScheduledJobRepository,
+    PrismaReminderRepository,
+    PrismaSyncDeviceRepository,
+    PrismaAccessRepository,
+    PrismaProductivityRepository,
+    PrismaGrowthRepository,
+    PrismaGrowthShop,
+    PrismaProductivityHabits,
+    PrismaJournalRepository,
+    PrismaJournalTemplateRepository,
+    PrismaJournalTagRepository,
+    PrismaExerciseDefinitionRepository,
+    PrismaJournalAttachmentRepository,
+    SrsSchedulerService,
     TOKENS.USER_REPOSITORY,
     TOKENS.DECK_REPOSITORY,
     TOKENS.REFRESH_SESSION_REPOSITORY,
@@ -88,6 +138,12 @@ import { PrismaProductivityHabits } from './prisma/prisma-productivity-habits';
     TOKENS.ACCESS_REPOSITORY,
     TOKENS.PRODUCTIVITY_REPOSITORY,
     TOKENS.GROWTH_REPOSITORY,
+    JOURNAL_REPOSITORY,
+    JOURNAL_TEMPLATE_REPOSITORY,
+    JOURNAL_TAG_REPOSITORY,
+    EXERCISE_DEFINITION_REPOSITORY,
+    JOURNAL_ATTACHMENT_REPOSITORY,
   ],
 })
 export class PersistenceModule {}
+

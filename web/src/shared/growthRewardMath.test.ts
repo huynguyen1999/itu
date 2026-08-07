@@ -3,18 +3,22 @@ import { selectGrowthRewardWeights, splitGrowthAccountXp } from './growthRewardM
 
 describe('splitGrowthAccountXp', () => {
   it('splits a fixed account budget by two skill weights', () => {
-    expect(splitGrowthAccountXp(10, [
-      { skillId: 'primary', xpReward: 70 },
-      { skillId: 'secondary', xpReward: 30 },
-    ])).toEqual([7, 3]);
+    expect(
+      splitGrowthAccountXp(10, [
+        { skillId: 'primary', xpReward: 70 },
+        { skillId: 'secondary', xpReward: 30 },
+      ]),
+    ).toEqual([7, 3]);
   });
 
   it('splits a fixed account budget by three skill weights', () => {
-    expect(splitGrowthAccountXp(10, [
-      { skillId: 'primary', xpReward: 60 },
-      { skillId: 'secondary', xpReward: 25 },
-      { skillId: 'tertiary', xpReward: 15 },
-    ])).toEqual([6, 3, 1]);
+    expect(
+      splitGrowthAccountXp(10, [
+        { skillId: 'primary', xpReward: 60 },
+        { skillId: 'secondary', xpReward: 25 },
+        { skillId: 'tertiary', xpReward: 15 },
+      ]),
+    ).toEqual([6, 3, 1]);
   });
 
   it('caps selected skills at three without multiplying the account budget', () => {
@@ -29,12 +33,14 @@ describe('splitGrowthAccountXp', () => {
   });
 
   it('sorts before capping so later selected skills are deterministic', () => {
-    expect(splitGrowthAccountXp(10, [
-      { skillId: 'd', xpReward: 25 },
-      { skillId: 'c', xpReward: 25 },
-      { skillId: 'b', xpReward: 25 },
-      { skillId: 'a', xpReward: 25 },
-    ])).toEqual([4, 3, 3]);
+    expect(
+      splitGrowthAccountXp(10, [
+        { skillId: 'd', xpReward: 25 },
+        { skillId: 'c', xpReward: 25 },
+        { skillId: 'b', xpReward: 25 },
+        { skillId: 'a', xpReward: 25 },
+      ]),
+    ).toEqual([4, 3, 3]);
   });
 
   it('excludes archived skills before sorting and capping', () => {

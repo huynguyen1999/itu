@@ -1,4 +1,13 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Coins, Gift, Pencil, Search, TrendingUp, X, Zap } from 'lucide-react';
 import { api } from '@/shared/api/client';
@@ -42,10 +51,13 @@ export const GrowthRewardEditor = forwardRef<
     const loadedWeights = selectGrowthRewardWeights(
       awards.map((award) => ({ skillId: award.skillId, xpReward: award.xpReward })),
     );
-    const weights = growthSkillWeightsTotal(loadedWeights) === 100
-      ? loadedWeights.map((award) => award.xpReward)
-      : defaultGrowthWeights(Math.min(3, loadedWeights.length));
-    setXp(Object.fromEntries(loadedWeights.slice(0, 3).map((award, index) => [award.skillId, String(weights[index] ?? 0)])));
+    const weights =
+      growthSkillWeightsTotal(loadedWeights) === 100
+        ? loadedWeights.map((award) => award.xpReward)
+        : defaultGrowthWeights(Math.min(3, loadedWeights.length));
+    setXp(
+      Object.fromEntries(loadedWeights.slice(0, 3).map((award, index) => [award.skillId, String(weights[index] ?? 0)])),
+    );
     setItemQuantities(
       Object.fromEntries((rule?.itemAwards ?? []).map((award) => [award.itemId, String(award.quantity)])),
     );
@@ -54,7 +66,8 @@ export const GrowthRewardEditor = forwardRef<
   }, [rule, sourceType]);
 
   const selectedEntries = useMemo(
-    () => (entries.data ?? []).filter(isSelectableGrowthEntry).filter((entry) => growthRewardValueIsSelected(xp, entry.id)),
+    () =>
+      (entries.data ?? []).filter(isSelectableGrowthEntry).filter((entry) => growthRewardValueIsSelected(xp, entry.id)),
     [entries.data, xp],
   );
   const selectedItems = useMemo(
@@ -64,9 +77,11 @@ export const GrowthRewardEditor = forwardRef<
   const totalWeight = growthSkillWeightsTotal(
     selectedEntries.map((entry) => ({ skillId: entry.id, xpReward: Number(xp[entry.id]) || 0 })),
   );
-  const filteredEntries = (entries.data ?? []).filter(isSelectableGrowthEntry).filter((entry) =>
-    `${entry.name} ${entry.description}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
-  );
+  const filteredEntries = (entries.data ?? [])
+    .filter(isSelectableGrowthEntry)
+    .filter((entry) =>
+      `${entry.name} ${entry.description}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+    );
 
   const draftRule = useMemo(
     () =>
@@ -308,9 +323,18 @@ export const GrowthRewardEditor = forwardRef<
           <label className="flex items-center gap-2 text-sm font-semibold">
             <Zap className="h-4 w-4 text-teal-600" />
             <span className="flex-1">Account XP budget</span>
-            <Input aria-label="Account XP budget" type="number" min="0" value={accountXp} onChange={(event) => setAccountXp(event.target.value)} className="h-9 w-24 text-center" />
+            <Input
+              aria-label="Account XP budget"
+              type="number"
+              min="0"
+              value={accountXp}
+              onChange={(event) => setAccountXp(event.target.value)}
+              className="h-9 w-24 text-center"
+            />
           </label>
-          <span className={`text-xs font-semibold ${selectedEntries.length > 0 && totalWeight !== 100 ? 'text-destructive' : 'text-muted-foreground'}`}>
+          <span
+            className={`text-xs font-semibold ${selectedEntries.length > 0 && totalWeight !== 100 ? 'text-destructive' : 'text-muted-foreground'}`}
+          >
             Skill weights: {totalWeight}/100
           </span>
         </div>
@@ -405,7 +429,10 @@ export const GrowthRewardEditor = forwardRef<
           </div>
         )}
         {selectedEntries.length > 0 && totalWeight !== 100 ? (
-          <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive" role="alert">
+          <p
+            className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+            role="alert"
+          >
             Skill weights must total 100% before saving.
           </p>
         ) : null}
@@ -503,13 +530,20 @@ export const GrowthRewardEditor = forwardRef<
           <div className="hidden text-xs text-muted-foreground sm:block">
             <strong className="text-foreground">{totalSelected} selected</strong>
             {' · '}
-            <span>{accountXp} Account XP · {totalWeight}% skill weights</span>
+            <span>
+              {accountXp} Account XP · {totalWeight}% skill weights
+            </span>
           </div>
           <div className="flex items-center gap-2 sm:ml-auto">
             <Button type="button" variant="outline" size="sm" onClick={() => setEditing(false)}>
               Cancel
             </Button>
-            <Button type="button" size="sm" onClick={() => save.mutate()} disabled={save.isPending || !ruleIsDirty || (selectedEntries.length > 0 && totalWeight !== 100)}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => save.mutate()}
+              disabled={save.isPending || !ruleIsDirty || (selectedEntries.length > 0 && totalWeight !== 100)}
+            >
               {save.isPending ? 'Saving…' : 'Save rewards'}
             </Button>
           </div>
@@ -533,11 +567,7 @@ function positiveRewardValue(value: string | undefined): boolean {
   return Number.isFinite(amount) && amount > 0;
 }
 
-function setRewardValue(
-  setter: Dispatch<SetStateAction<Record<string, string>>>,
-  id: string,
-  value: string,
-) {
+function setRewardValue(setter: Dispatch<SetStateAction<Record<string, string>>>, id: string, value: string) {
   setter((current) => {
     if (value === '') return { ...current, [id]: value };
     if (positiveRewardValue(value)) return { ...current, [id]: value };
@@ -553,11 +583,7 @@ function setRewardValue(
  * largest value that keeps the total at 100. Empty/non-positive inputs
  * deselect the entry (same behaviour as `setRewardValue`).
  */
-export function clampWeightValue(
-  current: Record<string, string>,
-  id: string,
-  value: string,
-): Record<string, string> {
+export function clampWeightValue(current: Record<string, string>, id: string, value: string): Record<string, string> {
   if (value === '') return { ...current, [id]: value };
   if (!positiveRewardValue(value)) {
     const next = { ...current };
@@ -669,4 +695,3 @@ export function defaultGrowthWeights(count: number): number[] {
   if (count === 2) return [70, 30];
   return [60, 25, 15];
 }
-

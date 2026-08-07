@@ -16,6 +16,7 @@ import { TrashModule } from '@features/trash/trash.module';
 import { MediaModule } from '@infrastructure/media/media.module';
 import { ProductivityModule } from '@features/productivity/productivity.module';
 import { GrowthModule } from '@features/growth/growth.module';
+import { JournalModule } from '@features/journal/journal.module';
 import { PublicModule } from '@infrastructure/public/public.module';
 
 @Module({
@@ -38,6 +39,7 @@ import { PublicModule } from '@infrastructure/public/public.module';
     MediaModule,
     ProductivityModule,
     GrowthModule,
+    JournalModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: DomainExceptionFilter },

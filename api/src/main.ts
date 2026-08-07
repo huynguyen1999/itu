@@ -21,10 +21,7 @@ async function bootstrap() {
   configureOutboundHttp();
 
   try {
-    const compressionEncodings = supportedCompressionEncodings();
     await app.register(fastifyCompress, {
-      encodings: compressionEncodings,
-      requestEncodings: compressionEncodings,
       threshold: 1024,
     });
     await app.register(fastifyCookie);
@@ -103,11 +100,3 @@ async function bootstrap() {
 
 void bootstrap();
 
-function supportedCompressionEncodings(): Array<'zstd' | 'br' | 'gzip' | 'deflate' | 'identity'> {
-  return supportsZstd() ? ['zstd', 'br', 'gzip', 'deflate', 'identity'] : ['br', 'gzip', 'deflate', 'identity'];
-}
-
-function supportsZstd(): boolean {
-  const [major = 0, minor = 0] = process.versions.node.split('.').map(Number);
-  return major > 23 || (major === 23 && minor >= 8) || (major === 22 && minor >= 15);
-}

@@ -1,18 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import {
-  Bell,
-  Calendar,
-  Check,
-  Clock3,
-  FileText,
-  Flag,
-  List,
-  LoaderCircle,
-  Plus,
-  Sprout,
-} from 'lucide-react';
+import { Bell, Calendar, Check, Clock3, FileText, Flag, List, LoaderCircle, Plus, Sprout } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import type { Habit, ProductivityTask, TaskPriority } from '@/shared/api/types';
 import { Button } from '@/shared/ui/button';
@@ -33,7 +22,6 @@ import {
 import { getStoredTaskDefaults } from '@/shared/taskDefaults';
 import { HomeOverview } from '../dashboard/HomeOverview';
 import { HabitDetail, HabitIconBadge } from '../habits';
-
 
 export function TodayPage() {
   const queryClient = useQueryClient();
@@ -90,7 +78,17 @@ export function TodayPage() {
   });
 
   const toggleHabit = useMutation({
-    mutationFn: ({ id, value, completed, idempotencyKey }: { id: string; value: number; completed: boolean; idempotencyKey: string }) =>
+    mutationFn: ({
+      id,
+      value,
+      completed,
+      idempotencyKey,
+    }: {
+      id: string;
+      value: number;
+      completed: boolean;
+      idempotencyKey: string;
+    }) =>
       completed
         ? api.habitOccurrenceAction(id, 'undo', idempotencyKey)
         : api.checkInHabit(id, { value, idempotencyKey }),

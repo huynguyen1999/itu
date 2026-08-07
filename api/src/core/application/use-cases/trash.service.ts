@@ -1,5 +1,7 @@
-import { ITrashUseCase, TrashSnapshot } from '@core/application/ports/in/trash-use-case.port';
-import { ITrashRepository } from '@core/application/ports/out/repositories.port';
+import { Inject, Injectable } from '@nestjs/common';
+import { TOKENS } from '@core/application/constants/tokens';
+import type { ITrashUseCase, TrashSnapshot } from '@core/application/ports/in/trash-use-case.port';
+import type { ITrashRepository } from '@core/application/ports/out/repositories.port';
 import type { IMediaStorage } from '@core/application/ports/out/services.port';
 import { CardImageModel, CardModel, DeckModel } from '@core/domain/models';
 import {
@@ -8,10 +10,11 @@ import {
   ProtectedDefaultDeckException,
 } from '@core/domain/exceptions';
 
+@Injectable()
 export class TrashService implements ITrashUseCase {
   constructor(
-    private readonly trash: ITrashRepository,
-    private readonly media: IMediaStorage,
+    @Inject(TOKENS.TRASH_REPOSITORY) private readonly trash: ITrashRepository,
+    @Inject(TOKENS.MEDIA_STORAGE) private readonly media: IMediaStorage,
   ) {}
 
   list(userId: string): Promise<TrashSnapshot> {

@@ -133,7 +133,7 @@ final class OfflineStoreTests: XCTestCase {
         _ = try await store.deleteDeck(id: created.deck.id)
 
         let hydrated = try await store.applyHydration(
-            hydrationResources(decks: .success([created.deck]))
+            hydrationResources(decks: [created.deck])
         )
 
         XCTAssertFalse(hydrated.decks.contains(where: { $0.id == created.deck.id }))
@@ -1866,7 +1866,7 @@ final class OfflineStoreTests: XCTestCase {
         localHabit.name = "Local pending name"
         _ = try await store.saveHabit(localHabit)
 
-        let hydrated = try await store.applyHydration(hydrationResources(habits: .success([serverHabit])))
+        let hydrated = try await store.applyHydration(hydrationResources(habits: [serverHabit]))
 
         XCTAssertEqual(hydrated.habits.first?.name, "Local pending name")
         XCTAssertEqual(hydrated.mutations.last?.kind, "habit.update")
@@ -1880,7 +1880,7 @@ final class OfflineStoreTests: XCTestCase {
         let checkedIn = try await store.toggleHabitCheckIn(id: serverHabit.id)
         XCTAssertTrue(checkedIn.habits.first?.isCompletedToday == true)
 
-        let hydrated = try await store.applyHydration(hydrationResources(habits: .success([serverHabit])))
+        let hydrated = try await store.applyHydration(hydrationResources(habits: [serverHabit]))
 
         XCTAssertTrue(hydrated.habits.first?.isCompletedToday == true)
         XCTAssertEqual(hydrated.habits.first?.currentStreak, checkedIn.habits.first?.currentStreak)
@@ -1903,9 +1903,9 @@ final class OfflineStoreTests: XCTestCase {
         XCTAssertEqual(redeemed.userCoins, 5)
 
         let hydrated = try await store.applyHydration(hydrationResources(
-            growth: .success(GrowthOverviewDTO(account: GrowthAccountDTO(level: 1, currentXp: 0, nextLevelXp: 100, coinBalance: 10), skills: nil, recentLedger: nil)),
-            rewards: .success([reward]),
-            inventory: .success([])
+            growth: GrowthOverviewDTO(account: GrowthAccountDTO(level: 1, currentXp: 0, nextLevelXp: 100, coinBalance: 10), skills: nil, recentLedger: nil),
+            rewards: [reward],
+            inventory: []
         ))
 
         XCTAssertEqual(hydrated.userCoins, 5)
@@ -1930,8 +1930,8 @@ final class OfflineStoreTests: XCTestCase {
         XCTAssertEqual(redeemed.userCoins, 5)
 
         let hydrated = try await store.applyHydration(hydrationResources(
-            rewards: .success([reward]),
-            inventory: .success([])
+            rewards: [reward],
+            inventory: []
         ))
 
         XCTAssertEqual(hydrated.userCoins, 5)
@@ -1940,33 +1940,33 @@ final class OfflineStoreTests: XCTestCase {
     }
 
     private func hydrationResources(
-        habits: HydratedResource<[HabitModel]> = .failure,
-        growth: HydratedResource<GrowthOverviewDTO> = .failure,
-        rewards: HydratedResource<[GrowthRewardDTO]> = .failure,
-        inventory: HydratedResource<[GrowthInventoryDTO]> = .failure,
-        decks: HydratedResource<[DeckModel]> = .failure
+        habits: [HabitModel]? = nil,
+        growth: GrowthOverviewDTO? = nil,
+        rewards: [GrowthRewardDTO]? = nil,
+        inventory: [GrowthInventoryDTO]? = nil,
+        decks: [DeckModel]? = nil
     ) -> AccountHydrationResources {
         AccountHydrationResources(
-            tasks: .failure,
-            lists: .failure,
-            sections: .failure,
-            tags: .failure,
-            metadata: .failure,
+            tasks: nil,
+            lists: nil,
+            sections: nil,
+            tags: nil,
+            metadata: nil,
             habits: habits,
             growth: growth,
-            skills: .failure,
-            attributes: .failure,
+            skills: nil,
+            attributes: nil,
             rewards: rewards,
             inventory: inventory,
-            ledger: .failure,
+            ledger: nil,
             decks: decks,
             cards: [:],
-            profile: .failure,
-            presets: .failure,
-            taskRules: .failure,
-            habitRules: .failure,
-            rewardDefaults: .failure,
-            mappings: .failure
+            profile: nil,
+            presets: nil,
+            taskRules: nil,
+            habitRules: nil,
+            rewardDefaults: nil,
+            mappings: nil
         )
     }
 

@@ -247,9 +247,7 @@ export function HomeOverview() {
                   {selectedProfileItems.length}/{MAX_HOME_PROFILE_ITEMS}
                 </span>
               </DropdownMenuLabel>
-              <p className="px-2 pb-2 text-xs leading-5 text-muted-foreground">
-                Choose up to eight attributes.
-              </p>
+              <p className="px-2 pb-2 text-xs leading-5 text-muted-foreground">Choose up to eight attributes.</p>
               <DropdownMenuSeparator />
               {profileOptions.map((item, index) => {
                 const isSelected = selectedProfileIds.includes(item.id);
@@ -293,9 +291,7 @@ export function HomeOverview() {
                 );
               })}
               {profileOptions.length === 0 && (
-                <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-                  Create an attribute first.
-                </p>
+                <p className="px-2 py-4 text-center text-xs text-muted-foreground">Create an attribute first.</p>
               )}
               <DropdownMenuSeparator />
               <Button asChild variant="ghost" size="sm" className="w-full justify-between text-xs">
@@ -464,12 +460,8 @@ function ProfileRadarTick({ x = 0, y = 0, cx = 0, cy = 0, index = 0, items }: Pr
         >
           <GrowthIconMark icon={item.icon} className="h-3.5 w-3.5" />
         </span>
-        <span className="mt-0.5 max-w-[96px] truncate text-[10px] font-semibold text-foreground">
-          {item.name}
-        </span>
-        <span className="mt-0.5 font-mono text-[8px] text-muted-foreground">
-          Lv {item.level}
-        </span>
+        <span className="mt-0.5 max-w-[96px] truncate text-[10px] font-semibold text-foreground">{item.name}</span>
+        <span className="mt-0.5 font-mono text-[8px] text-muted-foreground">Lv {item.level}</span>
       </div>
     </foreignObject>
   );

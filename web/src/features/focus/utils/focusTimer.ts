@@ -85,4 +85,3 @@ export function parseDurationInput(input: string, fallback: number): number {
   if (isNaN(parsed)) return fallback;
   return Math.max(1, Math.min(180, parsed));
 }
-

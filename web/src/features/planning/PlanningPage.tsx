@@ -1353,9 +1353,7 @@ export function isInboxViewTask(task: ProductivityTask, inboxListId?: string | n
   const taskListId = task.taskListId ?? task.projectId;
   const isInboxList = !taskListId || taskListId === inboxListId;
   const isTerminalOrUnassigned =
-    task.status === 'COMPLETED' ||
-    task.status === 'CANCELED' ||
-    (task.status === 'INBOX' && !task.scheduledStartAt);
+    task.status === 'COMPLETED' || task.status === 'CANCELED' || (task.status === 'INBOX' && !task.scheduledStartAt);
   return isInboxList && isTerminalOrUnassigned;
 }
 

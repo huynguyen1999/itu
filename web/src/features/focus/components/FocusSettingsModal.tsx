@@ -1,16 +1,5 @@
 import { useEffect, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import {
-  Bell,
-  Check,
-  Download,
-  Loader2,
-  Pencil,
-  Volume2,
-  PlayCircle,
-  Trash2,
-  Upload,
-  X,
-} from 'lucide-react';
+import { Bell, Check, Download, Loader2, Pencil, Volume2, PlayCircle, Trash2, Upload, X } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog';
@@ -21,11 +10,7 @@ import { useFocusAudio } from './FocusAudioProvider';
 import { FocusAudioPlayerCard } from './FocusAudioPlayer';
 import { saveFocusSoundCatalog } from '../sounds';
 import type { FocusSound, FocusSoundPreference } from '@/shared/api/types';
-import {
-  getStoredFocusSettings,
-  saveStoredFocusSettings,
-  type FocusUserSettings,
-} from '@/shared/utils/focusSettings';
+import { getStoredFocusSettings, saveStoredFocusSettings, type FocusUserSettings } from '@/shared/utils/focusSettings';
 
 export {
   DEFAULT_FOCUS_SETTINGS,
@@ -273,11 +258,7 @@ export function FocusSettingsModal({ open, onOpenChange, onSettingsChange }: Foc
                   aria-label={`Delete ${sound.name}`}
                   title={isRemoving ? 'Removing' : 'Remove uploaded sound'}
                 >
-                  {isRemoving ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-3.5 w-3.5" />
-                  )}
+                  {isRemoving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                 </button>
               </>
             )}

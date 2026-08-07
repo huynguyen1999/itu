@@ -22,11 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/di
 import { Input } from '@/shared/ui/input';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { GrowthRewardEditor, type GrowthRewardEditorHandle } from '@/shared/ui/GrowthRewardEditor';
-import {
-  GrowthRewardChip,
-  groupedGrowthRewardChips,
-  type GrowthRewardChipModel,
-} from '@/shared/ui/GrowthRewardChip';
+import { GrowthRewardChip, groupedGrowthRewardChips, type GrowthRewardChipModel } from '@/shared/ui/GrowthRewardChip';
 import {
   DEFAULT_HABIT_COLOR,
   DEFAULT_HABIT_ICON,
@@ -119,13 +115,27 @@ export function HabitsPage() {
   };
 
   const occurrenceAction = useMutation({
-    mutationFn: ({ id, action, idempotencyKey }: { id: string; action: 'skip' | 'fail' | 'undo'; idempotencyKey: string }) =>
-      api.habitOccurrenceAction(id, action, idempotencyKey),
+    mutationFn: ({
+      id,
+      action,
+      idempotencyKey,
+    }: {
+      id: string;
+      action: 'skip' | 'fail' | 'undo';
+      idempotencyKey: string;
+    }) => api.habitOccurrenceAction(id, action, idempotencyKey),
   });
 
   const checkIn = useMutation({
-    mutationFn: ({ occurrenceId, value, idempotencyKey }: { occurrenceId: string; value: number; idempotencyKey: string }) =>
-      api.checkInHabit(occurrenceId, { value, idempotencyKey }),
+    mutationFn: ({
+      occurrenceId,
+      value,
+      idempotencyKey,
+    }: {
+      occurrenceId: string;
+      value: number;
+      idempotencyKey: string;
+    }) => api.checkInHabit(occurrenceId, { value, idempotencyKey }),
   });
 
   // Group active habits by their assigned habit group. Anytime contains ungrouped habits.
@@ -258,10 +268,18 @@ export function HabitsPage() {
                         growthChips={growthChipsByHabit.get(habit.id) ?? []}
                         onOpen={() => setSelectedHabitId(habit.id)}
                         onCheckIn={(occId, val) =>
-                          checkIn.mutate({ occurrenceId: occId, value: val, idempotencyKey: eventKey(`manual:${occId}`) })
+                          checkIn.mutate({
+                            occurrenceId: occId,
+                            value: val,
+                            idempotencyKey: eventKey(`manual:${occId}`),
+                          })
                         }
                         onUndo={(occId) =>
-                          occurrenceAction.mutate({ id: occId, action: 'undo', idempotencyKey: eventKey(`undo:${occId}`) })
+                          occurrenceAction.mutate({
+                            id: occId,
+                            action: 'undo',
+                            idempotencyKey: eventKey(`undo:${occId}`),
+                          })
                         }
                       />
                     ))}
@@ -454,9 +472,7 @@ function HabitRowItem({
               {growthChips.slice(0, 3).map((chip) => (
                 <GrowthRewardChip key={chip.key} chip={chip} />
               ))}
-              {growthChips.length > 3 ? (
-                <span className="itu-task-chip is-more">+{growthChips.length - 3}</span>
-              ) : null}
+              {growthChips.length > 3 ? <span className="itu-task-chip is-more">+{growthChips.length - 3}</span> : null}
             </div>
           </div>
         </button>
@@ -908,7 +924,10 @@ export function HabitDetail({
           }}
         >
           {saveError ? (
-            <p className="mx-4 mt-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive" role="alert">
+            <p
+              className="mx-4 mt-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+              role="alert"
+            >
               {saveError}
             </p>
           ) : null}

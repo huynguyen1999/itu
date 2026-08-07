@@ -3,6 +3,7 @@ import SwiftUI
 @main
 @MainActor
 struct iTuApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -10,6 +11,12 @@ struct iTuApp: App {
         WindowGroup("iTu", id: "main") {
             RootView()
                 .environment(model)
+                .modifier(
+                    StatusItemInstaller(
+                        model: model,
+                        appDelegate: appDelegate
+                    )
+                )
                 .frame(minWidth: 980, minHeight: 640)
                 .task {
                     await model.bootstrap()
@@ -32,22 +39,6 @@ struct iTuApp: App {
         .windowResizability(.contentSize)
         .defaultSize(width: 1_220, height: 780)
 
-        MenuBarExtra(isInserted: menuBarItemBinding) {
-            MenuBarView()
-                .environment(model)
-                .preferredColorScheme(preferredColorScheme)
-        } label: {
-            FocusMenuBarLabel(
-                timer: model.focusTimer,
-                pendingPhase: model.focusTimer.isBreakPending
-                    ? model.focusCycleEngine.nextPhase
-                    : model.focusTimer.isWorkPending
-                        ? .work
-                        : nil
-            )
-        }
-        .menuBarExtraStyle(.window)
-
         Settings {
             SettingsView()
                 .environment(model)
@@ -62,16 +53,24 @@ struct iTuApp: App {
         case .dark: .dark
         }
     }
+}
 
-    private var menuBarItemBinding: Binding<Bool> {
-        Binding(
-            get: { model.settingsStore.focusSettings.showMenuBarItem },
-            set: { isShown in
-                var settings = model.settingsStore.focusSettings
-                settings.showMenuBarItem = isShown
-                model.settingsStore.focusSettings = settings
-            }
-        )
+private struct StatusItemInstaller: ViewModifier {
+    @Environment(\.openWindow) private var openWindow
+    let model: AppModel
+    let appDelegate: AppDelegate
+
+    func body(content: Content) -> some View {
+        content.onAppear {
+            appDelegate.installStatusItem(
+                model: model,
+                openMainWindow: {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openWindow(id: "main")
+                }
+            )
+        }
     }
 }
+
 

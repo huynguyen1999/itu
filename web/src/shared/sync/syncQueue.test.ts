@@ -132,9 +132,9 @@ describe('coalesceMutation', () => {
       ),
     ).toEqual(['mapping-old-failed']);
     expect(supersededGrowthMappingMutationIds([oldFailed, newerAcked], ['mapping-old-failed'])).toEqual([]);
-    expect(
-      supersededGrowthMappingMutationIds([oldFailed], ['mapping-new-acked'], new Set(), [newerAcked]),
-    ).toEqual(['mapping-old-failed']);
+    expect(supersededGrowthMappingMutationIds([oldFailed], ['mapping-new-acked'], new Set(), [newerAcked])).toEqual([
+      'mapping-old-failed',
+    ]);
   });
 });
 
