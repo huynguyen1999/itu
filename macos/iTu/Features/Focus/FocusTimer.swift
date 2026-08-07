@@ -138,18 +138,47 @@ final class FocusTimer {
     }
 
     private var now = Date()
-    private var ticker: Task<Void, Never>?
+    @ObservationIgnored private nonisolated(unsafe) var ticker: Task<Void, Never>?
     private var notificationFiredSessionID: String? = UserDefaults.standard.string(forKey: "iTu.FocusNotificationFiredSessionID")
 
-    init() {
+    init() {}
+
+    deinit {
+        ticker?.cancel()
+    }
+
+    var isTickerRunning: Bool {
+        ticker != nil
+    }
+
+    func refreshTickerLifecycle() {
+        if let activeSession, activeSession.status == .active {
+            startTickerIfNeeded()
+        } else {
+            stopTicker()
+        }
+    }
+
+    func startTickerIfNeeded() {
+        guard ticker == nil else { return }
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
-                self?.now = Date()
-                self?.evaluateAutoCompletionAndNotification()
+                self?.tick()
             }
         }
+    }
+
+    func stopTicker() {
+        ticker?.cancel()
+        ticker = nil
+    }
+
+    private func tick() {
+        AppPerformanceSignposts.recordFocusTick()
+        now = Date()
+        evaluateAutoCompletionAndNotification()
     }
 
     var isRunning: Bool {
@@ -259,6 +288,7 @@ final class FocusTimer {
         if let active {
             selectedMinutes = max(1, (active.plannedSeconds ?? 60) / 60)
         }
+        refreshTickerLifecycle()
     }
 
     func startOptimisticSession(
@@ -281,6 +311,7 @@ final class FocusTimer {
         mutableSession.taskId = taskId ?? linkedTask?.id
         mutableSession.customTitle = customTitle
         activeSession = mutableSession
+        refreshTickerLifecycle()
         return mutableSession
     }
 
@@ -289,6 +320,7 @@ final class FocusTimer {
         session.status = .paused
         session.pausedAt = ISO8601DateFormatter().string(from: Date())
         activeSession = session
+        refreshTickerLifecycle()
     }
 
     func resumeActiveSession() {
@@ -300,6 +332,7 @@ final class FocusTimer {
         session.status = .active
         session.pausedAt = nil
         activeSession = session
+        refreshTickerLifecycle()
     }
 
     func completeActiveSession() -> FocusSession? {
@@ -313,6 +346,7 @@ final class FocusTimer {
             history.append(session)
         }
         activeSession = nil
+        refreshTickerLifecycle()
         return session
     }
 
@@ -324,8 +358,10 @@ final class FocusTimer {
             history.append(session)
         }
         activeSession = nil
+        refreshTickerLifecycle()
         return session
     }
+
 
     private func evaluateAutoCompletionAndNotification() {
         guard let session = activeSession, session.status == .active, session.mode == .countdown else { return }

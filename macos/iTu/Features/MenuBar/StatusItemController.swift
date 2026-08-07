@@ -30,14 +30,14 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         statusItem = item
 
         configureButton(item.button)
-        configurePopover()
 
         isObserving = true
         observeModel()
 
         appearanceObservation = item.button?.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
             Task { @MainActor in
-                self?.updateStatusItem(force: true)
+                guard let self, self.currentAppearance() != self.lastSnapshot?.appearance else { return }
+                self.updateStatusItem(force: true)
             }
         }
 
@@ -85,6 +85,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
         guard force || snapshot != lastSnapshot else { return }
         lastSnapshot = snapshot
+
+        AppPerformanceSignposts.recordStatusUpdate()
 
         statusItem.isVisible = snapshot.isVisible
         if !snapshot.isVisible {
@@ -182,7 +184,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         }
     }
 
-    private func configurePopover() {
+    private func ensurePopoverConfigured() {
+        guard hostingController == nil else { return }
         let rootView = MenuBarPopoverRootView(
             model: model,
             onOpenMainWindow: { [weak self] in
@@ -204,6 +207,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
+            ensurePopoverConfigured()
             updateStatusItem(force: false)
             popover.show(
                 relativeTo: button.bounds,

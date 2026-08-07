@@ -113,12 +113,6 @@ final class FocusPolicyEnforcer {
         self.blockedPageURL = blockedPageURL
             ?? Bundle.main.url(forResource: "FocusBlocked", withExtension: "html")
             ?? URL(string: "about:blank")!
-
-        activationObserver = workspace.observeActivations { [weak self] application in
-            Task { @MainActor [weak self] in
-                self?.handleActivation(of: application)
-            }
-        }
     }
 
     /// Updates the session/settings projection and enforces immediately.
@@ -174,6 +168,7 @@ final class FocusPolicyEnforcer {
     }
 
     private func enforceCurrentState() {
+        AppPerformanceSignposts.recordPolicyEnforcement()
         lastEnforcementAt = Date()
         if let frontmost = workspace.frontmostApplication {
             handleActivation(of: frontmost)
@@ -184,7 +179,18 @@ final class FocusPolicyEnforcer {
     private func configureMonitoring(active: Bool) {
         browserScanTask?.cancel()
         browserScanTask = nil
-        guard active else { return }
+        guard active else {
+            activationObserver = nil
+            return
+        }
+
+        if activationObserver == nil {
+            activationObserver = workspace.observeActivations { [weak self] application in
+                Task { @MainActor [weak self] in
+                    self?.handleActivation(of: application)
+                }
+            }
+        }
 
         monitoringGeneration += 1
         browserScanTask = Task { @MainActor [weak self] in

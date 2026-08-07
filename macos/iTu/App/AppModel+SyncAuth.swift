@@ -226,6 +226,9 @@ extension AppModel {
 
     func loadServerState() async {
         guard let userID = user?.id, hydrationTask == nil else { return }
+        if let lastHydratedAt, Date().timeIntervalSince(lastHydratedAt) < 30 {
+            return
+        }
         let runGeneration = sessionGeneration
         let store = offlineStore
         hydrationTask = Task { [weak self] in
@@ -240,6 +243,7 @@ extension AppModel {
                 if let value = result.habitTimeBlocks { habitTimeBlocks = value }
                 if let value = result.studySessionHistory { studySessionHistory = value }
                 if let value = result.notifications { notifications = value }
+                lastHydratedAt = Date()
             } catch {
                 // Background hydration is deliberately silent; local state remains visible.
             }

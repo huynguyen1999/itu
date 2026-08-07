@@ -343,4 +343,54 @@ final class FocusTimerTests: XCTestCase {
             defaultVolume: defaultVolume
         )
     }
+
+    func testFocusTimerTickerLifecycle() {
+        let timer = FocusTimer()
+        XCTAssertFalse(timer.isTickerRunning, "Newly created timer with no active session should not have a running ticker")
+
+        let session = timer.startOptimisticSession(
+            phase: .work,
+            plannedSeconds: 1500,
+            taskId: nil,
+            customTitle: "Test",
+            idempotencyKey: nil
+        )
+        XCTAssertTrue(timer.isTickerRunning, "Starting session activates ticker")
+
+        timer.pauseActiveSession()
+        XCTAssertFalse(timer.isTickerRunning, "Pausing session stops ticker")
+
+        timer.resumeActiveSession()
+        XCTAssertTrue(timer.isTickerRunning, "Resuming session restarts ticker")
+
+        // Repeated pause/resume toggles
+        timer.pauseActiveSession()
+        timer.pauseActiveSession()
+        XCTAssertFalse(timer.isTickerRunning)
+
+        timer.resumeActiveSession()
+        timer.resumeActiveSession()
+        XCTAssertTrue(timer.isTickerRunning)
+
+        _ = timer.completeActiveSession()
+        XCTAssertFalse(timer.isTickerRunning, "Completing session stops ticker")
+
+        _ = timer.startOptimisticSession(
+            phase: .work,
+            plannedSeconds: 1500,
+            taskId: nil,
+            customTitle: "Test 2",
+            idempotencyKey: nil
+        )
+        XCTAssertTrue(timer.isTickerRunning)
+
+        _ = timer.abandonActiveSession()
+        XCTAssertFalse(timer.isTickerRunning, "Abandoning session stops ticker")
+
+        timer.apply(active: session)
+        XCTAssertTrue(timer.isTickerRunning, "Applying active session starts ticker")
+
+        timer.apply(active: nil)
+        XCTAssertFalse(timer.isTickerRunning, "Applying nil session stops ticker")
+    }
 }

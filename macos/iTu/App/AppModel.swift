@@ -294,6 +294,7 @@ final class AppModel {
 
     @ObservationIgnored var currentSnapshot = OfflineSnapshot()
     @ObservationIgnored var hydrationTask: Task<Void, Never>?
+    @ObservationIgnored var lastHydratedAt: Date?
     @ObservationIgnored var focusRefreshTask: Task<Void, Never>?
     @ObservationIgnored var focusLastRefreshAt: Date?
     @ObservationIgnored var habitOccurrenceRefreshTasks: [String: Task<Void, Never>] = [:]
@@ -312,6 +313,7 @@ final class AppModel {
         sessionGeneration &+= 1
         hydrationTask?.cancel()
         hydrationTask = nil
+        lastHydratedAt = nil
         focusRefreshTask?.cancel()
         focusRefreshTask = nil
         focusLastRefreshAt = nil
@@ -343,6 +345,7 @@ final class AppModel {
     }
 
     func apply(_ snapshot: OfflineSnapshot) {
+        AppPerformanceSignposts.recordModelApply()
         let tasksChanged = tasks != snapshot.tasks
         currentSnapshot = snapshot
         if tasksChanged {

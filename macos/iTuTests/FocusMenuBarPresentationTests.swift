@@ -104,4 +104,34 @@ final class FocusMenuBarPresentationTests: XCTestCase {
         XCTAssertFalse(workImage === pausedImage, "Running and Paused icons must not share cache entry")
         XCTAssertFalse(workImage === lightSchemeImage, "Dark and Light color scheme icons must not share cache entry")
     }
+
+    func testSnapshotProgressQuantizationEquivalence() {
+        let model = AppModel()
+        var session = FocusSession.optimistic(
+            id: "s-1",
+            task: nil,
+            phase: .work,
+            plannedSeconds: 1800,
+            startedAt: "2026-08-07T00:00:00Z"
+        )
+        session.status = .paused
+        session.pausedAt = "2026-08-07T00:01:00Z" // 60s elapsed -> step = 1 (progress = 0.0333)
+
+        model.focusTimer.apply(active: session)
+        let snapshot1 = MenuBarStatusPresentation.snapshot(model: model, appearance: .dark)
+
+        // Change pausedAt slightly by 10s (70s elapsed -> step still 1 since 70/1800 * 50 = 1.94 -> floor = 1)
+        session.pausedAt = "2026-08-07T00:01:10Z"
+        model.focusTimer.apply(active: session)
+        let snapshot2 = MenuBarStatusPresentation.snapshot(model: model, appearance: .dark)
+
+        XCTAssertEqual(snapshot1, snapshot2, "Snapshots with same progressStep must compare as equal")
+
+        // Jump pausedAt to crossing boundary (e.g. 100s elapsed -> 100/1800 * 50 = 2.77 -> floor = 2)
+        session.pausedAt = "2026-08-07T00:01:40Z"
+        model.focusTimer.apply(active: session)
+        let snapshot3 = MenuBarStatusPresentation.snapshot(model: model, appearance: .dark)
+
+        XCTAssertNotEqual(snapshot1, snapshot3, "Snapshots crossing progressStep boundary must not compare equal")
+    }
 }

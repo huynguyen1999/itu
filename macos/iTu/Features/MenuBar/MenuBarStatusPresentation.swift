@@ -21,10 +21,9 @@ struct MenuBarStatusSnapshot: Equatable {
     let accessibilityLabel: String
     let appearance: MenuBarAppearance
     let phase: FocusPhase?
-    let progressFraction: Double
 
     var progress: Double {
-        progressFraction
+        Double(progressStep) / 50.0
     }
 }
 
@@ -34,6 +33,8 @@ enum MenuBarStatusPresentation {
         model: AppModel,
         appearance: MenuBarAppearance
     ) -> MenuBarStatusSnapshot {
+        AppPerformanceSignposts.recordMenuSnapshot()
+
         let isVisible = model.settingsStore.focusSettings.showMenuBarItem
         let timer = model.focusTimer
 
@@ -43,7 +44,6 @@ enum MenuBarStatusPresentation {
             let isPaused = timer.isPaused
             let rawTitle = timer.currentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
             let title = rawTitle.isEmpty ? "Focus" : rawTitle
-            let percent = Int((progress * 100).rounded())
 
             let step: Int
             if progress >= 1.0 {
@@ -51,6 +51,7 @@ enum MenuBarStatusPresentation {
             } else {
                 step = Int(floor(progress * 50))
             }
+            let percent = step * 2
 
             switch session.phase {
             case .work:
@@ -72,8 +73,7 @@ enum MenuBarStatusPresentation {
                     isVisible: isVisible,
                     accessibilityLabel: accessibilityLabel,
                     appearance: appearance,
-                    phase: .work,
-                    progressFraction: progress
+                    phase: .work
                 )
 
             case .shortBreak:
@@ -90,8 +90,7 @@ enum MenuBarStatusPresentation {
                     isVisible: isVisible,
                     accessibilityLabel: accessibilityLabel,
                     appearance: appearance,
-                    phase: .shortBreak,
-                    progressFraction: progress
+                    phase: .shortBreak
                 )
 
             case .longBreak:
@@ -108,8 +107,7 @@ enum MenuBarStatusPresentation {
                     isVisible: isVisible,
                     accessibilityLabel: accessibilityLabel,
                     appearance: appearance,
-                    phase: .longBreak,
-                    progressFraction: progress
+                    phase: .longBreak
                 )
             }
         } else if timer.isBreakPending {
@@ -127,8 +125,7 @@ enum MenuBarStatusPresentation {
                 isVisible: isVisible,
                 accessibilityLabel: "\(accessName) ready",
                 appearance: appearance,
-                phase: phase,
-                progressFraction: 0.0
+                phase: phase
             )
         } else if timer.isWorkPending {
             return MenuBarStatusSnapshot(
@@ -140,8 +137,7 @@ enum MenuBarStatusPresentation {
                 isVisible: isVisible,
                 accessibilityLabel: "Focus session ready",
                 appearance: appearance,
-                phase: .work,
-                progressFraction: 0.0
+                phase: .work
             )
         } else {
             return MenuBarStatusSnapshot(
@@ -153,8 +149,7 @@ enum MenuBarStatusPresentation {
                 isVisible: isVisible,
                 accessibilityLabel: "iTu Focus ready",
                 appearance: appearance,
-                phase: nil,
-                progressFraction: 0.0
+                phase: nil
             )
         }
     }

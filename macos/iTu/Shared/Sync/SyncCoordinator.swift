@@ -77,7 +77,7 @@ final class SyncCoordinator {
         periodicTask?.cancel()
         periodicTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
+                try? await Task.sleep(for: .seconds(300))
                 guard !Task.isCancelled else { return }
                 await periodicAction()
             }
@@ -128,6 +128,7 @@ final class SyncCoordinator {
     }
 
     func synchronize() async throws -> SyncResult {
+        AppPerformanceSignposts.recordSyncRun()
         guard let offlineStore else { throw APIError(statusCode: 0, message: "Sync is not attached") }
         if isSyncing {
             followupRequested = true
