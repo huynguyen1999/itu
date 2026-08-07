@@ -31,7 +31,6 @@ describe('SyncService', () => {
           },
         ],
       }),
-      currentCursor: jest.fn().mockResolvedValue('42'),
     };
     const queue: jest.Mocked<IQueueJobHandler> = {
       enqueueCardSuggestions: jest.fn().mockResolvedValue(undefined),

@@ -31,6 +31,7 @@ export interface IMediaStorage {
   storeCardImage(input: StoreCardImageInput): Promise<StoredImage>;
   storeUserImage(input: StoreUserImageInput): Promise<StoredImage>;
   storeAudio(input: StoreAudioInput): Promise<StoredAudio>;
+  storeRawBuffer(storageKey: string, buffer: Buffer): Promise<void>;
   read(storageKey: string): Promise<Readable | null>;
   delete(storageKey: string): Promise<void>;
 }

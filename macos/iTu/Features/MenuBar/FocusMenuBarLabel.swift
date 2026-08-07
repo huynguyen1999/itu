@@ -24,12 +24,12 @@ struct FocusMenuBarLabel: View {
 
         switch phase {
         case .work:
-            HStack(spacing: 8) {
-                Text(timer.currentTitle)
-                    .font(.system(size: 9))
+            HStack(spacing: 6) {
+                Text("\(timer.currentTitle) • \(timer.formattedRemaining)")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .frame(maxWidth: 140, alignment: .trailing)
+                    .frame(maxWidth: 160, alignment: .trailing)
 
                 progressIcon(progressFraction: progress, isPaused: timer.isPaused, isOvertime: isOvertime, phase: phase)
             }
@@ -37,9 +37,13 @@ struct FocusMenuBarLabel: View {
             .accessibilityLabel(accessibilityLabelForActive(style: style, isPaused: timer.isPaused, isOvertime: isOvertime, progress: progress))
 
         case .shortBreak, .longBreak:
-            progressIcon(progressFraction: progress, isPaused: timer.isPaused, isOvertime: isOvertime, phase: phase)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(accessibilityLabelForActive(style: style, isPaused: timer.isPaused, isOvertime: isOvertime, progress: progress))
+            HStack(spacing: 6) {
+                Text(timer.formattedRemaining)
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                progressIcon(progressFraction: progress, isPaused: timer.isPaused, isOvertime: isOvertime, phase: phase)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabelForActive(style: style, isPaused: timer.isPaused, isOvertime: isOvertime, progress: progress))
         }
     }
 

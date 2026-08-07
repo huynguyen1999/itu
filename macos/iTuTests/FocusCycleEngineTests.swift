@@ -38,15 +38,15 @@ final class FocusCycleEngineTests: XCTestCase {
         XCTAssertEqual(engine.currentCycle, 2)
     }
 
-    func testManualLongBreakResetsCycleProgress() {
+    func testManualLongBreakDoesNotResetCycleProgress() {
         let engine = FocusCycleEngine()
         engine.configure(cyclesBeforeLongBreak: 4)
         engine.handleSessionCompleted(phase: .work, isManual: false)
         engine.handleSessionCompleted(phase: .work, isManual: false)
 
         engine.handleManualLongBreakStarted()
-        XCTAssertEqual(engine.completedWorkCount, 0)
-        XCTAssertEqual(engine.currentCycle, 1)
+        XCTAssertEqual(engine.completedWorkCount, 2)
+        XCTAssertEqual(engine.currentCycle, 3)
     }
 
     func testCompletedLongBreakResetsCycle() {

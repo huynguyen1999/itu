@@ -25,6 +25,7 @@ describe('TrashService', () => {
       storeCardImage: jest.fn(),
       storeUserImage: jest.fn(),
       storeAudio: jest.fn(),
+      storeRawBuffer: jest.fn(),
       read: jest.fn(),
       delete: jest.fn(),
     };

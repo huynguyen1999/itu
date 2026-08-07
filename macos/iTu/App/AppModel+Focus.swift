@@ -194,6 +194,63 @@ extension AppModel {
         await saveFocusSession(session, mutation: mutation)
     }
 
+    func startFocusPhase(_ phase: FocusPhase, plannedSeconds: Int? = nil) async {
+        guard focusTimer.activeSession == nil, !focusTimer.isMutating else { return }
+        let durationSecs = plannedSeconds ?? {
+            switch phase {
+            case .work: return settingsStore.focusSettings.defaultWorkMinutes * 60
+            case .shortBreak: return settingsStore.focusSettings.shortBreakMinutes * 60
+            case .longBreak: return settingsStore.focusSettings.longBreakMinutes * 60
+            }
+        }()
+
+        let entityId = ULID.generate()
+        let idempotencyKey = ULID.generate()
+        let occurredAt = ISO8601DateFormatter().string(from: Date())
+        var session = FocusSession.optimistic(
+            id: entityId,
+            task: phase == .work ? focusTimer.linkedTask : nil,
+            phase: phase,
+            plannedSeconds: durationSecs,
+            startedAt: occurredAt
+        )
+
+        if phase == .work && !focusTimer.customTitle.isEmpty {
+            session.customTitle = focusTimer.customTitle
+        } else {
+            session.customTitle = phase == .work ? "Focus" : (phase == .shortBreak ? "Short break" : "Long break")
+        }
+
+        let mutation = SyncMutation(
+            id: ULID.generate(),
+            kind: "focussession.create",
+            entityId: entityId,
+            payload: [
+                "taskId": (phase == .work ? focusTimer.linkedTask : nil).map { .string($0.id) } ?? .null,
+                "customTitle": session.customTitle.map { .string($0) } ?? .null,
+                "mode": .string(FocusMode.countdown.rawValue),
+                "plannedSeconds": .number(Double(durationSecs)),
+                "ownerDeviceId": .string("macos"),
+                "idempotencyKey": .string(idempotencyKey),
+                "startedAt": .string(occurredAt)
+            ],
+            occurredAt: occurredAt
+        )
+
+        if phase == .shortBreak {
+            focusCycleEngine.handleManualShortBreakStarted()
+        } else if phase == .longBreak {
+            focusCycleEngine.handleManualLongBreakStarted()
+        }
+
+        focusTimer.apply(active: session)
+        updateFocusPolicy()
+        if phase == .work {
+            AudioPlayerManager.shared.playIfEnabled()
+        }
+        await saveFocusSession(session, mutation: mutation)
+    }
+
     func startFocus() async {
         guard focusTimer.activeSession == nil, !focusTimer.isMutating else { return }
         let entityId = ULID.generate()

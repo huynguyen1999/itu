@@ -10,12 +10,12 @@ export function JournalEntryPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isNew = location.state?.isNew;
+  const isNew = Boolean(location.state?.isNew);
   const initialKind = location.state?.kind || 'NOTE';
   const initialTitle = location.state?.title || '';
   const initialEntryDate = location.state?.entryDate || new Date().toISOString().split('T')[0];
 
-  const { data: existingEntry, isLoading } = useJournalEntry(id || '');
+  const { data: existingEntry, isLoading } = useJournalEntry(id || '', isNew);
   const createMutation = useCreateJournalEntryMutation();
   const updateMutation = useUpdateJournalEntryMutation();
   const deleteMutation = useDeleteJournalEntryMutation();
@@ -45,6 +45,7 @@ export function JournalEntryPage() {
         timezone: data.timezone,
         templateId: data.templateId,
         tagIds: (data as any).tagIds,
+        weeklyReview: data.weeklyReview,
         expense: data.expense,
         workout: data.workout,
       });

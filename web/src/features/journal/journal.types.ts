@@ -42,6 +42,10 @@ export interface JournalWeeklyReview {
   entryId: string;
   periodStart: string;
   periodEnd: string;
+  wentWellMarkdown?: string;
+  frictionMarkdown?: string;
+  nextWeekMarkdown?: string;
+  experimentSnapshot?: any;
   summarySnapshot: {
     tasks?: { completed: number };
     focus?: { minutes: number; sessions: number };

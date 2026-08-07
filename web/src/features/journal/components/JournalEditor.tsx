@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, Eye, FileText, History, Save, Sparkles, Tag, Trash2, LayoutTemplate } from 'lucide-react';
+import { Calendar, History, LayoutTemplate, Save, Trash2 } from 'lucide-react';
 import type { JournalEntry, JournalEntryKind, JournalExpense, JournalWeeklyReview, JournalWorkout } from '../journal.types';
 import { TagPicker } from './TagPicker';
 import { AttachmentTray } from './AttachmentTray';
@@ -8,6 +8,9 @@ import { WorkoutEditor } from './WorkoutEditor';
 import { WeeklyReviewEditor } from './WeeklyReviewEditor';
 import { RevisionHistory } from './RevisionHistory';
 import { TemplateEditor } from './TemplateEditor';
+import { JournalMarkdownEditor, SaveStatus } from './JournalMarkdownEditor';
+import { Button } from '@/shared/ui/button';
+import { Card, CardContent } from '@/shared/ui/card';
 
 interface JournalEditorProps {
   initialEntry?: Partial<JournalEntry>;
@@ -34,25 +37,32 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
     initialEntry?.weeklyReview || null,
   );
 
-  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit');
   const [showHistory, setShowHistory] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
 
-  const handleSave = async () => {
+  const handleSave = async (explicitMarkdown?: string) => {
     if (!title.trim()) return;
-    await onSave({
-      id: initialEntry?.id,
-      kind,
-      title: title.trim(),
-      contentMarkdown,
-      entryDate,
-      templateId: initialEntry?.templateId,
-      version: initialEntry?.version,
-      tagIds: selectedTagIds,
-      expense: kind === 'EXPENSE' ? (expense as any) : null,
-      workout: kind === 'WORKOUT' ? (workout as any) : null,
-      weeklyReview: kind === 'WEEKLY_REVIEW' ? (weeklyReview as any) : null,
-    } as any);
+    setSaveStatus('syncing');
+    try {
+      await onSave({
+        id: initialEntry?.id,
+        kind,
+        title: title.trim(),
+        contentMarkdown: explicitMarkdown !== undefined ? explicitMarkdown : contentMarkdown,
+        entryDate,
+        templateId: initialEntry?.templateId,
+        version: initialEntry?.version,
+        tagIds: selectedTagIds,
+        expense: kind === 'EXPENSE' ? (expense as any) : null,
+        workout: kind === 'WORKOUT' ? (workout as any) : null,
+        weeklyReview: kind === 'WEEKLY_REVIEW' ? (weeklyReview as any) : null,
+      } as any);
+      setSaveStatus('synced');
+      setTimeout(() => setSaveStatus('saved'), 2000);
+    } catch {
+      setSaveStatus('conflict');
+    }
   };
 
   const applyTemplate = (template: any) => {
@@ -68,12 +78,12 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
   return (
     <div className="space-y-4 max-w-4xl mx-auto pb-12">
       {/* Action Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-slate-900/90 border border-slate-800/80 shadow-xl backdrop-blur-md sticky top-3 z-30">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-card border border-border sticky top-3 z-30 shadow-md">
         <div className="flex items-center gap-2">
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as JournalEntryKind)}
-            className="bg-slate-950 border border-slate-800 text-slate-200 font-semibold text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-500"
+            className="bg-background border border-input text-foreground font-semibold text-xs rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="NOTE">NOTE</option>
             <option value="WEEKLY_REVIEW">WEEKLY REVIEW</option>
@@ -81,104 +91,81 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
             <option value="WORKOUT">WORKOUT</option>
           </select>
 
-          <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1 text-xs text-slate-300">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+          <div className="flex items-center gap-1.5 bg-background border border-input rounded-md px-2.5 py-1 text-xs text-foreground">
+            <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
             <input
               type="date"
               value={entryDate}
               onChange={(e) => setEntryDate(e.target.value)}
-              className="bg-transparent focus:outline-none text-slate-200"
+              className="bg-transparent focus:outline-none text-foreground"
             />
           </div>
         </div>
 
         <div className="flex items-center gap-2 text-xs">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={() => setShowTemplates(true)}
-            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors inline-flex items-center gap-1"
-            title="Templates"
+            className="gap-1"
           >
             <LayoutTemplate className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline font-medium">Templates</span>
-          </button>
+            <span className="hidden sm:inline">Templates</span>
+          </Button>
 
           {initialEntry?.id && (
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setShowHistory(true)}
-              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors inline-flex items-center gap-1"
-              title="History"
+              className="gap-1"
             >
               <History className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline font-medium">Revisions</span>
-            </button>
+              <span className="hidden sm:inline">Revisions</span>
+            </Button>
           )}
 
-          <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800">
-            <button
-              type="button"
-              onClick={() => setViewMode('edit')}
-              className={`px-2.5 py-1 rounded-lg transition-colors font-medium ${
-                viewMode === 'edit' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('preview')}
-              className={`px-2.5 py-1 rounded-lg transition-colors font-medium ${
-                viewMode === 'preview' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Preview
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('split')}
-              className={`px-2.5 py-1 rounded-lg transition-colors font-medium hidden md:block ${
-                viewMode === 'split' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Split
-            </button>
-          </div>
-
-          <button
+          <Button
             type="button"
+            size="sm"
             onClick={() => void handleSave()}
             disabled={isSaving}
-            className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-lg shadow-emerald-600/20 transition-all inline-flex items-center gap-1.5"
+            className="gap-1.5"
           >
             <Save className="w-3.5 h-3.5" />
             {isSaving ? 'Saving...' : 'Save'}
-          </button>
+          </Button>
 
           {onDelete && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => void onDelete()}
-              className="p-1.5 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+              className="text-destructive hover:bg-destructive/10"
             >
               <Trash2 className="w-4 h-4" />
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
       {/* Main Entry Title & Tags */}
-      <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-3">
-        <input
-          type="text"
-          placeholder="Entry Title..."
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full bg-transparent text-xl font-bold text-slate-100 placeholder-slate-600 focus:outline-none"
-        />
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <input
+            type="text"
+            placeholder="Entry Title..."
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full bg-transparent text-xl font-bold text-foreground placeholder:text-muted-foreground focus:outline-none"
+          />
 
-        <TagPicker selectedTagIds={selectedTagIds} onChange={setSelectedTagIds} />
-      </div>
+          <TagPicker selectedTagIds={selectedTagIds} onChange={setSelectedTagIds} />
+        </CardContent>
+      </Card>
 
       {/* Specialized Editors */}
       {kind === 'EXPENSE' && (
@@ -203,37 +190,15 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
         />
       )}
 
-      {/* Content Markdown Area */}
-      <div
-        className={`grid gap-4 ${
-          viewMode === 'split' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'
-        }`}
-      >
-        {(viewMode === 'edit' || viewMode === 'split') && (
-          <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-2">
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
-              <span>Markdown Reflection Log</span>
-              <span className="text-[10px] font-mono text-slate-500">{contentMarkdown.length} chars</span>
-            </div>
-            <textarea
-              rows={16}
-              value={contentMarkdown}
-              onChange={(e) => setContentMarkdown(e.target.value)}
-              placeholder="Write thoughts, daily reflection, notes..."
-              className="w-full bg-transparent text-slate-200 font-mono text-xs leading-relaxed focus:outline-none resize-y min-h-[300px]"
-            />
-          </div>
-        )}
-
-        {(viewMode === 'preview' || viewMode === 'split') && (
-          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 space-y-2">
-            <div className="text-xs font-semibold text-slate-400">Live Preview</div>
-            <div className="prose prose-invert prose-slate prose-sm max-w-none whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-300 min-h-[300px] p-2 bg-slate-950/40 rounded-xl border border-slate-800/40">
-              {contentMarkdown || <span className="text-slate-600 italic">Nothing to preview...</span>}
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Content Markdown Area with CodeMirror 6 */}
+      <JournalMarkdownEditor
+        value={contentMarkdown}
+        onChange={setContentMarkdown}
+        onSave={(val) => void handleSave(val)}
+        saveStatus={saveStatus}
+        placeholder="Write thoughts, daily reflection, notes..."
+        minHeight="340px"
+      />
 
       {/* Attachment Tray */}
       {initialEntry?.id && (

@@ -747,6 +747,25 @@ export class PrismaJournalAttachmentRepository implements IJournalAttachmentRepo
     };
   }
 
+  async findById(userId: string, id: string): Promise<JournalAttachmentModel | null> {
+    const a = await this.prisma.journalAttachment.findFirst({
+      where: { id, userId, deletedAt: null },
+    });
+    if (!a) return null;
+    return {
+      id: a.id,
+      userId: a.userId,
+      entryId: a.entryId,
+      fileName: a.fileName,
+      mimeType: a.mimeType,
+      sizeBytes: a.sizeBytes,
+      storageKey: a.storageKey,
+      url: `/journal/attachments/${a.id}/file`,
+      createdAt: a.createdAt,
+      deletedAt: a.deletedAt,
+    };
+  }
+
   async listByEntry(userId: string, entryId: string): Promise<JournalAttachmentModel[]> {
     const atts = await this.prisma.journalAttachment.findMany({
       where: { userId, entryId, deletedAt: null },

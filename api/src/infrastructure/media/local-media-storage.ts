@@ -56,6 +56,12 @@ export class LocalMediaStorage implements IMediaStorage {
     };
   }
 
+  async storeRawBuffer(storageKey: string, buffer: Buffer): Promise<void> {
+    const absolutePath = path.join(this.root, storageKey);
+    await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+    await fs.writeFile(absolutePath, buffer);
+  }
+
   private async storeProcessedImage(input: StoreUserImageInput & { sortOrder: number }): Promise<StoredImage> {
     if (!ALLOWED_TYPES.has(input.mimeType)) {
       throw new InvalidReviewException(MEDIA_ERRORS.unsupportedImageType);

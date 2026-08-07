@@ -19,14 +19,14 @@ export const journalQueries = {
       },
     }),
 
-  entryDetail: (id: string) =>
+  entryDetail: (id: string, isNew = false) =>
     queryOptions({
       queryKey: ['journal-entries', 'detail', id],
       queryFn: async (): Promise<JournalEntry> => {
         const res = await api.get<JournalEntry>(`/journal/entries/${id}`);
         return res.data;
       },
-      enabled: Boolean(id),
+      enabled: Boolean(id) && !isNew,
     }),
 
   revisions: (entryId: string) =>
@@ -81,8 +81,8 @@ export function useJournalEntries(filter?: SearchJournalFilter) {
   return useQuery(journalQueries.entries(filter));
 }
 
-export function useJournalEntry(id: string) {
-  return useQuery(journalQueries.entryDetail(id));
+export function useJournalEntry(id: string, isNew = false) {
+  return useQuery(journalQueries.entryDetail(id, isNew));
 }
 
 export function useJournalRevisions(entryId: string) {

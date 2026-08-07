@@ -55,8 +55,7 @@ final class FocusCycleEngine {
     }
 
     func handleManualLongBreakStarted() {
-        // Manual long break resets cycle progress to zero
-        resetCycle()
+        // Manual long break leaves cycle progress unchanged (only scheduled long break completion or explicit reset clears cycle)
     }
 
     func skipScheduledBreak() {

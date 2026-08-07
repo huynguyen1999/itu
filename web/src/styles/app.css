@@ -978,6 +978,59 @@
     @apply sticky left-3 top-3 z-20 ml-3 mt-3;
   }
 
+  .itu-journal-workspace {
+    @apply grid h-full min-h-screen bg-background;
+    grid-template-columns: var(--itu-journal-sidebar-width, 240px) minmax(0, 1fr);
+  }
+
+  .itu-journal-workspace.is-sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .itu-journal-sidebar {
+    @apply relative min-h-0 border-r bg-muted/20 flex flex-col;
+  }
+
+  .itu-journal-sidebar header {
+    @apply h-[72px] border-b px-5 py-4 flex flex-col justify-center;
+  }
+
+  .itu-journal-sidebar header p {
+    @apply text-[10px] font-semibold uppercase tracking-[0.16em] text-primary;
+  }
+
+  .itu-journal-sidebar header h2 {
+    @apply text-xl font-bold tracking-tight text-foreground;
+  }
+
+  .itu-journal-sidebar nav {
+    @apply space-y-1 p-3 flex-1 overflow-y-auto;
+  }
+
+  .itu-journal-sidebar .nav-section-title {
+    @apply px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70;
+  }
+
+  .itu-journal-nav-link {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground;
+  }
+
+  .itu-journal-nav-link svg {
+    @apply h-4 w-4;
+  }
+
+  .itu-journal-nav-link.is-active {
+    @apply bg-primary/10 text-primary font-semibold;
+  }
+
+  .itu-journal-content {
+    @apply relative min-h-0 min-w-0 overflow-y-auto;
+  }
+
+  .itu-journal-content__inner {
+    @apply mx-auto w-full max-w-6xl px-6 py-6;
+  }
+
   .itu-task-workspace {
     @apply grid h-full min-h-[calc(100vh-3.5rem)] bg-background md:min-h-screen;
     grid-template-columns: var(--itu-sidebar-width, 232px) minmax(420px, 1fr);

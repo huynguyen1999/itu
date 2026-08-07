@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
-import { Calendar, CheckCircle2, Clock, Dumbbell, Flame, Layers, Receipt, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Calendar, CheckCircle2, Clock, Dumbbell, Flame, Layers, Receipt, Sparkles, Zap } from 'lucide-react';
 import { useWeeklySummary } from '../journalQueries';
 import type { JournalWeeklyReview } from '../journal.types';
+import { Card, CardContent } from '@/shared/ui/card';
+import { Button } from '@/shared/ui/button';
 
 interface WeeklyReviewEditorProps {
   weeklyReview?: JournalWeeklyReview | null;
@@ -21,8 +23,24 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
   const periodEnd = weeklyReview?.periodEnd || end.toISOString().split('T')[0];
 
   const { data: summaryData } = useWeeklySummary(periodStart, periodEnd);
-
   const snapshot: any = weeklyReview?.summarySnapshot || summaryData || {};
+
+  const [wentWell, setWentWell] = useState(weeklyReview?.wentWellMarkdown || '');
+  const [friction, setFriction] = useState(weeklyReview?.frictionMarkdown || '');
+  const [nextWeek, setNextWeek] = useState(weeklyReview?.nextWeekMarkdown || '');
+
+  const [experiment, setExperiment] = useState(() => {
+    return (
+      weeklyReview?.experimentSnapshot || {
+        hypothesis: '',
+        action: '',
+        durationDays: 7,
+        measure: '',
+        startedOn: periodStart,
+        status: 'ACTIVE',
+      }
+    );
+  });
 
   useEffect(() => {
     if (summaryData && (!weeklyReview?.summarySnapshot || Object.keys(weeklyReview.summarySnapshot).length === 0)) {
@@ -30,9 +48,44 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
         periodStart,
         periodEnd,
         summarySnapshot: summaryData,
+        wentWellMarkdown: wentWell,
+        frictionMarkdown: friction,
+        nextWeekMarkdown: nextWeek,
+        experimentSnapshot: experiment,
       });
     }
   }, [summaryData]);
+
+  const updateFields = (field: string, val: any) => {
+    let updatedWentWell = wentWell;
+    let updatedFriction = friction;
+    let updatedNextWeek = nextWeek;
+    let updatedExp = experiment;
+
+    if (field === 'wentWell') {
+      setWentWell(val);
+      updatedWentWell = val;
+    } else if (field === 'friction') {
+      setFriction(val);
+      updatedFriction = val;
+    } else if (field === 'nextWeek') {
+      setNextWeek(val);
+      updatedNextWeek = val;
+    } else if (field === 'experiment') {
+      setExperiment(val);
+      updatedExp = val;
+    }
+
+    onChange({
+      periodStart,
+      periodEnd,
+      summarySnapshot: snapshot,
+      wentWellMarkdown: updatedWentWell,
+      frictionMarkdown: updatedFriction,
+      nextWeekMarkdown: updatedNextWeek,
+      experimentSnapshot: updatedExp,
+    });
+  };
 
   const tasksCompleted = snapshot.tasks?.completed ?? 0;
   const focusMinutes = snapshot.focus?.minutes ?? 0;
@@ -45,86 +98,167 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
 
   return (
     <div className="space-y-4">
-      <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3 shadow-xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-semibold text-purple-400">
-            <Calendar className="w-4 h-4" />
-            Weekly Snapshot ({periodStart} — {periodEnd})
-          </div>
-          <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-            Deterministic Stats
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1">
-            <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Tasks
+      {/* Compact Top Summary Strip */}
+      <Card>
+        <CardContent className="p-3.5 space-y-3">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 font-semibold text-primary">
+              <Calendar className="w-4 h-4" />
+              Week Summary ({periodStart} — {periodEnd})
             </div>
-            <div className="text-base font-mono font-bold text-slate-100">{tasksCompleted} completed</div>
+            <span className="text-[10px] text-muted-foreground uppercase font-mono">Snapshot</span>
           </div>
 
-          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1">
-            <div className="flex items-center gap-1.5 text-sky-400 font-medium">
-              <Clock className="w-3.5 h-3.5" />
-              Focus
+          <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-foreground">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+              <span>{tasksCompleted} tasks</span>
             </div>
-            <div className="text-base font-mono font-bold text-slate-100">
-              {Math.floor(focusMinutes / 60)}h {focusMinutes % 60}m
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-primary" />
+              <span>{Math.floor(focusMinutes / 60)}h {focusMinutes % 60}m focus</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Flame className="w-3.5 h-3.5 text-primary" />
+              <span>Habits {habitsCompleted}/{habitsScheduled}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Dumbbell className="w-3.5 h-3.5 text-primary" />
+              <span>{workoutsCount} workouts</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-primary" />
+              <span>{learningReviews} reviews</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-primary" />
+              <span>+{growthXp} XP</span>
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1">
-            <div className="flex items-center gap-1.5 text-amber-400 font-medium">
-              <Flame className="w-3.5 h-3.5" />
-              Habits
-            </div>
-            <div className="text-base font-mono font-bold text-slate-100">
-              {habitsCompleted} / {habitsScheduled}
-            </div>
-          </div>
+      {/* 3-Column Main Reflection Table */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Card className="flex flex-col">
+          <CardContent className="p-3.5 space-y-2 flex-1 flex flex-col">
+            <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              What went well?
+            </h4>
+            <p className="text-[11px] text-muted-foreground">What worked & should continue?</p>
+            <textarea
+              rows={6}
+              value={wentWell}
+              onChange={(e) => updateFields('wentWell', e.target.value)}
+              placeholder="Highlights, achievements, positive moments..."
+              className="w-full flex-1 rounded-md border border-input bg-background/50 p-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-ring resize-none min-h-[140px]"
+            />
+          </CardContent>
+        </Card>
 
-          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1">
-            <div className="flex items-center gap-1.5 text-violet-400 font-medium">
-              <Layers className="w-3.5 h-3.5" />
-              Learning
-            </div>
-            <div className="text-base font-mono font-bold text-slate-100">{learningReviews} reviews</div>
-          </div>
+        <Card className="flex flex-col">
+          <CardContent className="p-3.5 space-y-2 flex-1 flex flex-col">
+            <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-rose-500" />
+              What didn't work?
+            </h4>
+            <p className="text-[11px] text-muted-foreground">What created friction or failed?</p>
+            <textarea
+              rows={6}
+              value={friction}
+              onChange={(e) => updateFields('friction', e.target.value)}
+              placeholder="Blockers, distractions, missed habits..."
+              className="w-full flex-1 rounded-md border border-input bg-background/50 p-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-ring resize-none min-h-[140px]"
+            />
+          </CardContent>
+        </Card>
 
-          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1">
-            <div className="flex items-center gap-1.5 text-blue-400 font-medium">
-              <Dumbbell className="w-3.5 h-3.5" />
-              Gym
-            </div>
-            <div className="text-base font-mono font-bold text-slate-100">{workoutsCount} workouts</div>
-          </div>
-
-          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1">
-            <div className="flex items-center gap-1.5 text-rose-400 font-medium">
-              <Receipt className="w-3.5 h-3.5" />
-              Expenses
-            </div>
-            <div className="text-xs font-mono font-bold text-slate-100">
-              {Object.entries(expensesMap).map(([curr, val]) => (
-                <div key={curr}>
-                  {Number(val).toLocaleString()} {curr}
-                </div>
-              ))}
-              {Object.keys(expensesMap).length === 0 && '0'}
-            </div>
-          </div>
-
-          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1 sm:col-span-2">
-            <div className="flex items-center gap-1.5 text-yellow-400 font-medium">
-              <Zap className="w-3.5 h-3.5" />
-              Growth XP Earned
-            </div>
-            <div className="text-base font-mono font-bold text-slate-100">+{growthXp} XP</div>
-          </div>
-        </div>
+        <Card className="flex flex-col">
+          <CardContent className="p-3.5 space-y-2 flex-1 flex flex-col">
+            <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              What will I test next week?
+            </h4>
+            <p className="text-[11px] text-muted-foreground">Tiny experiment for next cycle</p>
+            <textarea
+              rows={6}
+              value={nextWeek}
+              onChange={(e) => updateFields('nextWeek', e.target.value)}
+              placeholder="Ideas, adjustments, next focus..."
+              className="w-full flex-1 rounded-md border border-input bg-background/50 p-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-ring resize-none min-h-[140px]"
+            />
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Tiny Experiment Box */}
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+              <Sparkles className="w-4 h-4 text-primary" />
+              Next Tiny Experiment (Pact → Act → React → Impact)
+            </div>
+            <span className="text-[10px] uppercase tracking-wider font-mono text-primary font-semibold">
+              {experiment.status || 'ACTIVE'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Hypothesis</label>
+              <input
+                type="text"
+                placeholder="If I prepare tomorrow's top 3 tasks before bed..."
+                value={experiment.hypothesis || ''}
+                onChange={(e) =>
+                  updateFields('experiment', { ...experiment, hypothesis: e.target.value })
+                }
+                className="w-full rounded-md border border-input bg-background/50 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Action / Pact</label>
+              <input
+                type="text"
+                placeholder="Write top 3 tasks on paper every night at 10 PM"
+                value={experiment.action || ''}
+                onChange={(e) =>
+                  updateFields('experiment', { ...experiment, action: e.target.value })
+                }
+                className="w-full rounded-md border border-input bg-background/50 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Duration (days)</label>
+              <input
+                type="number"
+                value={experiment.durationDays || 7}
+                onChange={(e) =>
+                  updateFields('experiment', { ...experiment, durationDays: parseInt(e.target.value) || 7 })
+                }
+                className="w-full rounded-md border border-input bg-background/50 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Measure of success</label>
+              <input
+                type="text"
+                placeholder="Did I start focused work within 15 minutes?"
+                value={experiment.measure || ''}
+                onChange={(e) =>
+                  updateFields('experiment', { ...experiment, measure: e.target.value })
+                }
+                className="w-full rounded-md border border-input bg-background/50 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -797,6 +797,8 @@ struct MenuBarView: View {
                     overtimeSettingRow
                     soundSettingRow
                     notificationSettingRow
+                    autoStartBreaksSettingRow
+                    autoStartWorkSettingRow
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
@@ -895,6 +897,30 @@ struct MenuBarView: View {
         ) { newValue in
             var updated = model.settingsStore.focusSettings
             updated.desktopNotificationEnabled = newValue
+            applySettingsUpdate(updated)
+        }
+    }
+
+    private var autoStartBreaksSettingRow: some View {
+        settingsToggleRow(
+            title: "Auto-Start Breaks",
+            subtitle: "Automatically start break timer when focus completes",
+            isOn: model.settingsStore.focusSettings.autoStartBreaks
+        ) { newValue in
+            var updated = model.settingsStore.focusSettings
+            updated.autoStartBreaks = newValue
+            applySettingsUpdate(updated)
+        }
+    }
+
+    private var autoStartWorkSettingRow: some View {
+        settingsToggleRow(
+            title: "Auto-Start Focus",
+            subtitle: "Automatically start focus session when break finishes",
+            isOn: model.settingsStore.focusSettings.autoStartWork
+        ) { newValue in
+            var updated = model.settingsStore.focusSettings
+            updated.autoStartWork = newValue
             applySettingsUpdate(updated)
         }
     }

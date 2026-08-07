@@ -1,6 +1,7 @@
 import { Tx, recordSyncChange } from './prisma-sync-mutation.shared';
 import { ExpenseCategory, JournalEntryKind, PaymentMethod } from '@prisma/client';
 import { SyncConflict, SyncMutation } from '@core/application/ports/in/sync-use-case.port';
+import { createUlid } from './ulid';
 import {
   assertClientId,
   enumValue,
@@ -127,7 +128,7 @@ export class PrismaSyncJournal {
 
           if (Array.isArray(wo.exercises)) {
             for (const ex of wo.exercises as Record<string, unknown>[]) {
-              const exId = (ex.id as string) || `ex_${Math.random().toString(36).substring(2, 9)}`;
+              const exId = (ex.id as string) || createUlid();
               const exerciseId = requiredString(ex, 'exerciseId');
               const createdEx = await tx.journalWorkoutExercise.create({
                 data: {
@@ -140,7 +141,7 @@ export class PrismaSyncJournal {
               });
               if (Array.isArray(ex.sets)) {
                 for (const s of ex.sets as Record<string, unknown>[]) {
-                  const setId = (s.id as string) || `set_${Math.random().toString(36).substring(2, 9)}`;
+                  const setId = (s.id as string) || createUlid();
                   await tx.journalWorkoutSet.create({
                     data: {
                       id: setId,
@@ -229,6 +230,24 @@ export class PrismaSyncJournal {
             version: { increment: 1 },
           },
         });
+
+        if (payload.weeklyReview && typeof payload.weeklyReview === 'object') {
+          const wr = payload.weeklyReview as Record<string, unknown>;
+          await tx.journalWeeklyReview.upsert({
+            where: { entryId: entry.id },
+            create: {
+              entryId: entry.id,
+              periodStart: new Date(wr.periodStart as string),
+              periodEnd: new Date(wr.periodEnd as string),
+              summarySnapshot: (wr.summarySnapshot as any) ?? {},
+            },
+            update: {
+              periodStart: wr.periodStart ? new Date(wr.periodStart as string) : undefined,
+              periodEnd: wr.periodEnd ? new Date(wr.periodEnd as string) : undefined,
+              summarySnapshot: wr.summarySnapshot ? ((wr.summarySnapshot as unknown) as any) : undefined,
+            },
+          });
+        }
 
         if (payload.expense && typeof payload.expense === 'object') {
           const exp = payload.expense as Record<string, unknown>;

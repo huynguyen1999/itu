@@ -3,21 +3,27 @@ import {
   Controller,
   Delete,
   Get,
+  Inject,
+  NotFoundException,
   Param,
   Patch,
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
   BadRequestException,
 } from '@nestjs/common';
 import { REST_ROUTES } from '@core/application/constants/app.constants';
+import { TOKENS } from '@core/application/constants/tokens';
+import type { IMediaStorage } from '@core/application/ports/out/services.port';
 import { JournalService } from '@core/application/use-cases/journal/journal.service';
 import { AuthGuard } from '../guards/auth.guard';
 import {
   CreateJournalEntryDto,
   CreateJournalTagDto,
   CreateJournalTemplateDto,
+  CreateExerciseDefinitionDto,
   SearchJournalQueryDto,
   UpdateJournalEntryDto,
   UpdateJournalTemplateDto,
@@ -25,11 +31,15 @@ import {
 } from '../dto/journal.dto';
 import type { AuthenticatedMultipartRequest, AuthenticatedRequest } from '../types/authenticated-request';
 import { createUlid } from '@infrastructure/persistence/prisma/ulid';
+import type { FastifyReply } from 'fastify';
 
 @UseGuards(AuthGuard)
 @Controller(REST_ROUTES.journal)
 export class JournalController {
-  constructor(private readonly journalService: JournalService) {}
+  constructor(
+    private readonly journalService: JournalService,
+    @Inject(TOKENS.MEDIA_STORAGE) private readonly mediaStorage: IMediaStorage,
+  ) {}
 
   @Get('entries')
   listEntries(@Req() req: AuthenticatedRequest, @Query() query: SearchJournalQueryDto) {
@@ -85,6 +95,13 @@ export class JournalController {
     return this.journalService.updateEntry(req.user.sub, id, {
       ...dto,
       entryDate: dto.entryDate ? new Date(dto.entryDate) : undefined,
+      weeklyReview: dto.weeklyReview
+        ? {
+            ...dto.weeklyReview,
+            periodStart: dto.weeklyReview.periodStart ? new Date(dto.weeklyReview.periodStart) : undefined,
+            periodEnd: dto.weeklyReview.periodEnd ? new Date(dto.weeklyReview.periodEnd) : undefined,
+          }
+        : undefined,
       expense: dto.expense
         ? {
             ...dto.expense,
@@ -119,9 +136,9 @@ export class JournalController {
   restoreRevision(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Param('revisionId') _revisionId: string,
+    @Param('revisionId') revisionId: string,
   ) {
-    return this.journalService.restoreEntry(req.user.sub, id);
+    return this.journalService.restoreRevision(req.user.sub, id, revisionId);
   }
 
   @Get('templates')
@@ -163,6 +180,11 @@ export class JournalController {
     return this.journalService.listExercises(req.user.sub);
   }
 
+  @Post('exercises')
+  createExercise(@Req() req: AuthenticatedRequest, @Body() dto: CreateExerciseDefinitionDto) {
+    return this.journalService.findOrCreateExercise(req.user.sub, dto.name);
+  }
+
   @Get('weekly-summary')
   weeklySummary(@Req() req: AuthenticatedRequest, @Query() query: WeeklySummaryQueryDto) {
     return this.journalService.buildWeeklyReviewSnapshot(
@@ -182,6 +204,7 @@ export class JournalController {
     const attachmentId = createUlid();
     const storageKey = `journal/${req.user.sub}/${attachmentId}_${upload.filename || 'file'}`;
     const buffer = await upload.toBuffer();
+    await this.mediaStorage.storeRawBuffer(storageKey, buffer);
     return this.journalService.addAttachment(req.user.sub, {
       id: attachmentId,
       entryId,
@@ -190,6 +213,17 @@ export class JournalController {
       sizeBytes: buffer.length,
       storageKey,
     });
+  }
+
+  @Get('attachments/:id/file')
+  async getAttachmentFile(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Res() res: FastifyReply) {
+    const attachment = await this.journalService.getAttachment(req.user.sub, id);
+    if (!attachment) throw new NotFoundException('Attachment not found');
+    const stream = await this.mediaStorage.read(attachment.storageKey);
+    if (!stream) throw new NotFoundException('Attachment file not found');
+    res.header('Content-Type', attachment.mimeType);
+    res.header('Cache-Control', 'private, max-age=3600');
+    return res.send(stream);
   }
 
   @Delete('attachments/:id')

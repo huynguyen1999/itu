@@ -151,6 +151,7 @@ export interface IExerciseDefinitionRepository {
 }
 
 export interface IJournalAttachmentRepository {
+  findById(userId: string, id: string): Promise<JournalAttachmentModel | null>;
   create(userId: string, data: { id: string; entryId: string; fileName: string; mimeType: string; sizeBytes: number; storageKey: string }): Promise<JournalAttachmentModel>;
   listByEntry(userId: string, entryId: string): Promise<JournalAttachmentModel[]>;
   delete(userId: string, id: string): Promise<boolean>;

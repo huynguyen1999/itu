@@ -8,24 +8,32 @@ import {
   Receipt,
   Search,
   Sparkles,
-  Zap,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useJournalEntries, useJournalTemplates } from './journalQueries';
 import { useCreateJournalEntryMutation } from './journalMutations';
 import { JournalEntryCard } from './components/JournalEntryCard';
 import { createUlid } from '../../shared/sync/syncIdentity';
+import { Button } from '@/shared/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
 
-export function JournalDashboard() {
+interface JournalDashboardProps {
+  defaultKind?: 'NOTE' | 'WEEKLY_REVIEW' | 'EXPENSE' | 'WORKOUT';
+}
+
+export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
   const navigate = useNavigate();
-  const { data: entries = [], isLoading } = useJournalEntries();
+  const { data: entries = [], isLoading } = useJournalEntries(
+    defaultKind ? { kind: defaultKind } : undefined,
+  );
   const { data: templates = [] } = useJournalTemplates();
   const createMutation = useCreateJournalEntryMutation();
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayNote = entries.find((e) => e.entryDate.startsWith(todayStr) && e.kind === 'NOTE');
 
-  const recentNotes = entries.slice(0, 5);
+  const filteredEntries = defaultKind ? entries.filter((e) => e.kind === defaultKind) : entries;
+  const recentNotes = filteredEntries.slice(0, 6);
 
   const expensesThisWeek = entries
     .filter((e) => e.kind === 'EXPENSE' && e.expense)
@@ -70,179 +78,195 @@ export function JournalDashboard() {
   return (
     <div className="space-y-6">
       {/* Dashboard Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-gradient-to-r from-emerald-950/60 via-slate-900 to-purple-950/40 border border-slate-800/80 shadow-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-xl bg-card border border-border">
         <div className="space-y-1">
-          <h1 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-emerald-400" />
-            Personal Journal & Log
+          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-primary" />
+            {defaultKind === 'NOTE'
+              ? 'Daily Notes & Diary'
+              : defaultKind === 'WEEKLY_REVIEW'
+              ? 'Weekly Reviews'
+              : defaultKind === 'EXPENSE'
+              ? 'Money & Expenses'
+              : defaultKind === 'WORKOUT'
+              ? 'Gym Workouts'
+              : 'Journal Overview'}
           </h1>
-          <p className="text-xs text-slate-400">
-            Universal reflection layer, Daily notes, Expenses, Gym workouts, and Weekly reviews.
+          <p className="text-xs text-muted-foreground">
+            Personal productivity timeline, daily reflections, financial logs, and training history.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Link
-            to="/journal/search"
-            className="p-2 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-medium transition-colors inline-flex items-center gap-1.5"
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/journal/notes')}
+            className="gap-1.5"
           >
-            <Search className="w-4 h-4 text-slate-400" />
+            <Search className="w-4 h-4" />
             Search
-          </Link>
+          </Button>
 
-          <div className="relative group">
-            <button
-              type="button"
-              onClick={() => handleCreateNew('NOTE')}
-              className="px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all inline-flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" />
-              New Log
-            </button>
-          </div>
+          <Button
+            size="sm"
+            onClick={() => handleCreateNew(defaultKind || 'NOTE')}
+            className="gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            New Entry
+          </Button>
         </div>
       </div>
 
       {/* Grid Dashboard Widgets */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* TODAY DAILY NOTE CARD */}
-        <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl flex flex-col justify-between space-y-3">
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-emerald-400 uppercase tracking-wider text-[10px]">
-                TODAY'S REFLECTION
-              </span>
-              <Calendar className="w-3.5 h-3.5 text-slate-500" />
-            </div>
-            <h2 className="text-base font-bold text-slate-100">
-              {todayNote ? todayNote.title : 'Daily Note'}
-            </h2>
-            <p className="text-xs text-slate-400 line-clamp-2">
-              {todayNote
-                ? todayNote.contentMarkdown || 'Empty daily reflection...'
-                : "Capture today's highlights, learning, and progress."}
-            </p>
-          </div>
+      {!defaultKind && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* TODAY DAILY NOTE CARD */}
+          <Card className="flex flex-col justify-between">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-primary uppercase tracking-wider text-[10px]">
+                  TODAY'S REFLECTION
+                </span>
+                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <CardTitle className="text-base">{todayNote ? todayNote.title : 'Daily Note'}</CardTitle>
+              <CardDescription className="text-xs line-clamp-2">
+                {todayNote
+                  ? todayNote.contentMarkdown || 'Empty daily reflection...'
+                  : "Capture today's highlights, learning, and progress."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full justify-center gap-1.5"
+                onClick={() => void handleStartDailyNote()}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-primary" />
+                {todayNote ? 'Open Daily Note →' : "Start Today's Reflection →"}
+              </Button>
+            </CardContent>
+          </Card>
 
-          <button
-            type="button"
-            onClick={() => void handleStartDailyNote()}
-            className="w-full py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 font-semibold text-xs border border-emerald-500/30 transition-colors flex items-center justify-center gap-1.5"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            {todayNote ? 'Open Daily Note →' : "Start Today's Reflection →"}
-          </button>
+          {/* EXPENSES WIDGET */}
+          <Card className="flex flex-col justify-between">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-primary uppercase tracking-wider text-[10px]">
+                  MONEY / EXPENSES
+                </span>
+                <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <div className="text-xl font-bold font-mono text-foreground">
+                {expensesThisWeek.toLocaleString()} VND
+              </div>
+              <CardDescription className="text-xs">Logged expenses</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full justify-center gap-1.5"
+                onClick={() => handleCreateNew('EXPENSE')}
+              >
+                <Receipt className="w-3.5 h-3.5 text-primary" />
+                Log Expense →
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* GYM WORKOUT WIDGET */}
+          <Card className="flex flex-col justify-between">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-primary uppercase tracking-wider text-[10px]">
+                  LAST WORKOUT
+                </span>
+                <Dumbbell className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <CardTitle className="text-base">{lastWorkout ? lastWorkout.title : 'Gym Session'}</CardTitle>
+              <CardDescription className="text-xs font-mono">
+                {lastWorkout?.workout?.exercises?.length || 0} exercises recorded
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full justify-center gap-1.5"
+                onClick={() => handleCreateNew('WORKOUT')}
+              >
+                <Dumbbell className="w-3.5 h-3.5 text-primary" />
+                Log Workout →
+              </Button>
+            </CardContent>
+          </Card>
         </div>
-
-        {/* EXPENSES WIDGET */}
-        <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl flex flex-col justify-between space-y-3">
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-rose-400 uppercase tracking-wider text-[10px]">
-                EXPENSES
-              </span>
-              <Receipt className="w-3.5 h-3.5 text-slate-500" />
-            </div>
-            <div className="text-xl font-bold font-mono text-slate-100">
-              {expensesThisWeek.toLocaleString()} VND
-            </div>
-            <p className="text-xs text-slate-400">Total logged across recent entries</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => handleCreateNew('EXPENSE')}
-            className="w-full py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 font-semibold text-xs border border-rose-500/30 transition-colors flex items-center justify-center gap-1.5"
-          >
-            <Receipt className="w-3.5 h-3.5" />
-            Log Expense →
-          </button>
-        </div>
-
-        {/* GYM WORKOUT WIDGET */}
-        <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl flex flex-col justify-between space-y-3">
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-sky-400 uppercase tracking-wider text-[10px]">
-                LAST WORKOUT
-              </span>
-              <Dumbbell className="w-3.5 h-3.5 text-slate-500" />
-            </div>
-            <h2 className="text-base font-bold text-slate-100">
-              {lastWorkout ? lastWorkout.title : 'Push / Pull Day'}
-            </h2>
-            <p className="text-xs text-slate-400 font-mono">
-              {lastWorkout?.workout?.exercises?.length || 0} exercises recorded
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => handleCreateNew('WORKOUT')}
-            className="w-full py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 font-semibold text-xs border border-sky-500/30 transition-colors flex items-center justify-center gap-1.5"
-          >
-            <Dumbbell className="w-3.5 h-3.5" />
-            Log Workout →
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* QUICK TEMPLATES */}
       <div className="space-y-2">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-          Quick Capture Templates
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Quick Capture Presets
         </h3>
         <div className="flex flex-wrap gap-2 text-xs">
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => handleCreateNew('NOTE')}
-            className="px-3.5 py-2 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium transition-colors inline-flex items-center gap-1.5"
+            className="gap-1.5"
           >
-            <FileText className="w-3.5 h-3.5 text-emerald-400" />
+            <FileText className="w-3.5 h-3.5 text-primary" />
             Normal Note
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => handleCreateNew('WEEKLY_REVIEW')}
-            className="px-3.5 py-2 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium transition-colors inline-flex items-center gap-1.5"
+            className="gap-1.5"
           >
-            <Calendar className="w-3.5 h-3.5 text-purple-400" />
+            <Calendar className="w-3.5 h-3.5 text-primary" />
             Weekly Review
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => handleCreateNew('EXPENSE')}
-            className="px-3.5 py-2 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium transition-colors inline-flex items-center gap-1.5"
+            className="gap-1.5"
           >
-            <Receipt className="w-3.5 h-3.5 text-rose-400" />
-            Expense Preset
-          </button>
-          <button
-            type="button"
+            <Receipt className="w-3.5 h-3.5 text-primary" />
+            Expense Log
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => handleCreateNew('WORKOUT')}
-            className="px-3.5 py-2 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium transition-colors inline-flex items-center gap-1.5"
+            className="gap-1.5"
           >
-            <Dumbbell className="w-3.5 h-3.5 text-sky-400" />
+            <Dumbbell className="w-3.5 h-3.5 text-primary" />
             Gym Workout
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* RECENT ENTRIES LIST */}
       <div className="space-y-3">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-          Recent Journal Entries
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          {defaultKind ? `${defaultKind} Entries` : 'Recent Journal Entries'}
         </h3>
         {isLoading ? (
-          <div className="text-xs text-slate-500 py-6">Loading entries...</div>
+          <div className="text-xs text-muted-foreground py-6">Loading entries...</div>
         ) : recentNotes.length === 0 ? (
-          <div className="p-8 rounded-3xl bg-slate-900/40 border border-slate-800 text-center space-y-2">
-            <BookOpen className="w-8 h-8 text-slate-600 mx-auto" />
-            <div className="text-sm font-semibold text-slate-300">Your journal is empty</div>
-            <p className="text-xs text-slate-500">
-              Create your first Daily Note, log an expense, or write a weekly reflection.
+          <Card className="p-8 text-center space-y-2">
+            <BookOpen className="w-8 h-8 text-muted-foreground mx-auto" />
+            <div className="text-sm font-semibold text-foreground">No entries found</div>
+            <p className="text-xs text-muted-foreground">
+              Create your first entry or select a template above.
             </p>
-          </div>
+          </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {recentNotes.map((entry) => (

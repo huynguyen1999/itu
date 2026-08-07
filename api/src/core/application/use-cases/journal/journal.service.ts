@@ -93,6 +93,12 @@ export class JournalService {
     return this.journalRepository.listRevisions(userId, entryId);
   }
 
+  async restoreRevision(userId: string, entryId: string, revisionId: string): Promise<JournalEntryModel> {
+    const restored = await this.journalRepository.restoreRevision(userId, entryId, revisionId);
+    if (!restored) throw new NotFoundException('Journal entry revision not found');
+    return restored;
+  }
+
   async listTemplates(userId: string): Promise<JournalTemplateModel[]> {
     return this.templateRepository.list(userId);
   }
@@ -195,6 +201,10 @@ export class JournalService {
     data: { id: string; entryId: string; fileName: string; mimeType: string; sizeBytes: number; storageKey: string },
   ): Promise<JournalAttachmentModel> {
     return this.attachmentRepository.create(userId, data);
+  }
+
+  async getAttachment(userId: string, id: string): Promise<JournalAttachmentModel | null> {
+    return this.attachmentRepository.findById(userId, id);
   }
 
   async deleteAttachment(userId: string, id: string): Promise<boolean> {

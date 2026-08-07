@@ -98,6 +98,14 @@ export class UpdateJournalEntryDto {
 
   @IsOptional()
   @IsObject()
+  weeklyReview?: {
+    periodStart?: string;
+    periodEnd?: string;
+    summarySnapshot?: Record<string, unknown>;
+  };
+
+  @IsOptional()
+  @IsObject()
   expense?: {
     amount?: number | string;
     currency?: string;
@@ -223,3 +231,9 @@ export class WeeklySummaryQueryDto {
   @IsDateString()
   periodEnd!: string;
 }
+
+export class CreateExerciseDefinitionDto {
+  @IsString()
+  name!: string;
+}
+

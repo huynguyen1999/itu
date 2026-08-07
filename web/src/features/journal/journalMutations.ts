@@ -94,6 +94,7 @@ export function useUpdateJournalEntryMutation() {
       timezone?: string;
       templateId?: string | null;
       tagIds?: string[];
+      weeklyReview?: any;
       expense?: any;
       workout?: any;
     }) => {
@@ -265,3 +266,18 @@ export function useDeleteJournalTemplateMutation() {
     },
   });
 }
+
+export function useCreateExerciseDefinitionMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (name: string) => {
+      const res = await api.post('/journal/exercises', { name });
+      return res.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exercise-definitions'] });
+    },
+  });
+}
+

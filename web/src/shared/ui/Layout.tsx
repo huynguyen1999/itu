@@ -122,7 +122,8 @@ export function Layout({
   );
   const isLearnWorkspace = location.pathname === '/learn' || location.pathname.startsWith('/learn/');
   const isGrowthWorkspace = location.pathname === '/growth' || location.pathname.startsWith('/growth/');
-  const isFullBleedWorkspace = isPlanningWorkspace || isLearnWorkspace || isGrowthWorkspace;
+  const isJournalWorkspace = location.pathname === '/journal' || location.pathname.startsWith('/journal/');
+  const isFullBleedWorkspace = isPlanningWorkspace || isLearnWorkspace || isGrowthWorkspace || isJournalWorkspace;
   const moreNavigationActive =
     orderedWorkspaceNavigation.slice(5).some((item) => location.pathname.startsWith(item.to)) ||
     planningNavigation.some((item) => location.pathname === item.to) ||
