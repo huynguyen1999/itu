@@ -114,9 +114,7 @@ export function Layout({
   const userLabel = auth.user?.displayName || auth.user?.email || 'Profile';
   const ThemeIcon = theme.theme === 'dark' ? Sun : Moon;
   const growth = useQuery({ queryKey: ['growth', 'overview'], queryFn: () => api.growthOverview(), retry: 1 });
-  const growthLabel = growth.data
-    ? `Lv ${growth.data.account.level} · ${growth.data.account.currentXp.toLocaleString()} XP`
-    : undefined;
+
   const isPlanningWorkspace = ['/plan', '/inbox', '/upcoming'].some(
     (path) => location.pathname === path || location.pathname.startsWith(`${path}/`),
   );
@@ -244,7 +242,7 @@ export function Layout({
         <div className="itu-app-rail__footer">
           <SyncStatus compact={railCompact} />
           <NotificationMenu />
-          <AccountMenu userLabel={userLabel} growthLabel={growthLabel} compact={railCompact} onLogout={auth.logout} />
+          <AccountMenu userLabel={userLabel} account={growth.data?.account} compact={railCompact} onLogout={auth.logout} />
         </div>
         <button
           className="itu-app-rail__resizer hidden md:block"
@@ -726,31 +724,57 @@ function NotificationMenu({ iconOnly = false }: { iconOnly?: boolean }) {
 
 function AccountMenu({
   userLabel,
-  growthLabel,
+  account,
   compact,
   onLogout,
 }: {
   userLabel: string;
-  growthLabel?: string;
+  account?: {
+    level: number;
+    progressXp: number;
+    requiredXp: number;
+  };
   compact: boolean;
   onLogout: () => void;
 }) {
+  const progressPercent = account
+    ? Math.min(100, Math.max(0, (account.progressXp / Math.max(1, account.requiredXp)) * 100))
+    : 0;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className={`itu-app-rail__account-trigger ${compact ? 'is-compact' : ''}`}
+          className={`itu-app-rail__account-trigger ${compact ? 'is-compact' : ''} w-full flex items-center gap-2 text-left`}
           aria-label="Account menu"
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-white">
             {userLabel.charAt(0).toUpperCase()}
           </span>
           {!compact && (
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium text-foreground">{userLabel}</span>
-              {growthLabel && (
-                <span className="block truncate text-[11px] font-semibold text-muted-foreground">{growthLabel}</span>
+            <span className="min-w-0 flex-1 flex flex-col justify-center">
+              <span className="flex items-center justify-between gap-1 w-full">
+                <span className="truncate text-xs font-semibold text-white leading-none">{userLabel}</span>
+                {account && (
+                  <span className="shrink-0 text-[9px] font-bold font-mono text-[#2ebd85] bg-[#2ebd85]/15 px-1.5 py-0.5 rounded-full leading-none">
+                    Lv {account.level}
+                  </span>
+                )}
+              </span>
+              {account && (
+                <span className="flex flex-col gap-1 mt-1.5">
+                  <span className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                    <span 
+                      className="block h-full bg-gradient-to-r from-[#2ebd85] to-[#0ea5e9]"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </span>
+                  <span className="flex text-[9px] font-medium font-mono leading-none mt-0.5">
+                    <span className="text-white/60">{account.progressXp}</span>
+                    <span className="text-white/35"> / {account.requiredXp} XP</span>
+                  </span>
+                </span>
               )}
             </span>
           )}
