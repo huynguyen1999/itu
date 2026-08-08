@@ -117,7 +117,7 @@ actor APIClient {
     }
 
     func logout() async {
-        _ = try? await request(path: "/auth/logout", method: "POST", body: Optional<String>.none) as EmptyResponse
+        _ = try? await request(path: "/auth/logout", method: "POST") as EmptyResponse
         accessToken = nil
         SessionCache.clearUser()
     }
@@ -148,7 +148,7 @@ actor APIClient {
     }
 
     func exportAccountData() async throws -> JSONValue {
-        try await request(path: "/auth/data-export", method: "GET", body: Optional<String>.none)
+        try await request(path: "/auth/data-export")
     }
 
     func deleteAccount(password: String?) async throws {
@@ -214,67 +214,35 @@ actor APIClient {
     }
 
     func fetchTaskLists() async throws -> [TaskListModel] {
-        try await request(
-            path: "/productivity/task-lists",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/task-lists")
     }
 
     func fetchTaskSections() async throws -> [TaskSectionModel] {
-        try await request(
-            path: "/productivity/task-sections",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/task-sections")
     }
 
     func fetchTaskTags() async throws -> [TagModel] {
-        try await request(
-            path: "/productivity/task-tags",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/task-tags")
     }
 
     func fetchTaskMetadata() async throws -> [TaskMetadataDTO] {
-        try await request(
-            path: "/productivity/tasks",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/tasks")
     }
 
     func activeFocus() async throws -> FocusSession? {
-        try await request(
-            path: "/productivity/focus-sessions/active",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/focus-sessions/active")
     }
 
     func focusHistory() async throws -> [FocusSession] {
-        try await request(
-            path: "/productivity/focus-sessions/history",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/focus-sessions/history")
     }
 
     func focusSummary() async throws -> FocusSummary {
-        try await request(
-            path: "/productivity/focus-sessions/summary",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/focus-sessions/summary")
     }
 
     func fetchFocusSounds() async throws -> FocusSoundCatalog {
-        try await request(
-            path: "/productivity/focus-sounds",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/focus-sounds")
     }
 
     func updateFocusSoundPreference(
@@ -328,11 +296,7 @@ actor APIClient {
 
     func deleteFocusSound(id: String) async throws {
         let encodedId = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
-        let _: EmptyResponse = try await request(
-            path: "/productivity/focus-sounds/\(encodedId)",
-            method: "DELETE",
-            body: Optional<String>.none
-        )
+        let _: EmptyResponse = try await request(path: "/productivity/focus-sounds/\(encodedId)", method: "DELETE")
     }
 
     private func requestRawBody<ResponseBody: Decodable>(
@@ -416,19 +380,11 @@ actor APIClient {
     }
 
     func fetchHabits() async throws -> [HabitModel] {
-        try await request(
-            path: "/productivity/habits",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/habits")
     }
 
     func fetchHabitTimeBlocks() async throws -> [HabitTimeBlockModel] {
-        try await request(
-            path: "/productivity/habit-time-blocks",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/habit-time-blocks")
     }
 
     func createHabitTimeBlock(name: String) async throws -> HabitTimeBlockModel {
@@ -446,15 +402,12 @@ actor APIClient {
     }
 
     func fetchHabitOccurrences(from: String, to: String) async throws -> [HabitOccurrenceModel] {
-        try await request(
-            path: "/productivity/habit-occurrences?from=\(from)&to=\(to)",
-            method: "GET",
-            body: Optional<String>.none
+        try await request(path: "/productivity/habit-occurrences?from=\(from)&to=\(to)"
         )
     }
 
     func fetchHabitStats(id: String) async throws -> HabitStatsModel {
-        try await request(path: "/productivity/habits/\(id)/stats", method: "GET", body: Optional<String>.none)
+        try await request(path: "/productivity/habits/\(id)/stats")
     }
 
     func checkInHabitOccurrence(id: String, value: Double, idempotencyKey: String) async throws -> HabitOccurrenceModel {
@@ -481,31 +434,23 @@ actor APIClient {
     }
 
     func checkInHabit(id: String) async throws -> HabitModel {
-        try await request(
-            path: "/productivity/habits/\(id)/check-in",
-            method: "POST",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/habits/\(id)/check-in", method: "POST")
     }
 
     func fetchGrowthOverview() async throws -> GrowthOverviewDTO {
-        try await request(
-            path: "/growth/overview",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/growth/overview")
     }
 
     func fetchGrowthProfile() async throws -> GrowthProfileDTO {
-        try await request(path: "/growth/profile", method: "GET", body: Optional<String>.none)
+        try await request(path: "/growth/profile")
     }
 
     func fetchGrowthRewardPresetSettings() async throws -> [String: [String: GrowthRewardRuleDTO]] {
-        try await request(path: "/growth/reward-presets/settings", method: "GET", body: Optional<String>.none)
+        try await request(path: "/growth/reward-presets/settings")
     }
 
     func fetchGrowthTaskRewardDefaults() async throws -> [GrowthTaskRewardDefaultDTO] {
-        try await request(path: "/growth/task-reward-defaults", method: "GET", body: Optional<String>.none)
+        try await request(path: "/growth/task-reward-defaults")
     }
 
     func upsertGrowthTaskRewardDefault(
@@ -533,15 +478,13 @@ actor APIClient {
 
     func fetchGrowthEarningRules(sourceType: GrowthSourceType? = nil, sourceId: String? = nil) async throws -> [GrowthEarningRuleDTO] {
         var query: [String] = []
-        if let sourceType {
-            query.append("sourceType=\(sourceType.rawValue)")
-        }
+        if let sourceType { query.append("sourceType=\(sourceType.rawValue)") }
         if let sourceId {
             let encodedSourceId = sourceId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? sourceId
             query.append("sourceId=\(encodedSourceId)")
         }
         let path = query.isEmpty ? "/growth/earning-rules" : "/growth/earning-rules?\(query.joined(separator: "&"))"
-        return try await request(path: path, method: "GET", body: Optional<String>.none)
+        return try await request(path: path)
     }
 
     func previewGrowthReset(scope: GrowthResetScope, skillId: String?) async throws -> GrowthResetPreviewDTO {
@@ -568,11 +511,11 @@ actor APIClient {
     }
 
     func fetchGrowthSkills() async throws -> [GrowthSkillDTO] {
-        try await request(path: "/growth/skills", method: "GET", body: Optional<String>.none)
+        try await request(path: "/growth/skills")
     }
 
     func fetchGrowthAttributes() async throws -> [GrowthSkillDTO] {
-        try await request(path: "/growth/attributes", method: "GET", body: Optional<String>.none)
+        try await request(path: "/growth/attributes")
     }
 
     func fetchGrowthAttributeMappings(skillID: String? = nil) async throws -> [GrowthAttributeMappingDTO] {
@@ -581,68 +524,44 @@ actor APIClient {
             let encoded = skillID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? skillID
             path += "?skillId=\(encoded)"
         }
-        return try await request(path: path, method: "GET", body: Optional<String>.none)
+        return try await request(path: path)
     }
 
     func fetchGrowthRewards() async throws -> [GrowthRewardDTO] {
-        try await request(path: "/growth/rewards", method: "GET", body: Optional<String>.none)
+        try await request(path: "/growth/rewards")
     }
 
     func fetchGrowthInventory() async throws -> [GrowthInventoryDTO] {
-        try await request(path: "/growth/inventory", method: "GET", body: Optional<String>.none)
+        try await request(path: "/growth/inventory")
     }
 
     func fetchGrowthLedger() async throws -> [GrowthLedgerDTO] {
-        let page: CursorPageResponse<GrowthLedgerDTO> = try await request(
-            path: "/growth/ledger?limit=50",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        let page: CursorPageResponse<GrowthLedgerDTO> = try await request(path: "/growth/ledger?limit=50")
         return page.data
     }
 
     func fetchStudyCalendar(days: Int) async throws -> [StudyCalendarDayDTO] {
-        try await request(
-            path: "/dashboard/study-calendar?days=\(max(1, min(days, 365)))",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/dashboard/study-calendar?days=\(max(1, min(days, 365)))")
     }
 
     func fetchGrowthStatistics(fromDate: String, toDate: String) async throws -> GrowthStatisticsDTO {
         let from = fromDate.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? fromDate
         let to = toDate.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? toDate
-        return try await request(
-            path: "/growth/statistics?fromDate=\(from)&toDate=\(to)",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        return try await request(path: "/growth/statistics?fromDate=\(from)&toDate=\(to)")
     }
 
     func fetchDecks() async throws -> [DeckModel] {
-        let page: CursorPageResponse<DeckModel> = try await request(
-            path: "/decks",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        let page: CursorPageResponse<DeckModel> = try await request(path: "/decks")
         return page.data
     }
 
     func fetchCards(deckId: String) async throws -> [CardModel] {
-        let page: CursorPageResponse<CardModel> = try await request(
-            path: "/decks/\(deckId)/cards",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        let page: CursorPageResponse<CardModel> = try await request(path: "/decks/\(deckId)/cards")
         return page.data
     }
 
     func fetchDueCards(deckId: String) async throws -> [CardModel] {
-        let items: [DueCardResponse] = try await request(
-            path: "/study/due?deckId=\(deckId)",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        let items: [DueCardResponse] = try await request(path: "/study/due?deckId=\(deckId)")
         return items.map { item in
             var card = item.card
             card.reviewDirection = item.state.direction
@@ -651,80 +570,44 @@ actor APIClient {
     }
 
     func fetchTrash() async throws -> TrashSnapshotModel {
-        try await request(path: "/trash", method: "GET", body: Optional<String>.none)
+        try await request(path: "/trash")
     }
 
     func restoreTrashTask(id: String) async throws {
-        let _: EmptyResponse = try await request(
-            path: "/trash/tasks/\(id)/restore",
-            method: "POST",
-            body: Optional<String>.none
-        )
+        let _: EmptyResponse = try await request(path: "/trash/tasks/\(id)/restore", method: "POST")
     }
 
     func permanentlyDeleteTrashTask(id: String) async throws {
-        let _: EmptyResponse = try await request(
-            path: "/trash/tasks/\(id)",
-            method: "DELETE",
-            body: Optional<String>.none
-        )
+        let _: EmptyResponse = try await request(path: "/trash/tasks/\(id)", method: "DELETE")
     }
 
     func permanentlyDeleteTrashDeck(id: String) async throws {
-        let _: EmptyResponse = try await request(
-            path: "/trash/decks/\(id)",
-            method: "DELETE",
-            body: Optional<String>.none
-        )
+        let _: EmptyResponse = try await request(path: "/trash/decks/\(id)", method: "DELETE")
     }
 
     func permanentlyDeleteTrashCard(id: String) async throws {
-        let _: EmptyResponse = try await request(
-            path: "/trash/cards/\(id)",
-            method: "DELETE",
-            body: Optional<String>.none
-        )
+        let _: EmptyResponse = try await request(path: "/trash/cards/\(id)", method: "DELETE")
     }
 
     func fetchStudySessionHistory() async throws -> [StudySessionHistoryItem] {
-        let page: CursorPageResponse<StudySessionHistoryItem> = try await request(
-            path: "/study/sessions?limit=50",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        let page: CursorPageResponse<StudySessionHistoryItem> = try await request(path: "/study/sessions?limit=50")
         return page.data
     }
 
     func fetchStudySessionDetails(sessionId: String) async throws -> StudySessionDetails {
-        try await request(
-            path: "/study/sessions/\(sessionId)",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/study/sessions/\(sessionId)")
     }
 
     func fetchNotifications() async throws -> [AppNotificationModel] {
-        try await request(
-            path: "/productivity/notifications",
-            method: "GET",
-            body: Optional<String>.none
-        )
+        try await request(path: "/productivity/notifications")
     }
 
     func markNotificationRead(id: String) async throws {
-        let _: AppNotificationModel = try await request(
-            path: "/productivity/notifications/\(id)/read",
-            method: "PATCH",
-            body: Optional<String>.none
-        )
+        let _: AppNotificationModel = try await request(path: "/productivity/notifications/\(id)/read", method: "PATCH")
     }
 
     func markAllNotificationsRead() async throws {
-        let _: EmptyResponse = try await request(
-            path: "/productivity/notifications/read-all",
-            method: "POST",
-            body: Optional<String>.none
-        )
+        let _: EmptyResponse = try await request(path: "/productivity/notifications/read-all", method: "POST")
     }
 
     func createTaskReminder(taskId: String, remindAt: String, persistent: Bool = false) async throws -> TaskReminderModel {
@@ -747,11 +630,7 @@ actor APIClient {
     }
 
     func dismissTaskReminder(id: String) async throws {
-        let _: TaskReminderModel = try await request(
-            path: "/productivity/task-reminders/\(id)/dismiss",
-            method: "POST",
-            body: Optional<String>.none
-        )
+        let _: TaskReminderModel = try await request(path: "/productivity/task-reminders/\(id)/dismiss", method: "POST")
     }
 
     func startStudySession(deckId: String, mode: String = "DUE") async throws -> String {
@@ -835,8 +714,8 @@ actor APIClient {
 
     private func request<RequestBody: Encodable, ResponseBody: Decodable>(
         path: String,
-        method: String,
-        body: RequestBody?,
+        method: String = "GET",
+        body: RequestBody? = Optional<String>.none,
         authorize: Bool = true,
         retryAfterUnauthorized: Bool = true
     ) async throws -> ResponseBody {

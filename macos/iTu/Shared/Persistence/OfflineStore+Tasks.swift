@@ -165,6 +165,7 @@ extension OfflineStore {
         guard let index = state.tasks.firstIndex(where: { $0.id == id }) else { return (nil, state) }
         let baseVersion = state.tasks[index].version
         let previousStatus = state.tasks[index].status
+        let previousCompletedAt = state.tasks[index].completedAt
         let mutationId = ULID.generate()
         state.tasks[index].status = status
         state.tasks[index].completedAt = completedAt
@@ -175,8 +176,14 @@ extension OfflineStore {
                 kind: "task.update",
                 entityId: id,
                 baseVersion: baseVersion,
-                baseValues: ["status": .string(previousStatus.rawValue)],
-                payload: ["status": .string(status.rawValue)],
+                baseValues: [
+                    "status": .string(previousStatus.rawValue),
+                    "completedAt": previousCompletedAt.map(JSONValue.string) ?? .null
+                ],
+                payload: [
+                    "status": .string(status.rawValue),
+                    "completedAt": completedAt.map(JSONValue.string) ?? .null
+                ],
                 occurredAt: ISO8601DateFormatter().string(from: Date())
             )
         )

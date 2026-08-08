@@ -86,6 +86,40 @@ struct ProductivityTask: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
+extension ProductivityTask {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        taskListId = try container.decodeIfPresent(String.self, forKey: .taskListId)
+        projectId = try container.decodeIfPresent(String.self, forKey: .projectId)
+        sectionId = try container.decodeIfPresent(String.self, forKey: .sectionId)
+        parentId = try container.decodeIfPresent(String.self, forKey: .parentId)
+        title = try container.decode(String.self, forKey: .title)
+        descriptionMarkdown = try container.decodeIfPresent(String.self, forKey: .descriptionMarkdown) ?? ""
+        let p = try container.decodeIfPresent(TaskPriority.self, forKey: .priority) ?? .none
+        priority = p
+        important = try container.decodeIfPresent(Bool.self, forKey: .important) ?? false
+        let override = try container.decodeIfPresent(Bool.self, forKey: .urgentOverride)
+        urgentOverride = override
+        urgent = try container.decodeIfPresent(Bool.self, forKey: .urgent) ?? (override ?? (p == .high))
+        urgencyReason = try container.decodeIfPresent(String.self, forKey: .urgencyReason)
+            ?? (override == true ? "Urgent (Override)" : (p == .high ? "High Priority" : "Normal Priority"))
+        scheduledStartAt = try container.decodeIfPresent(String.self, forKey: .scheduledStartAt)
+        scheduledEndAt = try container.decodeIfPresent(String.self, forKey: .scheduledEndAt)
+        dueAt = try container.decodeIfPresent(String.self, forKey: .dueAt)
+        estimatedMinutes = try container.decodeIfPresent(Int.self, forKey: .estimatedMinutes)
+        recurrenceRule = try container.decodeIfPresent(String.self, forKey: .recurrenceRule)
+        reminders = try container.decodeIfPresent([TaskReminderModel].self, forKey: .reminders)
+        status = try container.decodeIfPresent(TaskStatus.self, forKey: .status) ?? .inbox
+        sortOrder = try container.decodeIfPresent(Double.self, forKey: .sortOrder) ?? 0
+        completedAt = try container.decodeIfPresent(String.self, forKey: .completedAt)
+        deletedAt = try container.decodeIfPresent(String.self, forKey: .deletedAt)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+    }
+}
+
 struct TaskEdits: Sendable {
     let title: String
     let descriptionMarkdown: String

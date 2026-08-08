@@ -7,6 +7,8 @@ import path from 'path';
 import { CONFIG_KEYS, DEFAULT_URLS } from '@core/application/constants/app.constants';
 import { BUILTIN_FOCUS_SOUNDS } from '@core/application/constants/focus-sound.constants';
 
+import { ApiParam } from '@nestjs/swagger';
+
 const BUILTIN_FOCUS_AUDIO_FILES = new Set(BUILTIN_FOCUS_SOUNDS.map((sound) => path.basename(sound.url)));
 
 type BuiltinAudioRouteParams = {
@@ -17,6 +19,7 @@ type BuiltinAudioRouteParams = {
 export class BuiltinAudioController {
   constructor(private readonly config: ConfigService) {}
 
+  @ApiParam({ name: 'path', required: true })
   @Get('audio/focus/*')
   async getFocusAudio(@Param() params: BuiltinAudioRouteParams, @Res() res: FastifyReply) {
     const file = path.basename(params['*']);

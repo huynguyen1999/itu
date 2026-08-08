@@ -1,37 +1,45 @@
+import {
+  changePassword as changePasswordApi,
+  getAuthSession,
+  login as loginApi,
+  logout as logoutApi,
+  register as registerApi,
+  updateProfile as updateProfileApi,
+} from '../../generated/api/auth/auth';
 import { API_BASE_URL } from './httpClient';
 import type { ApiClientContext } from './apiContext';
 import type { AuthSession } from './types';
 
 export function createAuthApi(ctx: ApiClientContext) {
   return {
-    login(identifierOrEmail: string, password: string) {
-      return ctx.request<AuthSession>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ identifier: identifierOrEmail, password }),
-      });
+    async login(identifierOrEmail: string, password: string) {
+      const res = await loginApi({ identifier: identifierOrEmail, password } as any);
+      return res as unknown as AuthSession;
     },
-    logout() {
-      return ctx.request<{ ok: true }>('/auth/logout', { method: 'POST' });
+    async logout() {
+      const res = await logoutApi();
+      return res as unknown as { ok: true };
     },
-    register(
+    async register(
       data: { email?: string; username?: string; password: string; displayName?: string } | string,
       password?: string,
       displayName?: string,
     ) {
       const payload = typeof data === 'string' ? { email: data, password: password!, displayName } : data;
-      return ctx.request<AuthSession>('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      const res = await registerApi(payload as any);
+      return res as unknown as AuthSession;
     },
-    me() {
-      return ctx.request<AuthSession>('/auth/me');
+    async me() {
+      const res = await getAuthSession();
+      return res as unknown as AuthSession;
     },
-    updateProfile(data: { displayName?: string | null; username?: string | null }) {
-      return ctx.request<AuthSession>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) });
+    async updateProfile(data: { displayName?: string | null; username?: string | null }) {
+      const res = await updateProfileApi(data as any);
+      return res as unknown as AuthSession;
     },
-    changePassword(data: { currentPassword: string; newPassword: string }) {
-      return ctx.request<{ ok: true }>('/auth/password', { method: 'POST', body: JSON.stringify(data) });
+    async changePassword(data: { currentPassword: string; newPassword: string }) {
+      const res = await changePasswordApi(data as any);
+      return res as unknown as { ok: true };
     },
     exportData() {
       return ctx.request<unknown>('/auth/data-export');

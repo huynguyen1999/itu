@@ -3,6 +3,7 @@ import { Transport, type MicroserviceOptions } from '@nestjs/microservices';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import fastifyCompress from '@fastify/compress';
 import fastifyCookie from '@fastify/cookie';
+import fastifyHelmet from '@fastify/helmet';
 import fastifyMultipart from '@fastify/multipart';
 import { CONFIG_KEYS, MEDIA_CONSTANTS, QUEUE_CONSTANTS } from '@core/application/constants/app.constants';
 import { AppModule } from './app.module';
@@ -46,20 +47,19 @@ async function bootstrap() {
       allowedHeaders: ['Authorization', 'Content-Type'],
       maxAge: 86400, // Cache preflight OPTIONS requests for 1 day (in seconds)
     });
-    app
-      .getHttpAdapter()
-      .getInstance()
-      .addHook('onRequest', (_request, reply, done) => {
-        reply.header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
-        reply.header('Referrer-Policy', 'no-referrer');
-        reply.header('X-Content-Type-Options', 'nosniff');
-        reply.header('X-Frame-Options', 'DENY');
-        reply.header('Cross-Origin-Resource-Policy', 'same-site');
-        if (process.env.NODE_ENV === 'production') {
-          reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-        }
-        done();
-      });
+
+    await app.register(fastifyHelmet, {
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          baseUri: ["'none'"],
+        },
+      },
+      referrerPolicy: { policy: 'no-referrer' },
+      crossOriginResourcePolicy: { policy: 'same-site' },
+      hsts: process.env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true } : false,
+    });
 
     const rabbitMqUrl = process.env[CONFIG_KEYS.rabbitMqUrl];
     if (rabbitMqUrl) {

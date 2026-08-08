@@ -8,6 +8,8 @@ import type { AuthenticatedRequest } from '../types/authenticated-request';
 import type { FastifyReply } from 'fastify';
 import type { IProductivityRepository } from '@core/application/ports/out/repositories.port';
 
+import { ApiParam } from '@nestjs/swagger';
+
 type MediaRouteParams = {
   '*': string;
 };
@@ -28,6 +30,7 @@ export class MediaController {
    * @why Enables secure rendering of media assets attached to flashcards/notes without exposing public bucket URLs.
    * @when Called by the browser/app UI (`<img src="/media/..." />`) whenever displaying flashcard image content.
    */
+  @ApiParam({ name: 'path', required: true })
   @Get(`${MEDIA_CONSTANTS.serveRoot.slice(1)}/*`)
   async getImage(@Req() req: AuthenticatedRequest, @Param() params: MediaRouteParams, @Res() res: FastifyReply) {
     const storageKey = params['*'];

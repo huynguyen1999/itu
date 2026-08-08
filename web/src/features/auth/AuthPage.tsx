@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Chrome, Brain, LoaderCircle } from 'lucide-react';
 import { api } from '../../shared/api/client';
@@ -10,6 +11,12 @@ import { Label } from '@/shared/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog';
 import { Checkbox } from '@/shared/ui/checkbox';
 
+interface AuthFormValues {
+  identifier: string;
+  password: string;
+  displayName: string;
+}
+
 export function AuthPage() {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -17,12 +24,11 @@ export function AuthPage() {
   const oauthCode = searchParams.get('oauthCode');
   const oauthError = searchParams.get('error');
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const { register: registerField, handleSubmit, formState: { isSubmitting } } = useForm<AuthFormValues>({
+    defaultValues: { identifier: '', password: '', displayName: '' },
+  });
   const [error, setError] = useState<string | null>(null);
   const [completingOAuth, setCompletingOAuth] = useState(Boolean(oauthCode));
-  const [submitting, setSubmitting] = useState(false);
   const exchangedOAuthCodeRef = useRef<string | null>(null);
 
   const [registerToken, setRegisterToken] = useState<string | null>(null);
@@ -112,24 +118,23 @@ export function AuthPage() {
     );
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  const onSubmit = handleSubmit(async (data) => {
     setError(null);
-    setSubmitting(true);
     try {
-      if (mode === 'login') await auth.login(identifier, password);
-      else {
-        const isEmail = identifier.includes('@');
+      if (mode === 'login') {
+        await auth.login(data.identifier, data.password);
+      } else {
+        const isEmail = data.identifier.includes('@');
         await auth.register(
-          isEmail ? { email: identifier, password, displayName } : { username: identifier, password, displayName },
+          isEmail
+            ? { email: data.identifier, password: data.password, displayName: data.displayName }
+            : { username: data.identifier, password: data.password, displayName: data.displayName },
         );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
-    } finally {
-      setSubmitting(false);
     }
-  }
+  });
 
   return (
     <main className="itu-page-canvas relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-4">
@@ -150,7 +155,7 @@ export function AuthPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={submit} className="space-y-4">
+            <form onSubmit={onSubmit} className="space-y-4">
               <div className="flex bg-muted p-1 rounded-lg mb-6">
                 <button
                   type="button"
@@ -175,10 +180,8 @@ export function AuthPage() {
                   <Label htmlFor="displayName">Display name</Label>
                   <Input
                     id="displayName"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
+                    {...registerField('displayName', { required: mode === 'register' })}
                     placeholder="John Doe"
-                    required
                     autoComplete="name"
                   />
                 </div>
@@ -189,10 +192,8 @@ export function AuthPage() {
                 <Input
                   id="identifier"
                   type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
+                  {...registerField('identifier', { required: true })}
                   placeholder="username or email@example.com"
-                  required
                   autoComplete="username"
                 />
               </div>
@@ -202,10 +203,8 @@ export function AuthPage() {
                 <Input
                   id="password"
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  {...registerField('password', { required: true })}
                   placeholder="••••••••"
-                  required
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 />
               </div>
@@ -216,9 +215,9 @@ export function AuthPage() {
                 </p>
               )}
 
-              <Button type="submit" className="mt-2 w-full" disabled={submitting}>
-                {submitting && <LoaderCircle className="animate-spin" />}
-                {submitting ? 'Please wait' : mode === 'login' ? 'Sign in' : 'Create account'}
+              <Button type="submit" className="mt-2 w-full" disabled={isSubmitting}>
+                {isSubmitting && <LoaderCircle className="animate-spin" />}
+                {isSubmitting ? 'Please wait' : mode === 'login' ? 'Sign in' : 'Create account'}
               </Button>
             </form>
 

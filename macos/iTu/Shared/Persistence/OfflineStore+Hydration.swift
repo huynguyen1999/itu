@@ -18,7 +18,14 @@ extension OfflineStore {
             if let metadata = resources.metadata { try updateTaskMetadata(metadata) }
             if let habits = resources.habits {
                 let optimistic = Dictionary(uniqueKeysWithValues: state.habits.map { ($0.id, $0) })
-                let pending = Set(state.mutations.filter { $0.kind.hasPrefix("habit.") }.map(\.entityId))
+                let pending = Set(state.mutations.compactMap { mutation -> String? in
+                    if mutation.kind.hasPrefix("habit.") {
+                        return mutation.entityId
+                    } else if mutation.kind.hasPrefix("habitoccurrence.") {
+                        return state.habitOccurrences.first(where: { $0.id == mutation.entityId })?.habitId
+                    }
+                    return nil
+                })
                 let retained = state.habits.filter { existing in
                     pending.contains(existing.id) && !habits.contains(where: { $0.id == existing.id })
                 }
@@ -149,6 +156,42 @@ extension OfflineStore {
             if case let .array(tags)? = mutation.payload["tagIds"] { value.tagIds = tags.compactMap(\.stringValue) }
             if case .bool(true)? = mutation.payload["archived"] { value.archivedAt = value.archivedAt ?? ISO8601DateFormatter().string(from: Date()) }
             if let index = state.habits.firstIndex(where: { $0.id == value.id }) { state.habits[index] = value } else { state.habits.append(value) }
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let todayStr = formatter.string(from: Date())
+        
+        for mutation in state.mutations {
+            if mutation.kind == "habitoccurrence.checkin" {
+                if let occurrence = state.habitOccurrences.first(where: { $0.id == mutation.entityId }),
+                   occurrence.localDayString == todayStr,
+                   let habitIndex = state.habits.firstIndex(where: { $0.id == occurrence.habitId }) {
+                    if let optimisticHabit = optimisticByID[occurrence.habitId] {
+                        state.habits[habitIndex].isCompletedToday = optimisticHabit.isCompletedToday
+                        state.habits[habitIndex].currentStreak = optimisticHabit.currentStreak
+                        state.habits[habitIndex].bestStreak = optimisticHabit.bestStreak
+                        state.habits[habitIndex].totalCompletions = optimisticHabit.totalCompletions
+                    } else {
+                        state.habits[habitIndex].isCompletedToday = true
+                    }
+                }
+            } else if mutation.kind == "habitoccurrence.action",
+                      let action = mutation.payload["action"]?.stringValue,
+                      action == "undo" {
+                if let occurrence = state.habitOccurrences.first(where: { $0.id == mutation.entityId }),
+                   occurrence.localDayString == todayStr,
+                   let habitIndex = state.habits.firstIndex(where: { $0.id == occurrence.habitId }) {
+                    if let optimisticHabit = optimisticByID[occurrence.habitId] {
+                        state.habits[habitIndex].isCompletedToday = optimisticHabit.isCompletedToday
+                        state.habits[habitIndex].currentStreak = optimisticHabit.currentStreak
+                        state.habits[habitIndex].bestStreak = optimisticHabit.bestStreak
+                        state.habits[habitIndex].totalCompletions = optimisticHabit.totalCompletions
+                    } else {
+                        state.habits[habitIndex].isCompletedToday = false
+                    }
+                }
+            }
         }
     }
 

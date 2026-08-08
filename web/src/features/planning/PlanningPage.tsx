@@ -495,14 +495,14 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 {(['HIGH', 'MEDIUM', 'LOW', 'NONE'] as TaskPriority[]).map((priority) => (
-                  <DropdownMenuItem key={priority} onSelect={() => bulkUpdateTasks.mutate({ priority })}>
+                  <DropdownMenuItem key={priority} onSelect={() => bulkUpdateTasks.mutate({ priority } as any)}>
                     {priorityLabel(priority)}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
             <DatePickerPopover
-              onChange={(dueAt) => bulkUpdateTasks.mutate({ dueAt: dueAt ?? null })}
+              onChange={(dueAt) => bulkUpdateTasks.mutate({ dueAt: dueAt ?? null } as any)}
               trigger={
                 <Button size="sm" variant="outline" disabled={bulkUpdateTasks.isPending}>
                   <Calendar className="h-3.5 w-3.5" />

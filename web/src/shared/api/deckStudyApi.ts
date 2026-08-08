@@ -269,10 +269,7 @@ export function createDeckStudyApi(ctx: ApiClientContext) {
     sessionGrading(sessionId: string, summary: string) {
       return ctx.request<{ cardGradings: CardGrading[]; confidence?: number; gradePoint?: number }>(
         `/ai/session-feedback/${sessionId}/grading`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ summary }),
-        },
+        { method: 'POST', body: JSON.stringify({ summary }) },
       );
     },
   };

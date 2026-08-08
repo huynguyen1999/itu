@@ -5,30 +5,21 @@ import { AuthGuard } from '../guards/auth.guard';
 import { RegisterDeviceDto, UpdateDeviceDto } from '../dto/devices.dto';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
 
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+
+@ApiTags('Devices')
 @UseGuards(AuthGuard)
 @Controller(REST_ROUTES.devices)
 export class DevicesController {
   constructor(private readonly devices: DevicesService) {}
 
-  /**
-   * Register push notification token & device.
-   *
-   * @description Registers or links a device push token (APNS / WebPush) and device metadata to the active user profile.
-   * @why Enables sending push notifications and syncing across registered user devices.
-   * @when Called after the user approves push notification permissions upon logging in or installing the client.
-   */
+  @ApiOperation({ operationId: 'registerDevice' })
   @Post(REST_ROUTES.devicesRegister)
   register(@Req() req: AuthenticatedRequest, @Body() dto: RegisterDeviceDto) {
     return this.devices.register(req.user.sub, dto);
   }
 
-  /**
-   * Update device information or push token.
-   *
-   * @description Updates registered device details such as name, push token, or device settings.
-   * @why Keeps push tokens valid when refreshed by the platform OS (iOS/Android/Web).
-   * @when Called when the client SDK detects an updated push token or device setting change.
-   */
+  @ApiOperation({ operationId: 'updateDevice' })
   @Patch(REST_ROUTES.deviceById)
   update(
     @Req() req: AuthenticatedRequest,

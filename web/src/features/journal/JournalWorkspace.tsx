@@ -1,16 +1,27 @@
 import { CSSProperties, PointerEvent as ReactPointerEvent, useEffect, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { JournalSidebar } from './JournalSidebar';
 import { JournalOverviewPage } from './JournalOverviewPage';
 import { NotePage } from './components/NotePage';
 import { JournalSearchPage } from './JournalSearchPage';
-import { MoneyDashboardPage } from './money/MoneyDashboardPage';
-import { GymDashboardPage } from './gym/GymDashboardPage';
-import { ActiveWorkoutPage } from './gym/ActiveWorkoutPage';
 import { WeeklyReviewPage } from './weekly/WeeklyReviewPage';
 import { TemplateEditor } from './components/TemplateEditor';
 
+import { MoneyLayout } from './money/MoneyLayout';
+import { MoneyOverviewPage } from './money/overview/MoneyOverviewPage';
+import { TransactionsPage } from './money/transactions/TransactionsPage';
+import { BudgetPage } from './money/budgets/BudgetPage';
+import { MoneyCalendarPage } from './money/calendar/MoneyCalendarPage';
+
+import { GymLayout } from './gym/GymLayout';
+import { GymOverviewPage } from './gym/overview/GymOverviewPage';
+import { RoutinesPage } from './gym/routines/RoutinesPage';
+import { WorkoutHistoryPage } from './gym/history/WorkoutHistoryPage';
+import { ExerciseLibraryPage } from './gym/exercises/ExerciseLibraryPage';
+import { ActiveWorkoutPage } from './gym/active/ActiveWorkoutPage';
+
 export function JournalWorkspace() {
+  const navigate = useNavigate();
   const [width, setWidth] = useStoredNumber('itu.journal.sidebar-width', 240);
 
   function beginResize(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -40,13 +51,28 @@ export function JournalWorkspace() {
             <Route path="daily/:date" element={<NotePage isDaily={true} />} />
             <Route path="weekly" element={<WeeklyReviewPage />} />
             <Route path="weekly/:entryId" element={<WeeklyReviewPage />} />
-            <Route path="money" element={<MoneyDashboardPage />} />
-            <Route path="gym" element={<GymDashboardPage />} />
+
+            {/* Money Specialized Application Routes */}
+            <Route path="money" element={<MoneyLayout />}>
+              <Route index element={<MoneyOverviewPage />} />
+              <Route path="transactions" element={<TransactionsPage />} />
+              <Route path="budgets" element={<BudgetPage />} />
+              <Route path="calendar" element={<MoneyCalendarPage />} />
+            </Route>
+
+            {/* Gym Specialized Application Routes */}
+            <Route path="gym" element={<GymLayout />}>
+              <Route index element={<GymOverviewPage />} />
+              <Route path="routines" element={<RoutinesPage />} />
+              <Route path="history" element={<WorkoutHistoryPage />} />
+              <Route path="exercises" element={<ExerciseLibraryPage />} />
+            </Route>
             <Route path="gym/active/:entryId" element={<ActiveWorkoutPage />} />
+
             <Route path="notes" element={<JournalSearchPage />} />
             <Route path="notes/:entryId" element={<NotePage isDaily={false} />} />
             <Route path="entry/:id" element={<NotePage isDaily={false} />} />
-            <Route path="templates" element={<TemplateEditor isOpen={true} onClose={() => {}} />} />
+            <Route path="templates" element={<TemplateEditor isOpen={true} onClose={() => navigate('/journal')} />} />
             <Route path="*" element={<Navigate to="/journal" replace />} />
           </Routes>
         </div>

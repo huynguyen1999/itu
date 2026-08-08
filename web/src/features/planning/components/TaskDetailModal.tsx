@@ -56,7 +56,7 @@ export function TaskDetailModal({
   }, [task]);
 
   const saveTask = useMutation({
-    mutationFn: (overrides?: Partial<Parameters<typeof api.updateTask>[1]> | void) => {
+    mutationFn: (overrides?: any) => {
       if (!task) throw new Error('No task selected');
       const patch = overrides || {};
       return api.updateTask(task.id, {
@@ -163,7 +163,7 @@ export function TaskDetailModal({
     setSaveError(null);
     try {
       await growthEditorRef.current?.savePendingChanges();
-      await saveTask.mutateAsync();
+      await saveTask.mutateAsync(undefined);
       onClose();
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Failed to save task.');

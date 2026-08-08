@@ -28,14 +28,15 @@ import {
   TaskStatus,
 } from '@prisma/client';
 
+import { PartialType } from '@nestjs/swagger';
+
 export class CreateTaskListDto {
   @IsString() @MinLength(1) @MaxLength(120) title!: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
   @IsOptional() @IsString() @MaxLength(30) color?: string;
 }
 
-export class UpdateTaskListDto extends CreateTaskListDto {
-  @IsOptional() @IsString() @MinLength(1) @MaxLength(120) declare title: string;
+export class UpdateTaskListDto extends PartialType(CreateTaskListDto) {
   @IsOptional() @IsBoolean() archived?: boolean;
   @IsOptional() @IsInt() @Min(1) version?: number;
 }
@@ -75,8 +76,7 @@ export class CreateTaskDto {
   @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) tagIds?: string[];
 }
 
-export class UpdateTaskDto extends CreateTaskDto {
-  @IsOptional() @IsString() @MinLength(1) @MaxLength(240) declare title: string;
+export class UpdateTaskDto extends PartialType(CreateTaskDto) {
   @IsOptional() @IsInt() @Min(1) version?: number;
 }
 
@@ -197,12 +197,7 @@ export class CreateHabitDto {
   checklistItems?: HabitChecklistItemDto[];
 }
 
-export class UpdateHabitDto extends CreateHabitDto {
-  @IsOptional() @IsString() @MinLength(1) @MaxLength(120) declare name: string;
-  @IsOptional() @IsEnum(HabitTargetType) declare targetType: HabitTargetType;
-  @IsOptional() @IsNumber() @Min(0.0001) declare targetValue: number;
-  @IsOptional() @IsEnum(HabitScheduleType) declare scheduleType: HabitScheduleType;
-  @IsOptional() @IsDateString() declare startDate: string;
+export class UpdateHabitDto extends PartialType(CreateHabitDto) {
   @IsOptional() @IsBoolean() archived?: boolean;
   @IsOptional() @IsInt() @Min(1) version?: number;
 }

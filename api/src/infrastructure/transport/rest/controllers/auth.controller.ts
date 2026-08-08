@@ -44,6 +44,7 @@ import type { AuthenticatedRequest } from '../types/authenticated-request';
 import { fetchWithTimeout } from '@infrastructure/http/outbound-http';
 import type { GoogleProfileResponse, GoogleTokenResponse } from '../types/google-oauth.types';
 import { refreshCookiePolicy } from '../refresh-cookie-policy';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 type CookieReply = FastifyReply & {
   setCookie(name: string, value: string, options: Record<string, unknown>): FastifyReply;
@@ -52,6 +53,7 @@ type CookieReply = FastifyReply & {
 
 const REFRESH_COOKIE = 'itu_refresh';
 
+@ApiTags('Auth')
 @Controller(REST_ROUTES.auth)
 export class AuthController {
   constructor(
@@ -67,6 +69,7 @@ export class AuthController {
    * @why Enables new users to sign up and establish an account.
    * @when Called when submitting the registration form on the signup page.
    */
+  @ApiOperation({ operationId: 'register' })
   @Post(REST_ROUTES.register)
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: FastifyReply) {
     return this.withRefreshCookie(res, await this.auth.register(dto));
@@ -79,6 +82,7 @@ export class AuthController {
    * @why Grants authenticated access to user account resources.
    * @when Called when submitting the login form.
    */
+  @ApiOperation({ operationId: 'login' })
   @Post(REST_ROUTES.login)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: FastifyReply) {
     return this.withRefreshCookie(res, await this.auth.login(dto));
@@ -91,6 +95,7 @@ export class AuthController {
    * @why Maintains seamless authenticated session without forcing user to re-type password.
    * @when Automatically invoked by frontend HTTP interceptor upon receiving a 401 Unauthorized status.
    */
+  @ApiOperation({ operationId: 'refresh' })
   @Post(REST_ROUTES.refresh)
   async refresh(
     @Req() req: AuthenticatedRequest,
@@ -109,6 +114,7 @@ export class AuthController {
    * @why Securely terminates active session.
    * @when Called when user clicks "Logout" in user settings.
    */
+  @ApiOperation({ operationId: 'logout' })
   @Post(REST_ROUTES.logout)
   async logout(@Req() req: AuthenticatedRequest, @Res({ passthrough: true }) res: FastifyReply) {
     await this.auth.logout(this.refreshTokenFromRequest(req));
@@ -123,6 +129,7 @@ export class AuthController {
    * @why Verifies session validity and hydrates user state in client app.
    * @when Called during application initial boot/hydration.
    */
+  @ApiOperation({ operationId: 'getAuthSession' })
   @UseGuards(JwtAuthGuard)
   @Get(REST_ROUTES.me)
   me(@Req() req: AuthenticatedRequest) {
@@ -136,6 +143,7 @@ export class AuthController {
    * @why Allows users to update profile details.
    * @when Called when saving profile changes in account settings.
    */
+  @ApiOperation({ operationId: 'updateProfile' })
   @UseGuards(JwtAuthGuard)
   @Patch(REST_ROUTES.me)
   updateProfile(@Req() req: AuthenticatedRequest, @Body() dto: UpdateProfileDto) {
@@ -149,6 +157,7 @@ export class AuthController {
    * @why Allows updating account password securely.
    * @when Called when submitting "Change Password" form in settings.
    */
+  @ApiOperation({ operationId: 'changePassword' })
   @UseGuards(JwtAuthGuard)
   @Post(REST_ROUTES.password)
   async changePassword(@Req() req: AuthenticatedRequest, @Body() dto: ChangePasswordDto) {

@@ -6,12 +6,21 @@ import { createFocusProductivityApi, type FocusProductivityApi } from './focusPr
 import { createGrowthApi, type GrowthApi } from './growthApi';
 import { createProductivityApi, type ProductivityApi } from './productivityApi';
 import { createSyncApi, type SyncApi } from './syncApi';
+import { createPreferencesApi, type PreferencesApi } from './preferencesApi';
 import type { ApiClientContext, OfflineMutationHandler, OfflineMutationInput } from './apiContext';
 
 export type { OfflineMutationHandler, OfflineMutationInput } from './apiContext';
 export type * from './types';
+export type * from './preferencesApi';
 
-export interface ApiClient extends SyncApi, ProductivityApi, FocusProductivityApi, AuthApi, GrowthApi, DeckStudyApi {}
+export interface ApiClient
+  extends SyncApi,
+    ProductivityApi,
+    FocusProductivityApi,
+    AuthApi,
+    GrowthApi,
+    DeckStudyApi,
+    PreferencesApi {}
 
 export class ApiClient extends HttpClient {
   private offlineMutationHandler: OfflineMutationHandler | null = null;
@@ -32,6 +41,7 @@ export class ApiClient extends HttpClient {
       createAuthApi(context),
       createGrowthApi(context),
       createDeckStudyApi(context),
+      createPreferencesApi(context),
     );
   }
 

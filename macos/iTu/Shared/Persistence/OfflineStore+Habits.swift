@@ -165,31 +165,80 @@ extension OfflineStore {
     func toggleHabitCheckIn(id: String) throws -> OfflineSnapshot {
         guard let index = state.habits.firstIndex(where: { $0.id == id }) else { return state }
         let now = ISO8601DateFormatter().string(from: Date())
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let todayStr = formatter.string(from: Date())
+        
         var habit = state.habits[index]
         habit.isCompletedToday.toggle()
         if habit.isCompletedToday {
             habit.currentStreak += 1
             habit.bestStreak = max(habit.bestStreak, habit.currentStreak)
             habit.totalCompletions += 1
+            state.habits[index] = habit
+            
+            if let occurrenceIndex = state.habitOccurrences.firstIndex(where: { $0.habitId == id && $0.localDayString == todayStr }) {
+                let occurrence = state.habitOccurrences[occurrenceIndex]
+                let projectedValue = max(0, occurrence.value + 1.0)
+                state.habitOccurrences[occurrenceIndex].status = .completed
+                state.habitOccurrences[occurrenceIndex].value = projectedValue
+                appendMutation(SyncMutation(
+                    id: ULID.generate(),
+                    kind: "habitoccurrence.checkin",
+                    entityId: occurrence.id,
+                    payload: [
+                        "value": .number(1.0),
+                        "idempotencyKey": .string(ULID.generate()),
+                        "occurredAt": .string(now)
+                    ],
+                    occurredAt: now
+                ))
+            } else {
+                let occurrenceId = ULID.generate()
+                let occurrenceDateISO = "\(todayStr)T00:00:00.000Z"
+                let newOccurrence = HabitOccurrenceModel(
+                    id: occurrenceId,
+                    habitId: id,
+                    occurrenceDate: occurrenceDateISO,
+                    status: .completed,
+                    value: 1.0
+                )
+                state.habitOccurrences.append(newOccurrence)
+                appendMutation(SyncMutation(
+                    id: ULID.generate(),
+                    kind: "habitoccurrence.checkin",
+                    entityId: occurrenceId,
+                    payload: [
+                        "value": .number(1.0),
+                        "idempotencyKey": .string(ULID.generate()),
+                        "occurredAt": .string(now)
+                    ],
+                    occurredAt: now
+                ))
+            }
         } else {
             habit.currentStreak = max(0, habit.currentStreak - 1)
             habit.totalCompletions = max(0, habit.totalCompletions - 1)
+            state.habits[index] = habit
+            
+            if let occurrenceIndex = state.habitOccurrences.firstIndex(where: { $0.habitId == id && $0.localDayString == todayStr }) {
+                let occurrence = state.habitOccurrences[occurrenceIndex]
+                state.habitOccurrences[occurrenceIndex].status = .pending
+                state.habitOccurrences[occurrenceIndex].value = 0.0
+                appendMutation(SyncMutation(
+                    id: ULID.generate(),
+                    kind: "habitoccurrence.action",
+                    entityId: occurrence.id,
+                    payload: [
+                        "action": .string("undo"),
+                        "idempotencyKey": .string(ULID.generate())
+                    ],
+                    occurredAt: now
+                ))
+            }
         }
-        habit.version += 1
-        state.habits[index] = habit
-
-        let mutation = SyncMutation(
-            id: ULID.generate(),
-            kind: "habit.checkin",
-            entityId: id,
-            baseVersion: habit.version - 1,
-            payload: [
-                "isCompletedToday": .bool(habit.isCompletedToday),
-                "occurredAt": .string(now)
-            ],
-            occurredAt: now
-        )
-        appendMutation(mutation)
+        
         try persist()
         return state
     }

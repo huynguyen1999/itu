@@ -303,6 +303,16 @@ model User {
   journalTags                 JournalTag[]
   exerciseDefinitions         ExerciseDefinition[]
   journalAttachments         JournalAttachment[]
+  preferences                 UserPreferences?
+}
+
+model UserPreferences {
+  userId           String   @id
+  moneyPreferences Json     @default("{}")
+  gymPreferences   Json     @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Role {
@@ -1507,6 +1517,11 @@ enum JournalEntryKind {
   WORKOUT
 }
 
+enum TransactionType {
+  EXPENSE
+  INCOME
+}
+
 enum ExpenseCategory {
   FOOD
   TRANSPORT
@@ -1531,6 +1546,20 @@ enum PaymentMethod {
 enum WeightUnit {
   KG
   LBS
+}
+
+enum WorkoutSetType {
+  WARMUP
+  NORMAL
+  DROP
+  FAILURE
+}
+
+enum ExerciseMetricType {
+  WEIGHT_REPS
+  REPS
+  DURATION
+  DISTANCE_DURATION
 }
 
 model JournalEntry {
@@ -1570,13 +1599,57 @@ model JournalWeeklyReview {
   @@index([periodStart, periodEnd])
 }
 
+model MoneyCategory {
+  id         String          @id
+  userId     String
+  name       String
+  type       TransactionType @default(EXPENSE)
+  icon       String?
+  sortOrder  Int             @default(0)
+  archivedAt DateTime?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, archivedAt])
+}
+
+model MoneyBudgetPeriod {
+  id           String                @id
+  userId       String
+  period       String                // e.g. "2026-08"
+  currency     String                @default("VND")
+  overallLimit Decimal               @db.Decimal(18, 2)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  categoryBudgets MoneyCategoryBudget[]
+
+  @@unique([userId, period])
+  @@index([userId, period])
+}
+
+model MoneyCategoryBudget {
+  id             String            @id
+  budgetPeriodId String
+  categoryId     String
+  limit          Decimal           @db.Decimal(18, 2)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  budgetPeriod   MoneyBudgetPeriod @relation(fields: [budgetPeriodId], references: [id], onDelete: Cascade)
+
+  @@unique([budgetPeriodId, categoryId])
+}
+
 model JournalExpense {
   entryId       String          @id
+  type          TransactionType @default(EXPENSE)
   amount        Decimal         @db.Decimal(18, 2)
   currency      String          @default("VND")
   category      ExpenseCategory @default(OTHER)
+  categoryId    String?
   merchant      String?
   paymentMethod PaymentMethod   @default(CASH)
+  accountId     String?
   transactionAt DateTime        @default(now())
   entry         JournalEntry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
@@ -1585,15 +1658,20 @@ model JournalExpense {
 }
 
 model ExerciseDefinition {
-  id                String                   @id
-  userId            String
-  name              String
-  normalizedName    String
-  defaultWeightUnit WeightUnit               @default(KG)
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-  user              User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workoutExercises  JournalWorkoutExercise[]
+  id                   String                   @id
+  userId               String
+  name                 String
+  normalizedName       String
+  metricType           ExerciseMetricType       @default(WEIGHT_REPS)
+  equipment            String?
+  primaryMuscleGroup   String?
+  secondaryMuscleGroups String[]               @default([])
+  defaultWeightUnit    WeightUnit               @default(KG)
+  defaultRestSeconds   Int?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutExercises     JournalWorkoutExercise[]
 
   @@unique([userId, normalizedName])
   @@index([userId, name])
@@ -1601,7 +1679,11 @@ model ExerciseDefinition {
 
 model JournalWorkout {
   entryId         String                   @id
+  title           String?
+  source          String?
+  routineId       String?
   startedAt       DateTime?
+  endedAt         DateTime?
   durationMinutes Int?
   entry           JournalEntry             @relation(fields: [entryId], references: [id], onDelete: Cascade)
   exercises       JournalWorkoutExercise[]
@@ -1613,6 +1695,7 @@ model JournalWorkoutExercise {
   exerciseId     String
   sortOrder      Int                @default(0)
   note           String?
+  restSeconds    Int?
   workout        JournalWorkout     @relation(fields: [workoutEntryId], references: [entryId], onDelete: Cascade)
   exercise       ExerciseDefinition @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
   sets           JournalWorkoutSet[]
@@ -1625,8 +1708,13 @@ model JournalWorkoutSet {
   id                String                 @id
   workoutExerciseId String
   sortOrder         Int                    @default(0)
-  reps              Int
-  weight            Decimal                @db.Decimal(8, 2)
+  type              WorkoutSetType         @default(NORMAL)
+  reps              Int?
+  weight            Decimal?               @db.Decimal(8, 2)
+  durationSeconds   Int?
+  distanceMeters    Float?
+  rpe               Decimal?               @db.Decimal(3, 1)
+  completedAt       DateTime?
   workoutExercise   JournalWorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
 
   @@index([workoutExerciseId, sortOrder])

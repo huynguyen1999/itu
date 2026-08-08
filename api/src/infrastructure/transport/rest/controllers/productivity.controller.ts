@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiOperation } from '@nestjs/swagger';
 import { MEDIA_CONSTANTS, MEDIA_ERRORS, REST_ROUTES } from '@core/application/constants/app.constants';
 import { TaskService } from '@core/application/use-cases/task.service';
 import { TaskStatus } from '@prisma/client';
@@ -101,6 +102,7 @@ export class ProductivityController {
   }
 
   // Tasks & Reminders
+  @ApiOperation({ operationId: 'listTasks' })
   @Get(REST_ROUTES.tasks)
   tasks(@Req() req: AuthenticatedRequest, @Query() query: TaskQueryDto) {
     return this.tasksService.listTasks(req.user.sub, query);

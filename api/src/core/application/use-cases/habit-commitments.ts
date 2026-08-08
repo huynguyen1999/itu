@@ -220,10 +220,21 @@ export async function evaluateMissedCommitment(tx: Tx, userId: string, occurrenc
       reason: 'MISSED_COMMITTED_OCCURRENCE', policySnapshot: policyMetadata(occurrence), idempotencyKey: key, breachedAt: now,
     },
   });
-  await tx.growthProfile.update({
+  const updatedProfile = await tx.growthProfile.update({
     where: { userId },
     data: { outstandingPenaltyDebt: { increment: Math.abs(amount) }, protectedLevelFloor: Math.max(profile.protectedLevelFloor, cap.level) },
   });
+  if (updatedProfile && tx.syncChange?.create) {
+    await tx.syncChange.create({
+      data: {
+        userId,
+        entityType: 'growthprofile',
+        entityId: updatedProfile.id ?? profile.id,
+        operation: 'UPSERT',
+        data: updatedProfile,
+      },
+    });
+  }
   await tx.habitOccurrence.update({ where: { id: occurrence.id }, data: { commitmentState: HabitCommitmentState.BREACHED, commitmentBreachAt: now } });
   return { enabled: true, breached: true, penalty, dueAt };
 }
@@ -242,7 +253,18 @@ export async function reverseCommitmentPenalty(tx: Tx, userId: string, occurrenc
     },
   });
   const updated = await tx.growthCommitmentPenalty.update({ where: { id: penalty.id }, data: { state: CommitmentPenaltyState.REVERSED, reversedAt: now, reversalEntryId: reversal.id } });
-  await tx.growthProfile.update({ where: { userId }, data: { outstandingPenaltyDebt: { decrement: Math.abs(penalty.amount) } } });
+  const updatedProfile = await tx.growthProfile.update({ where: { userId }, data: { outstandingPenaltyDebt: { decrement: Math.abs(penalty.amount) } } });
+  if (updatedProfile && tx.syncChange?.create) {
+    await tx.syncChange.create({
+      data: {
+        userId,
+        entityType: 'growthprofile',
+        entityId: updatedProfile.id ?? profile.id,
+        operation: 'UPSERT',
+        data: updatedProfile,
+      },
+    });
+  }
   await tx.habitOccurrence.update({ where: { id: occurrenceId }, data: { commitmentState: reason === 'RECOVERY' ? HabitCommitmentState.RECOVERED : HabitCommitmentState.EXCUSED } });
   return { penalty: updated, reversal };
 }

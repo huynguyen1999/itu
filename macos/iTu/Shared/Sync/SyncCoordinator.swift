@@ -164,7 +164,8 @@ final class SyncCoordinator {
                 snapshot: snapshot,
                 outcomes: response.mutationOutcomes ?? [],
                 conflicts: response.conflicts,
-                cursor: response.cursor
+                cursor: response.cursor,
+                changes: response.changes
             )
         } catch {
             let isOffline = ConnectivityMonitor.shared.state == .offline

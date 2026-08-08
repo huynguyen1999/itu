@@ -1,0 +1,4532 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/audio/focus/{path}": {
+      "get": {
+        "operationId": "BuiltinAudioController_getFocusAudio",
+        "parameters": [
+          {
+            "name": "path",
+            "required": true,
+            "in": "path",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "BuiltinAudio"
+        ]
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "refresh",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "getAuthSession",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "patch": {
+        "operationId": "updateProfile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "delete": {
+        "operationId": "AuthController_deleteAccount",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/password": {
+      "post": {
+        "operationId": "changePassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/data-export": {
+      "get": {
+        "operationId": "AuthController_exportData",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/google": {
+      "get": {
+        "operationId": "AuthController_google",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/google/callback": {
+      "get": {
+        "operationId": "AuthController_googleCallback",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/google/register": {
+      "post": {
+        "operationId": "AuthController_googleRegister",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleRegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/oauth/exchange": {
+      "post": {
+        "operationId": "AuthController_oauthExchange",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthExchangeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/decks": {
+      "get": {
+        "operationId": "listDecks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Decks"
+        ]
+      },
+      "post": {
+        "operationId": "createDeck",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDeckDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Decks"
+        ]
+      }
+    },
+    "/decks/{deckId}": {
+      "get": {
+        "operationId": "getDeck",
+        "parameters": [
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Decks"
+        ]
+      },
+      "patch": {
+        "operationId": "updateDeck",
+        "parameters": [
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeckDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Decks"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteDeck",
+        "parameters": [
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Decks"
+        ]
+      }
+    },
+    "/decks/import": {
+      "post": {
+        "operationId": "importCards",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportCardsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Cards"
+        ]
+      }
+    },
+    "/cards/move": {
+      "post": {
+        "operationId": "moveCards",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveCardsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Cards"
+        ]
+      }
+    },
+    "/decks/{deckId}/cards": {
+      "get": {
+        "operationId": "listCardsByDeck",
+        "parameters": [
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Cards"
+        ]
+      },
+      "post": {
+        "operationId": "createCard",
+        "parameters": [
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Cards"
+        ]
+      }
+    },
+    "/decks/{deckId}/cards/{cardId}": {
+      "patch": {
+        "operationId": "updateCard",
+        "parameters": [
+          {
+            "name": "cardId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Cards"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteCard",
+        "parameters": [
+          {
+            "name": "cardId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Cards"
+        ]
+      }
+    },
+    "/cards/{cardId}/images": {
+      "post": {
+        "operationId": "attachCardImage",
+        "parameters": [
+          {
+            "name": "cardId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Cards"
+        ]
+      }
+    },
+    "/cards/{cardId}/images/{imageId}": {
+      "delete": {
+        "operationId": "removeCardImage",
+        "parameters": [
+          {
+            "name": "cardId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "imageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Cards"
+        ]
+      }
+    },
+    "/media/{path}": {
+      "get": {
+        "operationId": "MediaController_getImage",
+        "parameters": [
+          {
+            "name": "path",
+            "required": true,
+            "in": "path",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Media"
+        ]
+      }
+    },
+    "/study/due": {
+      "get": {
+        "operationId": "getDueCards",
+        "parameters": [
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Study"
+        ]
+      }
+    },
+    "/study/sessions": {
+      "get": {
+        "operationId": "getStudyHistory",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Study"
+        ]
+      },
+      "post": {
+        "operationId": "startStudySession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Study"
+        ]
+      }
+    },
+    "/study/sessions/{sessionId}/reviews": {
+      "post": {
+        "operationId": "submitStudyReview",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Study"
+        ]
+      }
+    },
+    "/study/sessions/{sessionId}/complete": {
+      "post": {
+        "operationId": "completeStudySession",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Study"
+        ]
+      }
+    },
+    "/study/sessions/{sessionId}": {
+      "get": {
+        "operationId": "getStudySessionDetails",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Study"
+        ]
+      }
+    },
+    "/ai/card-suggestions": {
+      "post": {
+        "operationId": "AiController_suggestCards",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiCardSuggestionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/ai/card-suggestions/stream": {
+      "post": {
+        "operationId": "AiController_streamCards",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiCardSuggestionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/ai/session-feedback/{sessionId}": {
+      "post": {
+        "operationId": "AiController_requestSessionFeedback",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      },
+      "get": {
+        "operationId": "AiController_getSessionFeedback",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/ai/session-feedback/{sessionId}/summary-stream": {
+      "post": {
+        "operationId": "AiController_streamSessionSummary",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/ai/session-feedback/{sessionId}/grading": {
+      "post": {
+        "operationId": "AiController_generateSessionGrading",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiSessionGradingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/ai/jobs/{jobId}": {
+      "get": {
+        "operationId": "AiController_getJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/dashboard/summary": {
+      "get": {
+        "operationId": "getDashboardSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
+    "/dashboard/study-calendar": {
+      "get": {
+        "operationId": "getStudyCalendar",
+        "parameters": [
+          {
+            "name": "days",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
+    "/dashboard/decks/{deckId}/stats": {
+      "get": {
+        "operationId": "getDeckStats",
+        "parameters": [
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
+    "/sync": {
+      "post": {
+        "operationId": "synchronize",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Sync"
+        ]
+      }
+    },
+    "/devices/register": {
+      "post": {
+        "operationId": "registerDevice",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Devices"
+        ]
+      }
+    },
+    "/devices/{deviceId}": {
+      "patch": {
+        "operationId": "updateDevice",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Devices"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteDevice",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Devices"
+        ]
+      }
+    },
+    "/trash": {
+      "get": {
+        "operationId": "listTrash",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/decks/{deckId}/restore": {
+      "post": {
+        "operationId": "restoreTrashDeck",
+        "parameters": [
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/cards/{cardId}/restore": {
+      "post": {
+        "operationId": "restoreTrashCard",
+        "parameters": [
+          {
+            "name": "cardId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/card-images/{imageId}/restore": {
+      "post": {
+        "operationId": "restoreTrashCardImage",
+        "parameters": [
+          {
+            "name": "imageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/tasks/{taskId}/restore": {
+      "post": {
+        "operationId": "restoreTrashTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/decks/{deckId}": {
+      "delete": {
+        "operationId": "deleteTrashDeck",
+        "parameters": [
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/cards/{cardId}": {
+      "delete": {
+        "operationId": "deleteTrashCard",
+        "parameters": [
+          {
+            "name": "cardId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/card-images/{imageId}": {
+      "delete": {
+        "operationId": "deleteTrashCardImage",
+        "parameters": [
+          {
+            "name": "imageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/tasks/{taskId}": {
+      "delete": {
+        "operationId": "deleteTrashTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/productivity/task-lists": {
+      "get": {
+        "operationId": "listTaskLists",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "post": {
+        "operationId": "createTaskList",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskListDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/task-lists/{id}": {
+      "patch": {
+        "operationId": "updateTaskList",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskListDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteTaskList",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/task-tags": {
+      "get": {
+        "operationId": "listTaskTags",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "post": {
+        "operationId": "createTaskTag",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTagDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/task-sections": {
+      "get": {
+        "operationId": "listTaskSections",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "post": {
+        "operationId": "createTaskSection",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskSectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/task-sections/{id}": {
+      "patch": {
+        "operationId": "updateTaskSection",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskSectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteTaskSection",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/tasks": {
+      "get": {
+        "operationId": "listTasks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "post": {
+        "operationId": "createTask",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/tasks/matrix": {
+      "get": {
+        "operationId": "getTaskMatrix",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/tasks/reorder": {
+      "post": {
+        "operationId": "reorderTasks",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderTasksDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/tasks/{id}": {
+      "patch": {
+        "operationId": "updateTask",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteTask",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/tasks/{id}/complete": {
+      "post": {
+        "operationId": "completeTask",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/tasks/{id}/reopen": {
+      "post": {
+        "operationId": "reopenTask",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/tasks/{id}/cancel": {
+      "post": {
+        "operationId": "cancelTask",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/tasks/{id}/archive": {
+      "post": {
+        "operationId": "archiveTask",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/tasks/{id}/reminders": {
+      "post": {
+        "operationId": "createTaskReminder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReminderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/task-reminders/{id}/snooze": {
+      "post": {
+        "operationId": "snoozeTaskReminder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnoozeReminderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/task-reminders/{id}/dismiss": {
+      "post": {
+        "operationId": "dismissTaskReminder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/notifications": {
+      "get": {
+        "operationId": "listNotifications",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/notifications/read-all": {
+      "post": {
+        "operationId": "markAllNotificationsRead",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/notifications/{id}/read": {
+      "patch": {
+        "operationId": "markNotificationRead",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/focus-presets": {
+      "get": {
+        "operationId": "listFocusPresets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "post": {
+        "operationId": "createFocusPreset",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFocusPresetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/focus-sessions/active": {
+      "get": {
+        "operationId": "getActiveFocusSession",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/focus-sessions/history": {
+      "get": {
+        "operationId": "listFocusHistory",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/focus-sessions/summary": {
+      "get": {
+        "operationId": "getFocusSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/focus-sounds": {
+      "get": {
+        "operationId": "listFocusSounds",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "post": {
+        "operationId": "uploadFocusSound",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/focus-sounds/{id}": {
+      "delete": {
+        "operationId": "deleteFocusSound",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "patch": {
+        "operationId": "updateFocusSound",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/focus-sounds/{soundKey}/preferences": {
+      "patch": {
+        "operationId": "updateFocusSoundPreference",
+        "parameters": [
+          {
+            "name": "soundKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/focus-sessions": {
+      "post": {
+        "operationId": "startFocusSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartFocusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/focus-sessions/{id}/{action}": {
+      "post": {
+        "operationId": "focusAction",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FocusActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/focus-sessions/{id}/adjust": {
+      "patch": {
+        "operationId": "adjustFocusSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustFocusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habits": {
+      "get": {
+        "operationId": "listHabits",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "post": {
+        "operationId": "createHabit",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHabitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habits/{id}": {
+      "patch": {
+        "operationId": "updateHabit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHabitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habit-occurrences": {
+      "get": {
+        "operationId": "listHabitOccurrences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habit-occurrences/{id}/check-in": {
+      "post": {
+        "operationId": "checkInHabitOccurrence",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitCheckInDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habit-occurrences/{id}/skip": {
+      "post": {
+        "operationId": "skipHabitOccurrence",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitOccurrenceActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habit-occurrences/{id}/fail": {
+      "post": {
+        "operationId": "failHabitOccurrence",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitOccurrenceActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habit-occurrences/{id}/undo": {
+      "post": {
+        "operationId": "undoHabitOccurrence",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitOccurrenceActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habit-occurrences/{occurrenceId}/checklist/{itemId}": {
+      "patch": {
+        "operationId": "setHabitChecklistItem",
+        "parameters": [
+          {
+            "name": "occurrenceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitChecklistActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habit-time-blocks": {
+      "get": {
+        "operationId": "listHabitTimeBlocks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "post": {
+        "operationId": "createHabitTimeBlock",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHabitTimeBlockDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habits/{id}/stats": {
+      "get": {
+        "operationId": "getHabitStats",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habits/{id}/commitment-policy": {
+      "get": {
+        "operationId": "getHabitCommitmentPolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      },
+      "patch": {
+        "operationId": "updateHabitCommitmentPolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertHabitCommitmentPolicyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habit-occurrences/{id}/commitment/evaluate": {
+      "post": {
+        "operationId": "evaluateHabitCommitment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitOccurrenceActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/habit-occurrences/{id}/commitment/excuse": {
+      "post": {
+        "operationId": "excuseHabitCommitment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitOccurrenceActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/growth/overview": {
+      "get": {
+        "operationId": "getGrowthOverview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/profile": {
+      "get": {
+        "operationId": "getGrowthProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      },
+      "patch": {
+        "operationId": "updateGrowthProfile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGrowthProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/curve-preview": {
+      "get": {
+        "operationId": "getGrowthCurvePreview",
+        "parameters": [
+          {
+            "name": "baseXp",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromLevel",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/onboarding": {
+      "get": {
+        "operationId": "getGrowthOnboarding",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      },
+      "post": {
+        "operationId": "completeGrowthOnboarding",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteOnboardingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/reward-presets": {
+      "get": {
+        "operationId": "getGrowthRewardPresets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/reward-presets/settings": {
+      "get": {
+        "operationId": "getGrowthRewardPresetSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/reward-presets/{preset}": {
+      "patch": {
+        "operationId": "updateGrowthRewardPreset",
+        "parameters": [
+          {
+            "name": "preset",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGrowthRewardPresetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/apply-preset": {
+      "post": {
+        "operationId": "applyGrowthPreset",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyPresetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/task-reward-defaults": {
+      "get": {
+        "operationId": "listGrowthTaskRewardDefaults",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      },
+      "post": {
+        "operationId": "upsertGrowthTaskRewardDefault",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertGrowthTaskRewardDefaultDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/reset/preview": {
+      "post": {
+        "operationId": "previewGrowthReset",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPreviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/reset": {
+      "post": {
+        "operationId": "executeGrowthReset",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteResetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/attributes": {
+      "get": {
+        "operationId": "listGrowthAttributes",
+        "parameters": [
+          {
+            "name": "includeArchived",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/skills": {
+      "get": {
+        "operationId": "listGrowthSkills",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ATTRIBUTE",
+                "SKILL"
+              ]
+            }
+          },
+          {
+            "name": "includeArchived",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      },
+      "post": {
+        "operationId": "createGrowthSkill",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGrowthSkillDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/skills/icon": {
+      "post": {
+        "operationId": "uploadGrowthSkillIcon",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/skills/{id}": {
+      "patch": {
+        "operationId": "updateGrowthSkill",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGrowthSkillDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/skills/reorder": {
+      "post": {
+        "operationId": "reorderGrowthSkills",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderGrowthSkillsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/attribute-mappings": {
+      "get": {
+        "operationId": "listGrowthAttributeMappings",
+        "parameters": [
+          {
+            "name": "skillId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      },
+      "post": {
+        "operationId": "upsertGrowthAttributeMappings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertGrowthAttributeMappingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/earning-rules": {
+      "get": {
+        "operationId": "listGrowthEarningRules",
+        "parameters": [
+          {
+            "name": "sourceType",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TASK",
+                "HABIT",
+                "FOCUS_PRESET",
+                "REVIEW_DECK"
+              ]
+            }
+          },
+          {
+            "name": "sourceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      },
+      "post": {
+        "operationId": "upsertGrowthEarningRule",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertGrowthEarningRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/rewards": {
+      "get": {
+        "operationId": "listGrowthRewards",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      },
+      "post": {
+        "operationId": "createGrowthReward",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGrowthRewardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/items": {
+      "get": {
+        "operationId": "listGrowthItems",
+        "parameters": [
+          {
+            "name": "includeArchived",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      },
+      "post": {
+        "operationId": "createGrowthItem",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGrowthRewardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/rewards/{id}": {
+      "patch": {
+        "operationId": "updateGrowthReward",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGrowthRewardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/items/{id}": {
+      "patch": {
+        "operationId": "updateGrowthItem",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGrowthRewardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/items/reorder": {
+      "post": {
+        "operationId": "reorderGrowthItems",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderGrowthItemsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/rewards/{id}/redeem": {
+      "post": {
+        "operationId": "redeemGrowthReward",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/items/{id}/purchase": {
+      "post": {
+        "operationId": "purchaseGrowthItem",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/item-categories": {
+      "get": {
+        "operationId": "listGrowthItemCategories",
+        "parameters": [
+          {
+            "name": "includeArchived",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      },
+      "post": {
+        "operationId": "createGrowthItemCategory",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGrowthItemCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/item-categories/{id}": {
+      "patch": {
+        "operationId": "updateGrowthItemCategory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGrowthItemCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/item-categories/reorder": {
+      "post": {
+        "operationId": "reorderGrowthItemCategories",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderGrowthItemCategoriesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/inventory": {
+      "get": {
+        "operationId": "listGrowthInventory",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/inventory/history": {
+      "get": {
+        "operationId": "listGrowthInventoryHistory",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/inventory/{id}/consume": {
+      "post": {
+        "operationId": "consumeGrowthInventoryItem",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsumeGrowthInventoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/ledger": {
+      "get": {
+        "operationId": "listGrowthLedger",
+        "parameters": [
+          {
+            "name": "cycleId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sourceType",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "skillId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromDate",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "toDate",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/statistics": {
+      "get": {
+        "operationId": "getGrowthStatistics",
+        "parameters": [
+          {
+            "name": "fromDate",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "toDate",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/growth/redemptions": {
+      "get": {
+        "operationId": "listGrowthRedemptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Growth"
+        ]
+      }
+    },
+    "/journal/entries": {
+      "get": {
+        "operationId": "listJournalEntries",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      },
+      "post": {
+        "operationId": "createJournalEntry",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJournalEntryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/entries/{id}": {
+      "get": {
+        "operationId": "getJournalEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      },
+      "patch": {
+        "operationId": "updateJournalEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateJournalEntryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteJournalEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/entries/{id}/restore": {
+      "post": {
+        "operationId": "restoreJournalEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/entries/{id}/revisions": {
+      "get": {
+        "operationId": "listJournalRevisions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/entries/{id}/revisions/{revisionId}/restore": {
+      "post": {
+        "operationId": "restoreJournalRevision",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revisionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/templates": {
+      "get": {
+        "operationId": "listJournalTemplates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      },
+      "post": {
+        "operationId": "createJournalTemplate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJournalTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/templates/{id}": {
+      "patch": {
+        "operationId": "updateJournalTemplate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateJournalTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteJournalTemplate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/tags": {
+      "get": {
+        "operationId": "listJournalTags",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      },
+      "post": {
+        "operationId": "createJournalTag",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJournalTagDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/exercises": {
+      "get": {
+        "operationId": "listJournalExercises",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      },
+      "post": {
+        "operationId": "createJournalExercise",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExerciseDefinitionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/weekly-summary": {
+      "get": {
+        "operationId": "getWeeklySummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/attachments/upload": {
+      "post": {
+        "operationId": "uploadJournalAttachment",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/attachments/{id}/file": {
+      "get": {
+        "operationId": "getJournalAttachmentFile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/journal/attachments/{id}": {
+      "delete": {
+        "operationId": "deleteJournalAttachment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Journal"
+        ]
+      }
+    },
+    "/preferences": {
+      "get": {
+        "operationId": "getPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
+    "/preferences/money": {
+      "patch": {
+        "operationId": "updateMoneyPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
+    "/preferences/gym": {
+      "patch": {
+        "operationId": "updateGymPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "iTu API",
+    "description": "Authoritative REST contract for iTu productivity & learning system",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "RegisterDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ChangePasswordDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DeleteAccountDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "GoogleRegisterDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "OAuthExchangeDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateDeckDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateDeckDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ImportCardsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "MoveCardsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateCardDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateCardDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "StartSessionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SubmitReviewDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CompleteSessionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AiCardSuggestionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AiSessionGradingDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SyncRequestDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RegisterDeviceDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateDeviceDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateTaskListDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateTaskListDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateTagDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateTaskSectionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateTaskSectionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateTaskDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReorderTasksDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateTaskDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateReminderDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SnoozeReminderDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateFocusPresetDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "StartFocusDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "FocusActionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdjustFocusDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateHabitDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateHabitDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "HabitCheckInDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "HabitOccurrenceActionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "HabitChecklistActionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateHabitTimeBlockDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpsertHabitCommitmentPolicyDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateGrowthProfileDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CompleteOnboardingDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateGrowthRewardPresetDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ApplyPresetDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpsertGrowthTaskRewardDefaultDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ResetPreviewDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ExecuteResetDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateGrowthSkillDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateGrowthSkillDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReorderGrowthSkillsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpsertGrowthAttributeMappingsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpsertGrowthEarningRuleDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateGrowthRewardDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateGrowthRewardDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReorderGrowthItemsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateGrowthItemCategoryDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateGrowthItemCategoryDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReorderGrowthItemCategoriesDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ConsumeGrowthInventoryDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateJournalEntryDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateJournalEntryDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateJournalTemplateDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateJournalTemplateDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateJournalTagDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateExerciseDefinitionDto": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+}

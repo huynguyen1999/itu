@@ -612,7 +612,8 @@ export class PrismaSyncGrowthMutations {
   private async applyGrowthPreset(tx: Tx, userId: string, mutation: SyncMutation): Promise<void> {
     const preset = enumValue(GrowthRewardPreset, mutation.payload.preset, 'preset');
     const profile = await this.getOrCreateGrowthProfileInTx(tx, userId);
-    await tx.growthProfile.update({ where: { id: profile.id }, data: { rewardPreset: preset } });
+    const updatedProfile = await tx.growthProfile.update({ where: { id: profile.id }, data: { rewardPreset: preset } });
+    await recordSyncChange(tx, userId, 'growthprofile', updatedProfile.id, 'UPSERT', updatedProfile);
 
     const settings = await tx.growthRewardPresetSetting.findMany({ where: { userId, preset } });
     const presetDefinitions = { ...REWARD_PRESETS[preset] };

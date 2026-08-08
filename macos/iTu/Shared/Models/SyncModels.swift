@@ -244,6 +244,21 @@ struct SyncResult: Sendable {
     let outcomes: [SyncMutationOutcome]
     let conflicts: [SyncConflict]
     let cursor: String
+    let changes: [SyncChange]
+
+    init(
+        snapshot: OfflineSnapshot,
+        outcomes: [SyncMutationOutcome],
+        conflicts: [SyncConflict],
+        cursor: String,
+        changes: [SyncChange] = []
+    ) {
+        self.snapshot = snapshot
+        self.outcomes = outcomes
+        self.conflicts = conflicts
+        self.cursor = cursor
+        self.changes = changes
+    }
 }
 
 struct SyncRequest: Codable, Sendable {

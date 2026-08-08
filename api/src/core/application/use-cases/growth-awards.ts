@@ -405,7 +405,7 @@ async function awardGrowthActivityInternal(
     if (accountCreated && profile && tx.growthProfile?.update) {
       const lifetimeAfter = (profile.lifetimeEarnedXp ?? 0) + accountBudget;
       const reached = growthLevelProgress(lifetimeAfter, profile.accountBaseXp).level;
-      await tx.growthProfile.update({
+      const updatedProfile = await tx.growthProfile.update({
         where: { userId },
         data: {
           lifetimeEarnedXp: { increment: accountBudget },
@@ -413,6 +413,17 @@ async function awardGrowthActivityInternal(
           protectedLevelFloor: Math.max(profile.protectedLevelFloor ?? 1, reached),
         },
       });
+      if (updatedProfile && tx.syncChange?.create) {
+        await tx.syncChange.create({
+          data: {
+            userId,
+            entityType: 'growthprofile',
+            entityId: updatedProfile.id ?? profile.id,
+            operation: 'UPSERT',
+            data: updatedProfile,
+          },
+        });
+      }
     }
     if (includeReceipt && accountCreated) {
       const beforeXp = Math.max(0, beforeAggregate?._sum.amount ?? 0);

@@ -22,6 +22,8 @@ import { PermissionsGuard } from '../guards/permissions.guard';
 import { RequirePermissions } from '../decorators/require-permissions.decorator';
 import { PERMISSIONS } from '@core/application/constants/permissions';
 
+import { ApiParam } from '@nestjs/swagger';
+
 @UseGuards(AuthGuard)
 @Controller()
 export class CardsController {
@@ -88,6 +90,7 @@ export class CardsController {
    * @why Allows editing mistakes or updating study content on existing flashcards.
    * @when Called when saving changes in the card editor modal.
    */
+  @ApiParam({ name: 'deckId', required: true })
   @Patch(REST_ROUTES.cardByDeck)
   update(@Req() req: AuthenticatedRequest, @Param(ROUTE_PARAMS.cardId) cardId: string, @Body() dto: UpdateCardDto) {
     return this.cards.update(req.user.sub, cardId, dto);
@@ -100,6 +103,7 @@ export class CardsController {
    * @why Allows removing obsolete or duplicate study flashcards.
    * @when Called when clicking the trash icon on a card row.
    */
+  @ApiParam({ name: 'deckId', required: true })
   @Delete(REST_ROUTES.cardByDeck)
   remove(@Req() req: AuthenticatedRequest, @Param(ROUTE_PARAMS.cardId) cardId: string) {
     return this.cards.remove(req.user.sub, cardId);

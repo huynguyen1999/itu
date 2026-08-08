@@ -60,16 +60,15 @@ final class AppleScriptBrowserAutomationClient: BrowserAutomationClient {
 
         return """
         tell application "\(escapedApplication)"
-            repeat with focusWindow in windows
-                repeat with focusTab in tabs of focusWindow
-                    try
-                        set focusURL to URL of focusTab as text
-                        if my iTuMatches(focusURL, {\(serializedPatterns)}) then
-                            set URL of focusTab to "\(escapedBlockedURL)"
-                        end if
-                    end try
-                end repeat
-            end repeat
+            try
+                if (count of windows) > 0 then
+                    set focusTab to active tab of front window
+                    set focusURL to URL of focusTab as text
+                    if my iTuMatches(focusURL, {\(serializedPatterns)}) then
+                        set URL of focusTab to "\(escapedBlockedURL)"
+                    end if
+                end if
+            end try
         end tell
 
         on iTuMatches(value, patterns)

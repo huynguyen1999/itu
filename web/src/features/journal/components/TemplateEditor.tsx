@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LayoutTemplate, Plus, Trash2, X } from 'lucide-react';
 import { useJournalTemplates } from '../journalQueries';
 import { useCreateJournalTemplateMutation, useDeleteJournalTemplateMutation } from '../journalMutations';
@@ -20,6 +20,16 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
   const [titleTemplate, setTitleTemplate] = useState('{{date}}');
   const [bodyMarkdown, setBodyMarkdown] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -49,8 +59,14 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-      <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
+      >
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2 font-semibold text-slate-200 text-sm">
             <LayoutTemplate className="w-4 h-4 text-emerald-400" />

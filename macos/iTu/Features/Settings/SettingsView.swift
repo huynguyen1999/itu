@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import KeyboardShortcuts
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case appearance
@@ -8,6 +9,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case matrix
     case growth
     case desktop
+    case companion
 
     var id: String { rawValue }
 
@@ -19,6 +21,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .matrix: "Matrix"
         case .growth: "Growth"
         case .desktop: "Desktop & Sync"
+        case .companion: "Companion"
         }
     }
 
@@ -30,6 +33,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .matrix: "square.grid.2x2"
         case .growth: "chart.line.uptrend.xyaxis"
         case .desktop: "laptopcomputer.and.iphone"
+        case .companion: "sidebar.squares.trailing"
         }
     }
 }
@@ -121,6 +125,8 @@ struct SettingsView: View {
                         GrowthSettingsPanel()
                     case .desktop:
                         DesktopSettingsPanel()
+                    case .companion:
+                        CompanionSettingsPanel()
                     }
                 }
                 .padding(28)
@@ -1323,3 +1329,69 @@ private struct StatBox: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
+
+private struct CompanionSettingsPanel: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var settingsStore = model.settingsStore
+
+        VStack(spacing: 16) {
+            SettingsCardView(
+                iconName: "sidebar.squares.trailing",
+                title: "Companion Window",
+                description: "Set up customizable global shortcut triggers and floating behaviors."
+            ) {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 20) {
+                        Text("Keyboard shortcut")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(iTuTheme.ink)
+                            .frame(width: 150, alignment: .leading)
+
+                        KeyboardShortcuts.Recorder(for: .companionWindow)
+                    }
+
+                    Divider()
+
+                    Toggle("Show companion shortcut", isOn: $settingsStore.showCompanionShortcut)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(iTuTheme.ink)
+
+                    Toggle("Keep companion above other windows", isOn: $settingsStore.companionKeepAbove)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(iTuTheme.ink)
+
+                    Toggle("Remember companion position", isOn: $settingsStore.companionRememberPosition)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(iTuTheme.ink)
+                }
+            }
+
+            SettingsCardView(
+                iconName: "hand.point.up.left",
+                title: "Actions",
+                description: "Manually summon the companion window or reset its coordinates."
+            ) {
+                HStack(spacing: 12) {
+                    Button("Open companion") {
+                        if let appDelegate = NSApp.delegate as? AppDelegate {
+                            appDelegate.companionWindowController?.showOrFocus()
+                        }
+                    }
+                    .buttonStyle(iTuSecondaryButtonStyle(height: 30))
+                    .pointingHandCursor()
+
+                    Button("Reset position") {
+                        if let appDelegate = NSApp.delegate as? AppDelegate {
+                            appDelegate.companionWindowController?.resetPosition()
+                        }
+                    }
+                    .buttonStyle(iTuGhostButtonStyle(height: 30))
+                    .pointingHandCursor()
+                }
+            }
+        }
+    }
+}
+

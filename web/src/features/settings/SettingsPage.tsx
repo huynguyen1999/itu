@@ -4,6 +4,7 @@ import {
   Bell,
   CalendarClock,
   Cloud,
+  Dumbbell,
   Flag,
   Grid2X2,
   ListTodo,
@@ -13,13 +14,17 @@ import {
   Settings,
   Timer,
   TrendingUp,
+  Wallet,
 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/shared/api/client';
+import { api, type GymPreferences, type MoneyPreferences } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { GrowthRewardEditor } from '@/shared/ui/GrowthRewardEditor';
 import { GrowthResetDialog, SettingsView } from '@/features/growth';
+import { MoneySettingsPanel } from './money/MoneySettingsPanel';
+import { GymSettingsPanel } from './gym/GymSettingsPanel';
+import { SettingsCard } from './components/SettingsCard';
 import { useTheme } from '@/shared/ui/ThemeProvider';
 import { readMatrixSettings, saveMatrixSettings, type MatrixSettings } from '@/shared/utils/matrixSettings';
 import {
@@ -35,12 +40,14 @@ import {
   type TaskDefaults,
 } from '@/shared/taskDefaults';
 
-type SettingsSection = 'appearance' | 'tasks' | 'focus' | 'matrix' | 'growth';
+type SettingsSection = 'appearance' | 'tasks' | 'focus' | 'money' | 'gym' | 'matrix' | 'growth';
 
 const sections: Array<{ id: SettingsSection; label: string; icon: typeof Settings }> = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'tasks', label: 'Tasks', icon: ListTodo },
   { id: 'focus', label: 'Focus', icon: Timer },
+  { id: 'money', label: 'Money', icon: Wallet },
+  { id: 'gym', label: 'Gym', icon: Dumbbell },
   { id: 'matrix', label: 'Matrix', icon: Grid2X2 },
   { id: 'growth', label: 'Growth', icon: TrendingUp },
 ];
@@ -69,6 +76,22 @@ export function SettingsPage() {
     queryFn: () => api.taskLists(),
     enabled: section === 'tasks' || section === 'growth',
   });
+  const userPreferences = useQuery({
+    queryKey: ['user-preferences'],
+    queryFn: () => api.getPreferences(),
+    enabled: section === 'money' || section === 'gym',
+  });
+
+  const updateMoneyPref = useMutation({
+    mutationFn: (patch: Partial<MoneyPreferences>) => api.updateMoneyPreferences(patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-preferences'] }),
+  });
+
+  const updateGymPref = useMutation({
+    mutationFn: (patch: Partial<GymPreferences>) => api.updateGymPreferences(patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-preferences'] }),
+  });
+
   const data = overview.data;
 
   const updateAccountBaseXp = useMutation({
@@ -84,7 +107,7 @@ export function SettingsPage() {
       <PageHeader
         kicker="Preferences & System"
         title="Settings"
-        description="Configure appearance, tasks, focus timers, matrix rules, and growth progression."
+        description="Configure appearance, tasks, focus timers, money, gym, matrix rules, and growth progression."
       />
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="rounded-2xl border bg-card p-2 lg:sticky lg:top-8 lg:self-start">
@@ -128,6 +151,20 @@ export function SettingsPage() {
               defaultFocusPresetId={focusPresets.data?.[0]?.id}
               defaultFocusPresetName={focusPresets.data?.[0]?.name}
               onChange={(patch) => setFocusSettings((current) => ({ ...current, ...patch }))}
+            />
+          )}
+          {section === 'money' && (
+            <MoneySettingsPanel
+              preferences={userPreferences.data?.money}
+              isLoading={userPreferences.isLoading}
+              onChange={(patch) => updateMoneyPref.mutate(patch)}
+            />
+          )}
+          {section === 'gym' && (
+            <GymSettingsPanel
+              preferences={userPreferences.data?.gym}
+              isLoading={userPreferences.isLoading}
+              onChange={(patch) => updateGymPref.mutate(patch)}
             />
           )}
           {section === 'matrix' && (
@@ -403,32 +440,5 @@ function MatrixSettingsPanel({
         </Button>
       </SettingsCard>
     </div>
-  );
-}
-
-function SettingsCard({
-  icon: Icon,
-  title,
-  description,
-  children,
-}: {
-  icon: typeof Settings;
-  title: string;
-  description: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border bg-card p-5 shadow-sm">
-      <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Icon className="h-5 w-5" />
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-base font-black">{title}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        </div>
-      </div>
-      {children && <div className="mt-4 grid gap-3">{children}</div>}
-    </section>
   );
 }

@@ -1,5 +1,7 @@
 export type JournalEntryKind = 'NOTE' | 'WEEKLY_REVIEW' | 'EXPENSE' | 'WORKOUT';
 
+export type TransactionType = 'EXPENSE' | 'INCOME';
+
 export type ExpenseCategory =
   | 'FOOD'
   | 'TRANSPORT'
@@ -15,6 +17,42 @@ export type ExpenseCategory =
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'E_WALLET' | 'OTHER';
 
 export type WeightUnit = 'KG' | 'LBS';
+
+export type WorkoutSetType = 'WARMUP' | 'NORMAL' | 'DROP' | 'FAILURE';
+
+export type ExerciseMetricType = 'WEIGHT_REPS' | 'REPS' | 'DURATION' | 'DISTANCE_DURATION';
+
+export interface MoneyCategory {
+  id: string;
+  userId: string;
+  name: string;
+  type: TransactionType;
+  icon?: string | null;
+  sortOrder: number;
+  archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MoneyCategoryBudget {
+  id: string;
+  budgetPeriodId: string;
+  categoryId: string;
+  limit: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MoneyBudgetPeriod {
+  id: string;
+  userId: string;
+  period: string; // "2026-08"
+  currency: string;
+  overallLimit: number;
+  createdAt: string;
+  updatedAt: string;
+  categoryBudgets?: MoneyCategoryBudget[];
+}
 
 export interface JournalTag {
   id: string;
@@ -60,11 +98,14 @@ export interface JournalWeeklyReview {
 
 export interface JournalExpense {
   entryId: string;
+  type?: TransactionType;
   amount: number;
   currency: string;
   category: ExpenseCategory;
+  categoryId?: string | null;
   merchant?: string | null;
   paymentMethod: PaymentMethod;
+  accountId?: string | null;
   transactionAt: string;
 }
 
@@ -73,7 +114,12 @@ export interface ExerciseDefinition {
   userId: string;
   name: string;
   normalizedName: string;
+  metricType?: ExerciseMetricType;
+  equipment?: string | null;
+  primaryMuscleGroup?: string | null;
+  secondaryMuscleGroups?: string[];
   defaultWeightUnit: WeightUnit;
+  defaultRestSeconds?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -82,8 +128,13 @@ export interface JournalWorkoutSet {
   id: string;
   workoutExerciseId: string;
   sortOrder: number;
-  reps: number;
-  weight: number;
+  type?: WorkoutSetType;
+  reps?: number | null;
+  weight?: number | null;
+  durationSeconds?: number | null;
+  distanceMeters?: number | null;
+  rpe?: number | null;
+  completedAt?: string | null;
 }
 
 export interface JournalWorkoutExercise {
@@ -93,14 +144,40 @@ export interface JournalWorkoutExercise {
   exerciseName?: string;
   sortOrder: number;
   note?: string | null;
+  restSeconds?: number | null;
   sets: JournalWorkoutSet[];
 }
 
 export interface JournalWorkout {
   entryId: string;
+  title?: string | null;
+  source?: string | null;
+  routineId?: string | null;
   startedAt?: string | null;
+  endedAt?: string | null;
   durationMinutes?: number | null;
   exercises: JournalWorkoutExercise[];
+}
+
+export interface GymRoutineExercise {
+  id: string;
+  routineId: string;
+  exerciseId: string;
+  exerciseName?: string;
+  sortOrder: number;
+  targetSets: number;
+  targetRepsRange?: string;
+  restSeconds?: number;
+}
+
+export interface GymRoutine {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  estimatedMinutes?: number;
+  lastUsedAt?: string | null;
+  exercises: GymRoutineExercise[];
 }
 
 export interface JournalEntryRevision {
@@ -156,5 +233,7 @@ export interface SearchJournalFilter {
   endDate?: string;
   currency?: string;
   category?: ExpenseCategory;
+  type?: TransactionType;
   query?: string;
 }
+

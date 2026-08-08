@@ -192,6 +192,23 @@ extension AppModel {
             for presented in authoritativeReceipts {
                 enqueueGrowthReceipt(presented.receipt, mutationId: presented.id)
             }
+            let hasGrowthChanges = result.changes.contains { change in
+                let type = change.entityType.lowercased()
+                if type.hasPrefix("growth") { return true }
+                if type == "task" || type == "habitoccurrence" || type == "habit" {
+                    if let data = change.data, case let .object(fields) = data {
+                        if fields["status"] != nil || fields["completedAt"] != nil || fields["commitmentState"] != nil {
+                            return true
+                        }
+                    }
+                }
+                return false
+            }
+            if hasGrowthChanges {
+                if let overview = try? await apiClient.fetchGrowthOverview() {
+                    apply(try await offlineStore.updateGrowthOverview(overview))
+                }
+            }
             await loadFocus()
             syncPhase = snapshot.conflicts.isEmpty
                 ? (snapshot.mutations.isEmpty ? .upToDate : .pending)

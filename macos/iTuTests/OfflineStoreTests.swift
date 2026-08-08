@@ -1493,13 +1493,37 @@ final class OfflineStoreTests: XCTestCase {
         let updatedCompleted = try await store.setTaskStatus(id: task.id, status: .completed, completedAt: now)
         XCTAssertEqual(updatedCompleted.snapshot.tasks.first?.status, .completed)
         XCTAssertNotNil(updatedCompleted.snapshot.tasks.first?.completedAt)
+        XCTAssertEqual(updatedCompleted.snapshot.mutations.last?.payload["completedAt"]?.stringValue, now)
 
         for status in [TaskStatus.inbox, .canceled, .archived] {
             let updated = try await store.setTaskStatus(id: task.id, status: status, completedAt: nil)
             XCTAssertEqual(updated.snapshot.tasks.first?.status, status)
             XCTAssertNil(updated.snapshot.tasks.first?.completedAt)
             XCTAssertEqual(updated.snapshot.mutations.last?.payload["status"]?.stringValue, status.rawValue)
+            XCTAssertEqual(updated.snapshot.mutations.last?.payload["completedAt"], .null)
         }
+    }
+
+    func testProductivityTaskDecodesWithoutClientOnlyFields() throws {
+        let json = """
+        {
+            "id": "task-server-1",
+            "title": "Server Task",
+            "priority": "HIGH",
+            "important": false,
+            "status": "COMPLETED",
+            "completedAt": "2026-08-08T10:00:00.000Z",
+            "sortOrder": 1.0,
+            "version": 2
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(ProductivityTask.self, from: json)
+        XCTAssertEqual(decoded.id, "task-server-1")
+        XCTAssertEqual(decoded.title, "Server Task")
+        XCTAssertEqual(decoded.status, .completed)
+        XCTAssertTrue(decoded.urgent)
+        XCTAssertFalse(decoded.urgencyReason.isEmpty)
     }
 
     func testPullDoesNotOverwritePendingOptimisticEdit() async throws {
@@ -1933,6 +1957,43 @@ final class OfflineStoreTests: XCTestCase {
         XCTAssertEqual(hydrated.userCoins, 5)
         XCTAssertEqual(hydrated.shopItems.first?.redemptionCount, 1)
         XCTAssertEqual(hydrated.inventoryItems.first?.quantity, 1)
+    }
+
+    func testLoadMigratesLegacyHabitCheckInMutations() async throws {
+        let store = OfflineStore(accountID: "migration-test-user", baseURL: temporaryDirectory)
+        _ = try await store.load()
+        
+        let habit = HabitModel(id: "habit-mig-1", name: "Read", startDate: "2026-08-01T00:00:00Z")
+        _ = try await store.updateHabits([habit])
+        
+        let now = ISO8601DateFormatter().string(from: Date())
+        let legacyMutation = SyncMutation(
+            id: "legacy-mut-1",
+            kind: "habit.checkin",
+            entityId: habit.id,
+            baseVersion: 1,
+            payload: [
+                "isCompletedToday": .bool(true),
+                "occurredAt": .string(now)
+            ],
+            occurredAt: now
+        )
+        
+        _ = try await store.enqueue(legacyMutation)
+        
+        let reloadedStore = OfflineStore(accountID: "migration-test-user", baseURL: temporaryDirectory)
+        let reloaded = try await reloadedStore.load()
+        
+        XCTAssertEqual(reloaded.mutations.count, 1)
+        let migrated = reloaded.mutations.first!
+        XCTAssertEqual(migrated.kind, "habitoccurrence.checkin")
+        XCTAssertEqual(migrated.payload["value"]?.numberValue, 1.0)
+        
+        let occurrenceId = migrated.entityId
+        let occurrence = reloaded.habitOccurrences.first(where: { $0.id == occurrenceId })
+        XCTAssertNotNil(occurrence)
+        XCTAssertEqual(occurrence?.habitId, habit.id)
+        XCTAssertEqual(occurrence?.status, .completed)
     }
 
     private func hydrationResources(

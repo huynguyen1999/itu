@@ -24,6 +24,11 @@ import type {
   GrowthTaskRewardDefault,
 } from './types';
 
+type GrowthRewardPresetMap = Record<
+  GrowthRewardPreset,
+  Record<GrowthSourceType, { coinReward: number; accountXp: number; xpRewardPerSkill: number; scalingMode: GrowthScalingMode; maxRewardCap?: number }>
+>;
+
 export function createGrowthApi(ctx: ApiClientContext) {
   return {
     growthOverview() {
@@ -71,38 +76,10 @@ export function createGrowthApi(ctx: ApiClientContext) {
       );
     },
     growthRewardPresets() {
-      return ctx.request<
-        Record<
-          GrowthRewardPreset,
-          Record<
-            GrowthSourceType,
-            {
-              coinReward: number;
-              accountXp: number;
-              xpRewardPerSkill: number;
-              scalingMode: GrowthScalingMode;
-              maxRewardCap?: number;
-            }
-          >
-        >
-      >('/growth/reward-presets');
+      return ctx.request<GrowthRewardPresetMap>('/growth/reward-presets');
     },
     growthRewardPresetSettings() {
-      return ctx.request<
-        Record<
-          GrowthRewardPreset,
-          Record<
-            GrowthSourceType,
-            {
-              coinReward: number;
-              accountXp: number;
-              xpRewardPerSkill: number;
-              scalingMode: GrowthScalingMode;
-              maxRewardCap?: number;
-            }
-          >
-        >
-      >('/growth/reward-presets/settings');
+      return ctx.request<GrowthRewardPresetMap>('/growth/reward-presets/settings');
     },
     updateGrowthRewardPreset(
       preset: GrowthRewardPreset,
@@ -120,39 +97,12 @@ export function createGrowthApi(ctx: ApiClientContext) {
           kind: 'growthrewardpreset.update',
           entityId: preset,
           payload: { preset, rules },
-          optimistic: {} as Record<
-            GrowthRewardPreset,
-            Record<
-              GrowthSourceType,
-              {
-                coinReward: number;
-                accountXp: number;
-                xpRewardPerSkill: number;
-                scalingMode: GrowthScalingMode;
-                maxRewardCap?: number;
-              }
-            >
-          >,
+          optimistic: {} as GrowthRewardPresetMap,
         },
-        () =>
-          ctx.request<
-            Record<
-              GrowthRewardPreset,
-              Record<
-                GrowthSourceType,
-                {
-                  coinReward: number;
-                  accountXp: number;
-                  xpRewardPerSkill: number;
-                  scalingMode: GrowthScalingMode;
-                  maxRewardCap?: number;
-                }
-              >
-            >
-          >(`/growth/reward-presets/${preset}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ rules }),
-          }),
+        () => ctx.request<GrowthRewardPresetMap>(`/growth/reward-presets/${preset}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ rules }),
+        }),
       );
     },
     applyGrowthPreset(preset: GrowthRewardPreset) {
@@ -373,11 +323,7 @@ export function createGrowthApi(ctx: ApiClientContext) {
           payload: data,
           optimistic: { id, name: data.name, sortOrder: data.sortOrder ?? 0, version: 1, _count: { items: 0 } },
         },
-        () =>
-          ctx.request<GrowthItemCategory>('/growth/item-categories', {
-            method: 'POST',
-            body: JSON.stringify(data),
-          }),
+        () => ctx.request<GrowthItemCategory>('/growth/item-categories', { method: 'POST', body: JSON.stringify(data) }),
       );
     },
     updateGrowthItemCategory(id: string, data: Partial<GrowthItemCategory> & { archived?: boolean }) {
@@ -389,11 +335,7 @@ export function createGrowthApi(ctx: ApiClientContext) {
           baseVersion: data.version,
           optimistic: { id, ...data } as GrowthItemCategory,
         },
-        () =>
-          ctx.request<GrowthItemCategory>(`/growth/item-categories/${id}`, {
-            method: 'PATCH',
-            body: JSON.stringify(data),
-          }),
+        () => ctx.request<GrowthItemCategory>(`/growth/item-categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
       );
     },
     growthInventory() {

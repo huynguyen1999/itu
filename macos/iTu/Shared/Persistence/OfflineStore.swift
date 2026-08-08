@@ -38,6 +38,67 @@ actor OfflineStore {
         // account. Keep both the in-memory state and the original bytes intact
         // so callers can surface the error or retry after a migration.
         state = try decoder.decode(OfflineSnapshot.self, from: data)
+        
+        // Migrate legacy "habit.checkin" mutations to "habitoccurrence.*"
+        var migrated = false
+        for i in 0..<state.mutations.count {
+            let mutation = state.mutations[i]
+            if mutation.kind == "habit.checkin" {
+                let habitId = mutation.entityId
+                let isCompleted = mutation.payload["isCompletedToday"]?.boolValue ?? false
+                let occurredAt = mutation.payload["occurredAt"]?.stringValue ?? mutation.occurredAt
+                let dateStr = String(occurredAt.prefix(10))
+                
+                let occurrenceId: String
+                if let existing = state.habitOccurrences.first(where: { $0.habitId == habitId && $0.localDayString == dateStr }) {
+                    occurrenceId = existing.id
+                } else {
+                    let newId = ULID.generate()
+                    let occurrenceDateISO = "\(dateStr)T00:00:00.000Z"
+                    let newOccurrence = HabitOccurrenceModel(
+                        id: newId,
+                        habitId: habitId,
+                        occurrenceDate: occurrenceDateISO,
+                        status: isCompleted ? .completed : .pending,
+                        value: isCompleted ? 1.0 : 0.0
+                    )
+                    state.habitOccurrences.append(newOccurrence)
+                    occurrenceId = newId
+                }
+                
+                if isCompleted {
+                    state.mutations[i] = SyncMutation(
+                        id: mutation.id,
+                        kind: "habitoccurrence.checkin",
+                        entityId: occurrenceId,
+                        baseVersion: nil,
+                        payload: [
+                            "value": .number(1.0),
+                            "idempotencyKey": .string(ULID.generate()),
+                            "occurredAt": .string(occurredAt)
+                        ],
+                        occurredAt: occurredAt
+                    )
+                } else {
+                    state.mutations[i] = SyncMutation(
+                        id: mutation.id,
+                        kind: "habitoccurrence.action",
+                        entityId: occurrenceId,
+                        baseVersion: nil,
+                        payload: [
+                            "action": .string("undo"),
+                            "idempotencyKey": .string(ULID.generate())
+                        ],
+                        occurredAt: occurredAt
+                    )
+                }
+                migrated = true
+            }
+        }
+        if migrated {
+            try persist()
+        }
+        
         lastPersistedMutationIDs = Set(state.mutations.map(\.id))
         return state
     }

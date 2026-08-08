@@ -62,13 +62,36 @@ private struct StatusItemInstaller: ViewModifier {
 
     func body(content: Content) -> some View {
         content.onAppear {
-            appDelegate.installStatusItem(
-                model: model,
-                openMainWindow: {
-                    NSApp.activate(ignoringOtherApps: true)
+            let openMainWindow = { @MainActor in
+                NSApp.activate(ignoringOtherApps: true)
+                let existingWindow = NSApp.windows.first { w in
+                    !(w is NSPanel)
+                        && w.className != "NSStatusBarWindow"
+                        && w.className != "NSMenuWindow"
+                        && (w.title.contains("iTu") || w.identifier?.rawValue.contains("main") == true)
+                } ?? NSApp.windows.first { w in
+                    !(w is NSPanel)
+                        && w.className != "NSStatusBarWindow"
+                        && w.className != "NSMenuWindow"
+                        && w.canBecomeMain
+                }
+                
+                if let existingWindow {
+                    if existingWindow.isMiniaturized {
+                        existingWindow.deminiaturize(nil)
+                    }
+                    existingWindow.makeKeyAndOrderFront(nil)
+                    existingWindow.orderFrontRegardless()
+                } else {
                     openWindow(id: "main")
                 }
+            }
+            appDelegate.installStatusItem(
+                model: model,
+                openMainWindow: openMainWindow
             )
+            let router = AppNavigationRouter(model: model, openMainWindow: openMainWindow)
+            appDelegate.setupCompanion(model: model, router: router)
         }
     }
 }

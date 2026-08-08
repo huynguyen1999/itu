@@ -304,6 +304,16 @@ final class SettingsStore {
         didSet { save() }
     }
 
+    var showCompanionShortcut: Bool {
+        didSet { save() }
+    }
+    var companionKeepAbove: Bool {
+        didSet { save() }
+    }
+    var companionRememberPosition: Bool {
+        didSet { save() }
+    }
+
     private static let userDefaultsKey = "iTu_UserSettingsStore_v1"
 
     init() {
@@ -314,12 +324,18 @@ final class SettingsStore {
             self.focusSettings = saved.focusSettings
             self.matrixSettings = saved.matrixSettings
             self.accountBaseXp = saved.accountBaseXp
+            self.showCompanionShortcut = saved.showCompanionShortcut ?? true
+            self.companionKeepAbove = saved.companionKeepAbove ?? true
+            self.companionRememberPosition = saved.companionRememberPosition ?? true
         } else {
             self.themeMode = .system
             self.taskDefaults = TaskDefaultsSettings()
             self.focusSettings = FocusSettings()
             self.matrixSettings = MatrixSettings()
             self.accountBaseXp = 0
+            self.showCompanionShortcut = true
+            self.companionKeepAbove = true
+            self.companionRememberPosition = true
         }
     }
 
@@ -337,7 +353,10 @@ final class SettingsStore {
             taskDefaults: taskDefaults,
             focusSettings: focusSettings,
             matrixSettings: matrixSettings,
-            accountBaseXp: accountBaseXp
+            accountBaseXp: accountBaseXp,
+            showCompanionShortcut: showCompanionShortcut,
+            companionKeepAbove: companionKeepAbove,
+            companionRememberPosition: companionRememberPosition
         )
         if let data = try? JSONEncoder().encode(payload) {
             UserDefaults.standard.set(data, forKey: Self.userDefaultsKey)
@@ -350,5 +369,8 @@ final class SettingsStore {
         let focusSettings: FocusSettings
         let matrixSettings: MatrixSettings
         let accountBaseXp: Int
+        let showCompanionShortcut: Bool?
+        let companionKeepAbove: Bool?
+        let companionRememberPosition: Bool?
     }
 }

@@ -3,7 +3,6 @@ export type CardType = 'BASIC' | 'REVERSE';
 export type ReviewDirection = 'FRONT_TO_BACK' | 'BACK_TO_FRONT';
 export type ReviewGrade = 'AGAIN' | 'HARD' | 'GOOD' | 'EASY';
 export type StartSessionMode = 'DUE' | 'CRAM';
-export type AiJobStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 export type DeckIcon = 'INBOX' | 'BOOK' | 'BRAIN' | 'LANGUAGE' | 'FLASK' | 'CODE' | 'LEAF' | 'CALCULATOR' | 'GLOBE';
 export type DeckColor = 'SLATE' | 'EMERALD' | 'TEAL' | 'BLUE' | 'INDIGO' | 'VIOLET' | 'ROSE' | 'AMBER';
 
@@ -114,7 +113,7 @@ export interface DueItem {
 
 export interface AiJob {
   id: string;
-  status: AiJobStatus;
+  status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
   output?: unknown;
   error?: string | null;
 }
@@ -129,10 +128,6 @@ export interface CardGrading {
   cardId: string;
   correctness: 'CORRECT' | 'PARTIALLY_CORRECT' | 'INCORRECT';
   explanation: string;
-}
-
-export interface AiCardSuggestionOutput {
-  cards: AiSuggestedCard[];
 }
 
 export interface AiSessionFeedback {
@@ -588,7 +583,6 @@ export interface GrowthAttributeMapping {
   attribute?: Pick<GrowthSkill, 'id' | 'name' | 'kind' | 'icon' | 'color' | 'archivedAt'> | null;
 }
 
-export type GrowthProgressEntry = GrowthSkill;
 
 export interface GrowthItemAward {
   itemId: string;
