@@ -2,11 +2,9 @@ import {
   Calendar,
   CalendarDays,
   Compass,
-  Dumbbell,
   FileSpreadsheet,
   FileText,
   Search,
-  Wallet,
 } from 'lucide-react';
 import { PointerEvent as ReactPointerEvent, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -19,8 +17,6 @@ const trackNavigation = [
   { to: '/journal', label: 'Overview', icon: Compass, end: true },
   { to: '/journal/daily', label: 'Daily Notes', icon: Calendar, end: false },
   { to: '/journal/weekly', label: 'Weekly Reviews', icon: CalendarDays, end: false },
-  { to: '/journal/money', label: 'Money', icon: Wallet, end: false },
-  { to: '/journal/gym', label: 'Gym', icon: Dumbbell, end: false },
 ] as const;
 
 const libraryNavigation = [

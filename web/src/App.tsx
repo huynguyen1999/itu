@@ -16,6 +16,8 @@ import { HabitsPage } from './features/habits';
 import { LearnWorkspace } from './features/learn';
 import { GrowthPage } from './features/growth';
 import { JournalWorkspace } from './features/journal/JournalWorkspace';
+import { BudgetWorkspace } from './features/budget/BudgetWorkspace';
+import { GymWorkspace } from './features/gym/GymWorkspace';
 import { PlanningProvider } from './features/planning/PlanningContext';
 import { GrowthRewardReceiptHost } from './features/growth/components/growth-reward-receipt';
 
@@ -52,7 +54,19 @@ export function App() {
         <Route path="/auth" element={<AuthPage />} />
         <Route element={<Protected />}>
           <Route index element={<TodayPage />} />
+          <Route path="/budget/*" element={<BudgetWorkspace />} />
+          <Route path="/gym/*" element={<GymWorkspace />} />
           <Route path="/journal/*" element={<JournalWorkspace />} />
+
+          {/* Legacy redirects */}
+          <Route path="/journal/money" element={<Navigate to="/budget" replace />} />
+          <Route path="/journal/money/transactions" element={<Navigate to="/budget/transactions" replace />} />
+          <Route path="/journal/money/budgets" element={<Navigate to="/budget/budgets" replace />} />
+          <Route path="/journal/money/calendar" element={<Navigate to="/budget/calendar" replace />} />
+          <Route path="/journal/gym" element={<Navigate to="/gym" replace />} />
+          <Route path="/journal/gym/history" element={<Navigate to="/gym/history" replace />} />
+          <Route path="/journal/gym/exercises" element={<Navigate to="/gym/exercises" replace />} />
+          <Route path="/journal/gym/active/:id" element={<WorkoutRedirect />} />
           <Route path="/statistics" element={<StatisticsPage />} />
           <Route path="/plan" element={<PlanningPage />} />
           <Route path="/plan/today" element={<PlanningPage view="today" />} />
@@ -91,4 +105,9 @@ export function App() {
 function DeckDetailRedirect() {
   const { deckId } = useParams();
   return <Navigate to={`/learn/decks/${deckId}`} replace />;
+}
+
+function WorkoutRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/gym/workouts/${id}`} replace />;
 }

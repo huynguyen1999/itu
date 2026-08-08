@@ -11,6 +11,8 @@ enum AppSection: String, CaseIterable, Identifiable {
     case focus
     case habits
     case statistics
+    case budget
+    case gym
     case growth
     case learn
     case trash
@@ -32,6 +34,8 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .focus: "Focus"
         case .habits: "Habits"
         case .statistics: "Statistics"
+        case .budget: "Budget"
+        case .gym: "Gym"
         case .growth: "Growth"
         case .learn: "Learn"
         case .trash: "Trash"
@@ -53,6 +57,8 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .focus: "timer"
         case .habits: "repeat"
         case .statistics: "chart.bar"
+        case .budget: "creditcard"
+        case .gym: "dumbbell"
         case .growth: "sparkles"
         case .learn: "book.closed"
         case .trash: "trash"

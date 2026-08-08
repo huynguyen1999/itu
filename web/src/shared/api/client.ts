@@ -7,6 +7,8 @@ import { createGrowthApi, type GrowthApi } from './growthApi';
 import { createProductivityApi, type ProductivityApi } from './productivityApi';
 import { createSyncApi, type SyncApi } from './syncApi';
 import { createPreferencesApi, type PreferencesApi } from './preferencesApi';
+import { createBudgetApi, type BudgetApi } from './budgetApi';
+import { createGymApi, type GymApi } from './gymApi';
 import type { ApiClientContext, OfflineMutationHandler, OfflineMutationInput } from './apiContext';
 
 export type { OfflineMutationHandler, OfflineMutationInput } from './apiContext';
@@ -20,7 +22,9 @@ export interface ApiClient
     AuthApi,
     GrowthApi,
     DeckStudyApi,
-    PreferencesApi {}
+    PreferencesApi,
+    BudgetApi,
+    GymApi {}
 
 export class ApiClient extends HttpClient {
   private offlineMutationHandler: OfflineMutationHandler | null = null;
@@ -42,6 +46,8 @@ export class ApiClient extends HttpClient {
       createGrowthApi(context),
       createDeckStudyApi(context),
       createPreferencesApi(context),
+      createBudgetApi(context),
+      createGymApi(context),
     );
   }
 

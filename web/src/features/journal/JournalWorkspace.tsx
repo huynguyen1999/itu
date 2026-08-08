@@ -7,19 +7,6 @@ import { JournalSearchPage } from './JournalSearchPage';
 import { WeeklyReviewPage } from './weekly/WeeklyReviewPage';
 import { TemplateEditor } from './components/TemplateEditor';
 
-import { MoneyLayout } from './money/MoneyLayout';
-import { MoneyOverviewPage } from './money/overview/MoneyOverviewPage';
-import { TransactionsPage } from './money/transactions/TransactionsPage';
-import { BudgetPage } from './money/budgets/BudgetPage';
-import { MoneyCalendarPage } from './money/calendar/MoneyCalendarPage';
-
-import { GymLayout } from './gym/GymLayout';
-import { GymOverviewPage } from './gym/overview/GymOverviewPage';
-import { RoutinesPage } from './gym/routines/RoutinesPage';
-import { WorkoutHistoryPage } from './gym/history/WorkoutHistoryPage';
-import { ExerciseLibraryPage } from './gym/exercises/ExerciseLibraryPage';
-import { ActiveWorkoutPage } from './gym/active/ActiveWorkoutPage';
-
 export function JournalWorkspace() {
   const navigate = useNavigate();
   const [width, setWidth] = useStoredNumber('itu.journal.sidebar-width', 240);
@@ -51,23 +38,6 @@ export function JournalWorkspace() {
             <Route path="daily/:date" element={<NotePage isDaily={true} />} />
             <Route path="weekly" element={<WeeklyReviewPage />} />
             <Route path="weekly/:entryId" element={<WeeklyReviewPage />} />
-
-            {/* Money Specialized Application Routes */}
-            <Route path="money" element={<MoneyLayout />}>
-              <Route index element={<MoneyOverviewPage />} />
-              <Route path="transactions" element={<TransactionsPage />} />
-              <Route path="budgets" element={<BudgetPage />} />
-              <Route path="calendar" element={<MoneyCalendarPage />} />
-            </Route>
-
-            {/* Gym Specialized Application Routes */}
-            <Route path="gym" element={<GymLayout />}>
-              <Route index element={<GymOverviewPage />} />
-              <Route path="routines" element={<RoutinesPage />} />
-              <Route path="history" element={<WorkoutHistoryPage />} />
-              <Route path="exercises" element={<ExerciseLibraryPage />} />
-            </Route>
-            <Route path="gym/active/:entryId" element={<ActiveWorkoutPage />} />
 
             <Route path="notes" element={<JournalSearchPage />} />
             <Route path="notes/:entryId" element={<NotePage isDaily={false} />} />

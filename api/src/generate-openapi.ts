@@ -5,11 +5,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { AppModule } from './app.module';
 
+console.log('Script starting...');
+
 async function generateOpenApi() {
+  console.log('Inside generateOpenApi');
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
-    { logger: false }
+    { logger: ['error', 'warn'] }
   );
 
   const config = new DocumentBuilder()
@@ -34,6 +37,6 @@ async function generateOpenApi() {
 }
 
 generateOpenApi().catch((err) => {
-  console.error('Failed to generate OpenAPI spec:', err);
+  console.error('Failed to generate OpenAPI spec:', err?.stack || err);
   process.exit(1);
 });

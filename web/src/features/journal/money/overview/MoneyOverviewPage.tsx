@@ -11,41 +11,48 @@ export function MoneyOverviewPage() {
 
   const monthLabel = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  // Filter expenses for current month
-  const expenses = entries.filter((e) => e.kind === 'EXPENSE' && e.expense);
+  // Filter expenses for current selected month
+  const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+  const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
+
+  const monthExpenses = entries.filter((e) => {
+    if (e.kind !== 'EXPENSE' || !e.expense) return false;
+    const d = new Date(e.entryDate);
+    return d >= monthStart && d <= monthEnd;
+  });
 
   let totalIncome = 0;
   let totalExpense = 0;
+  const categorySpentMap: Record<string, number> = {};
 
-  for (const e of expenses) {
+  for (const e of monthExpenses) {
     if (!e.expense) continue;
     const amt = Number(e.expense.amount) || 0;
     if (e.expense.type === 'INCOME') {
       totalIncome += amt;
     } else {
       totalExpense += amt;
+      const rawCat = e.expense.category || 'OTHER';
+      const cat = rawCat.charAt(0).toUpperCase() + rawCat.slice(1).toLowerCase();
+      categorySpentMap[cat] = (categorySpentMap[cat] || 0) + amt;
     }
   }
 
   const netBalance = totalIncome - totalExpense;
-  const monthlyBudgetLimit = 12000000; // Configurable overall monthly limit
-  const remainingBudget = monthlyBudgetLimit - totalExpense;
-  const budgetProgressPct = Math.min(100, Math.round((totalExpense / monthlyBudgetLimit) * 100));
 
-  // Category summary
-  const categoryBudgets = [
-    { category: 'Food', spent: 1450000, limit: 3000000 },
-    { category: 'Transport', spent: 720000, limit: 1500000 },
-    { category: 'Entertainment', spent: 950000, limit: 1000000 },
-  ];
+  // Actual category spending breakdown calculated from real journal entries
+  const categorySpending = Object.entries(categorySpentMap).map(([category, spent]) => ({
+    category,
+    spent,
+  }));
 
   // Recent transactions sorted by date
-  const recentTransactions = [...expenses]
+  const recentTransactions = [...monthExpenses]
     .sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime())
     .slice(0, 5);
 
-  const prevMonth = () => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)));
-  const nextMonth = () => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)));
+  const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
   return (
     <div className="space-y-6">
@@ -79,35 +86,17 @@ export function MoneyOverviewPage() {
         </button>
       </div>
 
-      {/* Available / Budget Remaining Card */}
+      {/* Monthly Net Balance & Overview Card */}
       <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-sm space-y-6">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Available / Budget remaining
+            Monthly Net Balance
           </p>
           <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-black text-foreground">
-              ₫{remainingBudget.toLocaleString()}
+            <span className={`text-4xl font-black ${netBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {netBalance >= 0 ? '+' : ''}₫{netBalance.toLocaleString()}
             </span>
             <span className="text-xs font-semibold text-muted-foreground">VND</span>
-          </div>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground font-medium">
-              Monthly budget: ₫{monthlyBudgetLimit.toLocaleString()}
-            </span>
-            <span className="font-semibold text-emerald-400">{budgetProgressPct}% used</span>
-          </div>
-          <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${
-                budgetProgressPct >= 90 ? 'bg-rose-500' : budgetProgressPct >= 75 ? 'bg-amber-500' : 'bg-emerald-500'
-              }`}
-              style={{ width: `${budgetProgressPct}%` }}
-            />
           </div>
         </div>
 
@@ -136,37 +125,41 @@ export function MoneyOverviewPage() {
         </div>
       </div>
 
-      {/* Budgets Snapshot */}
+      {/* Category Expenses Breakdown */}
       <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <PieChart className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-bold text-foreground">Category Budgets</h3>
+            <h3 className="text-sm font-bold text-foreground">Category Spending</h3>
           </div>
-          <span className="text-xs text-muted-foreground">Active targets</span>
+          <span className="text-xs text-muted-foreground">Actual monthly spending</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {categoryBudgets.map((b) => {
-            const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
-            return (
-              <div key={b.category} className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-foreground">{b.category}</span>
-                  <span className="font-mono text-muted-foreground">
-                    ₫{(b.spent / 1000000).toFixed(2)}m / ₫{(b.limit / 1000000).toFixed(1)}m
-                  </span>
+        {categorySpending.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-6">No expenses recorded for this month.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {categorySpending.map((b) => {
+              const pct = totalExpense > 0 ? Math.min(100, Math.round((b.spent / totalExpense) * 100)) : 0;
+              return (
+                <div key={b.category} className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-foreground">{b.category}</span>
+                    <span className="font-mono text-muted-foreground">
+                      ₫{b.spent.toLocaleString()} ({pct}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-emerald-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${pct >= 90 ? 'bg-rose-500' : 'bg-emerald-500'}`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Recent Transactions List */}

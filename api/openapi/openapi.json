@@ -4061,6 +4061,111 @@
         ]
       }
     },
+    "/preferences/tasks": {
+      "patch": {
+        "operationId": "updateTaskPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
+    "/preferences/focus": {
+      "patch": {
+        "operationId": "updateFocusPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
+    "/preferences/habits": {
+      "patch": {
+        "operationId": "updateHabitPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
+    "/preferences/matrix": {
+      "patch": {
+        "operationId": "updateMatrixPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
+    "/preferences/growth": {
+      "patch": {
+        "operationId": "updateGrowthPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
+    "/preferences/learn": {
+      "patch": {
+        "operationId": "updateLearnPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
+    "/preferences/journal": {
+      "patch": {
+        "operationId": "updateJournalPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
     "/preferences/money": {
       "patch": {
         "operationId": "updateMoneyPreferences",
@@ -4088,6 +4193,757 @@
         "summary": "",
         "tags": [
           "Preferences"
+        ]
+      }
+    },
+    "/budget/overview": {
+      "get": {
+        "operationId": "BudgetController_getOverview",
+        "parameters": [
+          {
+            "name": "period",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      }
+    },
+    "/budget/categories": {
+      "get": {
+        "operationId": "BudgetController_getCategories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      },
+      "post": {
+        "operationId": "BudgetController_createCategory",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBudgetCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      }
+    },
+    "/budget/categories/reorder": {
+      "patch": {
+        "operationId": "BudgetController_reorderCategories",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderBudgetCategoriesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      }
+    },
+    "/budget/categories/{id}": {
+      "patch": {
+        "operationId": "BudgetController_updateCategory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBudgetCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      },
+      "delete": {
+        "operationId": "BudgetController_archiveCategory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      }
+    },
+    "/budget/periods/{period}": {
+      "get": {
+        "operationId": "BudgetController_getPeriod",
+        "parameters": [
+          {
+            "name": "period",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      },
+      "put": {
+        "operationId": "BudgetController_updatePeriod",
+        "parameters": [
+          {
+            "name": "period",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePeriodBudgetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      }
+    },
+    "/budget/periods/{period}/categories/{categoryId}": {
+      "put": {
+        "operationId": "BudgetController_updateCategoryLimit",
+        "parameters": [
+          {
+            "name": "period",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryLimitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      },
+      "delete": {
+        "operationId": "BudgetController_deleteCategoryLimit",
+        "parameters": [
+          {
+            "name": "period",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      }
+    },
+    "/budget/transactions": {
+      "get": {
+        "operationId": "BudgetController_getTransactions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      },
+      "post": {
+        "operationId": "BudgetController_createTransaction",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBudgetTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      }
+    },
+    "/budget/transactions/{id}": {
+      "get": {
+        "operationId": "BudgetController_getTransactionById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      },
+      "patch": {
+        "operationId": "BudgetController_updateTransaction",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBudgetTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      },
+      "delete": {
+        "operationId": "BudgetController_deleteTransaction",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Budget"
+        ]
+      }
+    },
+    "/gym/overview": {
+      "get": {
+        "operationId": "GymController_getOverview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      }
+    },
+    "/gym/exercises": {
+      "get": {
+        "operationId": "GymController_getExercises",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      },
+      "post": {
+        "operationId": "GymController_createExercise",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExerciseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      }
+    },
+    "/gym/exercises/{id}": {
+      "get": {
+        "operationId": "GymController_getExerciseById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      },
+      "patch": {
+        "operationId": "GymController_updateExercise",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateExerciseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      },
+      "delete": {
+        "operationId": "GymController_archiveExercise",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      }
+    },
+    "/gym/exercises/{id}/image": {
+      "post": {
+        "operationId": "GymController_uploadExerciseImage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      },
+      "get": {
+        "operationId": "GymController_getExerciseImageFile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      },
+      "delete": {
+        "operationId": "GymController_deleteExerciseImage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      }
+    },
+    "/gym/exercises/{id}/stats": {
+      "get": {
+        "operationId": "GymController_getExerciseStats",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      }
+    },
+    "/gym/workouts": {
+      "get": {
+        "operationId": "GymController_getWorkouts",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      },
+      "post": {
+        "operationId": "GymController_createWorkout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      }
+    },
+    "/gym/workouts/{id}": {
+      "get": {
+        "operationId": "GymController_getWorkoutById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      },
+      "patch": {
+        "operationId": "GymController_updateWorkout",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      },
+      "delete": {
+        "operationId": "GymController_deleteWorkout",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      }
+    },
+    "/gym/workouts/{id}/complete": {
+      "post": {
+        "operationId": "GymController_completeWorkout",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
+        ]
+      }
+    },
+    "/gym/workouts/{id}/abandon": {
+      "post": {
+        "operationId": "GymController_abandonWorkout",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Gym"
         ]
       }
     }
@@ -4374,6 +5230,50 @@
         "properties": {}
       },
       "CreateExerciseDefinitionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateBudgetCategoryDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReorderBudgetCategoriesDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateBudgetCategoryDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdatePeriodBudgetDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateCategoryLimitDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateBudgetTransactionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateBudgetTransactionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateExerciseDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateExerciseDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateWorkoutDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateWorkoutDto": {
         "type": "object",
         "properties": {}
       }

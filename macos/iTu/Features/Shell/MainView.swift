@@ -180,6 +180,10 @@ struct MainView: View {
             EisenhowerMatrixView()
         case .statistics:
             StatisticsView()
+        case .budget:
+            BudgetView()
+        case .gym:
+            GymView()
         case .growth:
             GrowthView()
         case .learn:
@@ -261,12 +265,36 @@ private struct PrimaryRail: View {
                         ) {
                             navigateTo(.focus)
                         }
+                    }
+
+                    railGroup("Tracking") {
                         PrimaryRailButton(
                             title: "Habits",
                             systemImage: "repeat",
                             isSelected: model.selectedSection == .habits
                         ) {
                             navigateTo(.habits)
+                        }
+                        PrimaryRailButton(
+                            title: "Statistics",
+                            systemImage: "chart.bar",
+                            isSelected: model.selectedSection == .statistics
+                        ) {
+                            navigateTo(.statistics)
+                        }
+                        PrimaryRailButton(
+                            title: "Budget",
+                            systemImage: "creditcard",
+                            isSelected: model.selectedSection == .budget
+                        ) {
+                            navigateTo(.budget)
+                        }
+                        PrimaryRailButton(
+                            title: "Gym",
+                            systemImage: "dumbbell",
+                            isSelected: model.selectedSection == .gym
+                        ) {
+                            navigateTo(.gym)
                         }
                     }
 
@@ -284,13 +312,6 @@ private struct PrimaryRail: View {
                             isSelected: model.selectedSection == .growth
                         ) {
                             navigateTo(.growth)
-                        }
-                        PrimaryRailButton(
-                            title: "Statistics",
-                            systemImage: "chart.bar",
-                            isSelected: model.selectedSection == .statistics
-                        ) {
-                            navigateTo(.statistics)
                         }
                     }
 

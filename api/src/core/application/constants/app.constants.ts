@@ -185,6 +185,8 @@ export const REST_ROUTES = {
   trashCardImageDelete: 'card-images/:imageId',
   trashTaskDelete: 'tasks/:taskId',
   journal: 'journal',
+  budget: 'budget',
+  gym: 'gym',
   preferences: 'preferences',
 } as const;
 

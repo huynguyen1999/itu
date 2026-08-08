@@ -34,7 +34,7 @@ describe('workspace navigation', () => {
   it('moves a dragged destination downward before the drop target', () => {
     const ordered = reorderWorkspaceNavigation(workspaceNavigation, '/plan', '/learn');
 
-    expect(ordered.map((item) => item.to).slice(5, 8)).toEqual(['/growth', '/plan', '/learn']);
+    expect(ordered.map((item) => item.to).slice(7, 10)).toEqual(['/journal', '/plan', '/learn']);
     expect(ordered).toHaveLength(workspaceNavigation.length);
   });
 

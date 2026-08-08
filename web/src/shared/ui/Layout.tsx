@@ -23,6 +23,8 @@ import {
   MoreHorizontal,
   User,
   BookOpen,
+  WalletCards,
+  Dumbbell,
 } from 'lucide-react';
 import {
   CSSProperties,
@@ -63,9 +65,11 @@ export const workspaceNavigation = [
   { to: '/focus', label: 'Focus', icon: Focus, end: false },
   { to: '/habits', label: 'Habits', icon: Repeat2, end: false },
   { to: '/statistics', label: 'Statistics', icon: BarChart3, end: false },
-  { to: '/growth', label: 'Growth', icon: Sprout, end: false },
-  { to: '/learn', label: 'Learn', icon: Brain, end: false },
+  { to: '/budget', label: 'Budget', icon: WalletCards, end: false },
+  { to: '/gym', label: 'Gym', icon: Dumbbell, end: false },
   { to: '/journal', label: 'Journal', icon: BookOpen, end: false },
+  { to: '/learn', label: 'Learn', icon: Brain, end: false },
+  { to: '/growth', label: 'Growth', icon: Sprout, end: false },
   { to: '/trash', label: 'Trash', icon: Trash2, end: false },
 ] as const;
 
@@ -79,7 +83,7 @@ const planningNavigation = [
 ] as const;
 
 const CORE_PRODUCTIVITY_PATHS = new Set(['/', '/plan', '/matrix', '/focus']);
-const TRACKING_PATHS = new Set(['/habits', '/statistics']);
+const TRACKING_PATHS = new Set(['/habits', '/statistics', '/budget', '/gym']);
 
 function groupWorkspaceNavigation(items: readonly WorkspaceNavigationItem[]) {
   const productivity = items.filter((item) => CORE_PRODUCTIVITY_PATHS.has(item.to));
@@ -121,7 +125,15 @@ export function Layout({
   const isLearnWorkspace = location.pathname === '/learn' || location.pathname.startsWith('/learn/');
   const isGrowthWorkspace = location.pathname === '/growth' || location.pathname.startsWith('/growth/');
   const isJournalWorkspace = location.pathname === '/journal' || location.pathname.startsWith('/journal/');
-  const isFullBleedWorkspace = isPlanningWorkspace || isLearnWorkspace || isGrowthWorkspace || isJournalWorkspace;
+  const isBudgetWorkspace = location.pathname === '/budget' || location.pathname.startsWith('/budget/');
+  const isGymWorkspace = location.pathname === '/gym' || location.pathname.startsWith('/gym/');
+  const isFullBleedWorkspace =
+    isPlanningWorkspace ||
+    isLearnWorkspace ||
+    isGrowthWorkspace ||
+    isJournalWorkspace ||
+    isBudgetWorkspace ||
+    isGymWorkspace;
   const moreNavigationActive =
     orderedWorkspaceNavigation.slice(5).some((item) => location.pathname.startsWith(item.to)) ||
     planningNavigation.some((item) => location.pathname === item.to) ||

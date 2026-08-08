@@ -26,11 +26,16 @@ import type {
 
 import { authenticatedFetch } from '../../../shared/api/authenticatedFetch';
 
+
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+
 
 const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKey: K } => {
   const result = { queryKey } as T & { queryKey: K };
   for (const key of Object.keys(query)) {
+    // The explicit queryKey always wins, matching the previous
+    // `{ ...query, queryKey }` spread where it was set last.
     if (key === 'queryKey') continue;
     Object.defineProperty(result, key, {
       enumerable: true,
@@ -49,85 +54,785 @@ export type getPreferencesResponse200 = {
 export type getPreferencesResponseSuccess = (getPreferencesResponse200) & {
   headers: Headers;
 };
+;
 
 export type getPreferencesResponse = (getPreferencesResponseSuccess)
 
 export const getGetPreferencesUrl = () => {
+
+
+
+
   return `/preferences`
 }
 
 export const getPreferences = async ( options?: Parameters<typeof authenticatedFetch>[1]): Promise<getPreferencesResponse> => {
-  return authenticatedFetch<getPreferencesResponse>(getGetPreferencesUrl(), {
+
+  return authenticatedFetch<getPreferencesResponse>(getGetPreferencesUrl(),
+  {
     ...options,
     method: 'GET'
-  });
-}
+
+
+  }
+);}
+
+
+
+
 
 export const getGetPreferencesQueryKey = () => {
-  return [`/preferences`] as const;
-}
+    return [
+    `/preferences`
+    ] as const;
+    }
+
 
 export const getGetPreferencesQueryOptions = <TData = Awaited<ReturnType<typeof getPreferences>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPreferences>>, TError, TData>>, request?: SecondParameter<typeof authenticatedFetch>}
 ) => {
-  const {query: queryOptions, request: requestOptions} = options ?? {};
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
   const queryKey =  queryOptions?.queryKey ?? getGetPreferencesQueryKey();
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPreferences>>> = ({ signal }) => getPreferences({ signal, ...requestOptions });
-  return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPreferences>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPreferences>>> = ({ signal }) => getPreferences({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPreferences>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
 export type GetPreferencesQueryResult = NonNullable<Awaited<ReturnType<typeof getPreferences>>>
 export type GetPreferencesQueryError = unknown
 
+
 export function useGetPreferences<TData = Awaited<ReturnType<typeof getPreferences>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPreferences>>, TError, TData>>, request?: SecondParameter<typeof authenticatedFetch>},
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPreferences>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPreferences>>,
+          TError,
+          Awaited<ReturnType<typeof getPreferences>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPreferences<TData = Awaited<ReturnType<typeof getPreferences>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPreferences>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPreferences>>,
+          TError,
+          Awaited<ReturnType<typeof getPreferences>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPreferences<TData = Awaited<ReturnType<typeof getPreferences>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPreferences>>, TError, TData>>, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetPreferences<TData = Awaited<ReturnType<typeof getPreferences>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPreferences>>, TError, TData>>, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
   const queryOptions = getGetPreferencesQueryOptions(options)
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-// Tasks
-export const updateTaskPreferences = async (patch: Record<string, unknown>, options?: Parameters<typeof authenticatedFetch>[1]) => {
-  return authenticatedFetch('/preferences/tasks', { ...options, method: 'PATCH', body: JSON.stringify(patch) });
-};
 
-// Focus
-export const updateFocusPreferences = async (patch: Record<string, unknown>, options?: Parameters<typeof authenticatedFetch>[1]) => {
-  return authenticatedFetch('/preferences/focus', { ...options, method: 'PATCH', body: JSON.stringify(patch) });
-};
 
-// Habits
-export const updateHabitPreferences = async (patch: Record<string, unknown>, options?: Parameters<typeof authenticatedFetch>[1]) => {
-  return authenticatedFetch('/preferences/habits', { ...options, method: 'PATCH', body: JSON.stringify(patch) });
-};
 
-// Matrix
-export const updateMatrixPreferences = async (patch: Record<string, unknown>, options?: Parameters<typeof authenticatedFetch>[1]) => {
-  return authenticatedFetch('/preferences/matrix', { ...options, method: 'PATCH', body: JSON.stringify(patch) });
-};
 
-// Growth
-export const updateGrowthPreferences = async (patch: Record<string, unknown>, options?: Parameters<typeof authenticatedFetch>[1]) => {
-  return authenticatedFetch('/preferences/growth', { ...options, method: 'PATCH', body: JSON.stringify(patch) });
-};
 
-// Learn
-export const updateLearnPreferences = async (patch: Record<string, unknown>, options?: Parameters<typeof authenticatedFetch>[1]) => {
-  return authenticatedFetch('/preferences/learn', { ...options, method: 'PATCH', body: JSON.stringify(patch) });
-};
+export type updateTaskPreferencesResponse200 = {
+  data: void
+  status: 200
+}
 
-// Journal
-export const updateJournalPreferences = async (patch: Record<string, unknown>, options?: Parameters<typeof authenticatedFetch>[1]) => {
-  return authenticatedFetch('/preferences/journal', { ...options, method: 'PATCH', body: JSON.stringify(patch) });
+export type updateTaskPreferencesResponseSuccess = (updateTaskPreferencesResponse200) & {
+  headers: Headers;
 };
+;
 
-// Money
-export const updateMoneyPreferences = async (patch: Record<string, unknown>, options?: Parameters<typeof authenticatedFetch>[1]) => {
-  return authenticatedFetch('/preferences/money', { ...options, method: 'PATCH', body: JSON.stringify(patch) });
-};
+export type updateTaskPreferencesResponse = (updateTaskPreferencesResponseSuccess)
 
-// Gym
-export const updateGymPreferences = async (patch: Record<string, unknown>, options?: Parameters<typeof authenticatedFetch>[1]) => {
-  return authenticatedFetch('/preferences/gym', { ...options, method: 'PATCH', body: JSON.stringify(patch) });
+export const getUpdateTaskPreferencesUrl = () => {
+
+
+
+
+  return `/preferences/tasks`
+}
+
+export const updateTaskPreferences = async ( options?: Parameters<typeof authenticatedFetch>[1]): Promise<updateTaskPreferencesResponse> => {
+
+  return authenticatedFetch<updateTaskPreferencesResponse>(getUpdateTaskPreferencesUrl(),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getUpdateTaskPreferencesMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTaskPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTaskPreferences>>, TError,void, TContext> => {
+
+const mutationKey = ['updateTaskPreferences'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTaskPreferences>>, void> = () => {
+
+
+          return  updateTaskPreferences(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTaskPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof updateTaskPreferences>>>
+
+    export type UpdateTaskPreferencesMutationError = unknown
+
+    export const useUpdateTaskPreferences = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTaskPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateTaskPreferences>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUpdateTaskPreferencesMutationOptions(options), queryClient);
+    }
+    export type updateFocusPreferencesResponse200 = {
+  data: void
+  status: 200
+}
+
+export type updateFocusPreferencesResponseSuccess = (updateFocusPreferencesResponse200) & {
+  headers: Headers;
 };
+;
+
+export type updateFocusPreferencesResponse = (updateFocusPreferencesResponseSuccess)
+
+export const getUpdateFocusPreferencesUrl = () => {
+
+
+
+
+  return `/preferences/focus`
+}
+
+export const updateFocusPreferences = async ( options?: Parameters<typeof authenticatedFetch>[1]): Promise<updateFocusPreferencesResponse> => {
+
+  return authenticatedFetch<updateFocusPreferencesResponse>(getUpdateFocusPreferencesUrl(),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getUpdateFocusPreferencesMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFocusPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateFocusPreferences>>, TError,void, TContext> => {
+
+const mutationKey = ['updateFocusPreferences'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateFocusPreferences>>, void> = () => {
+
+
+          return  updateFocusPreferences(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateFocusPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof updateFocusPreferences>>>
+
+    export type UpdateFocusPreferencesMutationError = unknown
+
+    export const useUpdateFocusPreferences = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFocusPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateFocusPreferences>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUpdateFocusPreferencesMutationOptions(options), queryClient);
+    }
+    export type updateHabitPreferencesResponse200 = {
+  data: void
+  status: 200
+}
+
+export type updateHabitPreferencesResponseSuccess = (updateHabitPreferencesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type updateHabitPreferencesResponse = (updateHabitPreferencesResponseSuccess)
+
+export const getUpdateHabitPreferencesUrl = () => {
+
+
+
+
+  return `/preferences/habits`
+}
+
+export const updateHabitPreferences = async ( options?: Parameters<typeof authenticatedFetch>[1]): Promise<updateHabitPreferencesResponse> => {
+
+  return authenticatedFetch<updateHabitPreferencesResponse>(getUpdateHabitPreferencesUrl(),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getUpdateHabitPreferencesMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateHabitPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateHabitPreferences>>, TError,void, TContext> => {
+
+const mutationKey = ['updateHabitPreferences'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateHabitPreferences>>, void> = () => {
+
+
+          return  updateHabitPreferences(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateHabitPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof updateHabitPreferences>>>
+
+    export type UpdateHabitPreferencesMutationError = unknown
+
+    export const useUpdateHabitPreferences = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateHabitPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateHabitPreferences>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUpdateHabitPreferencesMutationOptions(options), queryClient);
+    }
+    export type updateMatrixPreferencesResponse200 = {
+  data: void
+  status: 200
+}
+
+export type updateMatrixPreferencesResponseSuccess = (updateMatrixPreferencesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type updateMatrixPreferencesResponse = (updateMatrixPreferencesResponseSuccess)
+
+export const getUpdateMatrixPreferencesUrl = () => {
+
+
+
+
+  return `/preferences/matrix`
+}
+
+export const updateMatrixPreferences = async ( options?: Parameters<typeof authenticatedFetch>[1]): Promise<updateMatrixPreferencesResponse> => {
+
+  return authenticatedFetch<updateMatrixPreferencesResponse>(getUpdateMatrixPreferencesUrl(),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getUpdateMatrixPreferencesMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMatrixPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMatrixPreferences>>, TError,void, TContext> => {
+
+const mutationKey = ['updateMatrixPreferences'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMatrixPreferences>>, void> = () => {
+
+
+          return  updateMatrixPreferences(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMatrixPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof updateMatrixPreferences>>>
+
+    export type UpdateMatrixPreferencesMutationError = unknown
+
+    export const useUpdateMatrixPreferences = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMatrixPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateMatrixPreferences>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUpdateMatrixPreferencesMutationOptions(options), queryClient);
+    }
+    export type updateGrowthPreferencesResponse200 = {
+  data: void
+  status: 200
+}
+
+export type updateGrowthPreferencesResponseSuccess = (updateGrowthPreferencesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type updateGrowthPreferencesResponse = (updateGrowthPreferencesResponseSuccess)
+
+export const getUpdateGrowthPreferencesUrl = () => {
+
+
+
+
+  return `/preferences/growth`
+}
+
+export const updateGrowthPreferences = async ( options?: Parameters<typeof authenticatedFetch>[1]): Promise<updateGrowthPreferencesResponse> => {
+
+  return authenticatedFetch<updateGrowthPreferencesResponse>(getUpdateGrowthPreferencesUrl(),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getUpdateGrowthPreferencesMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGrowthPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGrowthPreferences>>, TError,void, TContext> => {
+
+const mutationKey = ['updateGrowthPreferences'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGrowthPreferences>>, void> = () => {
+
+
+          return  updateGrowthPreferences(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGrowthPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof updateGrowthPreferences>>>
+
+    export type UpdateGrowthPreferencesMutationError = unknown
+
+    export const useUpdateGrowthPreferences = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGrowthPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateGrowthPreferences>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUpdateGrowthPreferencesMutationOptions(options), queryClient);
+    }
+    export type updateLearnPreferencesResponse200 = {
+  data: void
+  status: 200
+}
+
+export type updateLearnPreferencesResponseSuccess = (updateLearnPreferencesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type updateLearnPreferencesResponse = (updateLearnPreferencesResponseSuccess)
+
+export const getUpdateLearnPreferencesUrl = () => {
+
+
+
+
+  return `/preferences/learn`
+}
+
+export const updateLearnPreferences = async ( options?: Parameters<typeof authenticatedFetch>[1]): Promise<updateLearnPreferencesResponse> => {
+
+  return authenticatedFetch<updateLearnPreferencesResponse>(getUpdateLearnPreferencesUrl(),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getUpdateLearnPreferencesMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLearnPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLearnPreferences>>, TError,void, TContext> => {
+
+const mutationKey = ['updateLearnPreferences'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLearnPreferences>>, void> = () => {
+
+
+          return  updateLearnPreferences(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLearnPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof updateLearnPreferences>>>
+
+    export type UpdateLearnPreferencesMutationError = unknown
+
+    export const useUpdateLearnPreferences = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLearnPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateLearnPreferences>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUpdateLearnPreferencesMutationOptions(options), queryClient);
+    }
+    export type updateJournalPreferencesResponse200 = {
+  data: void
+  status: 200
+}
+
+export type updateJournalPreferencesResponseSuccess = (updateJournalPreferencesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type updateJournalPreferencesResponse = (updateJournalPreferencesResponseSuccess)
+
+export const getUpdateJournalPreferencesUrl = () => {
+
+
+
+
+  return `/preferences/journal`
+}
+
+export const updateJournalPreferences = async ( options?: Parameters<typeof authenticatedFetch>[1]): Promise<updateJournalPreferencesResponse> => {
+
+  return authenticatedFetch<updateJournalPreferencesResponse>(getUpdateJournalPreferencesUrl(),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getUpdateJournalPreferencesMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJournalPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateJournalPreferences>>, TError,void, TContext> => {
+
+const mutationKey = ['updateJournalPreferences'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateJournalPreferences>>, void> = () => {
+
+
+          return  updateJournalPreferences(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateJournalPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof updateJournalPreferences>>>
+
+    export type UpdateJournalPreferencesMutationError = unknown
+
+    export const useUpdateJournalPreferences = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJournalPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateJournalPreferences>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUpdateJournalPreferencesMutationOptions(options), queryClient);
+    }
+    export type updateMoneyPreferencesResponse200 = {
+  data: void
+  status: 200
+}
+
+export type updateMoneyPreferencesResponseSuccess = (updateMoneyPreferencesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type updateMoneyPreferencesResponse = (updateMoneyPreferencesResponseSuccess)
+
+export const getUpdateMoneyPreferencesUrl = () => {
+
+
+
+
+  return `/preferences/money`
+}
+
+export const updateMoneyPreferences = async ( options?: Parameters<typeof authenticatedFetch>[1]): Promise<updateMoneyPreferencesResponse> => {
+
+  return authenticatedFetch<updateMoneyPreferencesResponse>(getUpdateMoneyPreferencesUrl(),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getUpdateMoneyPreferencesMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMoneyPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMoneyPreferences>>, TError,void, TContext> => {
+
+const mutationKey = ['updateMoneyPreferences'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMoneyPreferences>>, void> = () => {
+
+
+          return  updateMoneyPreferences(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMoneyPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof updateMoneyPreferences>>>
+
+    export type UpdateMoneyPreferencesMutationError = unknown
+
+    export const useUpdateMoneyPreferences = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMoneyPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateMoneyPreferences>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUpdateMoneyPreferencesMutationOptions(options), queryClient);
+    }
+    export type updateGymPreferencesResponse200 = {
+  data: void
+  status: 200
+}
+
+export type updateGymPreferencesResponseSuccess = (updateGymPreferencesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type updateGymPreferencesResponse = (updateGymPreferencesResponseSuccess)
+
+export const getUpdateGymPreferencesUrl = () => {
+
+
+
+
+  return `/preferences/gym`
+}
+
+export const updateGymPreferences = async ( options?: Parameters<typeof authenticatedFetch>[1]): Promise<updateGymPreferencesResponse> => {
+
+  return authenticatedFetch<updateGymPreferencesResponse>(getUpdateGymPreferencesUrl(),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getUpdateGymPreferencesMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGymPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGymPreferences>>, TError,void, TContext> => {
+
+const mutationKey = ['updateGymPreferences'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGymPreferences>>, void> = () => {
+
+
+          return  updateGymPreferences(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGymPreferencesMutationResult = NonNullable<Awaited<ReturnType<typeof updateGymPreferences>>>
+
+    export type UpdateGymPreferencesMutationError = unknown
+
+    export const useUpdateGymPreferences = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGymPreferences>>, TError,void, TContext>, request?: SecondParameter<typeof authenticatedFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateGymPreferences>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUpdateGymPreferencesMutationOptions(options), queryClient);
+    }

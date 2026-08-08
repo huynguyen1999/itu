@@ -301,6 +301,8 @@ model User {
   journalEntries              JournalEntry[]
   journalTemplates            JournalTemplate[]
   journalTags                 JournalTag[]
+  budgetCategories            BudgetCategory[]
+  budgetPeriods               BudgetPeriod[]
   exerciseDefinitions         ExerciseDefinition[]
   journalAttachments         JournalAttachment[]
   preferences                 UserPreferences?
@@ -316,6 +318,7 @@ model UserPreferences {
   learnPreferences   Json     @default("{}")
   journalPreferences Json     @default("{}")
   moneyPreferences   Json     @default("{}")
+  budgetPreferences  Json     @default("{}")
   gymPreferences     Json     @default("{}")
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -1606,45 +1609,62 @@ model JournalWeeklyReview {
   @@index([periodStart, periodEnd])
 }
 
-model MoneyCategory {
-  id         String          @id
+enum WorkoutStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+model BudgetCategory {
+  id         String                @id
   userId     String
   name       String
-  type       TransactionType @default(EXPENSE)
+  type       TransactionType       @default(EXPENSE)
   icon       String?
-  sortOrder  Int             @default(0)
+  color      String?               @default("TEAL")
+  sortOrder  Int                   @default(0)
   archivedAt DateTime?
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  version    Int                   @default(1)
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  limits     BudgetCategoryLimit[]
+  expenses   JournalExpense[]
 
   @@unique([userId, name])
   @@index([userId, archivedAt])
+  @@map("MoneyCategory")
 }
 
-model MoneyBudgetPeriod {
-  id           String                @id
-  userId       String
-  period       String                // e.g. "2026-08"
-  currency     String                @default("VND")
-  overallLimit Decimal               @db.Decimal(18, 2)
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  categoryBudgets MoneyCategoryBudget[]
+model BudgetPeriod {
+  id              String                @id
+  userId          String
+  period          String                // e.g. "2026-08"
+  currency        String                @default("VND")
+  overallLimit    Decimal               @db.Decimal(18, 2)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  version         Int                   @default(1)
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryBudgets BudgetCategoryLimit[]
 
   @@unique([userId, period])
   @@index([userId, period])
+  @@map("MoneyBudgetPeriod")
 }
 
-model MoneyCategoryBudget {
+model BudgetCategoryLimit {
   id             String            @id
   budgetPeriodId String
   categoryId     String
   limit          Decimal           @db.Decimal(18, 2)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
-  budgetPeriod   MoneyBudgetPeriod @relation(fields: [budgetPeriodId], references: [id], onDelete: Cascade)
+  budgetPeriod   BudgetPeriod      @relation(fields: [budgetPeriodId], references: [id], onDelete: Cascade)
+  category       BudgetCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
   @@unique([budgetPeriodId, categoryId])
+  @@map("MoneyCategoryBudget")
 }
 
 model JournalExpense {
@@ -1659,8 +1679,10 @@ model JournalExpense {
   accountId     String?
   transactionAt DateTime        @default(now())
   entry         JournalEntry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  categoryRel   BudgetCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@index([category])
+  @@index([categoryId])
   @@index([transactionAt])
 }
 
@@ -1669,19 +1691,25 @@ model ExerciseDefinition {
   userId               String
   name                 String
   normalizedName       String
+  description          String?
+  imageStorageKey      String?
+  imageUrl             String?
   metricType           ExerciseMetricType       @default(WEIGHT_REPS)
   equipment            String?
   primaryMuscleGroup   String?
   secondaryMuscleGroups String[]               @default([])
   defaultWeightUnit    WeightUnit               @default(KG)
   defaultRestSeconds   Int?
+  archivedAt           DateTime?
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
+  version              Int                      @default(1)
   user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   workoutExercises     JournalWorkoutExercise[]
 
   @@unique([userId, normalizedName])
   @@index([userId, name])
+  @@index([userId, archivedAt])
 }
 
 model JournalWorkout {
@@ -1689,6 +1717,7 @@ model JournalWorkout {
   title           String?
   source          String?
   routineId       String?
+  status          WorkoutStatus            @default(COMPLETED)
   startedAt       DateTime?
   endedAt         DateTime?
   durationMinutes Int?
