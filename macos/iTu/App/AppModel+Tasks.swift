@@ -113,9 +113,52 @@ extension AppModel {
             sectionId: edits.sectionId,
             tagIds: edits.tagIds
         )
+        let previousEdits = TaskEdits(
+            title: task.title,
+            descriptionMarkdown: task.descriptionMarkdown,
+            priority: task.priority,
+            important: task.important,
+            dueAt: task.dueAt,
+            estimatedMinutes: task.estimatedMinutes,
+            scheduledStartAt: task.scheduledStartAt,
+            scheduledEndAt: task.scheduledEndAt,
+            recurrenceRule: task.recurrenceRule,
+            taskListId: task.taskListId,
+            changesTaskListId: edits.changesTaskListId,
+            sectionId: task.sectionId,
+            tagIds: modelTagIds(for: task)
+        )
         do {
             apply(try await offlineStore.editTask(id: task.id, edits: normalized))
             syncPhase = .pending
+            
+            var label = "Updated task"
+            var mutType: TaskMutationType = .status
+            if edits.priority != task.priority {
+                label = "Priority: \(edits.priority.rawValue.capitalized)"
+                mutType = .priority
+            } else if edits.dueAt != task.dueAt {
+                label = "Due date updated"
+                mutType = .dueDate
+            } else if edits.changesTaskListId, edits.taskListId != task.taskListId {
+                label = "Moved task"
+                mutType = .taskList
+            }
+            let record = TaskUndoRecord(
+                label: label,
+                taskId: task.id,
+                mutationType: mutType,
+                previousValues: ["title": task.title]
+            ) { [weak self] in
+                Task { @MainActor in
+                    guard let self else { return }
+                    _ = try? await self.offlineStore.editTask(id: task.id, edits: previousEdits)
+                    if let updated = self.tasks.first(where: { $0.id == task.id }) {
+                        await self.editTask(updated, edits: previousEdits)
+                    }
+                }
+            }
+            TaskUndoCoordinator.shared.registerUndo(record)
         } catch {
             errorMessage = "Could not edit the task locally: \(error.localizedDescription)"
         }
@@ -154,6 +197,7 @@ extension AppModel {
     }
 
     func setTaskStatus(_ task: ProductivityTask, status: TaskStatus) async {
+        let previousStatus = tasks.first(where: { $0.id == task.id })?.status ?? task.status
         let optimisticReceipt = makeOptimisticGrowthReceipt(for: task, newStatus: status)
         let completedAt = status == .completed ? ISO8601DateFormatter().string(from: Date()) : nil
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
@@ -179,11 +223,42 @@ extension AppModel {
             syncPhase = .pending
         } catch {
             if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-                tasks[index].status = task.status
-                tasks[index].completedAt = task.completedAt
+                tasks[index].status = status
+                tasks[index].completedAt = completedAt
                 invalidateTaskProjections()
             }
             errorMessage = "Could not update task status: \(error.localizedDescription)"
+        }
+
+        if previousStatus != status {
+            let label: String
+            switch status {
+            case .completed: label = "Task completed"
+            case .inProgress: label = "Task set to In Progress"
+            case .planned, .inbox: label = "Task reopened"
+            case .canceled: label = "Task canceled"
+            case .archived: label = "Task archived"
+            }
+            let taskId = task.id
+            let record = TaskUndoRecord(
+                label: label,
+                taskId: taskId,
+                mutationType: .status,
+                previousValues: ["status": previousStatus.rawValue]
+            ) { [weak self] in
+                guard let self else { return }
+                if let index = self.tasks.firstIndex(where: { $0.id == taskId }) {
+                    self.tasks[index].status = previousStatus
+                    self.tasks[index].completedAt = previousStatus == .completed ? ISO8601DateFormatter().string(from: Date()) : nil
+                    self.invalidateTaskProjections()
+                } else {
+                    var restoredTask = task
+                    restoredTask.status = previousStatus
+                    self.tasks.append(restoredTask)
+                    self.invalidateTaskProjections()
+                }
+            }
+            TaskUndoCoordinator.shared.registerUndo(record)
         }
     }
 
@@ -208,15 +283,38 @@ extension AppModel {
     }
 
     func softDeleteTask(_ task: ProductivityTask) async {
+        let deletedAt = ISO8601DateFormatter().string(from: Date())
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index].deletedAt = deletedAt
+            invalidateTaskProjections()
+        }
         do {
             apply(try await offlineStore.softDeleteTask(id: task.id))
             syncPhase = .pending
         } catch {
             errorMessage = "Could not move the task to trash: \(error.localizedDescription)"
         }
+
+        let taskId = task.id
+        let record = TaskUndoRecord(
+            label: "Moved \"\(task.title)\" to Trash",
+            taskId: taskId,
+            mutationType: .softDelete,
+            previousValues: [:]
+        ) { [weak self] in
+            guard let self else { return }
+            if let current = self.tasks.first(where: { $0.id == taskId }) {
+                await self.restoreTask(current)
+            }
+        }
+        TaskUndoCoordinator.shared.registerUndo(record)
     }
 
     func restoreTask(_ task: ProductivityTask) async {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index].deletedAt = nil
+            invalidateTaskProjections()
+        }
         do {
             apply(try await offlineStore.restoreTask(id: task.id))
             syncPhase = .pending

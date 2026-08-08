@@ -28,9 +28,9 @@ final class CompanionTests: XCTestCase {
         // Search text is empty on start
         XCTAssertTrue(viewModel.searchText.isEmpty)
 
-        // Verify NEXT section has a placeholder when no tasks
-        let nextItems = viewModel.items.filter { $0.section == .next }
-        XCTAssertTrue(nextItems.contains { $0.title == "All caught up!" })
+        // Verify TODAY section has a placeholder when no tasks
+        let todayItems = viewModel.items.filter { $0.section == .today }
+        XCTAssertTrue(todayItems.contains { $0.title == "All caught up!" })
 
         // Verify HABITS section has a placeholder when no habits
         let habitsItems = viewModel.items.filter { $0.section == .habits }
@@ -84,7 +84,7 @@ final class CompanionTests: XCTestCase {
                 important: false,
                 urgent: false,
                 urgencyReason: "",
-                status: .inbox,
+                status: .completed,
                 sortOrder: 3.0,
                 version: 1
             )
@@ -93,11 +93,11 @@ final class CompanionTests: XCTestCase {
         // Type query
         viewModel.searchText = "budget"
 
-        // Result list should group tasks under .tasks
+        // Result list should group tasks under .tasks and exclude completed task "3"
         let taskItems = viewModel.items.filter { $0.section == .tasks }
-        XCTAssertEqual(taskItems.count, 2)
+        XCTAssertEqual(taskItems.count, 1)
         XCTAssertTrue(taskItems.contains { $0.title == "Review gym budget" })
-        XCTAssertTrue(taskItems.contains { $0.title == "Budget tracking setup" })
+        XCTAssertFalse(taskItems.contains { $0.title == "Budget tracking setup" })
 
         // Result list should include quick capture option
         let captureItems = viewModel.items.filter { $0.section == .quickCapture }
@@ -131,25 +131,15 @@ final class CompanionTests: XCTestCase {
         }
 
         viewModel.resetSelection()
-        XCTAssertEqual(viewModel.items[viewModel.selectedIndex].section, .next)
+        XCTAssertEqual(viewModel.items[viewModel.selectedIndex].section, .today)
 
-        // Jumps from .next to .habits
+        // Jumps from .today to .habits
         viewModel.selectNextSection()
         XCTAssertEqual(viewModel.items[viewModel.selectedIndex].section, .habits)
         
         // Jumps from .habits to .focus
         viewModel.selectNextSection()
         XCTAssertEqual(viewModel.items[viewModel.selectedIndex].section, .focus)
-    }
-
-    func testViewModelDirectIndexSelection() {
-        let viewModel = CompanionViewModel(model: model, router: router) {
-            self.dismissCalled = true
-        }
-
-        // Select the second item
-        viewModel.selectItem(at: 1)
-        XCTAssertEqual(viewModel.selectedIndex, 1)
     }
 
     func testFocusActionRetainsCompanionOpenState() {

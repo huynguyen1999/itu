@@ -57,6 +57,15 @@ struct MainView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                         .zIndex(100)
                 }
+
+                VStack {
+                    Spacer()
+                    UndoToastView()
+                        .padding(.bottom, 24)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .allowsHitTesting(true)
+                .zIndex(90)
             }
         }
         .background(iTuTheme.canvas)

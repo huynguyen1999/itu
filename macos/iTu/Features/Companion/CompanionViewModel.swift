@@ -52,32 +52,50 @@ final class CompanionViewModel {
         }
     }
 
+    var todayTasks: [ProductivityTask] {
+        model.homeTodayTasks()
+            .filter { $0.status != .archived && $0.deletedAt == nil }
+            .sorted { (t1, t2) -> Bool in
+                // Pending tasks before completed/canceled tasks
+                let c1 = (t1.status == .completed || t1.status == .canceled) ? 1 : 0
+                let c2 = (t2.status == .completed || t2.status == .canceled) ? 1 : 0
+                if c1 != c2 { return c1 < c2 }
+
+                let p1 = t1.priority == .high ? 3 : (t1.priority == .medium ? 2 : (t1.priority == .low ? 1 : 0))
+                let p2 = t2.priority == .high ? 3 : (t2.priority == .medium ? 2 : (t2.priority == .low ? 1 : 0))
+                if p1 != p2 { return p1 > p2 }
+                return t1.sortOrder < t2.sortOrder
+            }
+    }
+
     private func buildDefaultItems() -> [CompanionListItem] {
         var list: [CompanionListItem] = []
 
-        // 1. NEXT SECTION
-        if let task = nextTask {
+        // 1. TODAY SECTION (up to 5 actionable tasks)
+        let tasksForToday = Array(todayTasks.prefix(5))
+        if tasksForToday.isEmpty {
             list.append(CompanionListItem(
-                id: "next-task-\(task.id)",
-                section: .next,
-                title: task.title,
-                subtitle: task.priority != .none ? "Priority: \(task.priority.rawValue.capitalized)" : nil,
-                icon: task.priority == .high ? "exclamationmark.circle.fill" : "circle",
-                action: { [weak self] in
-                    Task {
-                        await self?.startFocus(for: task)
-                    }
-                }
-            ))
-        } else {
-            list.append(CompanionListItem(
-                id: "next-empty",
-                section: .next,
+                id: "today-empty",
+                section: .today,
                 title: "All caught up!",
-                subtitle: "No high priority tasks scheduled for today.",
+                subtitle: "No tasks scheduled or due for today.",
                 icon: "checkmark.circle",
                 action: {}
             ))
+        } else {
+            for task in tasksForToday {
+                list.append(CompanionListItem(
+                    id: "today-task-\(task.id)",
+                    section: .today,
+                    title: task.title,
+                    subtitle: task.priority != .none ? "Priority: \(task.priority.rawValue.capitalized)" : nil,
+                    icon: task.priority == .high ? "exclamationmark.circle.fill" : "circle",
+                    action: { [weak self] in
+                        self?.router.openTask(id: task.id)
+                        self?.dismissCompanion()
+                    }
+                ))
+            }
         }
 
         // 2. HABITS SECTION
@@ -285,9 +303,9 @@ final class CompanionViewModel {
             }
         }
 
-        // 3. TASKS
+        // 3. TASKS (excluding completed, canceled, archived, deleted)
         let matchingTasks = model.tasks
-            .filter { $0.deletedAt == nil }
+            .filter { $0.deletedAt == nil && $0.status != .completed && $0.status != .canceled && $0.status != .archived }
             .filter { $0.title.lowercased().contains(query.lowercased()) }
             .sorted { (t1, t2) -> Bool in
                 let p1 = t1.priority == .high ? 3 : (t1.priority == .medium ? 2 : (t1.priority == .low ? 1 : 0))
@@ -302,8 +320,8 @@ final class CompanionViewModel {
                 id: "task-\(task.id)",
                 section: .tasks,
                 title: task.title,
-                subtitle: task.status == .completed ? "Completed" : "Task",
-                icon: task.status == .completed ? "checkmark.circle.fill" : "circle",
+                subtitle: task.status == .inProgress ? "In Progress" : "Task",
+                icon: task.status == .inProgress ? "play.circle.fill" : "circle",
                 action: { [weak self] in
                     self?.router.openTask(id: task.id)
                     self?.dismissCompanion()
@@ -372,18 +390,6 @@ final class CompanionViewModel {
         executeSelection()
     }
 
-    var nextTask: ProductivityTask? {
-        model.homeTodayTasks()
-            .filter { $0.status != .completed && $0.status != .canceled && $0.deletedAt == nil }
-            .sorted { (t1, t2) -> Bool in
-                let p1 = t1.priority == .high ? 3 : (t1.priority == .medium ? 2 : (t1.priority == .low ? 1 : 0))
-                let p2 = t2.priority == .high ? 3 : (t2.priority == .medium ? 2 : (t2.priority == .low ? 1 : 0))
-                if p1 != p2 { return p1 > p2 }
-                return t1.sortOrder < t2.sortOrder
-            }
-            .first
-    }
-
     private func formatDuration(_ session: FocusSession) -> String {
         let startedAt = session.startedAt
         guard let startDate = ISO8601DateFormatter().date(from: startedAt) else { return "" }
@@ -411,7 +417,7 @@ struct CompanionListItem: Identifiable, Equatable {
 }
 
 enum CompanionSection: String {
-    case next = "NEXT"
+    case today = "TODAY"
     case habits = "HABITS"
     case focus = "FOCUS"
     case quickCapture = "QUICK CAPTURE"

@@ -204,14 +204,14 @@ struct PlanningView: View {
             .pointingHandCursor()
             .help("Group & Sort options")
             .popover(isPresented: $showGroupAndSortPopover, arrowEdge: .top) {
-                GroupAndSortPopoverView(onDismiss: { showGroupAndSortPopover = false })
+                GroupAndSortPopoverView(viewKey: planningViewKey, onDismiss: { showGroupAndSortPopover = false })
             }
 
-            // View Options Menu Button
+            // View Options / Settings Button
             Button {
                 showViewOptionsPopover.toggle()
             } label: {
-                Image(systemName: "ellipsis")
+                Image(systemName: "gearshape")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(iTuTheme.inkDim)
                     .frame(width: 32, height: 32)
@@ -224,10 +224,19 @@ struct PlanningView: View {
             }
             .buttonStyle(.plain)
             .pointingHandCursor()
-            .help("View options")
+            .help("Plan settings")
             .popover(isPresented: $showViewOptionsPopover, arrowEdge: .top) {
-                ViewOptionsPopoverView(onDismiss: { showViewOptionsPopover = false })
+                PlanSettingsPopover(viewKey: planningViewKey)
             }
+        }
+    }
+
+    private var planningViewKey: PlanningViewKey {
+        switch section {
+        case .today: return .today
+        case .upcoming: return .upcoming
+        case .inbox: return .inbox
+        default: return .all
         }
     }
 }
@@ -235,10 +244,13 @@ struct PlanningView: View {
 // MARK: - Group & Sort Popover View (Matching Web Image 3 100%)
 
 private struct GroupAndSortPopoverView: View {
+    let viewKey: PlanningViewKey
     @Environment(AppModel.self) private var model
     let onDismiss: () -> Void
 
     var body: some View {
+        let settings = model.settingsStore.planningSettings(for: viewKey)
+
         VStack(alignment: .leading, spacing: 10) {
             Text("Group & Sort")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
@@ -248,17 +260,49 @@ private struct GroupAndSortPopoverView: View {
                 .fill(iTuTheme.border)
                 .frame(height: 1)
 
-            Text("Task grouping will become available with server-backed lists and sections.")
-                .font(.system(size: 11))
-                .foregroundStyle(iTuTheme.inkDim)
-                .fixedSize(horizontal: false, vertical: true)
+            // Group by Submenu
+            Menu {
+                ForEach(PlanningGroupMode.allCases, id: \.self) { mode in
+                    Button(mode.rawValue.capitalized) {
+                        var updated = settings
+                        updated.groupMode = mode
+                        model.settingsStore.updatePlanningSettings(for: viewKey, settings: updated)
+                        onDismiss()
+                    }
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "folder")
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.inkDim)
+                    Text("Group by")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(iTuTheme.ink)
+                    Spacer()
+                    Text(settings.groupMode.rawValue.capitalized)
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                }
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .pointingHandCursor()
 
             // Sort by Submenu
             Menu {
-                Button("Manual order") { model.sortOption = .manual; onDismiss() }
-                Button("Due date") { model.sortOption = .dueDate; onDismiss() }
-                Button("Priority") { model.sortOption = .priority; onDismiss() }
-                Button("Title") { model.sortOption = .title; onDismiss() }
+                ForEach(PlanningSortMode.allCases) { mode in
+                    Button(mode.title) {
+                        var updated = settings
+                        updated.sortMode = mode
+                        model.settingsStore.updatePlanningSettings(for: viewKey, settings: updated)
+                        onDismiss()
+                    }
+                }
             } label: {
                 HStack {
                     Image(systemName: "line.3.horizontal.decrease")
@@ -268,7 +312,7 @@ private struct GroupAndSortPopoverView: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(iTuTheme.ink)
                     Spacer()
-                    Text(model.sortOption.title)
+                    Text(settings.sortMode.title)
                         .font(.system(size: 12))
                         .foregroundStyle(iTuTheme.inkFaint)
                     Image(systemName: "chevron.right")
@@ -288,7 +332,7 @@ private struct GroupAndSortPopoverView: View {
 
             // Restore defaults
             Button {
-                model.sortOption = .priority
+                model.settingsStore.resetPlanningSettings(for: viewKey)
                 onDismiss()
             } label: {
                 Text("Restore defaults")

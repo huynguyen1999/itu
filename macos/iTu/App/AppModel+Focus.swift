@@ -12,6 +12,17 @@ extension AppModel {
         selectedSection = .focus
     }
 
+    func startFocus(for task: ProductivityTask) async {
+        guard task.status != .completed, task.status != .canceled, task.status != .archived else { return }
+        
+        if task.status == .inbox || task.status == .planned {
+            await setTaskStatus(task, status: .inProgress)
+        }
+        
+        await prepareFocus(for: task)
+        await startFocus()
+    }
+
     func loadFocus(force: Bool = false) async {
         guard user != nil else { return }
         if let inFlight = focusRefreshTask {
@@ -415,9 +426,16 @@ extension AppModel {
         focusTimer.isMutating = true
         defer { focusTimer.isMutating = false }
         do {
-            apply(try await offlineStore.saveFocusSession(session, mutation: mutation))
+            let activeBefore = focusTimer.activeSession
+            let snapshot = try await offlineStore.saveFocusSession(session, mutation: mutation)
+            apply(snapshot)
+            if snapshot.focusSessions.isEmpty {
+                focusTimer.apply(active: ["complete", "abandon"].contains(session.status.rawValue) ? nil : (activeBefore ?? session))
+            }
             syncPhase = .pending
-            await synchronize(showErrors: true)
+            if user != nil {
+                await synchronize(showErrors: true)
+            }
         } catch {
             focusTimer.errorMessage = error.localizedDescription
         }

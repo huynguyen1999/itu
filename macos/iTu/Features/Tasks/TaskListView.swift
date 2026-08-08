@@ -9,20 +9,33 @@ struct TaskListView: View {
     var taskListId: String? = nil
 
     @State private var newTaskTitle = ""
-    @State private var isInboxGroupExpanded = true
-    @State private var isCompletedGroupExpanded = true
+    @State private var groupExpandedStates: [String: Bool] = [:]
     @State private var draggedTaskId: String?
 
+    private var planningViewKey: PlanningViewKey {
+        switch section {
+        case .today: return .today
+        case .upcoming: return .upcoming
+        case .inbox: return .inbox
+        default: return .all
+        }
+    }
+
     var body: some View {
-        let allSectionTasks = model.planningTasks(
-            for: section,
-            filterQuery: filterQuery,
-            taskListId: taskListId
-        )
+        let settings = model.settingsStore.planningSettings(for: planningViewKey)
         let archivedSkillIDs = Set(model.skills.filter { $0.archivedAt != nil }.map(\.id))
 
-        let pendingTasks = allSectionTasks.filter { ![.completed, .canceled].contains($0.status) }
-        let completedTasks = allSectionTasks.filter { [.completed, .canceled].contains($0.status) }
+        let allSectionTasks = model.planningTasks(for: section, filterQuery: filterQuery, taskListId: taskListId)
+        let pendingSectionTasks = allSectionTasks.filter { ![.completed, .canceled].contains($0.status) }
+        let completedSectionTasks = allSectionTasks.filter { [.completed, .canceled].contains($0.status) }
+
+        let activeGroups = PlanningTaskProjector.project(
+            tasks: pendingSectionTasks,
+            sections: model.sections,
+            lists: model.taskLists,
+            tags: model.tags,
+            settings: settings
+        )
 
         return ScrollView {
             VStack(spacing: 20) {
@@ -31,42 +44,61 @@ struct TaskListView: View {
                     quickCaptureBar
                 }
 
-                // Group 1: Active / Pending Tasks Group ("Inbox")
-                if !pendingTasks.isEmpty || (completedTasks.isEmpty && pendingTasks.isEmpty) {
-                    taskGroupSection(
-                        title: section == .today ? "Today" : "Inbox",
-                        tasks: pendingTasks,
-                        archivedSkillIDs: archivedSkillIDs,
-                        isExpanded: $isInboxGroupExpanded,
-                        onReorder: { draggedId, beforeId in
-                            let ordered = reorderedVisibleIds(
-                                pending: pendingTasks.map(\.id),
-                                completed: completedTasks.map(\.id),
-                                draggedId: draggedId,
-                                beforeId: beforeId
-                            )
-                            Task { await model.reorderTasks(ordered) }
-                        }
-                    )
-                }
+                if activeGroups.isEmpty && (completedSectionTasks.isEmpty || model.hideCompletedTasks) {
+                    VStack(spacing: 8) {
+                        Text("No tasks found")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(iTuTheme.inkDim)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+                    .iTuPanel(radius: 14)
+                } else {
+                    // Active Tasks Groups
+                    ForEach(activeGroups) { group in
+                        taskGroupSection(
+                            title: group.title,
+                            tasks: group.tasks,
+                            archivedSkillIDs: archivedSkillIDs,
+                            isExpanded: Binding(
+                                get: { groupExpandedStates[group.id] ?? true },
+                                set: { groupExpandedStates[group.id] = $0 }
+                            ),
+                            onReorder: { draggedId, beforeId in
+                                let allIds = group.tasks.map(\.id)
+                                let ordered = reorderedVisibleIds(
+                                    pending: allIds,
+                                    completed: [],
+                                    draggedId: draggedId,
+                                    beforeId: beforeId
+                                )
+                                Task { await model.reorderTasks(ordered) }
+                            }
+                        )
+                    }
 
-                // Group 2: Completed & Won't Do Tasks Group
-                if !completedTasks.isEmpty && !model.hideCompletedTasks {
-                    taskGroupSection(
-                        title: "Completed & Won’t Do",
-                        tasks: completedTasks,
-                        archivedSkillIDs: archivedSkillIDs,
-                        isExpanded: $isCompletedGroupExpanded,
-                        onReorder: { draggedId, beforeId in
-                            let ordered = reorderedVisibleIds(
-                                pending: pendingTasks.map(\.id),
-                                completed: completedTasks.map(\.id),
-                                draggedId: draggedId,
-                                beforeId: beforeId
-                            )
-                            Task { await model.reorderTasks(ordered) }
-                        }
-                    )
+                    // Completed & Won't Do Group (Separated like Web version)
+                    if !completedSectionTasks.isEmpty && !model.hideCompletedTasks {
+                        taskGroupSection(
+                            title: "Completed & Won’t Do",
+                            tasks: PlanningTaskProjector.sort(completedSectionTasks, by: settings.sortMode),
+                            archivedSkillIDs: archivedSkillIDs,
+                            isExpanded: Binding(
+                                get: { groupExpandedStates["completed-wont-do"] ?? true },
+                                set: { groupExpandedStates["completed-wont-do"] = $0 }
+                            ),
+                            onReorder: { draggedId, beforeId in
+                                let allIds = completedSectionTasks.map(\.id)
+                                let ordered = reorderedVisibleIds(
+                                    pending: [],
+                                    completed: allIds,
+                                    draggedId: draggedId,
+                                    beforeId: beforeId
+                                )
+                                Task { await model.reorderTasks(ordered) }
+                            }
+                        )
+                    }
                 }
             }
             .padding(24)

@@ -80,8 +80,8 @@ struct TaskEditorView: View {
 
     /// Closes only this editor window and queues the local task deletion.
     func deleteTask(task: ProductivityTask, model: AppModel, onClose: @escaping () -> Void) {
+        Task { await model.softDeleteTask(task) }
         onClose()
-        Task { await model.deleteTask(task) }
     }
 
     /// Closes only this editor window and starts focus for the task.

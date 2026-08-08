@@ -328,6 +328,7 @@ final class AppModel {
     func switchAccountIfNeeded(to profile: UserProfile) async throws {
         if user?.id != profile.id {
             invalidateSession()
+            TaskUndoCoordinator.shared.clearHistory()
             offlineStore = OfflineStore(accountID: profile.id)
             syncCoordinator.attach(store: offlineStore)
             apply(try await offlineStore.load())
@@ -349,7 +350,9 @@ final class AppModel {
         let tasksChanged = tasks != snapshot.tasks
         currentSnapshot = snapshot
         if tasksChanged {
-            tasks = snapshot.tasks
+            if !snapshot.tasks.isEmpty || tasks.isEmpty {
+                tasks = snapshot.tasks
+            }
             cachedTaskSections.removeAll(keepingCapacity: true)
             cachedHomeTodayTasks = nil
             cachedPlanningProjections.removeAll(keepingCapacity: true)

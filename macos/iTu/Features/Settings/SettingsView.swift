@@ -4,10 +4,6 @@ import KeyboardShortcuts
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case appearance
-    case tasks
-    case focus
-    case matrix
-    case growth
     case desktop
     case companion
 
@@ -15,11 +11,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .appearance: "Appearance"
-        case .tasks: "Tasks"
-        case .focus: "Focus"
-        case .matrix: "Matrix"
-        case .growth: "Growth"
+        case .appearance: "Appearance & System"
         case .desktop: "Desktop & Sync"
         case .companion: "Companion"
         }
@@ -28,10 +20,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .appearance: "paintpalette"
-        case .tasks: "checkmark.square.stack"
-        case .focus: "timer"
-        case .matrix: "square.grid.2x2"
-        case .growth: "chart.line.uptrend.xyaxis"
         case .desktop: "laptopcomputer.and.iphone"
         case .companion: "sidebar.squares.trailing"
         }
@@ -115,14 +103,6 @@ struct SettingsView: View {
                     switch selectedSection {
                     case .appearance:
                         AppearanceSettingsPanel()
-                    case .tasks:
-                        TaskDefaultsSettingsPanel()
-                    case .focus:
-                        FocusSettingsPanel()
-                    case .matrix:
-                        MatrixSettingsPanel()
-                    case .growth:
-                        GrowthSettingsPanel()
                     case .desktop:
                         DesktopSettingsPanel()
                     case .companion:

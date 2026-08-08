@@ -190,15 +190,15 @@ struct CompanionView: View {
                                         } else {
                                             EmptyView()
                                         }
-                                    } else if item.section == .next {
-                                        if item.id.hasPrefix("next-task-") {
-                                            CompanionNextTaskCardView(
+                                    } else if item.section == .today {
+                                        if item.id.hasPrefix("today-task-") {
+                                            CompanionTodayTaskRowView(
                                                 item: item,
                                                 index: index,
                                                 viewModel: viewModel
                                             )
                                         } else {
-                                            // next-empty
+                                            // today-empty
                                             CompanionItemRowView(
                                                 item: item,
                                                 isSelected: isSelected,
@@ -591,108 +591,166 @@ struct CompanionFocusCardView: View {
     }
 }
 
-struct CompanionNextTaskCardView: View {
+struct CompanionTodayTaskRowView: View {
     let item: CompanionListItem
     let index: Int
     @Bindable var viewModel: CompanionViewModel
     @State private var isHovered = false
+    @State private var isStatusHovered = false
     @State private var isOpenHovered = false
     @State private var isFocusHovered = false
 
     var body: some View {
         let isSelected = viewModel.selectedIndex == index
-        let taskId = item.id.replacingOccurrences(of: "next-task-", with: "")
-        
-        if let task = viewModel.model.tasks.first(where: { $0.id == taskId }) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top) {
-                    Button {
-                        Task {
-                            await viewModel.model.setTaskStatus(task, status: .completed)
-                            viewModel.refreshItems()
-                        }
-                    } label: {
-                        Image(systemName: "circle")
-                            .font(.system(size: 16))
-                            .foregroundStyle(isSelected ? iTuTheme.teal : iTuTheme.inkDim)
-                    }
-                    .buttonStyle(.plain)
-                    .pointingHandCursor()
+        let taskId = item.id.replacingOccurrences(of: "today-task-", with: "")
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(task.title)
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(iTuTheme.ink)
-                            .lineLimit(2)
-                        
-                        if task.priority != .none {
-                            Text("Priority: \(task.priority.rawValue.capitalized)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(task.priority == .high ? Color.red : iTuTheme.inkDim)
-                        }
+        if let task = viewModel.model.tasks.first(where: { $0.id == taskId }) {
+            HStack(spacing: 12) {
+                // Complete / Toggle Status Button
+                Button {
+                    Task {
+                        let nextStatus: TaskStatus = task.status == .completed ? .planned : .completed
+                        await viewModel.model.setTaskStatus(task, status: nextStatus)
+                        viewModel.refreshItems()
                     }
-                    
-                    Spacer()
-                    
-                    if isSelected || isHovered {
-                        HStack(spacing: 8) {
-                            Button {
-                                viewModel.router.openTask(id: task.id)
-                                viewModel.dismissCompanion()
-                            } label: {
-                                Text("Open")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(isOpenHovered ? Color.black.opacity(0.12) : Color.black.opacity(0.06))
-                                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                            }
-                            .buttonStyle(.plain)
-                            .pointingHandCursor()
-                            .onHover { hovering in
-                                isOpenHovered = hovering
-                            }
-                            
-                            Button {
-                                Task {
-                                    await viewModel.startFocus(for: task)
-                                }
-                            } label: {
-                                Text("Focus")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(isFocusHovered ? iTuTheme.teal.opacity(0.85) : iTuTheme.teal)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                            }
-                            .buttonStyle(.plain)
-                            .pointingHandCursor()
-                            .onHover { hovering in
-                                isFocusHovered = hovering
-                            }
+                } label: {
+                    Image(systemName: task.status == .completed ? "checkmark.circle.fill" : (task.status == .inProgress ? "play.circle.fill" : "circle"))
+                        .font(.system(size: 16))
+                        .foregroundStyle(task.status == .completed ? iTuTheme.mint : (task.status == .inProgress ? iTuTheme.teal : iTuTheme.inkDim))
+                }
+                .buttonStyle(.plain)
+                .pointingHandCursor()
+                .help(task.status == .completed ? "Reopen task" : "Complete task")
+
+                // Title & Metadata
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(task.title)
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                        .strikethrough(task.status == .completed)
+                        .foregroundStyle(task.status == .completed ? iTuTheme.inkFaint : iTuTheme.ink)
+                        .lineLimit(1)
+
+                    HStack(spacing: 6) {
+                        Text(task.status == .completed ? "Completed" : (task.status == .inProgress ? "In Progress" : "Planned"))
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(task.status == .completed ? iTuTheme.mint : (task.status == .inProgress ? iTuTheme.teal : iTuTheme.inkFaint))
+
+                        if task.priority != .none {
+                            Text("•")
+                                .font(.system(size: 10))
+                                .foregroundStyle(iTuTheme.inkFaint)
+                            Text(task.priority.rawValue.capitalized)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(task.priority == .high ? Color.red : iTuTheme.inkFaint)
                         }
-                        .transition(.opacity)
                     }
                 }
+
+                Spacer()
+
+                // Actions on hover or selection
+                if isSelected || isHovered {
+                    HStack(spacing: 6) {
+                        // Complete action
+                        Button {
+                            Task {
+                                await viewModel.model.setTaskStatus(task, status: .completed)
+                                viewModel.refreshItems()
+                            }
+                        } label: {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(5)
+                                .background(Color.black.opacity(0.06))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .pointingHandCursor()
+                        .help("Complete")
+
+                        // Status menu
+                        Menu {
+                            Button("Planned") {
+                                Task { await viewModel.model.setTaskStatus(task, status: .planned) }
+                            }
+                            Button("In Progress") {
+                                Task { await viewModel.model.setTaskStatus(task, status: .inProgress) }
+                            }
+                            Button("Completed") {
+                                Task { await viewModel.model.setTaskStatus(task, status: .completed) }
+                            }
+                            Button("Canceled") {
+                                Task { await viewModel.model.setTaskStatus(task, status: .canceled) }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.system(size: 12))
+                                .padding(5)
+                                .background(isStatusHovered ? Color.black.opacity(0.12) : Color.black.opacity(0.06))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .pointingHandCursor()
+                        .help("Change status")
+                        .onHover { hovering in
+                            isStatusHovered = hovering
+                        }
+
+                        // Start Focus action
+                        Button {
+                            Task {
+                                await viewModel.startFocus(for: task)
+                            }
+                        } label: {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(5)
+                                .background(isFocusHovered ? iTuTheme.teal.opacity(0.85) : iTuTheme.teal)
+                                .foregroundStyle(.white)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .pointingHandCursor()
+                        .help("Start Focus")
+                        .onHover { hovering in
+                            isFocusHovered = hovering
+                        }
+
+                        // Open in main window action
+                        Button {
+                            viewModel.router.openTask(id: task.id)
+                            viewModel.dismissCompanion()
+                        } label: {
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(5)
+                                .background(isOpenHovered ? Color.black.opacity(0.12) : Color.black.opacity(0.06))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .pointingHandCursor()
+                        .help("Open task")
+                        .onHover { hovering in
+                            isOpenHovered = hovering
+                        }
+                    }
+                    .transition(.opacity)
+                }
             }
-            .padding(16)
+            .padding(.horizontal, 12)
+            .frame(height: 42)
             .background(
                 isSelected
                     ? iTuTheme.mintTint.opacity(0.3)
-                    : (isHovered ? Color.black.opacity(0.04) : Color.black.opacity(0.02))
+                    : (isHovered ? Color.black.opacity(0.04) : Color.clear)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(isSelected ? iTuTheme.teal : (isHovered ? iTuTheme.teal.opacity(0.3) : iTuTheme.border), lineWidth: 1)
-            }
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .padding(.horizontal, 12)
             .id(item.id)
             .onHover { hovering in
                 isHovered = hovering
             }
-            .animation(.easeInOut(duration: 0.15), value: isHovered)
+            .animation(.easeInOut(duration: 0.12), value: isHovered)
         }
     }
 }

@@ -181,7 +181,7 @@ struct TaskContextMenuPopoverView: View {
                 .pointingHandCursor()
 
                 Button {
-                    Task { await model.deleteTask(task) }
+                    Task { await model.softDeleteTask(task) }
                     onDismiss()
                 } label: {
                     HStack(spacing: 8) {

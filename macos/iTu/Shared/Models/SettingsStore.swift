@@ -291,6 +291,36 @@ final class SettingsStore {
     var taskDefaults: TaskDefaultsSettings {
         didSet { save() }
     }
+    public var planningViewSettings: [PlanningViewKey: PlanningViewSettings] = [:] {
+        didSet {
+            savePlanningViewSettings()
+        }
+    }
+
+    public func planningSettings(for key: PlanningViewKey) -> PlanningViewSettings {
+        planningViewSettings[key] ?? PlanningViewSettings.defaultSettings(for: key)
+    }
+
+    public func updatePlanningSettings(for key: PlanningViewKey, settings: PlanningViewSettings) {
+        planningViewSettings[key] = settings
+    }
+
+    public func resetPlanningSettings(for key: PlanningViewKey) {
+        planningViewSettings[key] = PlanningViewSettings.defaultSettings(for: key)
+    }
+
+    private func savePlanningViewSettings() {
+        guard let data = try? JSONEncoder().encode(planningViewSettings) else { return }
+        UserDefaults.standard.set(data, forKey: "itu_planning_view_settings")
+    }
+
+    private func loadPlanningViewSettings() -> [PlanningViewKey: PlanningViewSettings] {
+        guard let data = UserDefaults.standard.data(forKey: "itu_planning_view_settings"),
+              let decoded = try? JSONDecoder().decode([PlanningViewKey: PlanningViewSettings].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }
     var focusSettings: FocusSettings {
         didSet {
             save()
