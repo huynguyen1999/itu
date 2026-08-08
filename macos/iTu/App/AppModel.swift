@@ -156,6 +156,11 @@ enum AppOverlay: Equatable, Identifiable {
     }
 }
 
+enum UndoRegistration: Sendable {
+    case register
+    case suppress
+}
+
 @MainActor
 @Observable
 final class AppModel {

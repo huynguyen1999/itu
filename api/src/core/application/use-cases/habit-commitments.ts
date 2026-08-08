@@ -259,7 +259,7 @@ export async function reverseCommitmentPenalty(tx: Tx, userId: string, occurrenc
       data: {
         userId,
         entityType: 'growthprofile',
-        entityId: updatedProfile.id ?? profile.id,
+        entityId: updatedProfile.id ?? userId,
         operation: 'UPSERT',
         data: updatedProfile,
       },

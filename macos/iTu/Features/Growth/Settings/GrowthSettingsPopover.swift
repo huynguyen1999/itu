@@ -13,11 +13,11 @@ struct GrowthSettingsPopover: View {
 
             Divider()
 
-            Text("Skill mappings, earnings ledgers, and reward shop preferences are managed directly inside the Growth section.")
+            Text("Celebration style, reward confirmation threshold, and XP curves are managed directly via Growth Settings in the Growth page.")
                 .font(.system(size: 12))
                 .foregroundStyle(iTuTheme.inkDim)
         }
         .padding(16)
-        .frame(width: 260)
+        .frame(width: 270)
     }
 }

@@ -40,7 +40,7 @@ import {
   type TaskDefaults,
 } from '@/shared/taskDefaults';
 
-type SettingsSection = 'appearance' | 'tasks' | 'focus' | 'money' | 'gym' | 'matrix' | 'growth';
+type SettingsSection = 'appearance' | 'tasks' | 'focus' | 'money' | 'gym' | 'matrix' | 'growth' | 'notifications' | 'profile' | 'security' | 'sync' | 'device';
 
 const sections: Array<{ id: SettingsSection; label: string; icon: typeof Settings }> = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
@@ -50,6 +50,11 @@ const sections: Array<{ id: SettingsSection; label: string; icon: typeof Setting
   { id: 'gym', label: 'Gym', icon: Dumbbell },
   { id: 'matrix', label: 'Matrix', icon: Grid2X2 },
   { id: 'growth', label: 'Growth', icon: TrendingUp },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'profile', label: 'Account / Profile', icon: Monitor },
+  { id: 'security', label: 'Security', icon: CalendarClock },
+  { id: 'sync', label: 'Sync & Data', icon: Cloud },
+  { id: 'device', label: 'Device & Permissions', icon: Flag },
 ];
 
 export function SettingsPage() {
@@ -183,6 +188,41 @@ export function SettingsPage() {
                 onOpenReset={() => setShowReset(true)}
               />
             ))}
+          {section === 'notifications' && (
+            <SettingsCard
+              icon={Bell}
+              title="Notifications"
+              description="Desktop and browser alert preferences are managed via system permissions."
+            />
+          )}
+          {section === 'profile' && (
+            <SettingsCard
+              icon={Monitor}
+              title="Account / Profile"
+              description="Authenticated user identity, profile details, and active sessions."
+            />
+          )}
+          {section === 'security' && (
+            <SettingsCard
+              icon={CalendarClock}
+              title="Security"
+              description="Password, active refresh sessions, and authentication security."
+            />
+          )}
+          {section === 'sync' && (
+            <SettingsCard
+              icon={Cloud}
+              title="Sync & Data"
+              description="Offline outbox, IndexedDB persistence lease, and sync status."
+            />
+          )}
+          {section === 'device' && (
+            <SettingsCard
+              icon={Flag}
+              title="Device & Permissions"
+              description="Browser installation ID, client instance tab session, and Web platform permissions."
+            />
+          )}
         </main>
 
         {data && <GrowthResetDialog open={showReset} skills={data.skills} onClose={() => setShowReset(false)} />}

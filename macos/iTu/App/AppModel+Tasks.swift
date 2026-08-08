@@ -95,7 +95,7 @@ extension AppModel {
         }
     }
 
-    func editTask(_ task: ProductivityTask, edits: TaskEdits) async {
+    func editTask(_ task: ProductivityTask, edits: TaskEdits, undoRegistration: UndoRegistration = .register) async {
         let title = edits.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
         let normalized = TaskEdits(
@@ -132,33 +132,32 @@ extension AppModel {
             apply(try await offlineStore.editTask(id: task.id, edits: normalized))
             syncPhase = .pending
             
-            var label = "Updated task"
-            var mutType: TaskMutationType = .status
-            if edits.priority != task.priority {
-                label = "Priority: \(edits.priority.rawValue.capitalized)"
-                mutType = .priority
-            } else if edits.dueAt != task.dueAt {
-                label = "Due date updated"
-                mutType = .dueDate
-            } else if edits.changesTaskListId, edits.taskListId != task.taskListId {
-                label = "Moved task"
-                mutType = .taskList
-            }
-            let record = TaskUndoRecord(
-                label: label,
-                taskId: task.id,
-                mutationType: mutType,
-                previousValues: ["title": task.title]
-            ) { [weak self] in
-                Task { @MainActor in
-                    guard let self else { return }
-                    _ = try? await self.offlineStore.editTask(id: task.id, edits: previousEdits)
-                    if let updated = self.tasks.first(where: { $0.id == task.id }) {
-                        await self.editTask(updated, edits: previousEdits)
+            if undoRegistration == .register {
+                var label = "Updated task"
+                var mutType: TaskMutationType = .status
+                if edits.priority != task.priority {
+                    label = "Priority: \(edits.priority.rawValue.capitalized)"
+                    mutType = .priority
+                } else if edits.dueAt != task.dueAt {
+                    label = "Due date updated"
+                    mutType = .dueDate
+                } else if edits.changesTaskListId, edits.taskListId != task.taskListId {
+                    label = "Moved task"
+                    mutType = .taskList
+                }
+                let record = TaskUndoRecord(
+                    label: label,
+                    taskId: task.id,
+                    mutationType: mutType,
+                    previousValues: ["title": task.title]
+                ) { [weak self] in
+                    Task { @MainActor in
+                        guard let self, let current = self.tasks.first(where: { $0.id == task.id }) else { return }
+                        await self.editTask(current, edits: previousEdits, undoRegistration: .suppress)
                     }
                 }
+                TaskUndoCoordinator.shared.registerUndo(record)
             }
-            TaskUndoCoordinator.shared.registerUndo(record)
         } catch {
             errorMessage = "Could not edit the task locally: \(error.localizedDescription)"
         }
@@ -196,7 +195,7 @@ extension AppModel {
         }
     }
 
-    func setTaskStatus(_ task: ProductivityTask, status: TaskStatus) async {
+    func setTaskStatus(_ task: ProductivityTask, status: TaskStatus, undoRegistration: UndoRegistration = .register) async {
         let previousStatus = tasks.first(where: { $0.id == task.id })?.status ?? task.status
         let optimisticReceipt = makeOptimisticGrowthReceipt(for: task, newStatus: status)
         let completedAt = status == .completed ? ISO8601DateFormatter().string(from: Date()) : nil
@@ -223,14 +222,22 @@ extension AppModel {
             syncPhase = .pending
         } catch {
             if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-                tasks[index].status = status
-                tasks[index].completedAt = completedAt
+                tasks[index].status = previousStatus
+                tasks[index].completedAt = previousStatus == .completed ? ISO8601DateFormatter().string(from: Date()) : nil
                 invalidateTaskProjections()
             }
             errorMessage = "Could not update task status: \(error.localizedDescription)"
+            return
         }
 
-        if previousStatus != status {
+        if status == .completed,
+           let session = focusTimer.activeSession,
+           session.taskId == task.id,
+           session.phase == .work {
+            await performFocusAction("complete")
+        }
+
+        if previousStatus != status && undoRegistration == .register {
             let label: String
             switch status {
             case .completed: label = "Task completed"
@@ -246,17 +253,8 @@ extension AppModel {
                 mutationType: .status,
                 previousValues: ["status": previousStatus.rawValue]
             ) { [weak self] in
-                guard let self else { return }
-                if let index = self.tasks.firstIndex(where: { $0.id == taskId }) {
-                    self.tasks[index].status = previousStatus
-                    self.tasks[index].completedAt = previousStatus == .completed ? ISO8601DateFormatter().string(from: Date()) : nil
-                    self.invalidateTaskProjections()
-                } else {
-                    var restoredTask = task
-                    restoredTask.status = previousStatus
-                    self.tasks.append(restoredTask)
-                    self.invalidateTaskProjections()
-                }
+                guard let self, let current = self.tasks.first(where: { $0.id == taskId }) else { return }
+                await self.setTaskStatus(current, status: previousStatus, undoRegistration: .suppress)
             }
             TaskUndoCoordinator.shared.registerUndo(record)
         }
@@ -282,7 +280,7 @@ extension AppModel {
         await setTaskStatus(task, status: nextStatus)
     }
 
-    func softDeleteTask(_ task: ProductivityTask) async {
+    func softDeleteTask(_ task: ProductivityTask, undoRegistration: UndoRegistration = .register) async {
         let deletedAt = ISO8601DateFormatter().string(from: Date())
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index].deletedAt = deletedAt
@@ -295,22 +293,22 @@ extension AppModel {
             errorMessage = "Could not move the task to trash: \(error.localizedDescription)"
         }
 
-        let taskId = task.id
-        let record = TaskUndoRecord(
-            label: "Moved \"\(task.title)\" to Trash",
-            taskId: taskId,
-            mutationType: .softDelete,
-            previousValues: [:]
-        ) { [weak self] in
-            guard let self else { return }
-            if let current = self.tasks.first(where: { $0.id == taskId }) {
-                await self.restoreTask(current)
+        if undoRegistration == .register {
+            let taskId = task.id
+            let record = TaskUndoRecord(
+                label: "Moved \"\(task.title)\" to Trash",
+                taskId: taskId,
+                mutationType: .softDelete,
+                previousValues: [:]
+            ) { [weak self] in
+                guard let self, let current = self.tasks.first(where: { $0.id == taskId }) else { return }
+                await self.restoreTask(current, undoRegistration: .suppress)
             }
+            TaskUndoCoordinator.shared.registerUndo(record)
         }
-        TaskUndoCoordinator.shared.registerUndo(record)
     }
 
-    func restoreTask(_ task: ProductivityTask) async {
+    func restoreTask(_ task: ProductivityTask, undoRegistration: UndoRegistration = .register) async {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index].deletedAt = nil
             invalidateTaskProjections()

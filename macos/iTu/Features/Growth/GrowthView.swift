@@ -750,6 +750,7 @@ private struct LedgerDetailSheet: View {
 
 private struct GrowthSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
 
     let profile: GrowthProfileDTO?
     let onSave: (Int, GrowthRewardPreset) -> Void
@@ -808,6 +809,39 @@ private struct GrowthSettingsSheet: View {
                 }
                 .pickerStyle(.segmented)
                 Text("Controls how generous XP and coin rewards are.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(iTuTheme.inkFaint)
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Celebration style")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(iTuTheme.ink)
+                Picker("Celebration style", selection: Binding(
+                    get: { model.settingsStore.growthCelebrationStyle },
+                    set: { model.settingsStore.growthCelebrationStyle = $0 }
+                )) {
+                    Text("Off").tag("OFF")
+                    Text("Subtle").tag("SUBTLE")
+                    Text("Full").tag("FULL")
+                }
+                .pickerStyle(.segmented)
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Reward purchase confirmation threshold")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(iTuTheme.ink)
+                HStack {
+                    TextField("Coins", value: Binding(
+                        get: { model.settingsStore.rewardConfirmationThreshold },
+                        set: { model.settingsStore.rewardConfirmationThreshold = max(0, $0) }
+                    ), formatter: NumberFormatter())
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 80)
+                    Text("coins").font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim)
+                }
+                Text("Show confirmation dialog for shop purchases at or above this coin amount.")
                     .font(.system(size: 11))
                     .foregroundStyle(iTuTheme.inkFaint)
             }

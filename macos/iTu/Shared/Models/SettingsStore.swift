@@ -93,8 +93,10 @@ enum AppThemeMode: String, Codable, CaseIterable, Identifiable {
 
 struct TaskDefaultsSettings: Codable, Equatable {
     var date: DefaultTaskDate = .none
+    var defaultDueTime: String = "18:00"
     var priority: TaskPriority = .none
     var taskListId: String = ""
+    var defaultEstimatedMinutes: Int? = nil
 }
 
 enum MenuBarDisplayMode: String, Codable, CaseIterable, Identifiable, Hashable {
@@ -272,6 +274,7 @@ struct MatrixSettings: Codable, Equatable {
     var urgentDueWithinDays: Int = 2
     var urgentPriorities: [TaskPriority] = [.high]
     var importantPriorities: [TaskPriority] = [.high]
+    var manualOverrideWins: Bool = true
     var showCompleted: Bool = true
     var showWontDo: Bool = true
     var sortOption: MatrixSortOption = .manual
@@ -344,6 +347,57 @@ final class SettingsStore {
         didSet { save() }
     }
 
+    public var journalDefaultEditorMode: String {
+        get { UserDefaults.standard.string(forKey: "itu_journal_default_editor_mode") ?? "LIVE" }
+        set { UserDefaults.standard.set(newValue, forKey: "itu_journal_default_editor_mode") }
+    }
+
+    public var journalAutoCreateDailyNote: Bool {
+        get { UserDefaults.standard.object(forKey: "itu_journal_auto_create_daily_note") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "itu_journal_auto_create_daily_note") }
+    }
+
+    public var journalAutoOpenTodayNote: Bool {
+        get { UserDefaults.standard.object(forKey: "itu_journal_auto_open_today_note") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "itu_journal_auto_open_today_note") }
+    }
+
+    public var growthCelebrationStyle: String {
+        get { UserDefaults.standard.string(forKey: "itu_growth_celebration_style") ?? "SUBTLE" }
+        set { UserDefaults.standard.set(newValue, forKey: "itu_growth_celebration_style") }
+    }
+
+    public var rewardConfirmationThreshold: Int {
+        get {
+            let val = UserDefaults.standard.integer(forKey: "itu_reward_confirmation_threshold")
+            return val <= 0 ? 100 : val
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "itu_reward_confirmation_threshold") }
+    }
+
+    public var learnReviewOrder: String {
+        get { UserDefaults.standard.string(forKey: "itu_learn_review_order") ?? "DUE_FIRST" }
+        set { UserDefaults.standard.set(newValue, forKey: "itu_learn_review_order") }
+    }
+
+    public var habitRolloverCutoff: String {
+        get { UserDefaults.standard.string(forKey: "itu_habit_rollover_cutoff") ?? "03:00" }
+        set { UserDefaults.standard.set(newValue, forKey: "itu_habit_rollover_cutoff") }
+    }
+
+    public var lastPlanningView: PlanningViewKey {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: "itu_last_planning_view"),
+                  let key = PlanningViewKey(rawValue: raw) else {
+                return .today
+            }
+            return key
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "itu_last_planning_view")
+        }
+    }
+
     private static let userDefaultsKey = "iTu_UserSettingsStore_v1"
 
     init() {
@@ -367,6 +421,7 @@ final class SettingsStore {
             self.companionKeepAbove = true
             self.companionRememberPosition = true
         }
+        self.planningViewSettings = loadPlanningViewSettings()
     }
 
     func resetTaskDefaults() {

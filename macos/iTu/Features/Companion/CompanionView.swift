@@ -609,31 +609,29 @@ struct CompanionTodayTaskRowView: View {
                 // Complete / Toggle Status Button
                 Button {
                     Task {
-                        let nextStatus: TaskStatus = task.status == .completed ? .planned : .completed
-                        await viewModel.model.setTaskStatus(task, status: nextStatus)
+                        await viewModel.model.setTaskStatus(task, status: .completed)
                         viewModel.refreshItems()
                     }
                 } label: {
-                    Image(systemName: task.status == .completed ? "checkmark.circle.fill" : (task.status == .inProgress ? "play.circle.fill" : "circle"))
+                    Image(systemName: task.status == .inProgress ? "play.circle.fill" : "circle")
                         .font(.system(size: 16))
-                        .foregroundStyle(task.status == .completed ? iTuTheme.mint : (task.status == .inProgress ? iTuTheme.teal : iTuTheme.inkDim))
+                        .foregroundStyle(task.status == .inProgress ? iTuTheme.teal : iTuTheme.inkDim)
                 }
                 .buttonStyle(.plain)
                 .pointingHandCursor()
-                .help(task.status == .completed ? "Reopen task" : "Complete task")
+                .help("Complete task")
 
                 // Title & Metadata
                 VStack(alignment: .leading, spacing: 2) {
                     Text(task.title)
                         .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
-                        .strikethrough(task.status == .completed)
-                        .foregroundStyle(task.status == .completed ? iTuTheme.inkFaint : iTuTheme.ink)
+                        .foregroundStyle(iTuTheme.ink)
                         .lineLimit(1)
 
                     HStack(spacing: 6) {
-                        Text(task.status == .completed ? "Completed" : (task.status == .inProgress ? "In Progress" : "Planned"))
+                        Text(task.status == .inProgress ? "In Progress" : "Planned")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(task.status == .completed ? iTuTheme.mint : (task.status == .inProgress ? iTuTheme.teal : iTuTheme.inkFaint))
+                            .foregroundStyle(task.status == .inProgress ? iTuTheme.teal : iTuTheme.inkFaint)
 
                         if task.priority != .none {
                             Text("•")
@@ -675,9 +673,6 @@ struct CompanionTodayTaskRowView: View {
                             }
                             Button("In Progress") {
                                 Task { await viewModel.model.setTaskStatus(task, status: .inProgress) }
-                            }
-                            Button("Completed") {
-                                Task { await viewModel.model.setTaskStatus(task, status: .completed) }
                             }
                             Button("Canceled") {
                                 Task { await viewModel.model.setTaskStatus(task, status: .canceled) }

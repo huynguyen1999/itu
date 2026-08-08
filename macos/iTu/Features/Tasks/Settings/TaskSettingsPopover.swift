@@ -41,6 +41,18 @@ struct TaskSettingsPopover: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
+                Text("Default due time")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(iTuTheme.inkDim)
+
+                TextField("e.g. 18:00", text: Binding(
+                    get: { settings.taskDefaults.defaultDueTime },
+                    set: { settings.taskDefaults.defaultDueTime = $0 }
+                ))
+                .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
                 Text("Default priority")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(iTuTheme.inkDim)
@@ -73,8 +85,27 @@ struct TaskSettingsPopover: View {
                 }
                 .pickerStyle(.menu)
             }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Default estimate (minutes)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(iTuTheme.inkDim)
+
+                Picker("", selection: Binding(
+                    get: { settings.taskDefaults.defaultEstimatedMinutes ?? 0 },
+                    set: { settings.taskDefaults.defaultEstimatedMinutes = $0 == 0 ? nil : $0 }
+                )) {
+                    Text("None").tag(0)
+                    Text("15 min").tag(15)
+                    Text("25 min").tag(25)
+                    Text("30 min").tag(30)
+                    Text("45 min").tag(45)
+                    Text("60 min").tag(60)
+                }
+                .pickerStyle(.menu)
+            }
         }
         .padding(16)
-        .frame(width: 260)
+        .frame(width: 270)
     }
 }

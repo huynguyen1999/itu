@@ -11,6 +11,7 @@ import {
   Play,
   RotateCcw,
   Search,
+  Settings,
   TimerReset,
 } from 'lucide-react';
 import { api } from '@/shared/api/client';
@@ -549,7 +550,7 @@ export function FocusPage() {
           title="Focus Settings"
           aria-label="Focus Settings"
         >
-          <MoreHorizontal className="h-4 w-4" />
+          <Settings className="h-4 w-4" />
         </Button>
       </PageHeader>
 

@@ -92,8 +92,62 @@ struct PlanSettingsPopover: View {
                     model.settingsStore.updatePlanningSettings(for: viewKey, settings: updated)
                 }
             ))
+
+            Divider()
+
+            // Task Defaults Section
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Task Defaults")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(iTuTheme.ink)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Default due time")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(iTuTheme.inkDim)
+                    TextField("e.g. 18:00", text: Binding(
+                        get: { model.settingsStore.taskDefaults.defaultDueTime },
+                        set: { model.settingsStore.taskDefaults.defaultDueTime = $0 }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Default priority")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(iTuTheme.inkDim)
+                    Picker("", selection: Binding(
+                        get: { model.settingsStore.taskDefaults.priority },
+                        set: { model.settingsStore.taskDefaults.priority = $0 }
+                    )) {
+                        Text("No priority").tag(TaskPriority.none)
+                        Text("Low").tag(TaskPriority.low)
+                        Text("Medium").tag(TaskPriority.medium)
+                        Text("High").tag(TaskPriority.high)
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Default estimate")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(iTuTheme.inkDim)
+                    Picker("", selection: Binding(
+                        get: { model.settingsStore.taskDefaults.defaultEstimatedMinutes ?? 0 },
+                        set: { model.settingsStore.taskDefaults.defaultEstimatedMinutes = $0 == 0 ? nil : $0 }
+                    )) {
+                        Text("None").tag(0)
+                        Text("15 min").tag(15)
+                        Text("25 min").tag(25)
+                        Text("30 min").tag(30)
+                        Text("45 min").tag(45)
+                        Text("60 min").tag(60)
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
         }
         .padding(16)
-        .frame(width: 280)
+        .frame(width: 290)
     }
 }

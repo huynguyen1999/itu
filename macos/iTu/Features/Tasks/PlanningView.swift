@@ -36,6 +36,9 @@ struct PlanningView: View {
                 )
             }
         }
+        .onAppear {
+            model.settingsStore.lastPlanningView = planningViewKey
+        }
     }
 
     // MARK: - Adaptive Toolbar

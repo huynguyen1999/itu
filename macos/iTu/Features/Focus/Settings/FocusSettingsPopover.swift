@@ -60,6 +60,17 @@ struct FocusSettingsPopover: View {
                         .frame(width: 50)
                         Text("min").font(.system(size: 11)).foregroundStyle(iTuTheme.inkDim)
                     }
+                    HStack {
+                        Text("Cycles before long break")
+                            .font(.system(size: 12))
+                        Spacer()
+                        TextField("Cycles", value: Binding(
+                            get: { settings.focusSettings.cyclesBeforeLongBreak },
+                            set: { settings.focusSettings.cyclesBeforeLongBreak = max(1, min(20, $0)) }
+                        ), formatter: NumberFormatter())
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 50)
+                    }
                 }
 
                 Divider()
@@ -70,6 +81,14 @@ struct FocusSettingsPopover: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(iTuTheme.inkFaint)
 
+                    Toggle("Auto-start breaks", isOn: Binding(
+                        get: { settings.focusSettings.autoStartBreaks },
+                        set: { settings.focusSettings.autoStartBreaks = $0 }
+                    ))
+                    Toggle("Auto-start work", isOn: Binding(
+                        get: { settings.focusSettings.autoStartWork },
+                        set: { settings.focusSettings.autoStartWork = $0 }
+                    ))
                     Toggle("Allow overtime", isOn: Binding(
                         get: { settings.focusSettings.overtimeEnabled },
                         set: { settings.focusSettings.overtimeEnabled = $0 }
@@ -104,6 +123,6 @@ struct FocusSettingsPopover: View {
             }
             .padding(16)
         }
-        .frame(width: 300, height: 380)
+        .frame(width: 300, height: 420)
     }
 }

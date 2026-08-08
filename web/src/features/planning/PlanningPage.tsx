@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   Plus,
   Printer,
+  Settings,
   Trash2,
   X,
 } from 'lucide-react';
@@ -40,6 +41,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu';
+import {
+  DEFAULT_TASK_DEFAULTS,
+  getStoredTaskDefaults,
+  saveStoredTaskDefaults,
+  type TaskDefaults,
+} from '@/shared/taskDefaults';
 import { TaskList } from './components/TaskList';
 import { TaskDetailModal } from './components/TaskDetailModal';
 import { TaskContextMenu } from './components/TaskContextMenu';
@@ -47,7 +54,6 @@ import { formatTaskDate, TaskOptionChip, taskPriorityLabel, TaskSettingsMenu } f
 import { parseTaskTitleInput } from './utils/parseTaskTitleInput';
 import { useGlobalUndo, useUndoStack, useUndoToast } from '@/shared/hooks/useUndoStack';
 import { UndoToast } from '@/shared/ui/UndoToast';
-import { getStoredTaskDefaults } from '@/shared/taskDefaults';
 import { usePlanning } from './PlanningContext';
 import { readPlanningViewSettings, savePlanningViewSettings } from './utils/planningViewSettings';
 
@@ -74,7 +80,7 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [sectionTitle, setSectionTitle] = useState('');
   const [showSectionCreator, setShowSectionCreator] = useState(false);
-  const [viewSettings, setViewSettings] = useState(readPlanningViewSettings);
+  const [viewSettings, setViewSettings] = useState(() => readPlanningViewSettings(view));
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [allTasksData, setAllTasksData] = useState<ProductivityTask[]>([]);
 
@@ -83,7 +89,13 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
   const setSelectedProject = setSelectedTaskList;
   const { sortMode, groupMode, displayMode, hideCompleted, hideDetails, collapsedGroups } = viewSettings;
 
-  useEffect(() => savePlanningViewSettings(viewSettings), [viewSettings]);
+  useEffect(() => {
+    setViewSettings(readPlanningViewSettings(view));
+  }, [view]);
+
+  useEffect(() => {
+    savePlanningViewSettings(view, viewSettings);
+  }, [view, viewSettings]);
 
   const effectiveView = selectedTaskList || selectedTag || view === 'inbox' ? 'all' : view;
   const tasks = useInfiniteQuery({
@@ -325,6 +337,15 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
               setShowSectionCreator(true);
               setViewSettings((settings) => ({ ...settings, groupMode: 'section' }));
             }}
+          />
+          <PlanSettingsPopover
+            taskLists={projects.data ?? []}
+            displayMode={displayMode}
+            hideCompleted={hideCompleted}
+            hideDetails={hideDetails}
+            onDisplayModeChange={(value) => setViewSettings((settings) => ({ ...settings, displayMode: value }))}
+            onHideCompletedChange={(value) => setViewSettings((settings) => ({ ...settings, hideCompleted: value }))}
+            onHideDetailsChange={(value) => setViewSettings((settings) => ({ ...settings, hideDetails: value }))}
           />
         </PageHeader>
 
@@ -824,6 +845,142 @@ function ViewOptionsMenu({
   );
 }
 
+function PlanSettingsPopover({
+  taskLists,
+  displayMode,
+  hideCompleted,
+  hideDetails,
+  onDisplayModeChange,
+  onHideCompletedChange,
+  onHideDetailsChange,
+}: {
+  taskLists: Array<{ id: string; title: string; archivedAt?: string | null }>;
+  displayMode: 'list' | 'kanban';
+  hideCompleted: boolean;
+  hideDetails: boolean;
+  onDisplayModeChange: (value: 'list' | 'kanban') => void;
+  onHideCompletedChange: (value: boolean) => void;
+  onHideDetailsChange: (value: boolean) => void;
+}) {
+  const [taskDefaults, setTaskDefaults] = useState<TaskDefaults>(getStoredTaskDefaults);
+
+  const updateDefaults = (patch: Partial<TaskDefaults>) => {
+    const next = { ...taskDefaults, ...patch };
+    setTaskDefaults(next);
+    saveStoredTaskDefaults(next);
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Plan Settings" title="Plan Settings">
+          <Settings className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-80 p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="font-bold text-sm">Plan Settings</h4>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-primary"
+            onClick={() => {
+              const reset = DEFAULT_TASK_DEFAULTS;
+              setTaskDefaults(reset);
+              saveStoredTaskDefaults(reset);
+            }}
+          >
+            Reset defaults
+          </Button>
+        </div>
+
+        <div className="space-y-3 border-t pt-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Task Defaults</p>
+          <div className="grid gap-2">
+            <label className="flex items-center justify-between text-xs font-medium">
+              Default date
+              <select
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                value={taskDefaults.date}
+                onChange={(e) => updateDefaults({ date: e.target.value as TaskDefaults['date'] })}
+              >
+                <option value="NONE">No date</option>
+                <option value="TODAY">Today at 6:00 PM</option>
+                <option value="TOMORROW">Tomorrow at 6:00 PM</option>
+              </select>
+            </label>
+            <label className="flex items-center justify-between text-xs font-medium">
+              Default priority
+              <select
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                value={taskDefaults.priority}
+                onChange={(e) => updateDefaults({ priority: e.target.value as TaskDefaults['priority'] })}
+              >
+                <option value="NONE">No priority</option>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+              </select>
+            </label>
+            <label className="flex items-center justify-between text-xs font-medium">
+              Default list
+              <select
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                value={taskDefaults.taskListId}
+                onChange={(e) => updateDefaults({ taskListId: e.target.value })}
+              >
+                <option value="">Inbox</option>
+                {taskLists
+                  .filter((list) => !list.archivedAt)
+                  .map((list) => (
+                    <option key={list.id} value={list.id}>
+                      {list.title}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="space-y-3 border-t pt-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">View Preferences</p>
+          <div className="grid gap-2">
+            <label className="flex items-center justify-between text-xs font-medium">
+              Display layout
+              <select
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                value={displayMode}
+                onChange={(e) => onDisplayModeChange(e.target.value as 'list' | 'kanban')}
+              >
+                <option value="list">List</option>
+                <option value="kanban">Kanban</option>
+              </select>
+            </label>
+            <label className="flex items-center justify-between text-xs font-medium">
+              Show completed &amp; won't do
+              <input
+                type="checkbox"
+                checked={!hideCompleted}
+                onChange={(e) => onHideCompletedChange(!e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+            </label>
+            <label className="flex items-center justify-between text-xs font-medium">
+              Hide row details
+              <input
+                type="checkbox"
+                checked={hideDetails}
+                onChange={(e) => onHideDetailsChange(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+            </label>
+          </div>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function TaskKanban({
   groups,
   allTasks,
@@ -1090,17 +1247,48 @@ export function groupTasks(
   const active = rootTasks.filter((task) => task.status !== 'COMPLETED' && task.status !== 'CANCELED');
   const completed = rootTasks.filter((task) => task.status === 'COMPLETED' || task.status === 'CANCELED');
   const groups = new Map<string, ProductivityTask[]>();
-  if (mode === 'section') {
-    for (const section of sections) groups.set(section.title, []);
+
+  if (view === 'today') {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const overdue = active.filter((task) => {
+      const dateVal = task.scheduledStartAt ?? task.dueAt;
+      if (!dateVal) return false;
+      return new Date(dateVal).getTime() < todayStart.getTime();
+    });
+    const overdueIds = new Set(overdue.map((t) => t.id));
+    const nonOverdueActive = active.filter((t) => !overdueIds.has(t.id));
+
+    if (overdue.length) {
+      groups.set('Overdue', overdue);
+    }
+
+    if (mode === 'section') {
+      for (const section of sections) groups.set(section.title, []);
+    }
+    if (mode === 'priority') {
+      for (const priority of ['High priority', 'Medium priority', 'Low priority', 'No priority'])
+        groups.set(priority, []);
+    }
+    for (const task of nonOverdueActive) {
+      const key = taskGroupLabel(task, view, mode);
+      groups.set(key, [...(groups.get(key) ?? []), task]);
+    }
+  } else {
+    if (mode === 'section') {
+      for (const section of sections) groups.set(section.title, []);
+    }
+    if (mode === 'priority') {
+      for (const priority of ['High priority', 'Medium priority', 'Low priority', 'No priority'])
+        groups.set(priority, []);
+    }
+    for (const task of active) {
+      const key = taskGroupLabel(task, view, mode);
+      groups.set(key, [...(groups.get(key) ?? []), task]);
+    }
   }
-  if (mode === 'priority') {
-    for (const priority of ['High priority', 'Medium priority', 'Low priority', 'No priority'])
-      groups.set(priority, []);
-  }
-  for (const task of active) {
-    const key = taskGroupLabel(task, view, mode);
-    groups.set(key, [...(groups.get(key) ?? []), task]);
-  }
+
   if (completed.length) groups.set("Completed & Won't Do", completed);
   return [...groups.entries()];
 }

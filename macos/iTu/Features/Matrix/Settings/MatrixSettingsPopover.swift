@@ -86,9 +86,46 @@ struct MatrixSettingsPopover: View {
                     }
                 }
             }
+
+            Divider()
+
+            Toggle("Manual overrides win over auto rules", isOn: Binding(
+                get: { settings.matrixSettings.manualOverrideWins },
+                set: { settings.matrixSettings.manualOverrideWins = $0 }
+            ))
+            .font(.system(size: 12))
+
+            Toggle("Show completed tasks", isOn: Binding(
+                get: { settings.matrixSettings.showCompleted },
+                set: { settings.matrixSettings.showCompleted = $0 }
+            ))
+            .font(.system(size: 12))
+
+            Toggle("Show won't do / canceled tasks", isOn: Binding(
+                get: { settings.matrixSettings.showWontDo },
+                set: { settings.matrixSettings.showWontDo = $0 }
+            ))
+            .font(.system(size: 12))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Sort quadrant tasks")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(iTuTheme.inkDim)
+
+                Picker("", selection: Binding(
+                    get: { settings.matrixSettings.sortOption },
+                    set: { settings.matrixSettings.sortOption = $0 }
+                )) {
+                    Text("Manual order").tag(MatrixSortOption.manual)
+                    Text("Due date").tag(MatrixSortOption.dueDate)
+                    Text("Priority").tag(MatrixSortOption.priority)
+                    Text("Title").tag(MatrixSortOption.title)
+                }
+                .pickerStyle(.menu)
+            }
         }
         .padding(16)
-        .frame(width: 280)
+        .frame(width: 290)
     }
 
     private func togglePriority(_ keyPath: WritableKeyPath<MatrixSettings, [TaskPriority]>, priority: TaskPriority) {

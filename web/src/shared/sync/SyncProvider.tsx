@@ -145,9 +145,28 @@ export class Sync {
     const baseValues = input.baseValues ?? pickBaseValues(cachedEntity, input.payload);
     const mutationId = createUlid();
     const localGrowthReceipt = optimisticGrowthReceipt(input, cachedEntity, this.queryClient);
-    if (input.kind === 'task.update' && input.payload.status !== undefined && input.payload.status !== 'COMPLETED') {
-      this.recentGrowthReceiptKeys.delete(`earned:TASK:${input.entityId}`);
-      persistReceiptKeys(this.recentGrowthReceiptKeys);
+    if (input.kind === 'task.update' && input.payload.status !== undefined) {
+      if (input.payload.status !== 'COMPLETED') {
+        this.recentGrowthReceiptKeys.delete(`earned:TASK:${input.entityId}`);
+        persistReceiptKeys(this.recentGrowthReceiptKeys);
+      } else {
+        const activeFocus = this.queryClient.getQueryData<{
+          active: { id: string; taskId: string | null; phase: string; status: string; version: number } | null;
+        }>(['focus', 'active'])?.active;
+        if (
+          activeFocus &&
+          activeFocus.taskId === input.entityId &&
+          activeFocus.phase === 'WORK' &&
+          activeFocus.status === 'ACTIVE'
+        ) {
+          void api.focusAction(
+            activeFocus.id,
+            'complete',
+            { idempotencyKey: createUlid(), expectedVersion: activeFocus.version },
+            activeFocus as any,
+          );
+        }
+      }
     }
     applySyncChanges(this.queryClient, {
       acknowledgedMutationIds: [],

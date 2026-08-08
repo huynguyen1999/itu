@@ -26,7 +26,26 @@ struct TaskListView: View {
         let archivedSkillIDs = Set(model.skills.filter { $0.archivedAt != nil }.map(\.id))
 
         let allSectionTasks = model.planningTasks(for: section, filterQuery: filterQuery, taskListId: taskListId)
-        let pendingSectionTasks = allSectionTasks.filter { ![.completed, .canceled].contains($0.status) }
+        let pendingSectionTasks: [ProductivityTask]
+        let overdueTasks: [ProductivityTask]
+
+        if section == .today {
+            let startOfToday = Calendar.current.startOfDay(for: Date())
+            overdueTasks = allSectionTasks.filter { task in
+                guard ![.completed, .canceled, .archived].contains(task.status),
+                      let dateValue = task.scheduledStartAt ?? task.dueAt,
+                      let date = iTuDateSupport.parse(dateValue) else {
+                    return false
+                }
+                return date < startOfToday
+            }
+            let overdueIDs = Set(overdueTasks.map(\.id))
+            pendingSectionTasks = allSectionTasks.filter { ![.completed, .canceled].contains($0.status) && !overdueIDs.contains($0.id) }
+        } else {
+            overdueTasks = []
+            pendingSectionTasks = allSectionTasks.filter { ![.completed, .canceled].contains($0.status) }
+        }
+
         let completedSectionTasks = allSectionTasks.filter { [.completed, .canceled].contains($0.status) }
 
         let activeGroups = PlanningTaskProjector.project(
@@ -44,7 +63,7 @@ struct TaskListView: View {
                     quickCaptureBar
                 }
 
-                if activeGroups.isEmpty && (completedSectionTasks.isEmpty || model.hideCompletedTasks) {
+                if overdueTasks.isEmpty && activeGroups.isEmpty && (completedSectionTasks.isEmpty || model.hideCompletedTasks) {
                     VStack(spacing: 8) {
                         Text("No tasks found")
                             .font(.system(size: 13, weight: .medium))
@@ -54,15 +73,58 @@ struct TaskListView: View {
                     .padding(.vertical, 32)
                     .iTuPanel(radius: 14)
                 } else {
+                    // Pinned Overdue Group for Today View
+                    if !overdueTasks.isEmpty {
+                        let groupId = "overdue-group"
+                        taskGroupSection(
+                            title: "Overdue",
+                            tasks: PlanningTaskProjector.sort(overdueTasks, by: settings.sortMode),
+                            archivedSkillIDs: archivedSkillIDs,
+                            hideDetails: settings.hideDetails,
+                            isExpanded: Binding(
+                                get: { !settings.collapsedGroups.contains(groupId) },
+                                set: { isExpanded in
+                                    var updated = settings
+                                    if isExpanded {
+                                        updated.collapsedGroups.remove(groupId)
+                                    } else {
+                                        updated.collapsedGroups.insert(groupId)
+                                    }
+                                    model.settingsStore.updatePlanningSettings(for: planningViewKey, settings: updated)
+                                }
+                            ),
+                            onReorder: { draggedId, beforeId in
+                                let allIds = overdueTasks.map(\.id)
+                                let ordered = reorderedVisibleIds(
+                                    pending: allIds,
+                                    completed: [],
+                                    draggedId: draggedId,
+                                    beforeId: beforeId
+                                )
+                                Task { await model.reorderTasks(ordered) }
+                            }
+                        )
+                    }
+
                     // Active Tasks Groups
                     ForEach(activeGroups) { group in
+                        let groupId = group.id
                         taskGroupSection(
                             title: group.title,
                             tasks: group.tasks,
                             archivedSkillIDs: archivedSkillIDs,
+                            hideDetails: settings.hideDetails,
                             isExpanded: Binding(
-                                get: { groupExpandedStates[group.id] ?? true },
-                                set: { groupExpandedStates[group.id] = $0 }
+                                get: { !settings.collapsedGroups.contains(groupId) },
+                                set: { isExpanded in
+                                    var updated = settings
+                                    if isExpanded {
+                                        updated.collapsedGroups.remove(groupId)
+                                    } else {
+                                        updated.collapsedGroups.insert(groupId)
+                                    }
+                                    model.settingsStore.updatePlanningSettings(for: planningViewKey, settings: updated)
+                                }
                             ),
                             onReorder: { draggedId, beforeId in
                                 let allIds = group.tasks.map(\.id)
@@ -79,13 +141,23 @@ struct TaskListView: View {
 
                     // Completed & Won't Do Group (Separated like Web version)
                     if !completedSectionTasks.isEmpty && !model.hideCompletedTasks {
+                        let groupId = "completed-wont-do"
                         taskGroupSection(
                             title: "Completed & Won’t Do",
                             tasks: PlanningTaskProjector.sort(completedSectionTasks, by: settings.sortMode),
                             archivedSkillIDs: archivedSkillIDs,
+                            hideDetails: settings.hideDetails,
                             isExpanded: Binding(
-                                get: { groupExpandedStates["completed-wont-do"] ?? true },
-                                set: { groupExpandedStates["completed-wont-do"] = $0 }
+                                get: { !settings.collapsedGroups.contains(groupId) },
+                                set: { isExpanded in
+                                    var updated = settings
+                                    if isExpanded {
+                                        updated.collapsedGroups.remove(groupId)
+                                    } else {
+                                        updated.collapsedGroups.insert(groupId)
+                                    }
+                                    model.settingsStore.updatePlanningSettings(for: planningViewKey, settings: updated)
+                                }
                             ),
                             onReorder: { draggedId, beforeId in
                                 let allIds = completedSectionTasks.map(\.id)
@@ -181,6 +253,7 @@ struct TaskListView: View {
         title: String,
         tasks: [ProductivityTask],
         archivedSkillIDs: Set<String>,
+        hideDetails: Bool,
         isExpanded: Binding<Bool>,
         onReorder: @escaping (String, String) -> Void
     ) -> some View {
@@ -224,7 +297,7 @@ struct TaskListView: View {
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(tasks) { task in
-                            taskRow(task, archivedSkillIDs: archivedSkillIDs, onReorder: onReorder)
+                            taskRow(task, archivedSkillIDs: archivedSkillIDs, hideDetails: hideDetails, onReorder: onReorder)
 
                             if task.id != tasks.last?.id {
                                 Rectangle()
@@ -244,12 +317,14 @@ struct TaskListView: View {
     private func taskRow(
         _ task: ProductivityTask,
         archivedSkillIDs: Set<String>,
+        hideDetails: Bool,
         onReorder: @escaping (String, String) -> Void
     ) -> some View {
         let row = TaskRow(
             task: task,
             growthRule: model.growthEarningRules[task.id],
             archivedSkillIDs: archivedSkillIDs,
+            hideDetails: hideDetails,
             onEdit: { openTaskEditor(task) }
         )
         if model.sortOption == .manual {
@@ -298,6 +373,7 @@ private struct TaskRow: View {
     let task: ProductivityTask
     let growthRule: GrowthEarningRuleDTO?
     let archivedSkillIDs: Set<String>
+    let hideDetails: Bool
     let onEdit: () -> Void
     @State private var isHovered = false
     @State private var isStatusHovered = false
@@ -342,59 +418,61 @@ private struct TaskRow: View {
                         .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    WrappingHStack(horizontalSpacing: 6, verticalSpacing: 5) {
-                        if let dueAt = task.dueAt {
-                            TaskChip(
-                                title: formattedDueDate(dueAt),
-                                systemImage: "calendar",
-                                foreground: dueColor(dueAt),
-                                background: dueBackground(dueAt)
-                            )
+                    if !hideDetails {
+                        WrappingHStack(horizontalSpacing: 6, verticalSpacing: 5) {
+                            if let dueAt = task.dueAt {
+                                TaskChip(
+                                    title: formattedDueDate(dueAt),
+                                    systemImage: "calendar",
+                                    foreground: dueColor(dueAt),
+                                    background: dueBackground(dueAt)
+                                )
+                            }
+
+                            if let reminder = task.reminders?.first(where: { $0.status == "SCHEDULED" || $0.status == "SNOOZED" }) {
+                                TaskChip(
+                                    title: formattedDate(reminder.remindAt),
+                                    systemImage: "bell.fill",
+                                    foreground: iTuTheme.teal,
+                                    background: iTuTheme.mintTint
+                                )
+                            }
+
+                            if let scheduledStartAt = task.scheduledStartAt {
+                                TaskChip(
+                                    title: formattedDate(scheduledStartAt),
+                                    systemImage: "calendar.badge.clock",
+                                    foreground: iTuTheme.amber,
+                                    background: iTuTheme.amberTint
+                                )
+                            }
+
+                            // Priority Badge inline
+                            if task.priority != .none {
+                                TaskChip(
+                                    title: priorityLabel(task.priority),
+                                    systemImage: "flag.fill",
+                                    foreground: priorityColor,
+                                    background: priorityBackground
+                                )
+                            }
+
+                            if let growthRule {
+                                GrowthRewardSummaryView(
+                                    rule: growthRule,
+                                    compact: true,
+                                    dense: true,
+                                    archivedSkillIDs: archivedSkillIDs
+                                )
+                            }
                         }
 
-                        if let reminder = task.reminders?.first(where: { $0.status == "SCHEDULED" || $0.status == "SNOOZED" }) {
-                            TaskChip(
-                                title: formattedDate(reminder.remindAt),
-                                systemImage: "bell.fill",
-                                foreground: iTuTheme.teal,
-                                background: iTuTheme.mintTint
-                            )
+                        if !task.descriptionMarkdown.isEmpty {
+                            Text(task.descriptionMarkdown)
+                                .font(.system(size: 11))
+                                .foregroundStyle(iTuTheme.inkDim)
+                                .lineLimit(1)
                         }
-
-                        if let scheduledStartAt = task.scheduledStartAt {
-                            TaskChip(
-                                title: formattedDate(scheduledStartAt),
-                                systemImage: "calendar.badge.clock",
-                                foreground: iTuTheme.amber,
-                                background: iTuTheme.amberTint
-                            )
-                        }
-
-                        // Priority Badge inline
-                        if task.priority != .none {
-                            TaskChip(
-                                title: priorityLabel(task.priority),
-                                systemImage: "flag.fill",
-                                foreground: priorityColor,
-                                background: priorityBackground
-                            )
-                        }
-
-                        if let growthRule {
-                            GrowthRewardSummaryView(
-                                rule: growthRule,
-                                compact: true,
-                                dense: true,
-                                archivedSkillIDs: archivedSkillIDs
-                            )
-                        }
-                    }
-
-                    if !task.descriptionMarkdown.isEmpty {
-                        Text(task.descriptionMarkdown)
-                            .font(.system(size: 11))
-                            .foregroundStyle(iTuTheme.inkDim)
-                            .lineLimit(1)
                     }
             }
             .help("Open task details")

@@ -22,7 +22,23 @@ final class CompanionViewModel {
         }
     }
 
-    var selectedIndex: Int = 0
+    var selectedItemID: String?
+    var selectedIndex: Int {
+        get {
+            guard let id = selectedItemID, let index = items.firstIndex(where: { $0.id == id }) else {
+                return 0
+            }
+            return index
+        }
+        set {
+            if items.indices.contains(newValue) {
+                selectedItemID = items[newValue].id
+            } else {
+                selectedItemID = nil
+            }
+        }
+    }
+
     var isQuickCapturing: Bool = false
     var quickCaptureText: String = ""
     
@@ -46,21 +62,18 @@ final class CompanionViewModel {
     }
 
     func startFocus(for task: ProductivityTask) async {
-        await model.prepareFocus(for: task)
-        if model.focusTimer.activeSession == nil {
-            await model.startFocus()
-        }
+        await model.startFocus(for: task)
     }
 
     var todayTasks: [ProductivityTask] {
         model.homeTodayTasks()
-            .filter { $0.status != .archived && $0.deletedAt == nil }
+            .filter {
+                $0.deletedAt == nil &&
+                $0.status != .completed &&
+                $0.status != .canceled &&
+                $0.status != .archived
+            }
             .sorted { (t1, t2) -> Bool in
-                // Pending tasks before completed/canceled tasks
-                let c1 = (t1.status == .completed || t1.status == .canceled) ? 1 : 0
-                let c2 = (t2.status == .completed || t2.status == .canceled) ? 1 : 0
-                if c1 != c2 { return c1 < c2 }
-
                 let p1 = t1.priority == .high ? 3 : (t1.priority == .medium ? 2 : (t1.priority == .low ? 1 : 0))
                 let p2 = t2.priority == .high ? 3 : (t2.priority == .medium ? 2 : (t2.priority == .low ? 1 : 0))
                 if p1 != p2 { return p1 > p2 }

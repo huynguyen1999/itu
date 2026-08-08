@@ -9,6 +9,7 @@ import {
   LayoutGrid,
   MoreHorizontal,
   Plus,
+  Settings,
   Smile,
   Target,
   X,
@@ -209,6 +210,16 @@ export function HabitsPage() {
           aria-label="Manage habit groups"
         >
           <MoreHorizontal className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground"
+          onClick={() => setGroupDialogOpen(true)}
+          title="Habit Preferences"
+          aria-label="Habit Preferences"
+        >
+          <Settings className="h-4 w-4" />
         </Button>
       </PageHeader>
 

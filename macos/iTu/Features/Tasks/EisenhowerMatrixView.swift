@@ -328,7 +328,13 @@ enum MatrixQuadrant: String, CaseIterable, Identifiable {
     }
 
     func matches(task: ProductivityTask, settings: MatrixSettings) -> Bool {
-        let isUrgent = task.urgentOverride ?? (settings.urgentPriorities.contains(task.priority) || isDueWithin(task.dueAt, days: settings.urgentDueWithinDays))
+        let isUrgent: Bool
+        if settings.manualOverrideWins, let urgentOverride = task.urgentOverride {
+            isUrgent = urgentOverride
+        } else {
+            isUrgent = task.urgentOverride ?? (settings.urgentPriorities.contains(task.priority) || isDueWithin(task.dueAt, days: settings.urgentDueWithinDays))
+        }
+
         let isImportant = task.important || settings.importantPriorities.contains(task.priority)
 
         switch self {
