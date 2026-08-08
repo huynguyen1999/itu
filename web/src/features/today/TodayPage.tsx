@@ -20,11 +20,14 @@ import {
   TaskSettingsMenu,
 } from '../planning/components/TaskSettingsMenu';
 import { getStoredTaskDefaults } from '@/shared/taskDefaults';
+import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
+import { TodaySettingsPopover, DEFAULT_TODAY_SETTINGS, type TodaySettings } from './TodaySettingsPopover';
 import { HomeOverview } from '../dashboard/HomeOverview';
 import { HabitDetail, HabitIconBadge } from '../habits';
 
 export function TodayPage() {
   const queryClient = useQueryClient();
+  const [todaySettings, setTodaySettings] = useState<TodaySettings>(DEFAULT_TODAY_SETTINGS);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -154,7 +157,11 @@ export function TodayPage() {
         kicker="Overview & Workspace"
         title="Home"
         description="Daily progress, active focus session, and skill attributes."
-      />
+      >
+        <FeatureSettingsButton title="Today settings">
+          <TodaySettingsPopover settings={todaySettings} onChange={(patch) => setTodaySettings((s) => ({ ...s, ...patch }))} />
+        </FeatureSettingsButton>
+      </PageHeader>
       <HomeOverview />
 
       {focus.data && (

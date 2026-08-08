@@ -14,10 +14,27 @@ import { useAuth } from '@/shared/auth/AuthProvider';
 import type { DeckColor, DeckIcon } from '@/shared/api/types';
 import type { InfiniteData } from '@tanstack/react-query';
 import { DeckStylePicker, getDeckStyle } from './utils/deckStyles';
+import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
+import {
+  LearnSettingsPopover,
+  DEFAULT_LEARN_DISPLAY_SETTINGS,
+  type LearnDisplaySettings,
+} from './LearnSettingsPopover';
+import type { LearnPreferences } from '@/shared/api/preferencesApi';
+import { useQuery } from '@tanstack/react-query';
 
 export function DecksPage() {
   const canImport = useAuth().user?.permissions?.includes('CARD_IMPORT') ?? false;
   const queryClient = useQueryClient();
+  const [learnDisplaySettings, setLearnDisplaySettings] = useState<LearnDisplaySettings>(DEFAULT_LEARN_DISPLAY_SETTINGS);
+  const userPreferences = useQuery({
+    queryKey: ['user-preferences'],
+    queryFn: () => api.getPreferences(),
+  });
+  const updateLearnPref = useMutation({
+    mutationFn: (patch: Partial<LearnPreferences>) => api.updateLearnPreferences(patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-preferences'] }),
+  });
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [icon, setIcon] = useState<DeckIcon>('BOOK');
@@ -112,6 +129,15 @@ export function DecksPage() {
             Import deck
           </Button>
         )}
+
+        <FeatureSettingsButton title="Learn settings">
+          <LearnSettingsPopover
+            preferences={userPreferences.data?.learn}
+            displaySettings={learnDisplaySettings}
+            onChangePreferences={(patch) => updateLearnPref.mutate(patch)}
+            onChangeDisplay={(patch) => setLearnDisplaySettings((current) => ({ ...current, ...patch }))}
+          />
+        </FeatureSettingsButton>
       </PageHeader>
 
       <form

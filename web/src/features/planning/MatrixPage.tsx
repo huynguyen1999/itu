@@ -26,6 +26,13 @@ import {
 import { Calendar, ChevronDown, Flag, ListFilter, Plus, Search, X } from 'lucide-react';
 import { applyManualTaskOrder, reorderedTaskIds, sortTasks } from './PlanningPage';
 import type { SortMode } from './PlanningPage';
+import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
+import {
+  MatrixSettingsPopover,
+  DEFAULT_MATRIX_DISPLAY_SETTINGS,
+  type MatrixViewDisplaySettings,
+} from './MatrixSettingsPopover';
+import type { MatrixPreferences } from '@/shared/api/preferencesApi';
 import { matrixQuadrantForTask, readMatrixSettings, saveMatrixSettings } from './utils/matrixSettings';
 import { getStoredTaskDefaults } from '@/shared/taskDefaults';
 import { DatePickerPopover } from '@/shared/ui/DatePickerPopover';
@@ -78,6 +85,15 @@ type PriorityFilter = TaskPriority | 'ALL';
 export function MatrixPage() {
   const queryClient = useQueryClient();
   const [matrixSettings, setMatrixSettings] = useState(readMatrixSettings);
+  const [matrixDisplaySettings, setMatrixDisplaySettings] = useState<MatrixViewDisplaySettings>(DEFAULT_MATRIX_DISPLAY_SETTINGS);
+  const userPreferences = useQuery({
+    queryKey: ['user-preferences'],
+    queryFn: () => api.getPreferences(),
+  });
+  const updateMatrixPref = useMutation({
+    mutationFn: (patch: Partial<MatrixPreferences>) => api.updateMatrixPreferences(patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-preferences'] }),
+  });
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -368,6 +384,16 @@ export function MatrixPage() {
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">New task</span>
             </Button>
+
+            {/* Matrix settings gear */}
+            <FeatureSettingsButton title="Matrix settings">
+              <MatrixSettingsPopover
+                preferences={userPreferences.data?.matrix}
+                displaySettings={matrixDisplaySettings}
+                onChangePreferences={(patch) => updateMatrixPref.mutate(patch)}
+                onChangeDisplay={(patch) => setMatrixDisplaySettings((current) => ({ ...current, ...patch }))}
+              />
+            </FeatureSettingsButton>
           </div>
         </PageHeader>
 

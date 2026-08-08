@@ -675,6 +675,14 @@ export function coalesceMutation(
       }
     }
   }
+  if (!existing && (next.kind.startsWith('preferences.') || next.kind.startsWith('preferences:'))) {
+    for (let index = entityMutations.length - 1; index >= 0; index -= 1) {
+      if (entityMutations[index].kind === next.kind) {
+        existing = entityMutations[index];
+        break;
+      }
+    }
+  }
   if (!existing) return { mutation: next };
   return {
     replacedId: existing.id,

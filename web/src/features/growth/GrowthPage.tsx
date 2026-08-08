@@ -12,6 +12,9 @@ import { CreateGrowthDialog } from './components/GrowthDialogs';
 import { HeroStat, Progress, SectionTitle } from './components/GrowthPrimitives';
 import { GrowthResetDialog } from './components/growth-reset-dialog';
 import { Shop } from './components/growth-shop';
+import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
+import { GrowthSettingsPopover } from './GrowthSettingsPopover';
+import type { GrowthPreferences } from '@/shared/api/preferencesApi';
 import { GrowthSettingsView } from './components/GrowthSettings';
 import { SkillCard } from './components/GrowthSkillCard';
 import { Ledger } from './components/GrowthLedger';
@@ -47,6 +50,14 @@ export function GrowthPage({ tab = 'attributes' }: { tab?: GrowthTab }) {
   const [showReset, setShowReset] = useState(false);
 
   const queryClient = useQueryClient();
+  const userPreferences = useQuery({
+    queryKey: ['user-preferences'],
+    queryFn: () => api.getPreferences(),
+  });
+  const updateGrowthPref = useMutation({
+    mutationFn: (patch: Partial<GrowthPreferences>) => api.updateGrowthPreferences(patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-preferences'] }),
+  });
   const overview = useQuery({ queryKey: ['growth', 'overview'], queryFn: () => api.growthOverview() });
   const rewards = useQuery({
     queryKey: ['growth', 'rewards'],
@@ -104,6 +115,13 @@ export function GrowthPage({ tab = 'attributes' }: { tab?: GrowthTab }) {
                 <Sprout className="h-4 w-4" /> Set up Growth
               </Button>
             )}
+            <FeatureSettingsButton title="Growth settings">
+              <GrowthSettingsPopover
+                preferences={userPreferences.data?.growth}
+                onChangePreferences={(patch) => updateGrowthPref.mutate(patch)}
+                onOpenResetData={() => setShowReset(true)}
+              />
+            </FeatureSettingsButton>
           </PageHeader>
 
           <section className="growth-account-summary" aria-label="Account progress">

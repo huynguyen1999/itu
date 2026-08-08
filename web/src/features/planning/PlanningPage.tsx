@@ -54,11 +54,22 @@ import { formatTaskDate, TaskOptionChip, taskPriorityLabel, TaskSettingsMenu } f
 import { parseTaskTitleInput } from './utils/parseTaskTitleInput';
 import { useGlobalUndo, useUndoStack, useUndoToast } from '@/shared/hooks/useUndoStack';
 import { UndoToast } from '@/shared/ui/UndoToast';
+import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
+import { PlanSettingsPopover } from './PlanSettingsPopover';
 import { usePlanning } from './PlanningContext';
 import { readPlanningViewSettings, savePlanningViewSettings } from './utils/planningViewSettings';
+import type { TaskPreferences } from '@/shared/api/preferencesApi';
 
 export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox' | 'upcoming' }) {
   const queryClient = useQueryClient();
+  const userPreferences = useQuery({
+    queryKey: ['user-preferences'],
+    queryFn: () => api.getPreferences(),
+  });
+  const updateTaskPref = useMutation({
+    mutationFn: (patch: Partial<TaskPreferences>) => api.updateTaskPreferences(patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-preferences'] }),
+  });
   useGlobalUndo();
   const { push } = useUndoStack();
   const undoToast = useUndoToast();
@@ -338,15 +349,14 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
               setViewSettings((settings) => ({ ...settings, groupMode: 'section' }));
             }}
           />
-          <PlanSettingsPopover
-            taskLists={projects.data ?? []}
-            displayMode={displayMode}
-            hideCompleted={hideCompleted}
-            hideDetails={hideDetails}
-            onDisplayModeChange={(value) => setViewSettings((settings) => ({ ...settings, displayMode: value }))}
-            onHideCompletedChange={(value) => setViewSettings((settings) => ({ ...settings, hideCompleted: value }))}
-            onHideDetailsChange={(value) => setViewSettings((settings) => ({ ...settings, hideDetails: value }))}
-          />
+          <FeatureSettingsButton title="Plan settings">
+            <PlanSettingsPopover
+              taskPreferences={userPreferences.data?.tasks}
+              taskLists={projects.data ?? []}
+              onChange={(patch) => setViewSettings((settings) => ({ ...settings, ...patch }))}
+              onTaskPreferencesChange={(patch) => updateTaskPref.mutate(patch)}
+            />
+          </FeatureSettingsButton>
         </PageHeader>
 
         <form
@@ -840,142 +850,6 @@ function ViewOptionsMenu({
           <Printer />
           Print current view
         </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function PlanSettingsPopover({
-  taskLists,
-  displayMode,
-  hideCompleted,
-  hideDetails,
-  onDisplayModeChange,
-  onHideCompletedChange,
-  onHideDetailsChange,
-}: {
-  taskLists: Array<{ id: string; title: string; archivedAt?: string | null }>;
-  displayMode: 'list' | 'kanban';
-  hideCompleted: boolean;
-  hideDetails: boolean;
-  onDisplayModeChange: (value: 'list' | 'kanban') => void;
-  onHideCompletedChange: (value: boolean) => void;
-  onHideDetailsChange: (value: boolean) => void;
-}) {
-  const [taskDefaults, setTaskDefaults] = useState<TaskDefaults>(getStoredTaskDefaults);
-
-  const updateDefaults = (patch: Partial<TaskDefaults>) => {
-    const next = { ...taskDefaults, ...patch };
-    setTaskDefaults(next);
-    saveStoredTaskDefaults(next);
-  };
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Plan Settings" title="Plan Settings">
-          <Settings className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="font-bold text-sm">Plan Settings</h4>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-primary"
-            onClick={() => {
-              const reset = DEFAULT_TASK_DEFAULTS;
-              setTaskDefaults(reset);
-              saveStoredTaskDefaults(reset);
-            }}
-          >
-            Reset defaults
-          </Button>
-        </div>
-
-        <div className="space-y-3 border-t pt-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Task Defaults</p>
-          <div className="grid gap-2">
-            <label className="flex items-center justify-between text-xs font-medium">
-              Default date
-              <select
-                className="h-8 rounded-md border bg-background px-2 text-xs"
-                value={taskDefaults.date}
-                onChange={(e) => updateDefaults({ date: e.target.value as TaskDefaults['date'] })}
-              >
-                <option value="NONE">No date</option>
-                <option value="TODAY">Today at 6:00 PM</option>
-                <option value="TOMORROW">Tomorrow at 6:00 PM</option>
-              </select>
-            </label>
-            <label className="flex items-center justify-between text-xs font-medium">
-              Default priority
-              <select
-                className="h-8 rounded-md border bg-background px-2 text-xs"
-                value={taskDefaults.priority}
-                onChange={(e) => updateDefaults({ priority: e.target.value as TaskDefaults['priority'] })}
-              >
-                <option value="NONE">No priority</option>
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-              </select>
-            </label>
-            <label className="flex items-center justify-between text-xs font-medium">
-              Default list
-              <select
-                className="h-8 rounded-md border bg-background px-2 text-xs"
-                value={taskDefaults.taskListId}
-                onChange={(e) => updateDefaults({ taskListId: e.target.value })}
-              >
-                <option value="">Inbox</option>
-                {taskLists
-                  .filter((list) => !list.archivedAt)
-                  .map((list) => (
-                    <option key={list.id} value={list.id}>
-                      {list.title}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <div className="space-y-3 border-t pt-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">View Preferences</p>
-          <div className="grid gap-2">
-            <label className="flex items-center justify-between text-xs font-medium">
-              Display layout
-              <select
-                className="h-8 rounded-md border bg-background px-2 text-xs"
-                value={displayMode}
-                onChange={(e) => onDisplayModeChange(e.target.value as 'list' | 'kanban')}
-              >
-                <option value="list">List</option>
-                <option value="kanban">Kanban</option>
-              </select>
-            </label>
-            <label className="flex items-center justify-between text-xs font-medium">
-              Show completed &amp; won't do
-              <input
-                type="checkbox"
-                checked={!hideCompleted}
-                onChange={(e) => onHideCompletedChange(!e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </label>
-            <label className="flex items-center justify-between text-xs font-medium">
-              Hide row details
-              <input
-                type="checkbox"
-                checked={hideDetails}
-                onChange={(e) => onHideDetailsChange(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </label>
-          </div>
-        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

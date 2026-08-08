@@ -30,7 +30,7 @@ struct AppOverlayHost: View {
                     .frame(width: 620, height: 700)
             }
         case .focusSettings:
-            FocusSettingsOverlay(timer: model.focusTimer, onClose: close)
+            FocusSettingsOverlay(timer: model.focusTimer)
         case .focusSoundManagement:
             FocusSoundManagementSheet(model: model, onClose: close)
         case .focusSessionEditor(let session):
@@ -77,76 +77,108 @@ struct AppOverlayHost: View {
 struct FocusSettingsOverlay: View {
     @Environment(AppModel.self) private var model
     let timer: FocusTimer
-    let onClose: () -> Void
 
+    @State private var showsAdvanced = false
     @State private var notificationManager = SystemNotificationManager.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Text("Focus Studio Settings")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(iTuTheme.ink)
-                Spacer()
-                Button("Done") { onClose() }
-                    .buttonStyle(iTuPrimaryButtonStyle(height: 28))
+        FeatureSettingsPopoverShell(title: "Focus settings") {
+            if showsAdvanced {
+                advancedContent
+            } else {
+                mainContent
+            }
+        }
+        .task { await notificationManager.refreshStatus() }
+    }
+
+    private var settings: FocusSettings {
+        model.settingsStore.focusSettings
+    }
+
+    private func focusBinding<Value>(_ keyPath: WritableKeyPath<FocusSettings, Value>) -> Binding<Value> {
+        Binding(
+            get: { model.settingsStore.focusSettings[keyPath: keyPath] },
+            set: { newValue in
+                model.settingsStore.focusSettings[keyPath: keyPath] = newValue
+                timer.configure(settings: model.settingsStore.focusSettings)
+            }
+        )
+    }
+
+    private func toggleBinding(_ keyPath: WritableKeyPath<FocusSettings, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { model.settingsStore.focusSettings[keyPath: keyPath] },
+            set: { newValue in
+                model.settingsStore.focusSettings[keyPath: keyPath] = newValue
+                timer.configure(settings: model.settingsStore.focusSettings)
+                if keyPath == \FocusSettings.desktopNotificationEnabled,
+                   newValue,
+                   notificationManager.authorizationStatus == .notDetermined {
+                    Task { await notificationManager.requestAuthorization() }
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            FeatureSettingsSection(title: "Timer") {
+                FeatureSettingsRow(label: "Default focus length") {
+                    Stepper("\(settings.defaultWorkMinutes) min", value: focusBinding(\.defaultWorkMinutes), in: 1...240)
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.ink)
+                }
+                FeatureSettingsRow(label: "Short break") {
+                    Stepper("\(settings.shortBreakMinutes) min", value: focusBinding(\.shortBreakMinutes), in: 1...60)
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.ink)
+                }
+                FeatureSettingsRow(label: "Long break") {
+                    Stepper("\(settings.longBreakMinutes) min", value: focusBinding(\.longBreakMinutes), in: 1...120)
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.ink)
+                }
+                FeatureSettingsRow(label: "Long break every") {
+                    Stepper("\(settings.cyclesBeforeLongBreak)", value: focusBinding(\.cyclesBeforeLongBreak), in: 1...20)
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.ink)
+                    Text("sessions")
+                        .font(.system(size: 11))
+                        .foregroundStyle(iTuTheme.inkDim)
+                }
             }
 
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text("Pomodoro Duration")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                    Spacer()
-                    Stepper("\(timer.selectedMinutes) min", value: Binding(
-                        get: { timer.selectedMinutes },
-                        set: { timer.setDuration(minutes: $0) }
-                    ), in: 5...120, step: 5)
-                    .foregroundStyle(iTuTheme.ink)
+            FeatureSettingsSection(title: "Automation") {
+                FeatureSettingsRow(label: "Auto-start breaks") {
+                    Toggle("", isOn: focusBinding(\.autoStartBreaks))
+                        .labelsHidden()
+                        .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
                 }
-
-                Toggle(isOn: Binding(
-                    get: { model.settingsStore.focusSettings.overtimeEnabled },
-                    set: {
-                        model.settingsStore.focusSettings.overtimeEnabled = $0
-                        timer.configure(settings: model.settingsStore.focusSettings)
-                    }
-                )) {
-                    Text("Allow overtime")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
+                FeatureSettingsRow(label: "Auto-start focus") {
+                    Toggle("", isOn: focusBinding(\.autoStartWork))
+                        .labelsHidden()
+                        .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
                 }
-                .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
-
-                Toggle(isOn: Binding(
-                    get: { model.settingsStore.focusSettings.finishSoundEnabled },
-                    set: {
-                        model.settingsStore.focusSettings.finishSoundEnabled = $0
-                        timer.configure(settings: model.settingsStore.focusSettings)
-                    }
-                )) {
-                    Text("Finish sound")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
+                FeatureSettingsRow(label: "Count overtime") {
+                    Toggle("", isOn: focusBinding(\.overtimeEnabled))
+                        .labelsHidden()
+                        .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
                 }
-                .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
+            }
 
-                Toggle(isOn: Binding(
-                    get: { model.settingsStore.focusSettings.desktopNotificationEnabled },
-                    set: {
-                        model.settingsStore.focusSettings.desktopNotificationEnabled = $0
-                        timer.configure(settings: model.settingsStore.focusSettings)
-                        if $0 && notificationManager.authorizationStatus == .notDetermined {
-                            Task { await notificationManager.requestAuthorization() }
-                        }
-                    }
-                )) {
-                    Text("Desktop notification")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
+            FeatureSettingsSection(title: "Alerts") {
+                FeatureSettingsRow(label: "Completion sound") {
+                    Toggle("", isOn: focusBinding(\.finishSoundEnabled))
+                        .labelsHidden()
+                        .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
                 }
-                .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
-
+                FeatureSettingsRow(label: "Desktop notification") {
+                    Toggle("", isOn: toggleBinding(\.desktopNotificationEnabled))
+                        .labelsHidden()
+                        .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
+                }
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(notificationManager.statusLabel)
                         .font(.system(size: 11))
@@ -156,63 +188,87 @@ struct FocusSettingsOverlay: View {
                         Button("Enable") {
                             Task { await notificationManager.requestAuthorization() }
                         }
-                        .buttonStyle(iTuSecondaryButtonStyle(height: 26))
+                        .buttonStyle(iTuSecondaryButtonStyle(height: 24))
                     } else if notificationManager.authorizationStatus == .denied {
                         Button("Open Settings") {
                             notificationManager.openSystemSettings()
                         }
-                        .buttonStyle(iTuSecondaryButtonStyle(height: 26))
+                        .buttonStyle(iTuSecondaryButtonStyle(height: 24))
                     }
-                }
-
-                Toggle(isOn: Binding(
-                    get: { timer.compactAudio },
-                    set: {
-                        model.settingsStore.focusSettings.compactAudio = $0
-                        timer.configure(settings: model.settingsStore.focusSettings)
-                    }
-                )) {
-                    Text("Compact audio controls")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                }
-                .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
-
-                Divider()
-
-                HStack {
-                    Text("Short Break Duration")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                    Spacer()
-                    Text("5 min")
-                        .font(.system(size: 13))
-                        .foregroundStyle(iTuTheme.inkDim)
-                }
-
-                HStack {
-                    Text("Long Break Duration")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                    Spacer()
-                    Text("15 min")
-                        .font(.system(size: 13))
-                        .foregroundStyle(iTuTheme.inkDim)
                 }
             }
-            .padding(16)
-            .background(iTuTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(iTuTheme.border, lineWidth: 1)
-            )
 
-            Spacer()
+            Divider()
+
+            Button {
+                showsAdvanced = true
+            } label: {
+                HStack {
+                    Text("Advanced settings…")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(iTuTheme.teal)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                }
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
         }
-        .padding(20)
-        .frame(width: 420, height: 400)
-        .task { await notificationManager.refreshStatus() }
+    }
+
+    @ViewBuilder
+    private var advancedContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Button {
+                showsAdvanced = false
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("Main settings")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(iTuTheme.teal)
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+
+            FeatureSettingsSection(title: "Audio") {
+                FeatureSettingsRow(label: "Compact audio controls") {
+                    Toggle("", isOn: focusBinding(\.compactAudio))
+                        .labelsHidden()
+                        .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
+                }
+            }
+
+            FeatureSettingsSection(title: "Menu Bar") {
+                FeatureSettingsRow(label: "Show timer in menu bar") {
+                    Toggle("", isOn: focusBinding(\.showMenuBarItem))
+                        .labelsHidden()
+                        .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
+                }
+                FeatureSettingsRow(label: "Display style") {
+                    Picker("", selection: focusBinding(\.menuBarDisplayMode)) {
+                        ForEach(MenuBarDisplayMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(width: 150)
+                }
+            }
+
+            FeatureSettingsSection(title: "Focus Policy") {
+                FeatureSettingsRow(label: "Enable Focus Policy") {
+                    Toggle("", isOn: focusBinding(\.focusPolicyEnabled))
+                        .labelsHidden()
+                        .toggleStyle(SwitchToggleStyle(tint: iTuTheme.teal))
+                }
+            }
+        }
     }
 }
 

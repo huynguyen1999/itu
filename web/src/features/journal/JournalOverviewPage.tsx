@@ -1,9 +1,30 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Calendar, Clock, Dumbbell, Flame, Sparkles, Trophy, Wallet, Zap, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { api } from '@/shared/api/client';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
+import {
+  JournalSettingsPopover,
+  DEFAULT_JOURNAL_DISPLAY_SETTINGS,
+  type JournalDisplaySettings,
+} from './JournalSettingsPopover';
+import type { JournalPreferences } from '@/shared/api/preferencesApi';
 import { useJournalEntries } from './journalQueries';
 
 export function JournalOverviewPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [journalDisplaySettings, setJournalDisplaySettings] = useState<JournalDisplaySettings>(DEFAULT_JOURNAL_DISPLAY_SETTINGS);
+  const userPreferences = useQuery({
+    queryKey: ['user-preferences'],
+    queryFn: () => api.getPreferences(),
+  });
+  const updateJournalPref = useMutation({
+    mutationFn: (patch: Partial<JournalPreferences>) => api.updateJournalPreferences(patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-preferences'] }),
+  });
   const { data: entries = [], isLoading } = useJournalEntries();
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -20,11 +41,20 @@ export function JournalOverviewPage() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16">
-      {/* Welcome Banner */}
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Good evening</h1>
-        <p className="text-xs text-muted-foreground">Your cross-domain activity and personal operating system</p>
-      </div>
+      <PageHeader
+        kicker="Journal & Daily Notes"
+        title="Journal"
+        description="Your cross-domain activity and personal operating system"
+      >
+        <FeatureSettingsButton title="Journal settings">
+          <JournalSettingsPopover
+            preferences={userPreferences.data?.journal}
+            displaySettings={journalDisplaySettings}
+            onChangePreferences={(patch) => updateJournalPref.mutate(patch)}
+            onChangeDisplay={(patch) => setJournalDisplaySettings((current) => ({ ...current, ...patch }))}
+          />
+        </FeatureSettingsButton>
+      </PageHeader>
 
       {/* TODAY Summary Cards Grid */}
       <div className="space-y-3">

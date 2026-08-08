@@ -1,6 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PreferencesController } from './preferences.controller';
-import { PreferencesService, DEFAULT_MONEY_PREFERENCES, DEFAULT_GYM_PREFERENCES } from '@core/application/use-cases/preferences.service';
+import {
+  PreferencesService,
+  DEFAULT_MONEY_PREFERENCES,
+  DEFAULT_GYM_PREFERENCES,
+  DEFAULT_TASK_PREFERENCES,
+  DEFAULT_FOCUS_PREFERENCES,
+  DEFAULT_HABIT_PREFERENCES,
+  DEFAULT_MATRIX_PREFERENCES,
+  DEFAULT_GROWTH_PREFERENCES,
+  DEFAULT_LEARN_PREFERENCES,
+  DEFAULT_JOURNAL_PREFERENCES,
+} from '@core/application/use-cases/preferences.service';
 import { PrismaService } from '@infrastructure/persistence/prisma/prisma.service';
 import { AuthGuard } from '../guards/auth.guard';
 
@@ -37,12 +48,46 @@ describe('PreferencesController', () => {
 
     const result = await controller.getPreferences({ user: { sub: 'user-1' } } as any);
     expect(result).toEqual({
+      tasks: DEFAULT_TASK_PREFERENCES,
+      focus: DEFAULT_FOCUS_PREFERENCES,
+      habits: DEFAULT_HABIT_PREFERENCES,
+      matrix: DEFAULT_MATRIX_PREFERENCES,
+      growth: DEFAULT_GROWTH_PREFERENCES,
+      learn: DEFAULT_LEARN_PREFERENCES,
+      journal: DEFAULT_JOURNAL_PREFERENCES,
       money: DEFAULT_MONEY_PREFERENCES,
       gym: DEFAULT_GYM_PREFERENCES,
     });
     expect(mockPrisma.userPreferences.findUnique).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
     });
+  });
+
+  it('should update task preferences', async () => {
+    mockPrisma.userPreferences.findUnique.mockResolvedValue(null);
+    mockPrisma.userPreferences.upsert.mockResolvedValue({} as any);
+
+    const result = await controller.updateTaskPreferences(
+      { user: { sub: 'user-1' } } as any,
+      { defaultDate: 'TODAY', defaultPriority: 'HIGH' },
+    );
+
+    expect(result.defaultDate).toBe('TODAY');
+    expect(result.defaultPriority).toBe('HIGH');
+    expect(mockPrisma.userPreferences.upsert).toHaveBeenCalled();
+  });
+
+  it('should update focus preferences', async () => {
+    mockPrisma.userPreferences.findUnique.mockResolvedValue(null);
+    mockPrisma.userPreferences.upsert.mockResolvedValue({} as any);
+
+    const result = await controller.updateFocusPreferences(
+      { user: { sub: 'user-1' } } as any,
+      { workDurationMinutes: 45 },
+    );
+
+    expect(result.workDurationMinutes).toBe(45);
+    expect(mockPrisma.userPreferences.upsert).toHaveBeenCalled();
   });
 
   it('should update money preferences', async () => {

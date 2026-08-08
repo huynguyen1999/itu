@@ -11,7 +11,6 @@ import {
   Play,
   RotateCcw,
   Search,
-  Settings,
   TimerReset,
 } from 'lucide-react';
 import { api } from '@/shared/api/client';
@@ -30,6 +29,9 @@ import {
 } from './utils/focusTimer';
 import { playFinishChime } from '@/shared/utils/sound';
 import { FocusSettingsModal, getStoredFocusSettings, type FocusUserSettings } from './components/FocusSettingsModal';
+import { FocusSettingsPopover } from './FocusSettingsPopover';
+import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
+import type { FocusPreferences } from '@/shared/api/preferencesApi';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog';
 import { Input } from '@/shared/ui/input';
 import { useFocusAudio } from './components/FocusAudioProvider';
@@ -82,6 +84,14 @@ function eventKey() {
    ─────────────────────────────────────────── */
 export function FocusPage() {
   const queryClient = useQueryClient();
+  const userPreferences = useQuery({
+    queryKey: ['user-preferences'],
+    queryFn: () => api.getPreferences(),
+  });
+  const updateFocusPref = useMutation({
+    mutationFn: (patch: Partial<FocusPreferences>) => api.updateFocusPreferences(patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-preferences'] }),
+  });
   const { growthReceipts } = useSync();
   const audio = useFocusAudio();
   const [search] = useSearchParams();
@@ -543,15 +553,12 @@ export function FocusPage() {
     <div className="min-h-full space-y-5 pb-12">
       {/* ── Top Bar ── */}
       <PageHeader kicker="Timer & Sessions" title="Focus">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSettingsOpen(true)}
-          title="Focus Settings"
-          aria-label="Focus Settings"
-        >
-          <Settings className="h-4 w-4" />
-        </Button>
+        <FeatureSettingsButton title="Focus settings">
+          <FocusSettingsPopover
+            preferences={userPreferences.data?.focus}
+            onChange={(patch) => updateFocusPref.mutate(patch)}
+          />
+        </FeatureSettingsButton>
       </PageHeader>
 
       {/* ── Main Grid ── */}

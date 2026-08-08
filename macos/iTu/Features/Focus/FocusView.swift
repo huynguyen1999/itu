@@ -48,22 +48,9 @@ struct FocusView: View {
                 }
                 Spacer()
 
-                Button {
+                FeatureSettingsButton(label: "Focus settings") {
                     model.presentedOverlay = .focusSettings
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(iTuTheme.inkDim)
-                        .frame(width: 32, height: 32)
-                        .background(iTuTheme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(iTuTheme.border, lineWidth: 1)
-                        }
                 }
-                .buttonStyle(.plain)
-                .help("Focus Settings")
             }
             .padding(.horizontal, 24)
             .padding(.top, 24)

@@ -307,12 +307,19 @@ model User {
 }
 
 model UserPreferences {
-  userId           String   @id
-  moneyPreferences Json     @default("{}")
-  gymPreferences   Json     @default("{}")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId             String   @id
+  taskPreferences    Json     @default("{}")
+  focusPreferences   Json     @default("{}")
+  habitPreferences   Json     @default("{}")
+  matrixPreferences  Json     @default("{}")
+  growthPreferences  Json     @default("{}")
+  learnPreferences   Json     @default("{}")
+  journalPreferences Json     @default("{}")
+  moneyPreferences   Json     @default("{}")
+  gymPreferences     Json     @default("{}")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Role {

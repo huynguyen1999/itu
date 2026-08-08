@@ -19,6 +19,13 @@ import { api } from '@/shared/api/client';
 import type { Habit, HabitOccurrence, HabitTargetType, HabitTimeBlock, TaskTag } from '@/shared/api/types';
 import { Button } from '@/shared/ui/button';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
+import {
+  HabitsSettingsPopover,
+  DEFAULT_HABITS_DISPLAY_SETTINGS,
+  type HabitsDisplaySettings,
+} from './HabitsSettingsPopover';
+import type { HabitPreferences } from '@/shared/api/preferencesApi';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog';
 import { Input } from '@/shared/ui/input';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -69,6 +76,15 @@ function getWeekDays(referenceDate = new Date()) {
 
 export function HabitsPage() {
   const queryClient = useQueryClient();
+  const [habitsDisplaySettings, setHabitsDisplaySettings] = useState<HabitsDisplaySettings>(DEFAULT_HABITS_DISPLAY_SETTINGS);
+  const userPreferences = useQuery({
+    queryKey: ['user-preferences'],
+    queryFn: () => api.getPreferences(),
+  });
+  const updateHabitPref = useMutation({
+    mutationFn: (patch: Partial<HabitPreferences>) => api.updateHabitPreferences(patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-preferences'] }),
+  });
   const [editor, setEditor] = useState(false);
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ item: HabitOccurrence; action: 'skip' | 'fail' } | null>(null);
@@ -211,16 +227,14 @@ export function HabitsPage() {
         >
           <MoreHorizontal className="h-4 w-4" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground"
-          onClick={() => setGroupDialogOpen(true)}
-          title="Habit Preferences"
-          aria-label="Habit Preferences"
-        >
-          <Settings className="h-4 w-4" />
-        </Button>
+        <FeatureSettingsButton title="Habits settings">
+          <HabitsSettingsPopover
+            preferences={userPreferences.data?.habits}
+            displaySettings={habitsDisplaySettings}
+            onChangePreferences={(patch) => updateHabitPref.mutate(patch)}
+            onChangeDisplay={(patch) => setHabitsDisplaySettings((current) => ({ ...current, ...patch }))}
+          />
+        </FeatureSettingsButton>
       </PageHeader>
 
       {/* Top 7-Day Calendar Header Bar */}

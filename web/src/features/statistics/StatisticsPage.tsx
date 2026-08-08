@@ -28,6 +28,12 @@ import { api } from '@/shared/api/client';
 import type { GrowthSkill, GrowthStatistics } from '@/shared/api/types';
 import { Button } from '@/shared/ui/button';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
+import {
+  StatisticsSettingsPopover,
+  DEFAULT_STATISTICS_DISPLAY_SETTINGS,
+  type StatisticsDisplaySettings,
+} from './StatisticsSettingsPopover';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Input } from '@/shared/ui/input';
 import { Skeleton } from '@/shared/ui/skeleton';
@@ -56,6 +62,7 @@ type RangePreset = (typeof rangePresets)[number]['days'] | 'custom';
 export function StatisticsPage() {
   const today = useMemo(() => dateRangeForDays(1).to, []);
   const earliestDate = useMemo(() => dateRangeForDays(365).from, []);
+  const [statsDisplaySettings, setStatsDisplaySettings] = useState<StatisticsDisplaySettings>(DEFAULT_STATISTICS_DISPLAY_SETTINGS);
   const [range, setRange] = useState<StatisticsDateRange>(() => dateRangeForDays(30));
   const [rangePreset, setRangePreset] = useState<RangePreset>(30);
   const [customRange, setCustomRange] = useState<StatisticsDateRange>(range);
@@ -101,7 +108,14 @@ export function StatisticsPage() {
         kicker="Reports & Analytics"
         title="Statistics"
         description={`Tasks, deep work, learning, and Growth progress for ${rangeLabel(range)}.`}
-      ></PageHeader>
+      >
+        <FeatureSettingsButton title="Statistics settings">
+          <StatisticsSettingsPopover
+            settings={statsDisplaySettings}
+            onChange={(patch) => setStatsDisplaySettings((s) => ({ ...s, ...patch }))}
+          />
+        </FeatureSettingsButton>
+      </PageHeader>
 
       <section aria-labelledby="range-heading">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
