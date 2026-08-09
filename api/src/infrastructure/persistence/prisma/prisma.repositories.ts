@@ -8,3 +8,4 @@ export * from './prisma-scheduled-job.repository';
 export * from './prisma-ai.repository';
 export * from './prisma-productivity.repository';
 export * from './prisma-growth.repository';
+export * from './prisma-usage.repository';

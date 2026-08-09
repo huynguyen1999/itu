@@ -326,12 +326,20 @@ struct HomeOverviewView: View {
             } else {
                 LazyVStack(spacing: 0) {
                     ForEach(todayTasks) { task in
-                        HomeTaskRowView(task: task, onEdit: { openTaskEditor(task) })
+                        TaskRow(
+                            task: task,
+                            growthRule: model.growthEarningRules[task.id],
+                            archivedSkillIDs: Set(model.skills.filter { $0.archivedAt != nil }.map(\.id)),
+                            hideDetails: false,
+                            onStatusAction: { Task { await model.toggleCompletion(task) } },
+                            statusActionDescription: "Toggle completion",
+                            onEdit: { openTaskEditor(task) }
+                        )
                         if task.id != todayTasks.last?.id {
                             Rectangle()
                                 .fill(iTuTheme.borderSoft)
                                 .frame(height: 1)
-                                .padding(.leading, 44)
+                                .padding(.leading, 48)
                         }
                     }
                 }
@@ -783,90 +791,6 @@ private struct AttributeVertexView: View {
             }
             .frame(width: labelWidth, alignment: labelAlignment)
             .position(x: labelX + labelOffset, y: labelY)
-        }
-    }
-}
-
-// MARK: - Task Row Component
-
-private struct HomeTaskRowView: View {
-    @Environment(AppModel.self) private var model
-    let task: ProductivityTask
-    let onEdit: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Button {
-                Task { await model.toggleCompletion(task) }
-            } label: {
-                Image(systemName: task.status == .completed ? "checkmark" : "")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 24, height: 24)
-                    .background(task.status == .completed ? iTuTheme.mint : Color.clear)
-                    .clipShape(Circle())
-                    .overlay {
-                        Circle()
-                            .stroke(task.status == .completed ? iTuTheme.mint : iTuTheme.inkFaint.opacity(0.55), lineWidth: 1.5)
-                    }
-            }
-            .buttonStyle(.plain)
-            .pointingHandCursor()
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(task.title)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(task.status == .completed ? iTuTheme.inkFaint : iTuTheme.ink)
-                    .strikethrough(task.status == .completed)
-
-                if let dueAt = task.dueAt {
-                    Text(dueAt.contains("T") ? String(dueAt.prefix(10)) : dueAt)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(iTuTheme.teal)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(iTuTheme.mintTint)
-                        .clipShape(Capsule())
-                }
-            }
-
-            Spacer()
-
-            if task.priority != .none {
-                Text(task.priority.rawValue.capitalized)
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(priorityColor(task.priority))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(priorityColor(task.priority).opacity(0.12))
-                    .clipShape(Capsule())
-            }
-
-            TaskActionMenuButton(task: task, onOpenDetails: onEdit)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(isHovered ? iTuTheme.mintTint.opacity(0.4) : Color.clear)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onEdit)
-        .taskActionMenu(for: task, onOpenDetails: onEdit)
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-        }
-    }
-
-    private func priorityColor(_ priority: TaskPriority) -> Color {
-        switch priority {
-        case .high: iTuTheme.coral
-        case .medium: iTuTheme.amber
-        case .low, .none: iTuTheme.teal
         }
     }
 }

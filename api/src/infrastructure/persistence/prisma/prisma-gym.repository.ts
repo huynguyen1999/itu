@@ -119,6 +119,11 @@ export class PrismaGymRepository implements IGymRepositoryPort {
   }
 
   async updateExercise(userId: string, id: string, dto: UpdateExerciseDto): Promise<ExerciseDomain> {
+    const existing = await this.prisma.exerciseDefinition.findFirst({ where: { id, userId, archivedAt: null } });
+    if (!existing) {
+      throw new Error(`Exercise ${id} not found`);
+    }
+
     const data: any = {};
     if (dto.name !== undefined) {
       data.name = dto.name.trim();
@@ -131,8 +136,6 @@ export class PrismaGymRepository implements IGymRepositoryPort {
     if (dto.secondaryMuscleGroups !== undefined) data.secondaryMuscleGroups = dto.secondaryMuscleGroups;
     if (dto.defaultWeightUnit !== undefined) data.defaultWeightUnit = dto.defaultWeightUnit;
     if (dto.defaultRestSeconds !== undefined) data.defaultRestSeconds = dto.defaultRestSeconds;
-    if (dto.imageStorageKey !== undefined) data.imageStorageKey = dto.imageStorageKey;
-    if (dto.imageUrl !== undefined) data.imageUrl = dto.imageUrl;
 
     const ex = await this.prisma.exerciseDefinition.update({
       where: { id },
@@ -145,6 +148,11 @@ export class PrismaGymRepository implements IGymRepositoryPort {
   }
 
   async archiveExercise(userId: string, id: string): Promise<ExerciseDomain> {
+    const existing = await this.prisma.exerciseDefinition.findFirst({ where: { id, userId, archivedAt: null } });
+    if (!existing) {
+      throw new Error(`Exercise ${id} not found`);
+    }
+
     const ex = await this.prisma.exerciseDefinition.update({
       where: { id },
       data: { archivedAt: new Date() },
@@ -153,6 +161,11 @@ export class PrismaGymRepository implements IGymRepositoryPort {
   }
 
   async updateExerciseImage(userId: string, id: string, storageKey: string, url: string): Promise<ExerciseDomain> {
+    const existing = await this.prisma.exerciseDefinition.findFirst({ where: { id, userId } });
+    if (!existing) {
+      throw new Error(`Exercise ${id} not found`);
+    }
+
     const ex = await this.prisma.exerciseDefinition.update({
       where: { id },
       data: { imageStorageKey: storageKey, imageUrl: url },
@@ -161,6 +174,11 @@ export class PrismaGymRepository implements IGymRepositoryPort {
   }
 
   async deleteExerciseImage(userId: string, id: string): Promise<ExerciseDomain> {
+    const existing = await this.prisma.exerciseDefinition.findFirst({ where: { id, userId } });
+    if (!existing) {
+      throw new Error(`Exercise ${id} not found`);
+    }
+
     const ex = await this.prisma.exerciseDefinition.update({
       where: { id },
       data: { imageStorageKey: null, imageUrl: null },

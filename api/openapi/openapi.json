@@ -4181,10 +4181,50 @@
         ]
       }
     },
+    "/preferences/budget": {
+      "patch": {
+        "operationId": "updateBudgetPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
     "/preferences/gym": {
       "patch": {
         "operationId": "updateGymPreferences",
         "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
+    "/preferences/usage": {
+      "patch": {
+        "operationId": "updateUsagePreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUsagePreferencesDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -4460,7 +4500,38 @@
     "/budget/transactions": {
       "get": {
         "operationId": "BudgetController_getTransactions",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "description": "Period string YYYY-MM",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by Category ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "EXPENSE",
+                "INCOME"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -4946,6 +5017,170 @@
           "Gym"
         ]
       }
+    },
+    "/usage/summaries": {
+      "get": {
+        "operationId": "getUsageSummaries",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteUsageSummaries",
+        "parameters": [
+          {
+            "name": "all",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/usage/summaries/batch": {
+      "post": {
+        "operationId": "replaceUsageSummaries",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsageSummaryBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/usage/websites/summaries": {
+      "get": {
+        "operationId": "getWebsiteUsageSummaries",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteWebsiteUsageSummaries",
+        "parameters": [
+          {
+            "name": "all",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/usage/websites/summaries/batch": {
+      "post": {
+        "operationId": "replaceWebsiteUsageSummaries",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebsiteUsageSummaryBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/usage/websites/dsn": {
+      "post": {
+        "operationId": "generateBrowserExtensionDsn",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/usage/websites/ingest": {
+      "post": {
+        "operationId": "ingestBrowserExtensionUsage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrowserExtensionUsageBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
     }
   },
   "info": {
@@ -5233,47 +5468,432 @@
         "type": "object",
         "properties": {}
       },
-      "CreateBudgetCategoryDto": {
+      "UpdateUsagePreferencesDto": {
         "type": "object",
         "properties": {}
+      },
+      "CreateBudgetCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Category name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "EXPENSE",
+              "INCOME"
+            ],
+            "default": "EXPENSE"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Icon identifier"
+          },
+          "color": {
+            "type": "string",
+            "description": "Color token"
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "Sort order"
+          }
+        },
+        "required": [
+          "name"
+        ]
       },
       "ReorderBudgetCategoriesDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "categoryIds": {
+            "description": "Ordered category IDs",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "categoryIds"
+        ]
       },
       "UpdateBudgetCategoryDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Category name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "EXPENSE",
+              "INCOME"
+            ]
+          },
+          "icon": {
+            "type": "string",
+            "description": "Icon identifier"
+          },
+          "color": {
+            "type": "string",
+            "description": "Color token"
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "Sort order"
+          }
+        }
       },
       "UpdatePeriodBudgetDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "overallLimit": {
+            "type": "number",
+            "description": "Overall period limit"
+          }
+        },
+        "required": [
+          "overallLimit"
+        ]
       },
       "UpdateCategoryLimitDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Category budget limit"
+          }
+        },
+        "required": [
+          "limit"
+        ]
       },
       "CreateBudgetTransactionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "EXPENSE",
+              "INCOME"
+            ]
+          },
+          "amount": {
+            "type": "number",
+            "description": "Transaction amount"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code",
+            "default": "VND"
+          },
+          "categoryId": {
+            "type": "string",
+            "description": "Category ID"
+          },
+          "merchant": {
+            "type": "string",
+            "description": "Merchant or payee"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "description": "Payment method"
+          },
+          "transactionAt": {
+            "type": "string",
+            "description": "ISO date string of transaction"
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional note"
+          }
+        },
+        "required": [
+          "type",
+          "amount",
+          "categoryId",
+          "transactionAt"
+        ]
       },
       "UpdateBudgetTransactionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "EXPENSE",
+              "INCOME"
+            ]
+          },
+          "amount": {
+            "type": "number",
+            "description": "Transaction amount"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code"
+          },
+          "categoryId": {
+            "type": "string",
+            "description": "Category ID"
+          },
+          "merchant": {
+            "type": "string",
+            "description": "Merchant or payee"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "description": "Payment method"
+          },
+          "transactionAt": {
+            "type": "string",
+            "description": "ISO date string of transaction"
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional note"
+          }
+        }
       },
       "CreateExerciseDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Exercise name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description or execution notes"
+          },
+          "metricType": {
+            "type": "string",
+            "enum": [
+              "WEIGHT_REPS",
+              "REPS",
+              "DURATION",
+              "DISTANCE_DURATION"
+            ],
+            "default": "WEIGHT_REPS"
+          },
+          "equipment": {
+            "type": "string",
+            "description": "Equipment required"
+          },
+          "primaryMuscleGroup": {
+            "type": "string",
+            "description": "Primary muscle group"
+          },
+          "secondaryMuscleGroups": {
+            "description": "Secondary muscle groups",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultWeightUnit": {
+            "type": "string",
+            "enum": [
+              "KG",
+              "LBS"
+            ],
+            "default": "KG"
+          },
+          "defaultRestSeconds": {
+            "type": "number",
+            "description": "Default rest in seconds"
+          }
+        },
+        "required": [
+          "name"
+        ]
       },
       "UpdateExerciseDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Exercise name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description or execution notes"
+          },
+          "metricType": {
+            "type": "string",
+            "enum": [
+              "WEIGHT_REPS",
+              "REPS",
+              "DURATION",
+              "DISTANCE_DURATION"
+            ]
+          },
+          "equipment": {
+            "type": "string",
+            "description": "Equipment required"
+          },
+          "primaryMuscleGroup": {
+            "type": "string",
+            "description": "Primary muscle group"
+          },
+          "secondaryMuscleGroups": {
+            "description": "Secondary muscle groups",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultWeightUnit": {
+            "type": "string",
+            "enum": [
+              "KG",
+              "LBS"
+            ]
+          },
+          "defaultRestSeconds": {
+            "type": "number",
+            "description": "Default rest in seconds"
+          }
+        }
       },
       "CreateWorkoutDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Workout title"
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "ISO date string of start time"
+          }
+        }
+      },
+      "UpdateWorkoutSetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Set ID"
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "Sort order index"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "WARMUP",
+              "NORMAL",
+              "DROP",
+              "FAILURE"
+            ]
+          },
+          "reps": {
+            "type": "number",
+            "description": "Reps count"
+          },
+          "weight": {
+            "type": "number",
+            "description": "Weight value"
+          },
+          "durationSeconds": {
+            "type": "number",
+            "description": "Duration in seconds"
+          },
+          "distanceMeters": {
+            "type": "number",
+            "description": "Distance in meters"
+          },
+          "rpe": {
+            "type": "number",
+            "description": "Rate of Perceived Exertion (RPE 1-10)"
+          }
+        }
+      },
+      "UpdateWorkoutExerciseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Workout exercise ID"
+          },
+          "exerciseId": {
+            "type": "string",
+            "description": "Exercise definition ID"
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "Sort order index"
+          },
+          "note": {
+            "type": "string",
+            "description": "Exercise note"
+          },
+          "restSeconds": {
+            "type": "number",
+            "description": "Rest time in seconds"
+          },
+          "sets": {
+            "description": "Workout sets",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpdateWorkoutSetDto"
+            }
+          }
+        },
+        "required": [
+          "exerciseId"
+        ]
       },
       "UpdateWorkoutDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Workout title"
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "ISO date string of start time"
+          },
+          "endedAt": {
+            "type": "string",
+            "description": "ISO date string of end time"
+          },
+          "durationMinutes": {
+            "type": "number",
+            "description": "Duration in minutes"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "COMPLETED",
+              "ABANDONED"
+            ]
+          },
+          "exercises": {
+            "description": "Workout exercises",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpdateWorkoutExerciseDto"
+            }
+          }
+        }
+      },
+      "UsageSummaryBatchDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "WebsiteUsageSummaryBatchDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "BrowserExtensionUsageBatchDto": {
         "type": "object",
         "properties": {}
       }

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
+import type { GymWorkoutUpdate } from './gymQueries';
 
 export function useCreateGymExercise() {
   const queryClient = useQueryClient();
@@ -54,9 +55,12 @@ export function useCreateGymWorkout() {
 export function useUpdateGymWorkout() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => api.updateGymWorkout(id, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['gym', 'workout', variables.id] });
+    mutationFn: ({ id, data }: { id: string; data: GymWorkoutUpdate }) => api.updateGymWorkout(id, data),
+    onSuccess: (updated, variables) => {
+      if (updated) {
+        queryClient.setQueryData(['gym', 'workout', variables.id], updated);
+      }
+      queryClient.invalidateQueries({ queryKey: ['gym', 'overview'] });
       queryClient.invalidateQueries({ queryKey: ['gym', 'workouts'] });
     },
   });

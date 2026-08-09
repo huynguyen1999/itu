@@ -100,7 +100,7 @@ components:
 
 **Creative North Star: "The Botanical Sanctuary"**
 
-iTu delivers a calm, high-density productivity workspace that treats deep work, study, and personal growth as a quiet sanctuary rather than a loud, distracting task manager. Grounded in deep organic teals, fresh mint highlights, soft paper surfaces, and smooth tactile radii, the interface balances dense information architecture with visual serenity. Ambient radial gradients wash the page in faint green-and-gold light, while deep-teal gradient surfaces add a quiet sense of premium depth.
+iTu delivers a calm, high-density personal operating system for planning, focus, habits, learning, growth, money, and training. It treats daily work as a quiet sanctuary rather than a loud, distracting task manager. Grounded in deep organic teals, fresh mint highlights, soft paper surfaces, and smooth tactile radii, the interface balances dense information architecture with visual serenity. Ambient radial gradients wash the page in faint mint light, while deep-teal gradient surfaces add a quiet sense of premium depth.
 
 The aesthetic philosophy avoids harsh pure-black borders and hyper-saturated neon accents. Instead, it relies on soft organic boundaries, ambient shadows, and purposeful color signals that draw attention to active focus timers and urgent Eisenhower tasks without cluttering the user's cognitive field. In dark mode the forest deepens (`#071713`) and the primary accent lifts to a lighter mint-teal so actions stay legible on dark surfaces.
 
@@ -114,9 +114,13 @@ The aesthetic philosophy avoids harsh pure-black borders and hyper-saturated neo
 - Smooth cubic-bezier transitions (`cubic-bezier(0.16, 1, 0.3, 1)`) with full `prefers-reduced-motion` support
 - High-density multi-pane layout with clear typographic contrast and uppercase mono tracking
 
+### Current Surface Map
+
+Both clients expose the same workspace language: Home, Plan, Matrix, Focus, Habits, Statistics, Budget, Gym, Learn, Growth, Trash, Conflicts, Notifications, Profile, and Settings. The web client also exposes Journal as a workspace and keeps legacy journal money/gym URLs as redirects into Budget and Gym. Budget contains overview, transactions, budgets, and calendar views; Gym contains overview, active workouts, exercise library, routines, and workout history.
+
 ### Cross-Platform Implementation
 
-iTu ships one visual language across platforms. The token vocabulary is duplicated deliberately so each platform is self-contained: a platform-neutral `--itu-*` CSS custom-property namespace in [`web/src/styles/app.css`](web/src/styles/app.css) for the React/Tailwind client, and the matching `iTuTheme` enum in [`macos/iTu/Shared/UI/iTuTheme.swift`](macos/iTu/Shared/UI/iTuTheme.swift) for the SwiftUI client. The macOS palette mirrors the web tokens **token-for-token** (same hex values, same names), plus `forestRaised` (`#15443C`) and `gold`/`goldSoft` convenience aliases. **Token names and roles are the contract; any LLM generating code for either platform must reference this document's token vocabulary, not invent colors.** Web webfonts map to system fonts on native: `Manrope` → SF Pro, `IBM Plex Mono` → SF Mono (`Design.monospaced`), `Fraunces` → New York serif.
+iTu ships one visual language across platforms. The token vocabulary is duplicated deliberately so each platform is self-contained: a platform-neutral `--itu-*` CSS custom-property namespace in [`web/src/styles/app.css`](web/src/styles/app.css) for the React/Tailwind client, and the matching `iTuTheme` enum in [`macos/iTu/Shared/UI/iTuTheme.swift`](macos/iTu/Shared/UI/iTuTheme.swift) for the SwiftUI client. The macOS palette mirrors the web tokens **token-for-token** (same hex values, same names), plus `forestRaised` (`#15443C`) and `gold`/`goldSoft` convenience aliases. **Token names and roles are the contract; any LLM generating code for either platform must reference this document's token vocabulary, not invent colors.** Web webfonts map to system fonts on native: `Manrope` → SF Pro, `IBM Plex Mono` → SF Mono (`Design.monospaced`), `Fraunces` → New York serif. Native controls and SF Symbols remain native; parity is semantic and tonal, not pixel-identical.
 
 ## Colors
 
@@ -201,13 +205,15 @@ On web the families above are webfonts; on macOS they map to system faces by rol
 
 The layout uses a responsive multi-pane structure optimized for density, rapid scanning, and side-by-side context retention.
 
-- **Containers**: Max content width `1240px` on Today; `1152px` (`max-w-6xl`) for general pages; `1180px` for Growth; `1080px` for the habit journal. Responsive padding (`1rem` mobile, `2rem` desktop).
-- **Primary Navigation Rail**: Deep-teal gradient left rail, `var(--itu-app-rail-width, 236px)`, draggable-resizable and collapsible to a `72px` icon rail; at `≤1080px` it auto-collapses toward `72–208px`. Brand mark `32px` with a radial teal gradient.
+- **Web containers**: Max content width `1240px` on Home/Today; `1152px` (`max-w-6xl`) for general pages; feature-specific workspaces use full-bleed canvases. Responsive padding is `1rem` mobile and `2rem` desktop.
+- **Web primary navigation rail**: Deep-teal gradient left rail, `236px` by default, draggable from `72px` to `320px` and persisted per user. Under `md` it becomes a compact header plus a fixed bottom bar showing five items and a More menu.
+- **macOS primary navigation rail**: Fixed `222px` deep-teal gradient rail with grouped sections: Productivity, Tracking, Learning & Growth, and System. Native SF Symbols, hover/selection fills, and unread badges carry the interaction language.
+- **macOS planning rail**: Fixed `228px` contextual rail. It is always visible at `≥1100pt`, user-toggleable from `860–1099pt`, and hidden below `860pt`.
 - **Section / Contextual Rails**: `240px` contextual rails (`--itu-surface-2`) for planning lists/tags and Learn navigation; the Learn workspace uses `var(--itu-learn-sidebar-width, 240px)`.
 - **Task Workspace**: `grid-template-columns: var(--itu-sidebar-width, 232px) minmax(420px, 1fr)` with a persistent right detail inspector (`lg:block`).
 - **Spacing Rhythm**: 4px micro-gaps, 8px element padding, 16px component gaps, 24px section margins, and 32px page headers.
 - **Density Model**: High-density compact rows in lists (`min-height 68px` task items) with generous internal padding (`10px 12px`) inside detail cards.
-- **Responsive Breakpoints**: Tailwind `sm 640 / md 768 / lg 1024 / xl 1280 / 2xl 1400`, plus custom media queries at `1279`, `1080`, `1023`, `767`, and `700`. Below `1024px` contextual rails become horizontal pill-scroll rails; below `768px` the app shows a bottom tab bar (5 items + More menu) and `44px` touch targets.
+- **Responsive behavior**: Web uses Tailwind `sm 640 / md 768 / lg 1024 / xl 1280 / 2xl 1400` plus custom rail/layout queries. Below `1024px`, contextual rails compress to horizontal navigation; below `768px`, the bottom tab bar uses `48px`-class targets. macOS uses width-driven `860pt` and `1100pt` layout modes rather than web breakpoints.
 
 ## Elevation & Depth
 
@@ -268,6 +274,8 @@ Each shared component lives in [`web/src/shared/ui/`](web/src/shared/ui) with a 
 - **App Rail** (`.itu-app-rail`): Deep-teal gradient (`linear-gradient(180deg, var(--itu-teal-900), var(--itu-teal-950))`), light text `#dceae6`. Links are `40px` min-height, `10px` radius; active state is a mint-tinted fill (`rgb(63 182 164 / 0.16)`) with white text and a `--itu-teal-400` icon. Group labels render in `IBM Plex Mono` uppercase.
 - **Section Rail / Secondary Rail** (`.itu-section-rail`): `240px`, `--itu-surface-2` background; active rows are `--itu-mint-100` with `--itu-teal-700` text; hover is `--itu-mint-50`.
 - **Mobile:** Below `1024px` contextual rails become horizontal pill-scroll rails; below `768px` a fixed bottom tab bar (5 items + More) with `44px` targets.
+- **Web navigation behavior:** Primary workspace items can be reordered by drag and drop on desktop; the persisted order is reflected in the mobile five-item bar and More menu. Sync status, notifications, theme, profile, and settings live in the rail footer or compact header.
+- **macOS navigation behavior:** The primary rail remains visible at all supported widths; planning context appears in the adjacent rail only when the window is wide enough. Focus status is also exposed through the menu bar and a popover, preserving quick-glance access outside the main window.
 
 ### Task Items (`.itu-task-item`)
 - **Style:** `min-height 68px`, `3-column` grid (`30px | content | actions`), transparent resting state with a hairline bottom border.

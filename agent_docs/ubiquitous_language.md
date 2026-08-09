@@ -51,6 +51,16 @@ This glossary defines the domain language evidenced by iTu's product documentati
 | **Focus Interruption** | A recorded event describing why focused work was interrupted. | Distraction, pause |
 | **Focus Sound** | An audio resource that can play during a **Focus Session**. | Background sound, noise |
 
+## Usage tracking
+
+| Term | Definition | Aliases to avoid |
+| --- | --- | --- |
+| **Browser Activity** | A transient statement that a supported browser has a particular normalized HTTP(S) URL selected in its active tab. | Browser event, tab activity |
+| **Website Usage Summary** | Website-active seconds aggregated by **Sync Device**, local calendar day, browser bundle ID, and normalized URL. | Website history, browsing history |
+| **Domain Usage Summary** | A Statistics projection that combines **Website Usage Summaries** sharing the same normalized hostname. | Website Usage Summary, URL usage |
+| **Browser Integration** | The Chromium extension and DSN-authenticated API path that carry **Browser Activity** directly into iTu. | Browser tracker, extension bridge |
+| **Browser Extension DSN** | A rotatable secret that authorizes one or more Chromium extension installations to submit **Website Usage Summaries** for a **User Account** without a login bearer token. | API key, bearer token |
+
 ## Habits and routines
 
 | Term | Definition | Aliases to avoid |

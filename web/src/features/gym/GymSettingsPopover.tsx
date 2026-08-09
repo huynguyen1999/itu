@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Input } from '@/shared/ui/input';
 
 interface GymSettingsPopoverProps {
   preferences?: Record<string, any>;
@@ -8,7 +7,6 @@ interface GymSettingsPopoverProps {
 
 export function GymSettingsPopover({ preferences = {}, onChange }: GymSettingsPopoverProps) {
   const [weightUnit, setWeightUnit] = useState(preferences.defaultWeightUnit || 'KG');
-  const [restTimer, setRestTimer] = useState(preferences.defaultRestSeconds || 60);
 
   return (
     <div className="space-y-4 p-4 w-72 text-sm">
@@ -29,21 +27,6 @@ export function GymSettingsPopover({ preferences = {}, onChange }: GymSettingsPo
         </select>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Default Rest Timer (seconds)
-        </label>
-        <Input
-          type="number"
-          value={restTimer}
-          onChange={(e) => {
-            const val = parseInt(e.target.value, 10);
-            setRestTimer(val);
-            onChange?.({ ...preferences, defaultRestSeconds: val });
-          }}
-          className="font-mono text-xs"
-        />
-      </div>
     </div>
   );
 }

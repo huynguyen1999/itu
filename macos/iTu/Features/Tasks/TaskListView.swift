@@ -53,6 +53,7 @@ struct TaskListView: View {
             sections: model.sections,
             lists: model.taskLists,
             tags: model.tags,
+            tagIdsByTaskID: model.tagIdsByTaskID,
             settings: settings
         )
 
@@ -368,12 +369,14 @@ struct TaskListView: View {
 
 // MARK: - Task Row with Processing Status & Full Context Menu
 
-private struct TaskRow: View {
+struct TaskRow: View {
     @Environment(AppModel.self) private var model
     let task: ProductivityTask
     let growthRule: GrowthEarningRuleDTO?
     let archivedSkillIDs: Set<String>
     let hideDetails: Bool
+    var onStatusAction: (() -> Void)? = nil
+    var statusActionDescription: String? = nil
     let onEdit: () -> Void
     @State private var isHovered = false
     @State private var isStatusHovered = false
@@ -382,7 +385,11 @@ private struct TaskRow: View {
         HStack(spacing: 12) {
             // Status Button cycling: Planned -> In Progress (blue play icon!) -> Completed -> Planned
             Button {
-                Task { await model.cycleTaskStatus(task) }
+                if let onStatusAction {
+                    onStatusAction()
+                } else {
+                    Task { await model.cycleTaskStatus(task) }
+                }
             } label: {
                 ZStack {
                     Circle()
@@ -407,8 +414,8 @@ private struct TaskRow: View {
             }
             .zIndex(1)
             .pointingHandCursor()
-            .help("Status: \(task.status.displayName) → \(nextStatus.displayName)")
-            .accessibilityLabel("Status: \(task.status.displayName). Change to \(nextStatus.displayName)")
+            .help(statusActionDescription ?? "Status: \(task.status.displayName) → \(nextStatus.displayName)")
+            .accessibilityLabel("Status: \(task.status.displayName). \(statusActionDescription ?? "Change to \(nextStatus.displayName)")")
 
             VStack(alignment: .leading, spacing: 5) {
                     Text(task.title)

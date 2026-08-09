@@ -4,7 +4,7 @@
 
 ## Platform
 
-web (React 19 / Vite / Tailwind) + macOS (SwiftUI), sharing one cross-platform design-token vocabulary
+adaptive (web React/Vite/Tailwind + macOS SwiftUI), sharing one cross-platform design-token vocabulary
 
 ## Users
 
@@ -21,9 +21,10 @@ An offline-first, single-user productivity and learning hub that tightly connect
 ## Operating Context
 
 - Web application running on React 19, Vite, TanStack Query, Tailwind CSS, and shadcn/ui.
-- Native macOS client (SwiftUI) sharing the same `iTuTheme` token palette and design language as the web client.
+- Native macOS client (SwiftUI) sharing the same `iTuTheme` token palette and design language as the web client, with native SF Symbols, controls, menu-bar focus status, and responsive split-rail behavior.
 - Multi-device and multi-tab synchronization backed by an IndexedDB offline mutation queue, WebSocket change invalidation, and push-then-pull REST sync against a NestJS/Fastify/Prisma API.
-- Dense three-pane task workspace with smart lists, tags, inline capture, persistent task-detail inspector, Eisenhower matrix, focus session overlay/global timer, habit journal & heatmaps, spaced repetition study review interface, and Growth dashboard/shop.
+- Dense task workspace with smart lists, tags, inline capture, a persistent task-detail inspector, and Eisenhower matrix views.
+- Focus session overlay/global timer, habit check-ins and heatmaps, spaced-repetition study review, Growth dashboard/shop, Budget tracking, Gym workout logging, Journal entries, Statistics, Trash, Notifications, Conflicts, Profile, and Settings.
 
 ## Capabilities and Constraints
 
@@ -32,6 +33,8 @@ An offline-first, single-user productivity and learning hub that tightly connect
   - Task-linked Pomodoro & stopwatch focus sessions with server-authoritative state and global timer.
   - Dedicated boolean, count, duration, and quantity habit check-ins, heatmaps, streaks, and habit journal.
   - Spaced-repetition flashcard decks, cards, study reviews, and learning history.
+  - Budget workspaces for overview, transactions, budgets, and calendar views.
+  - Gym workspaces for overview, active workouts, exercise library, routines, and workout history.
   - Offline-first mutation queue (IndexedDB), ULID entity identifiers, multi-tab BroadcastChannel state sharing, and WebSocket real-time invalidation.
   - Gamified Growth system featuring 6 starter Attributes, 6 starter Skills, permanent XP/leveling, coins, immutable award ledgers, achievements, and an item shop.
 - **Constraints**:
@@ -50,7 +53,7 @@ An offline-first, single-user productivity and learning hub that tightly connect
 
 ## Evidence on Hand
 
-- Functional web client (`web/`) with active routes for Today, Plan, Inbox, Upcoming, Matrix, Focus, Habits, Growth, and Learn (`web/src/features/`).
+- Functional web client (`web/`) with active workspaces for Home, Plan, Matrix, Focus, Habits, Statistics, Budget, Gym, Journal, Learn, Growth, Trash, Settings, and Profile (`web/src/features/`).
 - Native macOS client (`macos/`) sharing the token system via [`macos/iTu/Shared/UI/iTuTheme.swift`](macos/iTu/Shared/UI/iTuTheme.swift).
 - Durable design system captured in [`DESIGN.md`](DESIGN.md).
 - Verified implementation status and architectural documentation in [`README.md`](file:///Users/ice-h/Source/iTu/README.md), [`PLAN.md`](file:///Users/ice-h/Source/iTu/PLAN.md), and [`ROADMAP.md`](file:///Users/ice-h/Source/iTu/ROADMAP.md).

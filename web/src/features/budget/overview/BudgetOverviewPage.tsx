@@ -1,154 +1,85 @@
 import { useState } from 'react';
-import { useBudgetOverview } from '../budgetQueries';
-import { Card } from '@/shared/ui/card';
-import { Button } from '@/shared/ui/button';
-import { ChevronLeft, ChevronRight, Plus, ArrowUpRight, ArrowDownRight, Wallet, PieChart } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useBudgetOverview } from '../budgetQueries';
+import { Button } from '@/shared/ui/button';
+import { CategoryIcon } from '../budgetCategoryIcons';
 
 export function BudgetOverviewPage() {
   const [period, setPeriod] = useState(() => new Date().toISOString().substring(0, 7));
   const { data: overview, isLoading, isError } = useBudgetOverview(period);
 
-  const handlePrevMonth = () => {
-    const [y, m] = period.split('-').map(Number);
-    const date = new Date(y, m - 2, 1);
-    setPeriod(date.toISOString().substring(0, 7));
+  const moveMonth = (offset: number) => {
+    const [year, month] = period.split('-').map(Number);
+    const next = new Date(year, month - 1 + offset, 1);
+    setPeriod(next.toISOString().substring(0, 7));
   };
 
-  const handleNextMonth = () => {
-    const [y, m] = period.split('-').map(Number);
-    const date = new Date(y, m, 1);
-    setPeriod(date.toISOString().substring(0, 7));
-  };
+  const formatCurrency = (value: number, currency = 'VND') =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
 
-  const formatCurrency = (val: number, curr = 'VND') => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: curr, maximumFractionDigits: 0 }).format(val);
-  };
+  if (isLoading) return <div className="space-y-4 animate-pulse"><div className="h-10 w-48 rounded-lg bg-muted/40" /><div className="h-20 rounded-xl bg-muted/40" /><div className="h-64 rounded-xl bg-muted/40" /></div>;
+  if (isError || !overview) return <div className="rounded-xl border p-8 text-center text-sm text-muted-foreground">Could not load this month. Try again.</div>;
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-10 bg-muted/40 rounded-lg w-48" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="h-32 bg-muted/40 rounded-xl" />
-          <div className="h-32 bg-muted/40 rounded-xl" />
-          <div className="h-32 bg-muted/40 rounded-xl" />
-        </div>
-      </div>
-    );
-  }
-
-  if (isError || !overview) {
-    return (
-      <div className="p-8 text-center text-muted-foreground border rounded-xl">
-        Failed to load budget overview. Please try again.
-      </div>
-    );
-  }
+  const assigned = overview.categories.reduce((sum: number, category: any) => sum + Number(category.budget || 0), 0);
+  const available = overview.categories.reduce((sum: number, category: any) => sum + Number(category.remaining || 0), 0);
+  const readyToAssign = Number(overview.income || 0) - assigned;
+  const overspent = overview.categories.filter((category: any) => Number(category.spent || 0) > Number(category.budget || 0)).length;
 
   return (
-    <div className="space-y-6">
-      {/* Header Month Picker */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => moveMonth(-1)} aria-label="Previous month"><ChevronLeft className="h-4 w-4" /></Button>
           <span className="font-mono text-sm font-semibold">{overview.period}</span>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNextMonth}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => moveMonth(1)} aria-label="Next month"><ChevronRight className="h-4 w-4" /></Button>
         </div>
-
-        <Link to="/budget/transactions?add=true">
-          <Button size="sm" className="gap-1.5">
-            <Plus className="w-4 h-4" />
-            Add Transaction
-          </Button>
-        </Link>
+        <Link to="/budget/transactions?add=true"><Button size="sm" className="gap-1.5"><Plus className="h-4 w-4" />Add transaction</Button></Link>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-5 space-y-2 border-emerald-500/20 bg-emerald-500/5">
-          <div className="flex items-center justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-            <span>TOTAL INCOME</span>
-            <ArrowUpRight className="w-4 h-4" />
+      <section className={`rounded-xl border p-5 ${readyToAssign < 0 ? 'border-destructive/40 bg-destructive/5' : 'border-primary/25 bg-primary/5'}`}>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ready to assign</p>
+            <p className="mt-1 font-mono text-3xl font-bold text-foreground">{formatCurrency(readyToAssign, overview.currency)}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Income minus category assignments</p>
           </div>
-          <p className="text-2xl font-bold font-mono tracking-tight text-foreground">
-            {formatCurrency(overview.income, overview.currency)}
-          </p>
-        </Card>
+          {readyToAssign < 0 && <p className="flex items-center gap-2 text-sm font-medium text-destructive"><AlertTriangle className="h-4 w-4" />Assignments exceed income</p>}
+        </div>
+        <div className="mt-5 grid grid-cols-1 gap-3 border-t border-border/60 pt-4 sm:grid-cols-3">
+          <Summary label="Assigned" value={formatCurrency(assigned, overview.currency)} />
+          <Summary label="Activity" value={formatCurrency(overview.spent, overview.currency)} />
+          <Summary label="Available" value={formatCurrency(available, overview.currency)} />
+        </div>
+      </section>
 
-        <Card className="p-5 space-y-2 border-rose-500/20 bg-rose-500/5">
-          <div className="flex items-center justify-between text-xs font-semibold text-rose-600 dark:text-rose-400">
-            <span>TOTAL SPENT</span>
-            <ArrowDownRight className="w-4 h-4" />
-          </div>
-          <p className="text-2xl font-bold font-mono tracking-tight text-foreground">
-            {formatCurrency(overview.spent, overview.currency)}
-          </p>
-        </Card>
-
-        <Card className="p-5 space-y-2 border-primary/20 bg-primary/5">
-          <div className="flex items-center justify-between text-xs font-semibold text-primary">
-            <span>REMAINING BUDGET</span>
-            <Wallet className="w-4 h-4" />
-          </div>
-          <p className="text-2xl font-bold font-mono tracking-tight text-foreground">
-            {formatCurrency(overview.remainingBudget, overview.currency)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Overall Limit: {formatCurrency(overview.overallBudget, overview.currency)}
-          </p>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div><h2 className="text-base font-semibold text-foreground">Categories</h2><p className="text-sm text-muted-foreground">Give each category a job, then spend from its available balance.</p></div>
+        {overspent > 0 && <span className="text-xs font-semibold text-destructive">{overspent} over budget</span>}
       </div>
 
-      {/* Category Budgets Breakdown */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold flex items-center gap-2">
-            <PieChart className="w-4 h-4 text-emerald-500" />
-            Category Budgets
-          </h3>
-          <Link to="/budget/budgets" className="text-xs text-primary hover:underline font-medium">
-            Manage limits &rarr;
-          </Link>
+      <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
+        <div className="hidden grid-cols-[minmax(0,1fr)_150px_150px_150px] gap-4 border-b border-border/70 bg-muted/20 px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground md:grid">
+          <span>Category</span><span>Assigned</span><span>Activity</span><span>Available</span>
         </div>
-
-        {overview.categories.length === 0 ? (
-          <Card className="p-8 text-center text-xs text-muted-foreground">
-            No categories defined.
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {overview.categories.map((catStat: any) => (
-              <Card key={catStat.category.id} className="p-4 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-foreground">{catStat.category.name}</span>
-                  <span className="font-mono text-muted-foreground">
-                    {formatCurrency(catStat.spent, overview.currency)} / {formatCurrency(catStat.budget, overview.currency)}
-                  </span>
-                </div>
-
-                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-300 ${
-                      catStat.percentage > 90 ? 'bg-rose-500' : 'bg-emerald-500'
-                    }`}
-                    style={{ width: `${Math.min(100, catStat.percentage)}%` }}
-                  />
-                </div>
-
-                <div className="flex justify-between items-center text-[11px] text-muted-foreground">
-                  <span>{catStat.percentage}% used</span>
-                  <span>Remaining: {formatCurrency(catStat.remaining, overview.currency)}</span>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
+        {overview.categories.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground">Create a category to start assigning money.</div> : overview.categories.map((category: any) => {
+          const isOverspent = Number(category.remaining) < 0 || Number(category.spent) > Number(category.budget);
+          return <div key={category.category.id} className="grid grid-cols-1 gap-2 border-b border-border/60 px-4 py-4 last:border-0 md:grid-cols-[minmax(0,1fr)_150px_150px_150px] md:items-center md:gap-4">
+            <span className="flex items-center gap-2 font-medium text-foreground"><CategoryIcon name={category.category.icon || category.category.name} color={category.category.color} />{category.category.name}</span>
+            <Metric label="Assigned" value={formatCurrency(category.budget, overview.currency)} />
+            <Metric label="Activity" value={formatCurrency(category.spent, overview.currency)} />
+            <Metric label="Available" value={formatCurrency(category.remaining, overview.currency)} tone={isOverspent ? 'danger' : undefined} />
+          </div>;
+        })}
       </div>
     </div>
   );
+}
+
+function Summary({ label, value }: { label: string; value: string }) {
+  return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-base font-semibold text-foreground">{value}</p></div>;
+}
+
+function Metric({ label, value, tone }: { label: string; value: string; tone?: 'danger' }) {
+  return <div className="flex items-center justify-between md:block"><p className="text-xs text-muted-foreground md:hidden">{label}</p><p className={`font-mono text-sm font-semibold ${tone === 'danger' ? 'text-destructive' : 'text-foreground'}`}>{value}</p></div>;
 }

@@ -9,11 +9,13 @@ import { createSyncApi, type SyncApi } from './syncApi';
 import { createPreferencesApi, type PreferencesApi } from './preferencesApi';
 import { createBudgetApi, type BudgetApi } from './budgetApi';
 import { createGymApi, type GymApi } from './gymApi';
+import { createUsageApi, type UsageApi } from './usageApi';
 import type { ApiClientContext, OfflineMutationHandler, OfflineMutationInput } from './apiContext';
 
 export type { OfflineMutationHandler, OfflineMutationInput } from './apiContext';
 export type * from './types';
 export type * from './preferencesApi';
+export type * from './usageApi';
 
 export interface ApiClient
   extends SyncApi,
@@ -24,7 +26,8 @@ export interface ApiClient
     DeckStudyApi,
     PreferencesApi,
     BudgetApi,
-    GymApi {}
+    GymApi,
+    UsageApi {}
 
 export class ApiClient extends HttpClient {
   private offlineMutationHandler: OfflineMutationHandler | null = null;
@@ -48,6 +51,7 @@ export class ApiClient extends HttpClient {
       createPreferencesApi(context),
       createBudgetApi(context),
       createGymApi(context),
+      createUsageApi(context),
     );
   }
 

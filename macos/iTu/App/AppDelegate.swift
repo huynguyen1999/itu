@@ -4,12 +4,14 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
     private(set) var companionWindowController: CompanionWindowController?
+    private weak var model: AppModel?
 
     func installStatusItem(
         model: AppModel,
         openMainWindow: @escaping @MainActor () -> Void
     ) {
         guard statusItemController == nil else { return }
+        self.model = model
         let controller = StatusItemController(
             model: model,
             openMainWindow: openMainWindow
@@ -30,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        model?.stopUsageTracking()
+        Task { await model?.uploadUsage() }
         statusItemController?.stop()
         statusItemController = nil
         companionWindowController = nil

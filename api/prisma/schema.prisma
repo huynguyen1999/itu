@@ -75,6 +75,7 @@ enum SyncDevicePlatform {
   IOS
   WATCHOS
   WEB
+  MACOS
 }
 
 enum TaskPriority {
@@ -306,6 +307,9 @@ model User {
   exerciseDefinitions         ExerciseDefinition[]
   journalAttachments         JournalAttachment[]
   preferences                 UserPreferences?
+  usageSummaries              UsageSummary[]
+  websiteUsageSummaries       WebsiteUsageSummary[]
+  browserExtensionCredential  BrowserExtensionCredential?
 }
 
 model UserPreferences {
@@ -320,6 +324,7 @@ model UserPreferences {
   moneyPreferences   Json     @default("{}")
   budgetPreferences  Json     @default("{}")
   gymPreferences     Json     @default("{}")
+  usagePreferences   Json     @default("{}")
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -411,9 +416,61 @@ model SyncDevice {
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
   user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usageSummaries         UsageSummary[]
+  websiteUsageSummaries  WebsiteUsageSummary[]
 
   @@index([userId, platform])
   @@index([userId, lastSeenAt])
+}
+
+model UsageSummary {
+  userId        String
+  syncDeviceId  String
+  localDate     DateTime   @db.Date
+  hour          Int        @default(-1)
+  bundleId      String
+  displayName   String
+  timezone      String
+  activeSeconds Int
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncDevice    SyncDevice @relation(fields: [syncDeviceId], references: [id], onDelete: Cascade)
+
+  @@id([syncDeviceId, localDate, hour, bundleId])
+  @@index([userId, localDate])
+  @@index([syncDeviceId, localDate])
+}
+
+model WebsiteUsageSummary {
+  userId             String
+  syncDeviceId       String
+  localDate          DateTime   @db.Date
+  browserBundleId    String
+  browserDisplayName String
+  hostname           String
+  url                String?    @db.Text
+  urlKey             String
+  timezone           String
+  activeSeconds      Int
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncDevice         SyncDevice @relation(fields: [syncDeviceId], references: [id], onDelete: Cascade)
+
+  @@id([syncDeviceId, localDate, browserBundleId, urlKey])
+  @@index([userId, localDate])
+  @@index([userId, localDate, hostname])
+  @@index([syncDeviceId, localDate])
+}
+
+model BrowserExtensionCredential {
+  id        String   @id
+  userId    String   @unique
+  keyHash   String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model OAuthIdentity {
@@ -1716,7 +1773,6 @@ model JournalWorkout {
   entryId         String                   @id
   title           String?
   source          String?
-  routineId       String?
   status          WorkoutStatus            @default(COMPLETED)
   startedAt       DateTime?
   endedAt         DateTime?
@@ -1829,4 +1885,3 @@ model JournalEntryRevision {
   @@unique([entryId, revisionNumber])
   @@index([entryId, createdAt])
 }
-

@@ -130,10 +130,19 @@ extension AppModel {
     func refreshStatistics(calendarDays: Int, fromDate: String, toDate: String) async {
         statisticsLoading = true
         statisticsError = false
+        statisticsCalendarError = false
+        growthStatisticsError = false
+        statisticsErrorMessage = nil
         async let calendarRequest = apiClient.fetchStudyCalendar(days: calendarDays)
         async let growthRequest = apiClient.fetchGrowthStatistics(fromDate: fromDate, toDate: toDate)
         do {
             statisticsCalendar = try await calendarRequest
+        } catch {
+            statisticsCalendarError = true
+            statisticsError = true
+            statisticsErrorMessage = error.localizedDescription
+        }
+        do {
             let fetched = try await growthRequest
             growthStatistics = GrowthStatisticsDTO(
                 totalXp: fetched.totalXp,
@@ -143,7 +152,9 @@ extension AppModel {
                 }
             )
         } catch {
+            growthStatisticsError = true
             statisticsError = true
+            statisticsErrorMessage = error.localizedDescription
         }
         statisticsLoading = false
     }

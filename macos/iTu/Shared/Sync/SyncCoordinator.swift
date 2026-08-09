@@ -6,6 +6,7 @@ final class SyncCoordinator {
     private let apiClient: APIClient
     private var offlineStore: OfflineStore?
     private let deviceId: String
+    var syncDeviceId: String { deviceId }
     let clientInstanceId = UUID().uuidString
     private var periodicTask: Task<Void, Never>?
     private var debounceTask: Task<Void, Never>?

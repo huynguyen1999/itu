@@ -7,19 +7,19 @@ const gymTabs = [
   { to: '/gym/exercises', label: 'Exercises', icon: Dumbbell, end: false },
 ] as const;
 
-export function GymLocalNav() {
+export function GymLocalNav({ mobile = false }: { mobile?: boolean }) {
   return (
-    <nav className="flex items-center gap-1 border-b border-border/60 pb-2 mb-6 overflow-x-auto" aria-label="Gym sub-navigation">
+    <nav className={mobile ? 'flex items-center gap-1 overflow-x-auto border-b border-border/60 pb-2' : 'itu-secondary-rail__nav'} aria-label="Gym sub-navigation">
       {gymTabs.map(({ icon: Icon, ...tab }) => (
         <NavLink
           key={tab.to}
           to={tab.to}
           end={tab.end}
           className={({ isActive }) =>
-            `flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+              `${mobile ? 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground whitespace-nowrap' : 'itu-secondary-nav-link'} ${
               isActive
-                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                ? 'bg-primary/10 text-primary font-semibold'
+                : ''
             }`
           }
         >

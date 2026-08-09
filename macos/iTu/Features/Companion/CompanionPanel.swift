@@ -13,13 +13,13 @@ final class CompanionPanel: NSPanel {
             defer: false
         )
         self.isMovableByWindowBackground = true
+        self.hidesOnDeactivate = true
         self.level = .floating
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         self.isReleasedWhenClosed = false
         self.backgroundColor = .clear
         self.hasShadow = true
         self.minSize = NSSize(width: 650, height: 520)
-        self.maxSize = NSSize(width: 650, height: 520)
     }
 
     override var canBecomeKey: Bool { true }

@@ -37,7 +37,14 @@ const QUERY_PREFIXES: Record<string, string[]> = {
   journalentry: ['journal-entries', 'journal-dashboard', 'journal'],
   journaltemplate: ['journal-templates', 'journal'],
   journaltag: ['journal-tags', 'journal'],
-  exercisedefinition: ['exercise-definitions', 'journal'],
+  exercisedefinition: ['exercise-definitions', 'gym', 'journal'],
+  moneycategory: ['budget', 'journal'],
+  moneybudgetperiod: ['budget', 'journal'],
+  moneycategorybudget: ['budget', 'journal'],
+  journalexpense: ['budget', 'journal-entries', 'journal'],
+  journalworkout: ['gym', 'journal-entries', 'journal'],
+  journalworkoutexercise: ['gym', 'journal'],
+  journalworkoutset: ['gym', 'journal'],
 };
 
 const OPTIMISTIC_INSERT_PREFIXES: Record<string, string[]> = {
@@ -49,7 +56,10 @@ const OPTIMISTIC_INSERT_PREFIXES: Record<string, string[]> = {
   journalentry: ['journal-entries'],
   journaltemplate: ['journal-templates'],
   journaltag: ['journal-tags'],
-  exercisedefinition: ['exercise-definitions'],
+  exercisedefinition: ['exercise-definitions', 'gym'],
+  moneycategory: ['budget'],
+  journalexpense: ['budget'],
+  journalworkout: ['gym'],
 };
 
 export function applySyncChanges(queryClient: QueryClient, response: SyncResponse): void {

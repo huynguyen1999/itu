@@ -170,7 +170,7 @@ actor APIClient {
             method: "POST",
             body: [
                 "deviceId": .string(deviceId),
-                "platform": .string("WEB"),
+                "platform": .string("MACOS"),
                 "lastKnownSyncCursor": .string(cursor)
             ] as [String: JSONValue]
         )
@@ -186,6 +186,76 @@ actor APIClient {
 
     func token() -> String? {
         accessToken
+    }
+
+    func uploadUsageSummaries(_ summaries: [UsageSummary], deviceId: String) async throws {
+        let body: [String: JSONValue] = [
+            "deviceId": .string(deviceId),
+            "summaries": .array(summaries.map { summary in
+                var payload: [String: JSONValue] = [
+                    "localDate": .string(summary.localDate),
+                    "bundleId": .string(summary.bundleId),
+                    "displayName": .string(summary.displayName),
+                    "timezone": .string(summary.timezone),
+                    "activeSeconds": .number(Double(summary.activeSeconds))
+                ]
+                if let hour = summary.hour { payload["hour"] = .number(Double(hour)) }
+                return .object(payload)
+            })
+        ]
+        let _: EmptyResponse = try await request(path: "/usage/summaries/batch", method: "POST", body: body)
+    }
+
+    func uploadWebsiteUsageSummaries(_ summaries: [WebsiteUsageSummary], deviceId: String) async throws {
+        let body: [String: JSONValue] = [
+            "deviceId": .string(deviceId),
+            "summaries": .array(summaries.map { summary in
+                .object([
+                    "localDate": .string(summary.localDate),
+                    "browserBundleId": .string(summary.browserBundleId),
+                    "browserDisplayName": .string(summary.browserDisplayName),
+                    "hostname": .string(summary.hostname),
+                    "timezone": .string(summary.timezone),
+                    "activeSeconds": .number(Double(summary.activeSeconds))
+                ])
+            })
+        ]
+        let _: EmptyResponse = try await request(path: "/usage/websites/summaries", method: "POST", body: body)
+    }
+
+    func fetchUsage(from: String? = nil, to: String? = nil) async throws -> UsageStatistics {
+        var path = "/usage/summaries"
+        var query: [String] = []
+        if let from { query.append("from=\(from)") }
+        if let to { query.append("to=\(to)") }
+        if !query.isEmpty { path += "?\(query.joined(separator: "&"))" }
+        return try await request(path: path)
+    }
+
+    func deleteUsage(from: String? = nil, to: String? = nil) async throws {
+        var path = "/usage/summaries"
+        var query: [String] = []
+        if let from { query.append("from=\(from)") }
+        if let to { query.append("to=\(to)") }
+        if !query.isEmpty { path += "?\(query.joined(separator: "&"))" }
+        let _: EmptyResponse = try await request(path: path, method: "DELETE")
+    }
+
+    func deleteWebsiteUsage(from: String? = nil, to: String? = nil) async throws {
+        var path = "/usage/websites/summaries"
+        var query: [String] = []
+        if let from { query.append("from=\(from)") }
+        if let to { query.append("to=\(to)") }
+        if !query.isEmpty { path += "?\(query.joined(separator: "&"))" }
+        let _: EmptyResponse = try await request(path: path, method: "DELETE")
+    }
+
+    func updateUsagePreferences(_ preferences: UsagePreferences) async throws {
+        let _: EmptyResponse = try await request(path: "/preferences/usage", method: "PATCH", body: [
+            "trackingEnabled": .bool(preferences.enabled),
+            "websiteTrackingEnabled": .bool(preferences.enabled && preferences.websiteTrackingEnabled),
+            "retentionDays": .number(Double(preferences.retentionDays))
+        ] as [String: JSONValue])
     }
 
     func fetchTasks() async throws -> [ProductivityTask] {
@@ -772,6 +842,143 @@ actor APIClient {
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         }
         return request
+    }
+
+    // MARK: - Journal
+
+    func getJournalNotes() async throws -> [JournalNoteModel] {
+        try await request(path: "/journal/entries?kind=NOTE")
+    }
+
+    func createJournalNote(id: String, title: String, contentMarkdown: String, entryDate: String) async throws -> JournalNoteModel {
+        try await request(path: "/journal/entries", method: "POST", body: [
+            "id": JSONValue.string(id),
+            "kind": JSONValue.string("NOTE"),
+            "title": JSONValue.string(title),
+            "contentMarkdown": JSONValue.string(contentMarkdown),
+            "entryDate": JSONValue.string(entryDate)
+        ] as [String: JSONValue])
+    }
+
+    func updateJournalNote(id: String, title: String, contentMarkdown: String, entryDate: String) async throws -> JournalNoteModel {
+        try await request(path: "/journal/entries/\(id)", method: "PATCH", body: [
+            "title": JSONValue.string(title),
+            "contentMarkdown": JSONValue.string(contentMarkdown),
+            "entryDate": JSONValue.string(entryDate)
+        ] as [String: JSONValue])
+    }
+
+    // MARK: - Budget & Gym
+
+    func getBudgetOverview(period: String? = nil) async throws -> BudgetOverviewModel {
+        let path: String
+        if let period, let encoded = period.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            path = "/budget/overview?period=\(encoded)"
+        } else {
+            path = "/budget/overview"
+        }
+        return try await request(path: path)
+    }
+
+    func getBudgetCategories() async throws -> [BudgetCategoryModel] {
+        return try await request(path: "/budget/categories")
+    }
+
+    func createBudgetCategory(name: String, type: String, icon: String, color: String) async throws -> BudgetCategoryModel {
+        return try await request(
+            path: "/budget/categories",
+            method: "POST",
+            body: [
+                "name": .string(name),
+                "type": .string(type),
+                "icon": .string(icon),
+                "color": .string(color)
+            ] as [String: JSONValue]
+        )
+    }
+
+    func updateBudgetCategory(id: String, name: String, type: String, icon: String, color: String) async throws -> BudgetCategoryModel {
+        return try await request(
+            path: "/budget/categories/(id)",
+            method: "PATCH",
+            body: [
+                "name": .string(name),
+                "type": .string(type),
+                "icon": .string(icon),
+                "color": .string(color)
+            ] as [String: JSONValue]
+        )
+    }
+
+    func archiveBudgetCategory(id: String) async throws -> BudgetCategoryModel {
+        return try await request(path: "/budget/categories/(id)", method: "DELETE")
+    }
+
+    func getBudgetTransactions(period: String? = nil) async throws -> [BudgetTransactionModel] {
+        let path: String
+        if let period, let encoded = period.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            path = "/budget/transactions?period=\(encoded)"
+        } else {
+            path = "/budget/transactions"
+        }
+        return try await request(path: path)
+    }
+
+    func getGymOverview() async throws -> GymOverviewModel {
+        return try await request(path: "/gym/overview")
+    }
+
+    func getGymExercises() async throws -> [ExerciseModel] {
+        return try await request(path: "/gym/exercises")
+    }
+
+    func createGymExercise(
+        name: String,
+        description: String? = nil,
+        metricType: String = "WEIGHT_REPS",
+        equipment: String? = nil,
+        primaryMuscleGroup: String? = nil
+    ) async throws -> ExerciseModel {
+        var body: [String: JSONValue] = [
+            "name": .string(name),
+            "metricType": .string(metricType)
+        ]
+        if let description, !description.isEmpty { body["description"] = .string(description) }
+        if let equipment, !equipment.isEmpty { body["equipment"] = .string(equipment) }
+        if let primaryMuscleGroup, !primaryMuscleGroup.isEmpty { body["primaryMuscleGroup"] = .string(primaryMuscleGroup) }
+        return try await request(path: "/gym/exercises", method: "POST", body: body)
+    }
+
+    func uploadGymExerciseImage(id: String, fileData: Data, fileName: String, mimeType: String) async throws -> ExerciseModel {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        return try await requestRawBody(
+            path: "/gym/exercises/\(id)/image",
+            method: "POST",
+            contentType: "multipart/form-data; boundary=\(boundary)",
+            bodyData: body
+        )
+    }
+
+    func archiveGymExercise(id: String) async throws {
+        let _: EmptyResponse = try await request(path: "/gym/exercises/(id)", method: "DELETE")
+    }
+
+    func getGymWorkouts() async throws -> [WorkoutModel] {
+        return try await request(path: "/gym/workouts")
+    }
+
+    func createGymWorkout(title: String? = nil) async throws -> WorkoutModel {
+        var body: [String: JSONValue] = [:]
+        if let title {
+            body["title"] = .string(title)
+        }
+        return try await request(path: "/gym/workouts", method: "POST", body: body)
     }
 
     private static func retryAfter(from response: HTTPURLResponse) -> TimeInterval? {

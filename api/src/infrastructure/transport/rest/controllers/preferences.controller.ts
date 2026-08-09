@@ -10,10 +10,28 @@ import {
   type JournalPreferences,
   type MoneyPreferences,
   type GymPreferences,
+  type UsagePreferences,
 } from '@core/application/use-cases/preferences.service';
 import { AuthGuard } from '../guards/auth.guard';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
+
+class UpdateUsagePreferencesDto implements Partial<UsagePreferences> {
+  @IsOptional()
+  @IsBoolean()
+  trackingEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  websiteTrackingEnabled?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(7)
+  @Max(365)
+  retentionDays?: number;
+}
 
 @ApiTags('Preferences')
 @UseGuards(AuthGuard)
@@ -75,9 +93,21 @@ export class PreferencesController {
     return this.preferencesService.updateMoneyPreferences(req.user.sub, patch);
   }
 
+  @ApiOperation({ operationId: 'updateBudgetPreferences' })
+  @Patch('budget')
+  updateBudgetPreferences(@Req() req: AuthenticatedRequest, @Body() patch: Partial<MoneyPreferences>) {
+    return this.preferencesService.updateBudgetPreferences(req.user.sub, patch);
+  }
+
   @ApiOperation({ operationId: 'updateGymPreferences' })
   @Patch('gym')
   updateGymPreferences(@Req() req: AuthenticatedRequest, @Body() patch: Partial<GymPreferences>) {
     return this.preferencesService.updateGymPreferences(req.user.sub, patch);
+  }
+
+  @ApiOperation({ operationId: 'updateUsagePreferences' })
+  @Patch('usage')
+  updateUsagePreferences(@Req() req: AuthenticatedRequest, @Body() patch: UpdateUsagePreferencesDto) {
+    return this.preferencesService.updateUsagePreferences(req.user.sub, patch);
   }
 }

@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { GrowthSkill, GrowthStatistics, StudyCalendarDay } from '@/shared/api/types';
 import {
   buildTrendData,
+  buildUsageStackData,
+  buildUsageTrendData,
   dateRangeForDays,
   filterActivityRange,
   inclusiveDayCount,
   selectTopAttributes,
+  selectTopUsageApps,
   summarizeActivity,
 } from './statistics';
 
@@ -34,6 +37,66 @@ function skill(overrides: Partial<GrowthSkill>): GrowthSkill {
 }
 
 describe('statistics helpers', () => {
+  it('fills missing usage days and ranks foreground apps', () => {
+    const summary = {
+      totalActiveSeconds: 900,
+      topApps: [
+        { bundleId: 'b', displayName: 'Beta', activeSeconds: 120 },
+        { bundleId: 'a', displayName: 'Alpha', activeSeconds: 300 },
+      ],
+      daily: [{ localDate: '2026-07-29', activeSeconds: 900 }],
+      dailyApps: [
+        { localDate: '2026-07-29', bundleId: 'a', displayName: 'Alpha', activeSeconds: 300 },
+        { localDate: '2026-07-29', bundleId: 'b', displayName: 'Beta', activeSeconds: 120 },
+      ],
+    };
+
+    expect(
+      buildUsageTrendData(summary, { from: '2026-07-28', to: '2026-07-29' }).map((point) => point.activeSeconds),
+    ).toEqual([0, 900]);
+    expect(selectTopUsageApps(summary).map((app) => app.bundleId)).toEqual(['a', 'b']);
+    expect(buildUsageStackData(summary, { from: '2026-07-28', to: '2026-07-29' }, summary.topApps)).toEqual([
+      { key: '2026-07-28', label: 'Jul 28', app0: 0, app1: 0, other: 0 },
+      { key: '2026-07-29', label: 'Jul 29', app0: 120, app1: 300, other: 480 },
+    ]);
+  });
+
+  it('builds 24 truthful hourly usage buckets for a single-day range', () => {
+    const summary = {
+      totalActiveSeconds: 900,
+      topApps: [{ bundleId: 'a', displayName: 'Alpha', activeSeconds: 900 }],
+      daily: [{ localDate: '2026-08-09', activeSeconds: 900 }],
+      hourlyApps: [
+        { localDate: '2026-08-09', hour: 9, bundleId: 'a', displayName: 'Alpha', activeSeconds: 600 },
+        { localDate: '2026-08-09', hour: 9, bundleId: 'b', displayName: 'Beta', activeSeconds: 300 },
+      ],
+    };
+
+    const points = buildUsageStackData(summary, { from: '2026-08-09', to: '2026-08-09' }, summary.topApps);
+
+    expect(points).toHaveLength(24);
+    expect(points[9]).toEqual({ key: '2026-08-09-9', label: '09:00', app0: 600, other: 300 });
+    expect(points[10]).toEqual({ key: '2026-08-09-10', label: '10:00', app0: 0, other: 0 });
+  });
+
+  it('keeps 24 hourly buckets when Today only has legacy daily detail', () => {
+    const summary = {
+      totalActiveSeconds: 900,
+      topApps: [{ bundleId: 'a', displayName: 'Alpha', activeSeconds: 600 }],
+      daily: [{ localDate: '2026-08-09', activeSeconds: 900 }],
+      dailyApps: [{ localDate: '2026-08-09', bundleId: 'a', displayName: 'Alpha', activeSeconds: 600 }],
+      hourlyApps: [],
+    };
+
+    const points = buildUsageStackData(summary, { from: '2026-08-09', to: '2026-08-09' }, summary.topApps);
+
+    expect(points).toHaveLength(24);
+    expect(points[0].label).toBe('00:00');
+    expect(points[23].label).toBe('23:00');
+    expect(points.reduce((total, point) => total + Number(point.app0), 0)).toBe(600);
+    expect(points.reduce((total, point) => total + Number(point.other), 0)).toBe(300);
+  });
+
   it('summarizes the activity fields returned by the calendar', () => {
     const days: StudyCalendarDay[] = [
       {

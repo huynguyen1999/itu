@@ -188,6 +188,60 @@ export interface ISyncDeviceRepository {
   listNotificationTargets(userId: string, excludeDeviceId: string): Promise<SyncDeviceModel[]>;
 }
 
+export interface UsageSummaryRecord {
+  localDate: Date;
+  hour: number;
+  bundleId: string;
+  displayName: string;
+  activeSeconds: number;
+}
+
+export interface UsageSummaryWrite {
+  localDate: Date;
+  hour: number;
+  bundleId: string;
+  displayName: string;
+  timezone: string;
+  activeSeconds: number;
+}
+
+export interface WebsiteUsageSummaryRecord {
+  localDate: Date;
+  browserBundleId: string;
+  browserDisplayName: string;
+  hostname: string;
+  url: string | null;
+  activeSeconds: number;
+}
+
+export interface WebsiteUsageSummaryWrite {
+  localDate: Date;
+  browserBundleId: string;
+  browserDisplayName: string;
+  hostname: string;
+  url: string | null;
+  urlKey: string;
+  timezone: string;
+  activeSeconds: number;
+}
+
+export interface IUsageRepository {
+  findDevice(userId: string, deviceId: string): Promise<{ platform: string } | null>;
+  findSummaries(userId: string, from: Date, toExclusive: Date): Promise<UsageSummaryRecord[]>;
+  getTrackingPreferences(
+    userId: string,
+  ): Promise<{ trackingEnabled: boolean; websiteTrackingEnabled: boolean; retentionDays: number }>;
+  replaceBatch(userId: string, deviceId: string, summaries: UsageSummaryWrite[]): Promise<number>;
+  delete(userId: string, from?: Date, toExclusive?: Date): Promise<number>;
+  deleteExpired(now?: Date): Promise<number>;
+  findWebsiteSummaries(userId: string, from: Date, toExclusive: Date): Promise<WebsiteUsageSummaryRecord[]>;
+  replaceWebsiteBatch(userId: string, deviceId: string, summaries: WebsiteUsageSummaryWrite[]): Promise<number>;
+  replaceBrowserExtensionCredential(userId: string, id: string, keyHash: string): Promise<void>;
+  findBrowserExtensionCredential(keyHash: string): Promise<{ userId: string } | null>;
+  ensureBrowserExtensionDevice(userId: string, installationId: string): Promise<string>;
+  deleteWebsite(userId: string, from?: Date, toExclusive?: Date): Promise<number>;
+}
+
 export interface IProductivityRepository {
   recordSyncChange(
     userId: string,
@@ -271,7 +325,12 @@ export interface IProductivityRepository {
   evaluateHabitCommitment(userId: string, occurrenceId: string, now?: Date, idempotencyKey?: string): Promise<any>;
   excuseHabitCommitment(userId: string, occurrenceId: string, idempotencyKey?: string): Promise<any>;
   checkIn(userId: string, occurrenceId: string, data: any): Promise<any>;
-  habitOccurrenceAction(userId: string, id: string, action: 'skip' | 'fail' | 'undo', idempotencyKey?: string): Promise<any>;
+  habitOccurrenceAction(
+    userId: string,
+    id: string,
+    action: 'skip' | 'fail' | 'undo',
+    idempotencyKey?: string,
+  ): Promise<any>;
   updateChecklistItem(userId: string, id: string, data: any): Promise<any>;
   setOccurrenceChecklistItem(userId: string, occurrenceId: string, itemId: string, completed: boolean): Promise<any>;
   habitStats(userId: string, habitId: string): Promise<any>;

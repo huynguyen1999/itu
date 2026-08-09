@@ -4,6 +4,7 @@ import { BudgetOverviewPage } from './overview/BudgetOverviewPage';
 import { TransactionsPage } from './transactions/TransactionsPage';
 import { BudgetPage } from './budgets/BudgetPage';
 import { BudgetCalendarPage } from './calendar/BudgetCalendarPage';
+import { BudgetCategoriesPage } from './BudgetCategoriesPage';
 
 export function BudgetWorkspace() {
   return (
@@ -13,6 +14,7 @@ export function BudgetWorkspace() {
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="budgets" element={<BudgetPage />} />
         <Route path="calendar" element={<BudgetCalendarPage />} />
+        <Route path="categories" element={<BudgetCategoriesPage />} />
         <Route path="*" element={<Navigate to="/budget" replace />} />
       </Route>
     </Routes>

@@ -14,6 +14,7 @@ const SENSITIVE_QUERY_PARAMS = new Set([
   'refresh_token',
   'refreshToken',
   'token',
+  'url',
 ]);
 
 const SENSITIVE_BODY_KEYS = new Set([
@@ -24,6 +25,7 @@ const SENSITIVE_BODY_KEYS = new Set([
   'client_secret',
   'code',
   'cookie',
+  'dsnKey',
   'id_token',
   'newPassword',
   'oldPassword',
@@ -33,6 +35,7 @@ const SENSITIVE_BODY_KEYS = new Set([
   'refreshToken',
   'set-cookie',
   'token',
+  'url',
 ]);
 
 export function shouldLogHttpBodies(): boolean {

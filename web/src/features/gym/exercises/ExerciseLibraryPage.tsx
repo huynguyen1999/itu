@@ -17,32 +17,46 @@ export function ExerciseLibraryPage() {
   const [metricType, setMetricType] = useState<any>('WEIGHT_REPS');
   const [equipment, setEquipment] = useState('');
   const [primaryMuscleGroup, setPrimaryMuscleGroup] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const createExercise = useCreateGymExercise();
+  const uploadExerciseImage = useUploadGymExerciseImage();
+  const archiveExercise = useArchiveGymExercise();
 
   const filtered = exercises.filter((e: any) => e.name.toLowerCase().includes(search.toLowerCase()));
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || !imageFile) {
+      setCreateError('Choose an exercise image before saving.');
+      return;
+    }
 
-    createExercise.mutate(
-      {
+    setCreateError(null);
+    let createdExerciseId: string | undefined;
+
+    try {
+      const exercise = await createExercise.mutateAsync({
         name: name.trim(),
         description: description.trim() || undefined,
         metricType,
         equipment: equipment.trim() || undefined,
         primaryMuscleGroup: primaryMuscleGroup.trim() || undefined,
-      },
-      {
-        onSuccess: () => {
-          setName('');
-          setDescription('');
-          setShowCreate(false);
-        },
-      },
-    );
+      });
+      createdExerciseId = exercise.id;
+      await uploadExerciseImage.mutateAsync({ id: exercise.id, file: imageFile });
+      setName('');
+      setDescription('');
+      setImageFile(null);
+      setShowCreate(false);
+    } catch {
+      if (createdExerciseId) await archiveExercise.mutateAsync(createdExerciseId).catch(() => undefined);
+      setCreateError('The exercise could not be saved with its image. Please try again.');
+    }
   };
+
+  const isSaving = createExercise.isPending || uploadExerciseImage.isPending || archiveExercise.isPending;
 
   const selectedEx = exercises.find((e: any) => e.id === selectedExId) || filtered[0] || null;
 
@@ -60,7 +74,7 @@ export function ExerciseLibraryPage() {
           />
         </div>
 
-        <Button size="sm" onClick={() => setShowCreate((v) => !v)} className="gap-1.5">
+        <Button size="sm" onClick={() => { setShowCreate((v) => !v); setCreateError(null); }} className="gap-1.5">
           <Plus className="w-4 h-4" />
           Add Exercise
         </Button>
@@ -104,12 +118,31 @@ export function ExerciseLibraryPage() {
               <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Instructions..." className="text-xs" />
             </div>
 
+            <div className="sm:col-span-2 space-y-1.5">
+              <label htmlFor="exercise-image" className="text-[10px] font-semibold text-foreground flex items-center gap-1.5">
+                <ImageIcon className="w-3.5 h-3.5 text-emerald-500" />
+                Reference Image <span className="text-destructive">*</span>
+              </label>
+              <Input
+                id="exercise-image"
+                type="file"
+                accept="image/*"
+                required
+                onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                className="text-xs cursor-pointer"
+              />
+              <p className="text-[10px] text-muted-foreground">Add a clear image of the movement so it is easy to recognize during a workout.</p>
+              {imageFile && <p className="text-[10px] text-emerald-600">Selected: {imageFile.name}</p>}
+            </div>
+
+            {createError && <p role="alert" className="sm:col-span-2 text-[11px] text-destructive">{createError}</p>}
+
             <div className="sm:col-span-2 flex justify-end gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setShowCreate(false)}>
+              <Button type="button" variant="outline" size="sm" onClick={() => { setShowCreate(false); setImageFile(null); }}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={createExercise.isPending}>
-                Save Exercise
+              <Button type="submit" size="sm" disabled={isSaving}>
+                {isSaving ? 'Saving...' : 'Save Exercise'}
               </Button>
             </div>
           </form>
@@ -171,6 +204,10 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(exercise.name);
   const [description, setDescription] = useState(exercise.description || '');
+  const [metricType, setMetricType] = useState<any>(exercise.metricType || 'WEIGHT_REPS');
+  const [equipment, setEquipment] = useState(exercise.equipment || '');
+  const [primaryMuscleGroup, setPrimaryMuscleGroup] = useState(exercise.primaryMuscleGroup || '');
+  const [defaultRestSeconds, setDefaultRestSeconds] = useState(exercise.defaultRestSeconds || 60);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -181,7 +218,17 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
 
   const handleSave = () => {
     updateEx.mutate(
-      { id: exercise.id, data: { name, description } },
+      {
+        id: exercise.id,
+        data: {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          metricType,
+          equipment: equipment.trim() || undefined,
+          primaryMuscleGroup: primaryMuscleGroup.trim() || undefined,
+          defaultRestSeconds: Number(defaultRestSeconds) || 60,
+        },
+      },
       { onSuccess: () => setIsEditing(false) },
     );
   };
@@ -215,11 +262,45 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
 
       {isEditing && (
         <div className="p-3 border rounded-lg space-y-2 bg-muted/20 text-xs">
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Exercise Name" className="text-xs" />
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="text-xs" />
-          <Button size="sm" onClick={handleSave} disabled={updateEx.isPending}>
-            Save Changes
-          </Button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground">Name</label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Exercise Name" className="text-xs" />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Metric Type</label>
+              <select
+                value={metricType}
+                onChange={(e) => setMetricType(e.target.value as any)}
+                className="w-full h-9 rounded-md border border-input bg-background px-2 text-xs"
+              >
+                <option value="WEIGHT_REPS">Weight & Reps</option>
+                <option value="REPS">Reps Only</option>
+                <option value="DURATION">Duration</option>
+                <option value="DISTANCE_DURATION">Distance & Duration</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Equipment</label>
+              <Input value={equipment} onChange={(e) => setEquipment(e.target.value)} placeholder="e.g. Barbell" className="text-xs" />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Primary Muscle</label>
+              <Input value={primaryMuscleGroup} onChange={(e) => setPrimaryMuscleGroup(e.target.value)} placeholder="e.g. Chest" className="text-xs" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Description</label>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="text-xs" />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={updateEx.isPending}>
+              Save Changes
+            </Button>
+          </div>
         </div>
       )}
 

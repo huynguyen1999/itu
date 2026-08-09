@@ -18,21 +18,30 @@ export function GymLayout() {
   });
 
   return (
-    <div className="space-y-4 max-w-5xl mx-auto pb-16">
-      <PageHeader
-        kicker="Tracking"
-        title="Gym & Fitness"
-        description="Immediate workout logging, exercise library, set metrics, and training history"
-      >
-        <FeatureSettingsButton title="Gym settings">
-          <GymSettingsPopover
-            preferences={userPreferences.data?.gym}
-            onChange={(patch) => updateGymPref.mutate(patch)}
-          />
-        </FeatureSettingsButton>
-      </PageHeader>
-      <GymLocalNav />
-      <Outlet />
+    <div className="grid w-full gap-6 pb-16 md:grid-cols-[224px_minmax(0,1fr)]">
+      <aside className="itu-secondary-rail" aria-label="Gym navigation">
+        <header className="itu-secondary-rail__header">
+          <p className="itu-secondary-rail__kicker">Tracking</p>
+          <h2 className="itu-secondary-rail__title">Gym</h2>
+        </header>
+        <GymLocalNav />
+      </aside>
+      <main className="min-w-0 space-y-4 px-4 py-4 md:px-6 md:py-6">
+        <PageHeader
+          kicker="Tracking"
+          title="Gym & Fitness"
+          description="Immediate workout logging, exercise library, set metrics, and training history"
+        >
+          <FeatureSettingsButton title="Gym settings">
+            <GymSettingsPopover
+              preferences={userPreferences.data?.gym}
+              onChange={(patch) => updateGymPref.mutate(patch)}
+            />
+          </FeatureSettingsButton>
+        </PageHeader>
+        <div className="md:hidden"><GymLocalNav mobile /></div>
+        <Outlet />
+      </main>
     </div>
   );
 }

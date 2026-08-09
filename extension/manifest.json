@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "iTu Browser Activity",
+  "version": "1.3.0",
+  "description": "Sends opted-in website usage summaries directly to iTu.",
+  "incognito": "spanning",
+  "permissions": ["tabs", "storage", "alarms"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "iTu Browser Activity"
+  }
+}

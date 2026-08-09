@@ -117,20 +117,14 @@ struct EisenhowerMatrixView: View {
                     let availableHeight = proxy.size.height - 48 - spacing
                     let rowHeight = max(260, (availableHeight - spacing) / 2)
 
-                    LazyVGrid(
-                        columns: [
-                            GridItem(.flexible(), spacing: spacing),
-                            GridItem(.flexible())
-                        ],
-                        spacing: spacing
-                    ) {
-                        ForEach(MatrixQuadrant.allCases) { quadrant in
-                            MatrixQuadrantCard(
-                                quadrant: quadrant,
-                                tasks: tasksForQuadrant(quadrant, from: allTasks, settings: matrixSettings),
-                                onEditTask: { openTaskEditor($0) }
-                            )
-                            .frame(height: rowHeight)
+                    Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
+                        GridRow {
+                            quadrantCard(.q1, tasks: allTasks, settings: matrixSettings, height: rowHeight)
+                            quadrantCard(.q2, tasks: allTasks, settings: matrixSettings, height: rowHeight)
+                        }
+                        GridRow {
+                            quadrantCard(.q3, tasks: allTasks, settings: matrixSettings, height: rowHeight)
+                            quadrantCard(.q4, tasks: allTasks, settings: matrixSettings, height: rowHeight)
                         }
                     }
                 }
@@ -154,6 +148,21 @@ struct EisenhowerMatrixView: View {
 
     private func tasksForQuadrant(_ quadrant: MatrixQuadrant, from tasks: [ProductivityTask], settings: MatrixSettings) -> [ProductivityTask] {
         tasks.filter { quadrant.matches(task: $0, settings: settings) }
+    }
+
+    private func quadrantCard(
+        _ quadrant: MatrixQuadrant,
+        tasks: [ProductivityTask],
+        settings: MatrixSettings,
+        height: CGFloat
+    ) -> some View {
+        MatrixQuadrantCard(
+            quadrant: quadrant,
+            tasks: tasksForQuadrant(quadrant, from: tasks, settings: settings),
+            onEditTask: { openTaskEditor($0) }
+        )
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
     }
 
     private func priorityRank(_ priority: TaskPriority) -> Int {

@@ -61,6 +61,7 @@ export const CONTENT_TYPES = {
 
 export const AUTH_CONSTANTS = {
   bearerPrefix: 'Bearer ',
+  dsnPrefix: 'DSN ',
   googleProvider: 'GOOGLE',
   accessTokenTtl: '15m',
   refreshTokenTtl: '30d',
@@ -188,6 +189,20 @@ export const REST_ROUTES = {
   budget: 'budget',
   gym: 'gym',
   preferences: 'preferences',
+  usage: 'usage',
+  usageWebsites: 'websites',
+  usageSummaries: 'summaries',
+  usageBatch: 'batch',
+  usageDsn: 'dsn',
+  usageIngest: 'ingest',
+} as const;
+
+export const USAGE_CONSTANTS = {
+  maxBatchSize: 5000,
+  maxActiveSeconds: 86_400,
+  minDateRangeDays: 7,
+  maxDateRangeDays: 365,
+  hostnamePattern: /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/,
 } as const;
 
 export const ROUTE_PARAMS = {

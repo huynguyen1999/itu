@@ -1,6 +1,17 @@
-import { responseBodyLogMeta } from './http-log-sanitizer';
+import { requestBodyLogValue, responseBodyLogMeta } from './http-log-sanitizer';
 
 describe('response body log metadata', () => {
+  it('redacts tracked URLs from request logs', () => {
+    const request = {
+      headers: { 'content-type': 'application/json' },
+      body: { summaries: [{ hostname: 'example.com', url: 'https://example.com/?token=secret' }] },
+    };
+
+    expect(requestBodyLogValue(request as never)).toBe(
+      JSON.stringify({ summaries: [{ hostname: 'example.com', url: '[REDACTED]' }] }),
+    );
+  });
+
   it('summarizes a structured pre-serialization payload without logging values', () => {
     expect(
       responseBodyLogMeta(

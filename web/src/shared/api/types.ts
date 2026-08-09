@@ -152,6 +152,32 @@ export interface StudyCalendarDay {
   cardsCreated: number;
 }
 
+export interface UsageSummary {
+  totalActiveSeconds: number;
+  topApps: Array<{
+    bundleId: string;
+    displayName: string;
+    activeSeconds: number;
+  }>;
+  daily: Array<{
+    localDate: string;
+    activeSeconds: number;
+  }>;
+  dailyApps?: Array<{
+    localDate: string;
+    bundleId: string;
+    displayName: string;
+    activeSeconds: number;
+  }>;
+  hourlyApps?: Array<{
+    localDate: string;
+    hour: number;
+    bundleId: string;
+    displayName: string;
+    activeSeconds: number;
+  }>;
+}
+
 export interface DeckStats {
   deckId: string;
   totalCards: number;
@@ -582,7 +608,6 @@ export interface GrowthAttributeMapping {
   skill?: Pick<GrowthSkill, 'id' | 'name' | 'kind' | 'archivedAt'> | null;
   attribute?: Pick<GrowthSkill, 'id' | 'name' | 'kind' | 'icon' | 'color' | 'archivedAt'> | null;
 }
-
 
 export interface GrowthItemAward {
   itemId: string;

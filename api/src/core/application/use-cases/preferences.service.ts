@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@infrastructure/persistence/prisma/prisma.service';
 
 export interface TaskPreferences {
@@ -70,6 +70,14 @@ export interface GymPreferences {
   weeklyWorkoutGoal?: number;
 }
 
+export type BudgetPreferences = MoneyPreferences;
+
+export interface UsagePreferences {
+  trackingEnabled: boolean;
+  websiteTrackingEnabled: boolean;
+  retentionDays: number;
+}
+
 export interface AllUserPreferences {
   tasks: TaskPreferences;
   focus: FocusPreferences;
@@ -79,7 +87,9 @@ export interface AllUserPreferences {
   learn: LearnPreferences;
   journal: JournalPreferences;
   money: MoneyPreferences;
+  budget: BudgetPreferences;
   gym: GymPreferences;
+  usage: UsagePreferences;
 }
 
 export const DEFAULT_TASK_PREFERENCES: TaskPreferences = {
@@ -141,6 +151,8 @@ export const DEFAULT_MONEY_PREFERENCES: MoneyPreferences = {
   budgetAlertsEnabled: true,
 };
 
+export const DEFAULT_BUDGET_PREFERENCES: BudgetPreferences = DEFAULT_MONEY_PREFERENCES;
+
 export const DEFAULT_GYM_PREFERENCES: GymPreferences = {
   weightUnit: 'KG',
   distanceUnit: 'KM',
@@ -149,6 +161,12 @@ export const DEFAULT_GYM_PREFERENCES: GymPreferences = {
   previousPerformanceMode: 'EXERCISE',
   showRpe: true,
   weeklyWorkoutGoal: 3,
+};
+
+export const DEFAULT_USAGE_PREFERENCES: UsagePreferences = {
+  trackingEnabled: false,
+  websiteTrackingEnabled: false,
+  retentionDays: 90,
 };
 
 @Injectable()
@@ -168,9 +186,11 @@ export class PreferencesService {
     const learn = { ...DEFAULT_LEARN_PREFERENCES, ...((record?.learnPreferences as Partial<LearnPreferences>) || {}) };
     const journal = { ...DEFAULT_JOURNAL_PREFERENCES, ...((record?.journalPreferences as Partial<JournalPreferences>) || {}) };
     const money = { ...DEFAULT_MONEY_PREFERENCES, ...((record?.moneyPreferences as Partial<MoneyPreferences>) || {}) };
+    const budget = { ...DEFAULT_BUDGET_PREFERENCES, ...((record?.budgetPreferences as Partial<BudgetPreferences>) || (record?.moneyPreferences as Partial<MoneyPreferences>) || {}) };
     const gym = { ...DEFAULT_GYM_PREFERENCES, ...((record?.gymPreferences as Partial<GymPreferences>) || {}) };
+    const usage = { ...DEFAULT_USAGE_PREFERENCES, ...((record?.usagePreferences as Partial<UsagePreferences>) || {}) };
 
-    return { tasks, focus, habits, matrix, growth, learn, journal, money, gym };
+    return { tasks, focus, habits, matrix, growth, learn, journal, money, budget, gym, usage };
   }
 
   async updateTaskPreferences(userId: string, patch: Partial<TaskPreferences>): Promise<TaskPreferences> {
@@ -255,10 +275,21 @@ export class PreferencesService {
     const updatedMoney = { ...current.money, ...patch };
     await this.prisma.userPreferences.upsert({
       where: { userId },
-      create: { userId, moneyPreferences: updatedMoney as any },
-      update: { moneyPreferences: updatedMoney as any },
+      create: { userId, moneyPreferences: updatedMoney as any, budgetPreferences: updatedMoney as any },
+      update: { moneyPreferences: updatedMoney as any, budgetPreferences: updatedMoney as any },
     });
     return updatedMoney;
+  }
+
+  async updateBudgetPreferences(userId: string, patch: Partial<BudgetPreferences>): Promise<BudgetPreferences> {
+    const current = await this.getPreferences(userId);
+    const updatedBudget = { ...current.budget, ...patch };
+    await this.prisma.userPreferences.upsert({
+      where: { userId },
+      create: { userId, budgetPreferences: updatedBudget as any, moneyPreferences: updatedBudget as any },
+      update: { budgetPreferences: updatedBudget as any, moneyPreferences: updatedBudget as any },
+    });
+    return updatedBudget;
   }
 
   async updateGymPreferences(userId: string, patch: Partial<GymPreferences>): Promise<GymPreferences> {
@@ -270,5 +301,21 @@ export class PreferencesService {
       update: { gymPreferences: updatedGym as any },
     });
     return updatedGym;
+  }
+
+  async updateUsagePreferences(userId: string, patch: Partial<UsagePreferences>): Promise<UsagePreferences> {
+    const current = await this.getPreferences(userId);
+    const updated = { ...current.usage, ...patch };
+    if (typeof updated.trackingEnabled !== 'boolean') throw new BadRequestException('trackingEnabled must be a boolean');
+    if (typeof updated.websiteTrackingEnabled !== 'boolean') throw new BadRequestException('websiteTrackingEnabled must be a boolean');
+    if (!Number.isInteger(updated.retentionDays) || updated.retentionDays < 7 || updated.retentionDays > 365) {
+      throw new BadRequestException('retentionDays must be an integer between 7 and 365');
+    }
+    await this.prisma.userPreferences.upsert({
+      where: { userId },
+      create: { userId, usagePreferences: updated as any },
+      update: { usagePreferences: updated as any },
+    });
+    return updated;
   }
 }

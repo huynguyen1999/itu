@@ -1,5 +1,6 @@
 import SwiftUI
 import KeyboardShortcuts
+import ServiceManagement
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case appearance
@@ -312,6 +313,8 @@ private struct DesktopSettingsPanel: View {
                         .padding(.top, 4)
                 }
             }
+
+            UsageSettingsPanel()
         }
         .alert("Connection Settings", isPresented: Binding(
             get: { validationMessage != nil },
@@ -331,6 +334,89 @@ private struct DesktopSettingsPanel: View {
         } catch {
             validationMessage = error.localizedDescription
         }
+    }
+}
+
+private struct UsageSettingsPanel: View {
+    @Environment(AppModel.self) private var model
+    @State private var showDeleteConfirmation = false
+    @State private var loginItemError: String?
+    @State private var deleteFrom = Calendar.current.date(byAdding: .day, value: -29, to: Date()) ?? Date()
+    @State private var deleteTo = Date()
+    @State private var deleteRange = false
+
+    var body: some View {
+        @Bindable var settingsStore = model.settingsStore
+        SettingsCardView(
+            iconName: "chart.bar.xaxis",
+            title: "Foreground Usage",
+            description: "Optionally record time spent in the frontmost app. Tracking is off until you enable it."
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Track foreground application usage", isOn: $settingsStore.usagePreferences.enabled)
+                    .font(.system(size: 13, weight: .medium))
+                if settingsStore.usagePreferences.enabled {
+                    Toggle("Track Website Usage in Microsoft Edge", isOn: $settingsStore.usagePreferences.websiteTrackingEnabled)
+                    Toggle("Pause tracking", isOn: $settingsStore.usagePreferences.paused)
+                    Stepper(value: $settingsStore.usagePreferences.retentionDays, in: 7...365) {
+                        HStack {
+                            Text("Keep local usage data")
+                            Spacer()
+                            Text("\(settingsStore.usagePreferences.retentionDays) days")
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(iTuTheme.inkDim)
+                        }
+                    }
+                    Toggle("Launch at Login", isOn: Binding(
+                        get: { settingsStore.usagePreferences.launchAtLogin },
+                        set: { value in
+                            let previous = settingsStore.usagePreferences.launchAtLogin
+                            do {
+                                if value { try SMAppService.mainApp.register() }
+                                else { try SMAppService.mainApp.unregister() }
+                                settingsStore.usagePreferences.launchAtLogin = value
+                            } catch {
+                                settingsStore.usagePreferences.launchAtLogin = previous
+                                loginItemError = error.localizedDescription
+                            }
+                        }
+                    ))
+                    Button("Delete locally stored usage") { showDeleteConfirmation = true }
+                        .buttonStyle(iTuDangerButtonStyle())
+                    Toggle("Delete a date range", isOn: $deleteRange)
+                    if deleteRange {
+                        HStack {
+                            DatePicker("From", selection: $deleteFrom, displayedComponents: .date)
+                            DatePicker("To", selection: $deleteTo, displayedComponents: .date)
+                            Button("Delete Range") { showDeleteConfirmation = true }
+                                .buttonStyle(iTuDangerButtonStyle())
+                                .disabled(deleteFrom > deleteTo)
+                        }
+                    }
+                    if let error = model.usageError ?? loginItemError {
+                        Text(error).font(.system(size: 12)).foregroundStyle(iTuTheme.coral)
+                    }
+                } else {
+                    Button("Delete locally stored usage") { showDeleteConfirmation = true }
+                        .buttonStyle(iTuDangerButtonStyle())
+                }
+            }
+        }
+        .alert("Delete usage data?", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                Task { await model.deleteUsage(from: deleteRange ? dateKey(deleteFrom) : nil, to: deleteRange ? dateKey(deleteTo) : nil) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes usage data stored on this Mac and from your account.")
+        }
+    }
+
+    private func dateKey(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 }
 

@@ -122,8 +122,8 @@ actor OfflineStore {
     }
 
     func persist() throws {
-        let data = try encoder.encode(state)
         guard !suppressPersistence else { return }
+        let data = try encoder.encode(state)
         try data.write(to: fileURL, options: .atomic)
         if outboxChanged {
             let urgent = state.mutations.last.map(Self.isUrgent) ?? false

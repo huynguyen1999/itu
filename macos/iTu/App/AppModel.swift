@@ -11,6 +11,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case focus
     case habits
     case statistics
+    case journal
     case budget
     case gym
     case growth
@@ -34,6 +35,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .focus: "Focus"
         case .habits: "Habits"
         case .statistics: "Statistics"
+        case .journal: "Journal"
         case .budget: "Budget"
         case .gym: "Gym"
         case .growth: "Growth"
@@ -57,6 +59,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .focus: "timer"
         case .habits: "repeat"
         case .statistics: "chart.bar"
+        case .journal: "book.closed"
         case .budget: "creditcard"
         case .gym: "dumbbell"
         case .growth: "sparkles"
@@ -234,8 +237,28 @@ final class AppModel {
     var growthStatistics: GrowthStatisticsDTO?
     var statisticsLoading = false
     var statisticsError = false
+    var statisticsCalendarError = false
+    var growthStatisticsError = false
+    var statisticsErrorMessage: String?
     var growthReceiptQueue: [PresentedGrowthReceipt] = []
     var noticeQueue: [AppNotice] = []
+    var budgetOverview: BudgetOverviewModel?
+    var budgetCategories: [BudgetCategoryModel] = []
+    var budgetTransactions: [BudgetTransactionModel] = []
+    var gymOverview: GymOverviewModel?
+    var gymExercises: [ExerciseModel] = []
+    var gymWorkouts: [WorkoutModel] = []
+    var journalNotes: [JournalNoteModel] = []
+    var usageStatistics: UsageStatistics?
+    var localUsageSummaries: [UsageSummary] = []
+    var localWebsiteUsageSummaries: [WebsiteUsageSummary] = []
+    var usageIsLocalOnly = false
+    var usageLoading = false
+    var usageError: String?
+    @ObservationIgnored var usageServerStatistics: UsageStatistics?
+    @ObservationIgnored var usageTracker: ForegroundUsageTracker?
+    @ObservationIgnored var websiteUsageTracker: WebsiteUsageTracker?
+    @ObservationIgnored var usageUploadTask: Task<Void, Never>?
 
     func enqueueNotice(_ notice: AppNotice) {
         noticeQueue.append(notice)
@@ -281,6 +304,46 @@ final class AppModel {
         apiClient = APIClient()
         offlineStore = OfflineStore(accountID: cachedUser?.id ?? "anonymous")
         syncCoordinator = SyncCoordinator(apiClient: apiClient, offlineStore: offlineStore)
+        usageTracker = ForegroundUsageTracker()
+        usageTracker?.onSummaryChanged = { [weak self] summary in
+            guard let self else { return }
+            Task { @MainActor in
+                do {
+                    let latestDate = await self.offlineStore.usageSummaries().map(\.localDate).max()
+                    let snapshot = try await self.offlineStore.upsertUsage(summary)
+                    self.localUsageSummaries = snapshot.usageSummaries
+                    if let statistics = self.usageStatistics {
+                        self.usageStatistics = statistics.adding([summary])
+                    }
+                    if self.usageIsLocalOnly { self.usageError = nil }
+                    if let latestDate, summary.localDate > latestDate {
+                        self.usageUploadTask?.cancel()
+                        self.usageUploadTask = nil
+                        await self.uploadUsage()
+                    } else {
+                        self.scheduleUsageUpload()
+                    }
+                } catch {
+                    self.usageError = error.localizedDescription
+                }
+            }
+        }
+        websiteUsageTracker = WebsiteUsageTracker()
+        websiteUsageTracker?.onSummaryChanged = { [weak self] summary in
+            guard let self else { return }
+            Task { @MainActor in
+                do {
+                    let snapshot = try await self.offlineStore.upsertWebsiteUsage(summary)
+                    self.localWebsiteUsageSummaries = snapshot.websiteUsageSummaries
+                    self.scheduleUsageUpload()
+                } catch {
+                    self.usageError = error.localizedDescription
+                }
+            }
+        }
+        settingsStore.onUsagePreferencesChanged = { [weak self] preferences in
+            self?.applyUsagePreferences(preferences)
+        }
         settingsStore.onFocusSettingsChanged = { [weak self] settings in
             self?.applyFocusSettings(settings)
         }
@@ -338,6 +401,7 @@ final class AppModel {
 
     func switchAccountIfNeeded(to profile: UserProfile) async throws {
         if user?.id != profile.id {
+            stopUsageTracking()
             invalidateSession()
             TaskUndoCoordinator.shared.clearHistory()
             offlineStore = OfflineStore(accountID: profile.id)
@@ -399,6 +463,8 @@ final class AppModel {
         growthTaskRewardDefaults = snapshot.growthTaskRewardDefaults
         growthEarningRules = snapshot.growthEarningRules
         growthAttributeMappings = snapshot.growthAttributeMappings
+        localUsageSummaries = snapshot.usageSummaries
+        localWebsiteUsageSummaries = snapshot.websiteUsageSummaries
         let active = snapshot.focusSessions.first {
             $0.status == .active || $0.status == .paused
         }
@@ -418,6 +484,113 @@ final class AppModel {
         syncCoordinator.start { [weak self] in
             await self?.synchronize()
         }
+    }
+
+    func startUsageTracking() {
+        guard user != nil else { return }
+        usageTracker?.setEnabled(settingsStore.usagePreferences.enabled)
+        usageTracker?.setPaused(settingsStore.usagePreferences.paused)
+        websiteUsageTracker?.setEnabled(settingsStore.usagePreferences.enabled && settingsStore.usagePreferences.websiteTrackingEnabled)
+        websiteUsageTracker?.setPaused(settingsStore.usagePreferences.paused)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let snapshot = try? await self.offlineStore.pruneUsage(keeping: self.settingsStore.usagePreferences.retentionDays) {
+                self.apply(snapshot)
+            }
+        }
+    }
+
+    func applyUsagePreferences(_ preferences: UsagePreferences) {
+        usageTracker?.setEnabled(preferences.enabled)
+        usageTracker?.setPaused(preferences.paused)
+        websiteUsageTracker?.setEnabled(preferences.enabled && preferences.websiteTrackingEnabled)
+        websiteUsageTracker?.setPaused(preferences.paused)
+        if preferences.enabled { scheduleUsageUpload() }
+        Task { @MainActor [weak self] in
+            guard let self, let snapshot = try? await self.offlineStore.pruneUsage(keeping: preferences.retentionDays) else { return }
+            self.apply(snapshot)
+        }
+        Task {
+            guard user != nil else { return }
+            _ = try? await apiClient.updateUsagePreferences(preferences)
+        }
+    }
+
+    func scheduleUsageUpload() {
+        guard usageUploadTask == nil else { return }
+        usageUploadTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(900))
+            guard let self, !Task.isCancelled else { return }
+            self.usageUploadTask = nil
+            _ = await self.uploadUsage()
+        }
+    }
+
+    @discardableResult
+    func uploadUsage() async -> Bool {
+        guard user != nil else { return false }
+        var failed = false
+        let pending = await offlineStore.usageSummariesToUpload()
+        if !pending.isEmpty {
+            do {
+                try await apiClient.uploadUsageSummaries(pending, deviceId: syncCoordinator.syncDeviceId)
+                apply(try await offlineStore.markUsageUploaded(pending))
+            } catch {
+                usageError = error.localizedDescription
+                failed = true
+            }
+        }
+        let pendingWebsites = await offlineStore.websiteUsageSummariesToUpload()
+        if !pendingWebsites.isEmpty {
+            do {
+                try await apiClient.uploadWebsiteUsageSummaries(pendingWebsites, deviceId: syncCoordinator.syncDeviceId)
+                apply(try await offlineStore.markWebsiteUsageUploaded(pendingWebsites))
+            } catch {
+                usageError = error.localizedDescription
+                failed = true
+            }
+        }
+        if failed { scheduleUsageUpload() }
+        return !failed
+    }
+
+    func refreshUsage(from: String? = nil, to: String? = nil) async {
+        usageLoading = true
+        usageError = nil
+        defer { usageLoading = false }
+        usageUploadTask?.cancel()
+        usageUploadTask = nil
+        await uploadUsage()
+        let local = await offlineStore.usageSummaries(from: from, to: to)
+        do {
+            let server = try await apiClient.fetchUsage(from: from, to: to)
+            let pending = await offlineStore.pendingUsageDeltas(from: from, to: to)
+            usageServerStatistics = server
+            usageIsLocalOnly = false
+            usageStatistics = server.adding(pending)
+            usageError = nil
+        } catch {
+            usageServerStatistics = nil
+            usageIsLocalOnly = true
+            usageStatistics = .aggregating(local)
+            usageError = local.isEmpty ? error.localizedDescription : nil
+        }
+    }
+
+    func deleteUsage(from: String? = nil, to: String? = nil) async {
+        do {
+            try await apiClient.deleteUsage(from: from, to: to)
+            try await apiClient.deleteWebsiteUsage(from: from, to: to)
+            apply(try await offlineStore.deleteUsage(from: from, to: to))
+            usageStatistics = nil
+        } catch { usageError = error.localizedDescription }
+    }
+
+    func stopUsageTracking() {
+        usageUploadTask?.cancel()
+        usageUploadTask = nil
+        usageTracker?.stop()
+        websiteUsageTracker?.stop()
     }
 
     func updateFocusPolicy(settings: FocusSettings? = nil) {

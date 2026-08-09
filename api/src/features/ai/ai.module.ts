@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { TOKENS } from '@core/application/constants/tokens';
 import { AiService } from '@core/application/use-cases/ai.service';
 import { AiController } from '@infrastructure/transport/rest/controllers/ai.controller';
 import { AiRateLimitGuard } from '@infrastructure/transport/rest/guards/ai-rate-limit.guard';
@@ -17,9 +16,7 @@ import { MediaModule } from '@infrastructure/media/media.module';
     AiRateLimitGuard,
     PermissionsGuard,
     AiService,
-    { provide: TOKENS.AI_USE_CASE, useExisting: AiService },
   ],
-  exports: [AiService, TOKENS.AI_USE_CASE],
+  exports: [AiService],
 })
 export class AiModule {}
-

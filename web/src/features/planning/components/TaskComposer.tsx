@@ -5,7 +5,6 @@ import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
 import { Textarea } from '@/shared/ui/textarea';
-import { getListTasksQueryKey } from '@/generated/api/productivity/productivity';
 
 interface TaskComposerFormValues {
   title: string;
@@ -59,7 +58,7 @@ export function TaskComposer({ onCreated }: { onCreated?: () => void }) {
       return task;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: ['/productivity/tasks'] });
       reset();
       onCreated?.();
     },

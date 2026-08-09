@@ -283,7 +283,7 @@ Important server constraints already verified:
 
 ## Backend enablement
 
-- [ ] Add `MACOS` to `SyncDevicePlatform` with an additive Prisma migration.
+- [x] Add `MACOS` to `SyncDevicePlatform` with an additive Prisma migration.
 - [ ] Register macOS devices before WebSocket connection and add APNs tokens after the backend accepts the platform.
 - [ ] Add a native Google OAuth callback and handoff.
 - [ ] Replace access tokens in WebSocket query strings with short-lived connection tickets.
@@ -291,9 +291,32 @@ Important server constraints already verified:
 ## Native integrations
 
 - [ ] Notifications and reminders.
-- [ ] Optional Launch at Login.
-- [ ] Local foreground-application usage tracking.
-- [ ] User-controlled retention and deletion of usage history.
+- [x] Optional Launch at Login.
+- [x] Local foreground-application usage tracking.
+- [x] Edge-first URL-level website usage tracking from the Chromium extension to the backend through a rotatable DSN key.
+- [x] User-controlled retention and deletion of usage history.
 - [ ] Browser-extension-based website blocking.
 - [ ] Evaluate Network Extension filtering after distribution entitlement approval.
 - [ ] Treat Endpoint Security application blocking as a separately entitled project.
+
+### Foreground usage deployment — 2026-08-09
+
+Tracking is explicit opt-in and off by default. It continues while the frontmost
+application is idle and excludes locked, sleeping, or screen-off intervals; local per-app daily
+totals are stored and synced as device/day/app summaries through authenticated
+dedicated usage endpoints. macOS Statistics and Settings expose totals, top
+apps, trends, pause, 7–365-day retention, and confirmed range/all deletion.
+
+Verification: signed Debug build and the full test suite passed, including
+focused `UsageTrackingTests` (9/9); the former Observation macro environment
+blocker did not recur.
+
+### Chromium Browser Integration core — 2026-08-09
+
+The dependency-free Manifest V3 extension sends cumulative URL-level summaries
+directly to the backend through a rotatable, hash-only DSN credential. Normal and
+InPrivate activity is grouped by hostname in Statistics with URL drill-down; privileged schemes are excluded. The
+extension no longer requests or uses native messaging; the native host target
+remains only for compatibility. Extension tests (6/6), API tests (53 suites/216 tests), web tests (35 files/179
+tests), and production builds pass. Migration deployment and live Edge acceptance
+remain.

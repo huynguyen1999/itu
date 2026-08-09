@@ -14,9 +14,11 @@ extension AppModel {
                 let session = try await apiClient.restoreSession()
                 try await switchAccountIfNeeded(to: session.user)
                 startSyncLoop()
+                startUsageTracking()
                 await synchronize()
                 await loadServerState()
             } catch let error as APIError where error.statusCode == 401 {
+                stopUsageTracking()
                 syncCoordinator.stop()
                 SessionCache.clearUser()
                 user = nil
@@ -45,6 +47,7 @@ extension AppModel {
             }
             try await switchAccountIfNeeded(to: session.user)
             startSyncLoop()
+            startUsageTracking()
             await synchronize(showErrors: true)
             await loadServerState()
         } catch {
@@ -53,6 +56,7 @@ extension AppModel {
     }
 
     func logout() async {
+        stopUsageTracking()
         invalidateSession()
         syncCoordinator.stop()
         await apiClient.logout()
@@ -93,6 +97,7 @@ extension AppModel {
 
     func deleteAccount(password: String?) async -> Bool {
         do {
+            stopUsageTracking()
             invalidateSession()
             syncCoordinator.stop()
             try await apiClient.deleteAccount(password: password)
@@ -219,8 +224,9 @@ extension AppModel {
                 let message = syncedCount > 0 ? "\(syncedCount) change\(syncedCount == 1 ? "" : "s") synced" : nil
                 enqueueNotice(AppNotice(level: .success, presentation: .toast, title: "Back online", message: message))
             }
-        } catch let error as APIError where error.statusCode == 401 {
-            syncCoordinator.stop()
+            } catch let error as APIError where error.statusCode == 401 {
+                stopUsageTracking()
+                syncCoordinator.stop()
             SessionCache.clearUser()
             user = nil
             focusTimer.apply(active: nil)

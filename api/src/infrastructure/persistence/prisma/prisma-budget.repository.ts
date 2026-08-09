@@ -71,7 +71,7 @@ export class PrismaBudgetRepository implements IBudgetRepositoryPort {
 
   async getCategories(userId: string): Promise<BudgetCategoryDomain[]> {
     let categories = await this.prisma.budgetCategory.findMany({
-      where: { userId },
+      where: { userId, archivedAt: null },
       orderBy: { sortOrder: 'asc' },
     });
 
@@ -91,7 +91,7 @@ export class PrismaBudgetRepository implements IBudgetRepositoryPort {
       });
 
       categories = await this.prisma.budgetCategory.findMany({
-        where: { userId },
+        where: { userId, archivedAt: null },
         orderBy: { sortOrder: 'asc' },
       });
     }
@@ -116,6 +116,11 @@ export class PrismaBudgetRepository implements IBudgetRepositoryPort {
   }
 
   async updateCategory(userId: string, id: string, dto: UpdateCategoryDto): Promise<BudgetCategoryDomain> {
+    const existing = await this.prisma.budgetCategory.findFirst({ where: { id, userId } });
+    if (!existing) {
+      throw new Error(`Category ${id} not found`);
+    }
+
     const category = await this.prisma.budgetCategory.update({
       where: { id },
       data: {
@@ -130,6 +135,11 @@ export class PrismaBudgetRepository implements IBudgetRepositoryPort {
   }
 
   async archiveCategory(userId: string, id: string): Promise<BudgetCategoryDomain> {
+    const existing = await this.prisma.budgetCategory.findFirst({ where: { id, userId } });
+    if (!existing) {
+      throw new Error(`Category ${id} not found`);
+    }
+
     const category = await this.prisma.budgetCategory.update({
       where: { id },
       data: { archivedAt: new Date() },
@@ -138,8 +148,13 @@ export class PrismaBudgetRepository implements IBudgetRepositoryPort {
   }
 
   async reorderCategories(userId: string, categoryIds: string[]): Promise<BudgetCategoryDomain[]> {
+    const userCategories = await this.prisma.budgetCategory.findMany({
+      where: { userId, id: { in: categoryIds } },
+    });
+    const validIds = new Set(userCategories.map((c) => c.id));
+
     await this.prisma.$transaction(
-      categoryIds.map((id, index) =>
+      categoryIds.filter((id) => validIds.has(id)).map((id, index) =>
         this.prisma.budgetCategory.update({
           where: { id },
           data: { sortOrder: index },

@@ -20,6 +20,7 @@ import { JournalModule } from './features/journal/journal.module';
 import { BudgetModule } from './features/budget/budget.module';
 import { GymModule } from './features/gym/gym.module';
 import { PublicModule } from './infrastructure/public/public.module';
+import { UsageModule } from './features/usage/usage.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { PublicModule } from './infrastructure/public/public.module';
     JournalModule,
     BudgetModule,
     GymModule,
+    UsageModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: DomainExceptionFilter },

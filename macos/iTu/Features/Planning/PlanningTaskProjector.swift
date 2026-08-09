@@ -18,6 +18,7 @@ enum PlanningTaskProjector {
         sections: [TaskSectionModel] = [],
         lists: [TaskListModel] = [],
         tags: [TagModel] = [],
+        tagIdsByTaskID: [String: [String]] = [:],
         settings: PlanningViewSettings
     ) -> [PlanningTaskGroup] {
         var filtered = tasks
@@ -27,7 +28,14 @@ enum PlanningTaskProjector {
         }
 
         let sorted = sort(filtered, by: settings.sortMode)
-        return group(sorted, by: settings.groupMode, sections: sections, lists: lists, tags: tags)
+        return group(
+            sorted,
+            by: settings.groupMode,
+            sections: sections,
+            lists: lists,
+            tags: tags,
+            tagIdsByTaskID: tagIdsByTaskID
+        )
     }
 
     static func sort(_ tasks: [ProductivityTask], by mode: PlanningSortMode) -> [ProductivityTask] {
@@ -63,7 +71,8 @@ enum PlanningTaskProjector {
         by mode: PlanningGroupMode,
         sections: [TaskSectionModel],
         lists: [TaskListModel],
-        tags: [TagModel]
+        tags: [TagModel],
+        tagIdsByTaskID: [String: [String]]
     ) -> [PlanningTaskGroup] {
         guard mode != .none else {
             return [PlanningTaskGroup(id: "all", title: "All Tasks", tasks: tasks)]
@@ -190,7 +199,14 @@ enum PlanningTaskProjector {
             let tagMap = Dictionary(uniqueKeysWithValues: tags.map { ($0.id, $0.name) })
 
             for task in tasks {
-                untagged.append(task)
+                let taskTagNames = (tagIdsByTaskID[task.id] ?? []).compactMap { tagMap[$0] }
+                if taskTagNames.isEmpty {
+                    untagged.append(task)
+                } else {
+                    for tagName in taskTagNames {
+                        tagGroups[tagName, default: []].append(task)
+                    }
+                }
             }
 
             var result: [PlanningTaskGroup] = []

@@ -6,6 +6,9 @@ import {
   CheckCircle2,
   Clock3,
   Layers3,
+  Globe2,
+  Link2,
+  MonitorPlay,
   PlusCircle,
   Target,
   Timer,
@@ -25,7 +28,8 @@ import {
   YAxis,
 } from 'recharts';
 import { api } from '@/shared/api/client';
-import type { GrowthSkill, GrowthStatistics } from '@/shared/api/types';
+import type { GrowthSkill, GrowthStatistics, UsageSummary } from '@/shared/api/types';
+import type { WebsiteUsageSummary } from '@/shared/api/usageApi';
 import { Button } from '@/shared/ui/button';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
@@ -40,17 +44,21 @@ import { Skeleton } from '@/shared/ui/skeleton';
 import { GrowthIconMark, growthColorClasses } from '@/shared/ui/GrowthIcons';
 import {
   buildTrendData,
+  buildUsageStackData,
+  buildUsageTrendData,
   dateRangeForDays,
   filterActivityRange,
   inclusiveDayCount,
   rangeLabel,
   selectTopAttributes,
+  selectTopUsageApps,
   summarizeActivity,
   type StatisticsDateRange,
   type TrendPoint,
 } from './statistics';
 
 const rangePresets = [
+  { label: 'Today', days: 1 },
   { label: '7 days', days: 7 },
   { label: '30 days', days: 30 },
   { label: '3 months', days: 90 },
@@ -59,12 +67,22 @@ const rangePresets = [
 
 type RangePreset = (typeof rangePresets)[number]['days'] | 'custom';
 
+const defaultRangeDays = {
+  '7D': 7,
+  '30D': 30,
+  '90D': 90,
+  '1Y': 365,
+} as const;
+
 export function StatisticsPage() {
   const today = useMemo(() => dateRangeForDays(1).to, []);
   const earliestDate = useMemo(() => dateRangeForDays(365).from, []);
-  const [statsDisplaySettings, setStatsDisplaySettings] = useState<StatisticsDisplaySettings>(DEFAULT_STATISTICS_DISPLAY_SETTINGS);
-  const [range, setRange] = useState<StatisticsDateRange>(() => dateRangeForDays(30));
-  const [rangePreset, setRangePreset] = useState<RangePreset>(30);
+  const [statsDisplaySettings, setStatsDisplaySettings] = useState<StatisticsDisplaySettings>(
+    DEFAULT_STATISTICS_DISPLAY_SETTINGS,
+  );
+  const initialRangeDays = defaultRangeDays[DEFAULT_STATISTICS_DISPLAY_SETTINGS.defaultDateRange];
+  const [range, setRange] = useState<StatisticsDateRange>(() => dateRangeForDays(initialRangeDays));
+  const [rangePreset, setRangePreset] = useState<RangePreset>(initialRangeDays);
   const [customRange, setCustomRange] = useState<StatisticsDateRange>(range);
   const daysToFetch = inclusiveDayCount({ from: range.from, to: today });
 
@@ -80,11 +98,25 @@ export function StatisticsPage() {
     queryKey: ['growth', 'overview'],
     queryFn: () => api.growthOverview(),
   });
+  const usage = useQuery({
+    queryKey: ['usage', 'summaries', range.from, range.to],
+    queryFn: () => api.usageSummaries(range.from, range.to),
+  });
+  const websiteUsage = useQuery({
+    queryKey: ['usage', 'websites', 'summaries', range.from, range.to],
+    queryFn: () => api.websiteUsageSummaries(range.from, range.to),
+  });
 
   const activity = useMemo(() => filterActivityRange(calendar.data ?? [], range), [calendar.data, range]);
   const summary = useMemo(() => summarizeActivity(activity), [activity]);
   const trends = useMemo(() => buildTrendData(activity, growth.data, range), [activity, growth.data, range]);
   const topAttributes = useMemo(() => selectTopAttributes(growthOverview.data?.skills ?? []), [growthOverview.data]);
+  const usageTrend = useMemo(() => buildUsageTrendData(usage.data, range), [usage.data, range]);
+  const topUsageApps = useMemo(() => selectTopUsageApps(usage.data), [usage.data]);
+  const usageStack = useMemo(
+    () => buildUsageStackData(usage.data, range, topUsageApps),
+    [usage.data, range, topUsageApps],
+  );
 
   const isLoading = calendar.isLoading || growth.isLoading;
   const customRangeError = validateCustomRange(customRange, earliestDate, today);
@@ -235,6 +267,11 @@ export function StatisticsPage() {
             label="Cards created"
             value={isLoading ? '—' : formatNumber(summary.cardsCreated)}
           />
+          <MetricCard
+            icon={MonitorPlay}
+            label="App activity"
+            value={usage.isLoading ? '—' : formatActiveDuration(usage.data?.totalActiveSeconds ?? 0)}
+          />
         </div>
       </section>
 
@@ -278,6 +315,23 @@ export function StatisticsPage() {
           />
         </section>
       )}
+
+      <UsageSection
+        isLoading={usage.isLoading}
+        isError={usage.isError}
+        onRetry={() => usage.refetch()}
+        summary={usage.data}
+        trend={usageTrend}
+        stack={usageStack}
+        topApps={topUsageApps}
+      />
+
+      <WebsiteUsageSection
+        isLoading={websiteUsage.isLoading}
+        isError={websiteUsage.isError}
+        onRetry={() => websiteUsage.refetch()}
+        summary={websiteUsage.data}
+      />
 
       <section
         className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]"
@@ -543,6 +597,280 @@ function ChartEmptyState({ message }: { message: string }) {
   );
 }
 
+function UsageSection({
+  isLoading,
+  isError,
+  onRetry,
+  summary,
+  trend,
+  stack,
+  topApps,
+}: {
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+  summary?: UsageSummary;
+  trend: Array<{ key: string; label: string; activeSeconds: number }>;
+  stack: Array<Record<string, string | number>>;
+  topApps: UsageSummary['topApps'];
+}) {
+  const hasHourlyBuckets = stack.length === 24;
+
+  return (
+    <section aria-labelledby="usage-heading" aria-busy={isLoading}>
+      <div className="mb-3">
+        <h2 id="usage-heading" className="text-lg font-semibold">
+          Foreground app activity
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">Synced from your tracked devices for the selected period.</p>
+      </div>
+      {isLoading ? (
+        <div className="grid gap-4 lg:grid-cols-2" role="status" aria-live="polite">
+          <span className="sr-only">Loading foreground app activity.</span>
+          <Card>
+            <CardContent className="p-5">
+              <Skeleton className="h-56 w-full" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-5">
+              <Skeleton className="h-56 w-full" />
+            </CardContent>
+          </Card>
+        </div>
+      ) : isError ? (
+        <QueryError message="Foreground app activity could not be loaded." onRetry={onRetry} />
+      ) : !summary ||
+        (summary.totalActiveSeconds <= 0 &&
+          topApps.length === 0 &&
+          trend.every((point) => point.activeSeconds <= 0)) ? (
+        <ChartEmptyState message="No synced foreground activity in this period." />
+      ) : (
+        <Card className="overflow-hidden shadow-[var(--shadow-soft)]">
+          <CardHeader className="flex-row items-end justify-between gap-4 border-b bg-muted/20 p-5">
+            <div>
+              <CardTitle className="text-base">Application usage</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {hasHourlyBuckets ? 'Hourly foreground time' : 'Daily foreground time'}, stacked by application.
+              </p>
+            </div>
+            <p className="shrink-0 font-mono text-2xl font-bold tracking-[-0.03em]">
+              {formatActiveDuration(summary.totalActiveSeconds)}
+            </p>
+          </CardHeader>
+          <CardContent className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-stretch">
+            <div
+              className="h-64 min-w-0"
+              aria-label={`${hasHourlyBuckets ? 'Hourly' : 'Daily'} foreground time stacked by application`}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stack} margin={{ top: 8, right: 4, bottom: 0, left: 0 }} barCategoryGap="28%">
+                  <CartesianGrid vertical={false} stroke="var(--itu-border-soft)" />
+                  <XAxis
+                    dataKey="label"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={10}
+                    minTickGap={24}
+                    interval={hasHourlyBuckets ? 2 : 'preserveStartEnd'}
+                  />
+                  <YAxis
+                    orientation="right"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={10}
+                    width={38}
+                    tickFormatter={(value) => axisActiveDuration(Number(value))}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'var(--itu-surface-2)' }}
+                    itemSorter={(item) => -Number(item.value ?? 0)}
+                    formatter={(value, name) => [formatActiveDuration(Number(value)), String(name)]}
+                  />
+                  {topApps.map((app, index) => (
+                    <Bar
+                      key={app.bundleId}
+                      dataKey={`app${index}`}
+                      name={app.displayName}
+                      stackId="usage"
+                      fill={usageColors[index % usageColors.length]}
+                      maxBarSize={18}
+                    />
+                  ))}
+                  <Bar
+                    dataKey="other"
+                    name="Other apps"
+                    stackId="usage"
+                    fill="var(--itu-ink-faint)"
+                    maxBarSize={18}
+                    radius={[3, 3, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="border-t pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+              {topApps.length === 0 ? (
+                <ChartEmptyState message="No app ranking is available in this period." />
+              ) : (
+                <div className="space-y-2">
+                  {topApps.map((app, index) => (
+                    <div
+                      key={app.bundleId}
+                      className="flex min-h-11 items-center gap-3 rounded-[var(--itu-radius-s)] px-1.5 py-1.5"
+                    >
+                      <AppUsageIcon name={app.displayName} color={usageColors[index % usageColors.length]} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{app.displayName}</p>
+                      </div>
+                      <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-muted-foreground">
+                        {formatActiveDuration(app.activeSeconds)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </section>
+  );
+}
+
+function WebsiteUsageSection({
+  isLoading,
+  isError,
+  onRetry,
+  summary,
+}: {
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+  summary?: WebsiteUsageSummary;
+}) {
+  return (
+    <section aria-labelledby="website-usage-heading" aria-busy={isLoading}>
+      <div className="mb-3">
+        <h2 id="website-usage-heading" className="flex items-center gap-2 text-lg font-semibold">
+          <Globe2 className="h-5 w-5 text-primary" aria-hidden="true" />
+          Website activity
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Domain totals with URL-level detail from the active tab in your focused browser window.
+        </p>
+      </div>
+      {isLoading ? (
+        <Card role="status" aria-live="polite">
+          <span className="sr-only">Loading website activity.</span>
+          <CardContent className="p-5">
+            <Skeleton className="h-64 w-full" />
+          </CardContent>
+        </Card>
+      ) : isError ? (
+        <QueryError message="Website activity could not be loaded." onRetry={onRetry} />
+      ) : !summary || summary.totalActiveSeconds <= 0 ? (
+        <ChartEmptyState message="No synced website activity in this period." />
+      ) : (
+        <Card className="overflow-hidden shadow-[var(--shadow-soft)]">
+          <CardHeader className="flex-row items-end justify-between gap-4 border-b bg-muted/20 p-5">
+            <div>
+              <CardTitle className="text-base">Domains and visited URLs</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">Open a domain to inspect its individual URL totals.</p>
+            </div>
+            <p className="shrink-0 font-mono text-2xl font-bold tracking-[-0.03em]">
+              {formatActiveDuration(summary.totalActiveSeconds)}
+            </p>
+          </CardHeader>
+          <CardContent className="p-0">
+            {(summary.hostnames ?? summary.topHostnames).map((domain) => {
+              const urls = summary.urlDetails.filter((detail) => detail.hostname === domain.hostname);
+              const detailedSeconds = urls.reduce((total, detail) => total + detail.activeSeconds, 0);
+              const legacySeconds = Math.max(0, domain.activeSeconds - detailedSeconds);
+              return (
+                <details key={domain.hostname} className="group border-b border-[var(--itu-border-soft)] last:border-0">
+                  <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-5 py-3 transition-colors hover:bg-[var(--itu-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                    <DomainMark hostname={domain.hostname} />
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{domain.hostname}</span>
+                    <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-muted-foreground">
+                      {formatActiveDuration(domain.activeSeconds)}
+                    </span>
+                    <span
+                      className="text-xs text-muted-foreground transition-transform group-open:rotate-90"
+                      aria-hidden="true"
+                    >
+                      ›
+                    </span>
+                  </summary>
+                  <div className="border-t border-[var(--itu-border-soft)] bg-[var(--itu-surface-2)] px-5 py-3">
+                    {urls.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        URL detail is unavailable for earlier hostname-only activity.
+                      </p>
+                    ) : (
+                      <div className="divide-y divide-[var(--itu-border-soft)]">
+                        {urls.map((detail) => (
+                          <div key={detail.url} className="flex items-start gap-3 py-2.5">
+                            <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                            <p
+                              className="min-w-0 flex-1 break-all text-xs leading-5 text-foreground"
+                              title={detail.url}
+                            >
+                              {detail.url}
+                            </p>
+                            <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-muted-foreground">
+                              {formatActiveDuration(detail.activeSeconds)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {legacySeconds > 0 && urls.length > 0 ? (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {formatActiveDuration(legacySeconds)} of earlier activity has domain-only detail.
+                      </p>
+                    ) : null}
+                  </div>
+                </details>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+    </section>
+  );
+}
+
+function DomainMark({ hostname }: { hostname: string }) {
+  return (
+    <span
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--itu-radius-s)] bg-[var(--itu-mint-100)] text-sm font-bold text-[var(--itu-teal-700)]"
+      aria-hidden="true"
+    >
+      {hostname.charAt(0).toLocaleUpperCase() || '?'}
+    </span>
+  );
+}
+
+const usageColors = [
+  'var(--itu-teal-600)',
+  'var(--itu-sync-blue, #4f8fcf)',
+  'var(--itu-amber-500)',
+  'var(--itu-teal-400)',
+  'var(--itu-coral-500)',
+];
+
+function AppUsageIcon({ name, color }: { name: string; color: string }) {
+  return (
+    <span
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--itu-radius-s)] text-sm font-bold text-white shadow-sm"
+      style={{ backgroundColor: color }}
+      aria-hidden="true"
+    >
+      {name.trim().charAt(0).toLocaleUpperCase() || '?'}
+    </span>
+  );
+}
+
 function validateCustomRange(range: StatisticsDateRange, earliest: string, latest: string) {
   if (!range.from || !range.to) return 'Choose both dates.';
   if (range.from > range.to) return 'The start date must be before the end date.';
@@ -565,6 +893,16 @@ function formatMinutes(minutes: number) {
   const remainder = minutes % 60;
   if (hours === 0) return `${remainder}m`;
   return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
+}
+
+function formatActiveDuration(seconds: number) {
+  const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
+  if (safeSeconds < 60) return `${safeSeconds}s`;
+  return formatMinutes(Math.floor(safeSeconds / 60));
+}
+
+function axisActiveDuration(seconds: number) {
+  return seconds >= 3_600 ? `${Math.round(seconds / 3_600)}h` : `${Math.round(seconds / 60)}m`;
 }
 
 function formatNumber(value: number) {

@@ -83,6 +83,7 @@ export enum ScheduledJobStatus {
 
 export enum SyncDevicePlatform {
   WEB = 'WEB',
+  MACOS = 'MACOS',
 }
 
 export enum JournalEntryKind {
@@ -117,4 +118,3 @@ export enum WeightUnit {
   KG = 'KG',
   LBS = 'LBS',
 }
-

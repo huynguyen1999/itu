@@ -1,6 +1,6 @@
 import type { ApiClientContext } from './apiContext';
 
-export interface GymApi {
+export type GymApi = {
   getGymOverview(): Promise<any>;
   getGymExercises(): Promise<any[]>;
   createGymExercise(data: { name: string; description?: string; metricType?: string; equipment?: string; primaryMuscleGroup?: string }): Promise<any>;
@@ -16,7 +16,7 @@ export interface GymApi {
   deleteGymWorkout(id: string): Promise<any>;
   completeGymWorkout(id: string): Promise<any>;
   abandonGymWorkout(id: string): Promise<any>;
-}
+};
 
 export function createGymApi(ctx: ApiClientContext): GymApi {
   return {

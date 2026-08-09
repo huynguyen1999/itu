@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { TOKENS } from '@core/application/constants/tokens';
 import { AuthService } from '@core/application/use-cases/auth.service';
 import { AuthController } from '@infrastructure/transport/rest/controllers/auth.controller';
 import { AuthGuard } from '@infrastructure/transport/rest/guards/auth.guard';
@@ -17,9 +16,7 @@ import { GoogleAuthGuard } from '@infrastructure/transport/rest/guards/google-au
     GoogleAuthGuard,
     GoogleStrategy,
     AuthService,
-    { provide: TOKENS.AUTH_USE_CASE, useExisting: AuthService },
   ],
-  exports: [AuthGuard, AuthService, TOKENS.AUTH_USE_CASE, SecurityModule],
+  exports: [AuthGuard, AuthService, SecurityModule],
 })
 export class AuthModule {}
-

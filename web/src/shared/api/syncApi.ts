@@ -1,13 +1,18 @@
-import { registerDevice, updateDevice } from '../../generated/api/devices/devices';
 import type { ApiClientContext } from './apiContext';
 
 export function createSyncApi(ctx: ApiClientContext) {
   return {
     async registerSyncDevice(data: { deviceId: string; lastKnownSyncCursor?: string }) {
-      return (await registerDevice({ ...data, platform: 'WEB' } as any)) as unknown as void;
+      return ctx.request<void>('/devices/register', {
+        method: 'POST',
+        body: JSON.stringify({ ...data, platform: 'WEB' }),
+      });
     },
     async updateSyncDevice(deviceId: string, lastKnownSyncCursor: string) {
-      return (await updateDevice(deviceId, { lastKnownSyncCursor } as any)) as unknown as void;
+      return ctx.request<void>(`/devices/${deviceId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ lastKnownSyncCursor }),
+      });
     },
   };
 }

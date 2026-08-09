@@ -321,6 +321,10 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
     var mutations: [SyncMutation] = []
     var conflicts: [SyncConflict] = []
     var lastSyncTime: String?
+    var usageSummaries: [UsageSummary] = []
+    var usageUploadWatermarks: [String: Int] = [:]
+    var websiteUsageSummaries: [WebsiteUsageSummary] = []
+    var websiteUsageUploadWatermarks: [String: Int] = [:]
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion
@@ -357,6 +361,10 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         case mutations
         case conflicts
         case lastSyncTime
+        case usageSummaries
+        case usageUploadWatermarks
+        case websiteUsageSummaries
+        case websiteUsageUploadWatermarks
     }
 
     init() {}
@@ -397,5 +405,9 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         mutations = try values.decodeIfPresent([SyncMutation].self, forKey: .mutations) ?? []
         conflicts = try values.decodeIfPresent([SyncConflict].self, forKey: .conflicts) ?? []
         lastSyncTime = try values.decodeIfPresent(String.self, forKey: .lastSyncTime)
+        usageSummaries = try values.decodeIfPresent([UsageSummary].self, forKey: .usageSummaries) ?? []
+        usageUploadWatermarks = try values.decodeIfPresent([String: Int].self, forKey: .usageUploadWatermarks) ?? [:]
+        websiteUsageSummaries = try values.decodeIfPresent([WebsiteUsageSummary].self, forKey: .websiteUsageSummaries) ?? []
+        websiteUsageUploadWatermarks = try values.decodeIfPresent([String: Int].self, forKey: .websiteUsageUploadWatermarks) ?? [:]
     }
 }

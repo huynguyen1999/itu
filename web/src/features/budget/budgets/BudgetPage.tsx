@@ -4,7 +4,7 @@ import { useUpdateBudgetPeriodLimit, useUpdateBudgetCategoryLimit } from '../bud
 import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
-import { PieChart, Save, Edit3 } from 'lucide-react';
+import { Save, Edit3 } from 'lucide-react';
 
 export function BudgetPage() {
   const [period] = useState(() => new Date().toISOString().substring(0, 7));
@@ -46,12 +46,12 @@ export function BudgetPage() {
 
   return (
     <div className="space-y-6">
-      {/* Overall Monthly Budget Limit */}
+      {/* Existing overall target remains available while category assignments drive the plan. */}
       <Card className="p-5 border-primary/20 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">Overall Monthly Limit</h3>
-            <p className="text-xs text-muted-foreground">Target spending limit for {overview.period}</p>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">Monthly funding target</h3>
+            <p className="text-xs text-muted-foreground">Optional planning target for {overview.period}</p>
           </div>
 
           {!editingOverall ? (
@@ -65,7 +65,7 @@ export function BudgetPage() {
               className="gap-1.5"
             >
               <Edit3 className="w-3.5 h-3.5" />
-              Edit Limit
+              Edit Target
             </Button>
           ) : (
             <div className="flex items-center gap-2">
@@ -90,8 +90,7 @@ export function BudgetPage() {
       {/* Category Budgets List */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold flex items-center gap-2">
-          <PieChart className="w-4 h-4 text-emerald-500" />
-          Category Monthly Limits
+          Category Assignments
         </h3>
 
         {categories.length === 0 ? (
@@ -110,7 +109,7 @@ export function BudgetPage() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-foreground">{cat.name}</span>
                     <span className="font-mono text-muted-foreground">
-                      {formatCurrency(currentSpent, overview.currency)} / {formatCurrency(currentLimit, overview.currency)}
+                      Assigned {formatCurrency(currentLimit, overview.currency)} · Activity {formatCurrency(currentSpent, overview.currency)}
                     </span>
                   </div>
 
@@ -134,7 +133,7 @@ export function BudgetPage() {
                       className="gap-1 text-xs"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
-                      Set Limit
+                      Assign Money
                     </Button>
                   ) : (
                     <div className="flex items-center gap-1.5">

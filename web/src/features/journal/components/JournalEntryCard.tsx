@@ -1,85 +1,101 @@
-import { Calendar, Dumbbell, Receipt } from 'lucide-react';
+import { Calendar, Dumbbell, FileText, Receipt } from 'lucide-react';
 import type { JournalEntry } from '../journal.types';
+import { formatDateStringToLocalDisplay } from '../journalDate';
 import { Link } from 'react-router-dom';
-import { Card, CardContent } from '@/shared/ui/card';
 
 interface JournalEntryCardProps {
   entry: JournalEntry;
 }
 
 export function JournalEntryCard({ entry }: JournalEntryCardProps) {
+  const kindLabel = formatKind(entry.kind);
+  const preview = stripMarkdown(entry.contentMarkdown);
   const isExpense = entry.kind === 'EXPENSE' && entry.expense;
   const isWorkout = entry.kind === 'WORKOUT' && entry.workout;
   const isWeeklyReview = entry.kind === 'WEEKLY_REVIEW';
 
   return (
-    <Link to={`/journal/entry/${entry.id}`} className="group block">
-      <Card className="transition-all hover:border-primary/50">
-        <CardContent className="p-4 space-y-2.5">
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-md font-semibold text-[10px] uppercase tracking-wide bg-primary/10 text-primary border border-primary/20">
-                {entry.kind.replace('_', ' ')}
-              </span>
-
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
-                <Calendar className="w-3 h-3 text-muted-foreground" />
-                {new Date(entry.entryDate).toLocaleDateString()}
-              </span>
-            </div>
-
-            {entry.tags && entry.tags.length > 0 && (
-              <div className="flex items-center gap-1">
-                {entry.tags.slice(0, 2).map((t) => (
-                  <span key={t.id} className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">
-                    #{t.name}
-                  </span>
-                ))}
-                {entry.tags.length > 2 && (
-                  <span className="text-[10px] text-muted-foreground">+{entry.tags.length - 2}</span>
-                )}
-              </div>
-            )}
+    <Link
+      to={`/journal/entry/${entry.id}`}
+      aria-label={`Open ${entry.title || 'untitled entry'}`}
+      className="group block rounded-[var(--itu-radius-m)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      <article className="h-full rounded-[var(--itu-radius-m)] border border-border bg-card p-4 shadow-[var(--itu-shadow-card)] transition-[border-color,transform,box-shadow] duration-150 group-hover:-translate-y-0.5 group-hover:border-[var(--itu-teal-400)] group-hover:shadow-[var(--itu-shadow-pop)]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[11px] font-mono font-bold uppercase tracking-wide text-primary">
+              <FileText className="h-3 w-3" aria-hidden="true" />
+              {kindLabel}
+            </span>
+            <span
+              className="flex min-w-0 items-center gap-1 text-[11px] font-mono text-muted-foreground"
+              title={formatDateStringToLocalDisplay(entry.entryDate)}
+            >
+              <Calendar className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <span className="truncate">{formatShortDate(entry.entryDate)}</span>
+            </span>
           </div>
+          <span
+            className="shrink-0 text-xs text-muted-foreground transition-transform group-hover:translate-x-0.5"
+            aria-hidden="true"
+          >
+            →
+          </span>
+        </div>
 
-          <div className="font-semibold text-foreground group-hover:text-primary transition-colors text-sm">
-            {entry.title || 'Untitled Entry'}
-          </div>
+        <h3 className="mt-4 line-clamp-2 text-base font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary">
+          {entry.title || 'Untitled entry'}
+        </h3>
 
+        <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-relaxed text-muted-foreground">{preview}</p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-1.5 text-[11px] font-mono text-muted-foreground">
           {isExpense && (
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-muted text-xs font-mono text-foreground">
-              <Receipt className="w-3.5 h-3.5 text-primary" />
-              <span className="font-bold">
-                {Number(entry.expense!.amount).toLocaleString()} {entry.expense!.currency}
-              </span>
-              <span>• {entry.expense!.category}</span>
-              {entry.expense!.merchant && <span>• {entry.expense!.merchant}</span>}
-            </div>
+            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-1">
+              <Receipt className="h-3 w-3 text-primary" aria-hidden="true" />
+              {Number(entry.expense!.amount).toLocaleString()} {entry.expense!.currency}
+            </span>
           )}
-
           {isWorkout && (
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-muted text-xs font-mono text-foreground">
-              <Dumbbell className="w-3.5 h-3.5 text-primary" />
-              <span>{entry.workout!.exercises?.length || 0} exercises</span>
-            </div>
+            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-1">
+              <Dumbbell className="h-3 w-3 text-primary" aria-hidden="true" />
+              {entry.workout!.exercises?.length || 0} exercises
+            </span>
           )}
-
-          {isWeeklyReview && entry.weeklyReview?.summarySnapshot && (
-            <div className="text-[11px] font-mono text-foreground bg-muted px-2.5 py-1 rounded-md inline-flex items-center gap-2">
-              <span>
-                {(entry.weeklyReview.summarySnapshot as any).tasks?.completed || 0} tasks completed
-              </span>
-              <span>• {(entry.weeklyReview.summarySnapshot as any).workouts?.sessions || 0} workouts</span>
-            </div>
+          {isWeeklyReview && entry.weeklyReview?.summarySnapshot?.tasks && (
+            <span className="rounded-full border border-border bg-muted/50 px-2 py-1">
+              {entry.weeklyReview.summarySnapshot.tasks.completed} tasks completed
+            </span>
           )}
-
-          {entry.contentMarkdown && (
-            <p className="text-xs text-muted-foreground line-clamp-2 font-mono bg-muted/40 p-2 rounded-md border border-border/40">
-              {entry.contentMarkdown}
-            </p>
+          {entry.tags?.slice(0, 2).map((tag) => (
+            <span key={tag.id} className="rounded-full border border-border bg-muted/50 px-2 py-1">
+              #{tag.name}
+            </span>
+          ))}
+          {!!entry.tags && entry.tags.length > 2 && (
+            <span className="rounded-full border border-border bg-muted/50 px-2 py-1">+{entry.tags.length - 2}</span>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </article>
     </Link>
+  );
+}
+
+function formatKind(kind: JournalEntry['kind']) {
+  return kind.replace('_', ' ').toLowerCase();
+}
+
+function formatShortDate(value: string) {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return value;
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function stripMarkdown(value: string) {
+  return (
+    value
+      .replace(/[#*_>`\[\]]/g, '')
+      .replace(/\n+/g, ' ')
+      .trim() || 'An empty page, ready for the next line.'
   );
 }

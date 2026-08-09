@@ -1,15 +1,3 @@
-import {
-  getPreferences as getPreferencesApi,
-  updateGymPreferences as updateGymPreferencesApi,
-  updateMoneyPreferences as updateMoneyPreferencesApi,
-  updateTaskPreferences as updateTaskPreferencesApi,
-  updateFocusPreferences as updateFocusPreferencesApi,
-  updateHabitPreferences as updateHabitPreferencesApi,
-  updateMatrixPreferences as updateMatrixPreferencesApi,
-  updateGrowthPreferences as updateGrowthPreferencesApi,
-  updateLearnPreferences as updateLearnPreferencesApi,
-  updateJournalPreferences as updateJournalPreferencesApi,
-} from '../../generated/api/preferences/preferences';
 import type { ApiClientContext } from './apiContext';
 
 export interface TaskPreferences {
@@ -71,6 +59,8 @@ export interface MoneyPreferences {
   budgetAlertsEnabled: boolean;
 }
 
+export type BudgetPreferences = MoneyPreferences;
+
 export interface GymPreferences {
   weightUnit: 'KG' | 'LBS';
   distanceUnit: 'KM' | 'MI';
@@ -79,6 +69,12 @@ export interface GymPreferences {
   previousPerformanceMode: 'EXERCISE' | 'ROUTINE';
   showRpe: boolean;
   weeklyWorkoutGoal?: number;
+}
+
+export interface UsagePreferences {
+  trackingEnabled: boolean;
+  websiteTrackingEnabled: boolean;
+  retentionDays: number;
 }
 
 export interface UserPreferencesResponse {
@@ -90,7 +86,9 @@ export interface UserPreferencesResponse {
   learn: LearnPreferences;
   journal: JournalPreferences;
   money: MoneyPreferences;
+  budget: BudgetPreferences;
   gym: GymPreferences;
+  usage: UsagePreferences;
 }
 
 export const DEFAULT_TASK_PREFERENCES: TaskPreferences = {
@@ -162,6 +160,12 @@ export const DEFAULT_GYM_PREFERENCES: GymPreferences = {
   weeklyWorkoutGoal: 3,
 };
 
+export const DEFAULT_USAGE_PREFERENCES: UsagePreferences = {
+  trackingEnabled: false,
+  websiteTrackingEnabled: false,
+  retentionDays: 90,
+};
+
 const STORAGE_KEY = 'itu_user_preferences_v2';
 
 function getLocalPreferences(): UserPreferencesResponse {
@@ -177,10 +181,13 @@ function getLocalPreferences(): UserPreferencesResponse {
         learn: DEFAULT_LEARN_PREFERENCES,
         journal: DEFAULT_JOURNAL_PREFERENCES,
         money: DEFAULT_MONEY_PREFERENCES,
+        budget: DEFAULT_MONEY_PREFERENCES,
         gym: DEFAULT_GYM_PREFERENCES,
+        usage: DEFAULT_USAGE_PREFERENCES,
       };
     }
     const parsed = JSON.parse(raw);
+    const moneyPref = { ...DEFAULT_MONEY_PREFERENCES, ...(parsed.money || parsed.budget || {}) };
     return {
       tasks: { ...DEFAULT_TASK_PREFERENCES, ...(parsed.tasks || {}) },
       focus: { ...DEFAULT_FOCUS_PREFERENCES, ...(parsed.focus || {}) },
@@ -189,8 +196,10 @@ function getLocalPreferences(): UserPreferencesResponse {
       growth: { ...DEFAULT_GROWTH_PREFERENCES, ...(parsed.growth || {}) },
       learn: { ...DEFAULT_LEARN_PREFERENCES, ...(parsed.learn || {}) },
       journal: { ...DEFAULT_JOURNAL_PREFERENCES, ...(parsed.journal || {}) },
-      money: { ...DEFAULT_MONEY_PREFERENCES, ...(parsed.money || {}) },
+      money: moneyPref,
+      budget: moneyPref,
       gym: { ...DEFAULT_GYM_PREFERENCES, ...(parsed.gym || {}) },
+      usage: { ...DEFAULT_USAGE_PREFERENCES, ...(parsed.usage || {}) },
     };
   } catch {
     return {
@@ -202,7 +211,9 @@ function getLocalPreferences(): UserPreferencesResponse {
       learn: DEFAULT_LEARN_PREFERENCES,
       journal: DEFAULT_JOURNAL_PREFERENCES,
       money: DEFAULT_MONEY_PREFERENCES,
+      budget: DEFAULT_MONEY_PREFERENCES,
       gym: DEFAULT_GYM_PREFERENCES,
+      usage: DEFAULT_USAGE_PREFERENCES,
     };
   }
 }
@@ -225,14 +236,16 @@ export interface PreferencesApi {
   updateLearnPreferences(patch: Partial<LearnPreferences>): Promise<LearnPreferences>;
   updateJournalPreferences(patch: Partial<JournalPreferences>): Promise<JournalPreferences>;
   updateMoneyPreferences(patch: Partial<MoneyPreferences>): Promise<MoneyPreferences>;
+  updateBudgetPreferences(patch: Partial<BudgetPreferences>): Promise<BudgetPreferences>;
   updateGymPreferences(patch: Partial<GymPreferences>): Promise<GymPreferences>;
+  updateUsagePreferences(patch: Partial<UsagePreferences>): Promise<UsagePreferences>;
 }
 
 export function createPreferencesApi(context: ApiClientContext): PreferencesApi {
   return {
     async getPreferences() {
       try {
-        const res = (await getPreferencesApi()) as unknown as UserPreferencesResponse;
+        const res = await context.request<UserPreferencesResponse>('/preferences');
         saveLocalPreferences(res);
         return res;
       } catch {
@@ -244,7 +257,10 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       const updated = { ...local.tasks, ...patch };
       saveLocalPreferences({ ...local, tasks: updated });
       try {
-        return (await updateTaskPreferencesApi(patch as any)) as unknown as TaskPreferences;
+        return await context.request<TaskPreferences>('/preferences/tasks', {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        });
       } catch {
         return updated;
       }
@@ -254,7 +270,10 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       const updated = { ...local.focus, ...patch };
       saveLocalPreferences({ ...local, focus: updated });
       try {
-        return (await updateFocusPreferencesApi(patch as any)) as unknown as FocusPreferences;
+        return await context.request<FocusPreferences>('/preferences/focus', {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        });
       } catch {
         return updated;
       }
@@ -264,7 +283,10 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       const updated = { ...local.habits, ...patch };
       saveLocalPreferences({ ...local, habits: updated });
       try {
-        return (await updateHabitPreferencesApi(patch as any)) as unknown as HabitPreferences;
+        return await context.request<HabitPreferences>('/preferences/habits', {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        });
       } catch {
         return updated;
       }
@@ -274,7 +296,10 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       const updated = { ...local.matrix, ...patch };
       saveLocalPreferences({ ...local, matrix: updated });
       try {
-        return (await updateMatrixPreferencesApi(patch as any)) as unknown as MatrixPreferences;
+        return await context.request<MatrixPreferences>('/preferences/matrix', {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        });
       } catch {
         return updated;
       }
@@ -284,7 +309,10 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       const updated = { ...local.growth, ...patch };
       saveLocalPreferences({ ...local, growth: updated });
       try {
-        return (await updateGrowthPreferencesApi(patch as any)) as unknown as GrowthPreferences;
+        return await context.request<GrowthPreferences>('/preferences/growth', {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        });
       } catch {
         return updated;
       }
@@ -294,7 +322,10 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       const updated = { ...local.learn, ...patch };
       saveLocalPreferences({ ...local, learn: updated });
       try {
-        return (await updateLearnPreferencesApi(patch as any)) as unknown as LearnPreferences;
+        return await context.request<LearnPreferences>('/preferences/learn', {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        });
       } catch {
         return updated;
       }
@@ -304,7 +335,10 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       const updated = { ...local.journal, ...patch };
       saveLocalPreferences({ ...local, journal: updated });
       try {
-        return (await updateJournalPreferencesApi(patch as any)) as unknown as JournalPreferences;
+        return await context.request<JournalPreferences>('/preferences/journal', {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        });
       } catch {
         return updated;
       }
@@ -312,9 +346,26 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
     async updateMoneyPreferences(patch: Partial<MoneyPreferences>) {
       const local = getLocalPreferences();
       const updated = { ...local.money, ...patch };
-      saveLocalPreferences({ ...local, money: updated });
+      saveLocalPreferences({ ...local, money: updated, budget: updated });
       try {
-        return (await updateMoneyPreferencesApi(patch as any)) as unknown as MoneyPreferences;
+        return await context.request<MoneyPreferences>('/preferences/money', {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        });
+      } catch {
+        return updated;
+      }
+    },
+    async updateBudgetPreferences(patch: Partial<BudgetPreferences>) {
+      const local = getLocalPreferences();
+      const updated = { ...(local.budget || local.money), ...patch };
+      saveLocalPreferences({ ...local, budget: updated, money: updated });
+      try {
+        return (await context.request('/preferences/budget', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        })) as unknown as BudgetPreferences;
       } catch {
         return updated;
       }
@@ -324,7 +375,23 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       const updated = { ...local.gym, ...patch };
       saveLocalPreferences({ ...local, gym: updated });
       try {
-        return (await updateGymPreferencesApi(patch as any)) as unknown as GymPreferences;
+        return await context.request<GymPreferences>('/preferences/gym', {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        });
+      } catch {
+        return updated;
+      }
+    },
+    async updateUsagePreferences(patch: Partial<UsagePreferences>) {
+      const local = getLocalPreferences();
+      const updated = { ...local.usage, ...patch };
+      saveLocalPreferences({ ...local, usage: updated });
+      try {
+        return await context.request<UsagePreferences>('/preferences/usage', {
+          method: 'PATCH',
+          body: JSON.stringify(patch),
+        });
       } catch {
         return updated;
       }

@@ -63,6 +63,31 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(tasks.map(\.title), ["First server task", "Second server task"])
     }
 
+    func testDeleteWebsiteUsageUsesRangeAndAllEndpoints() async throws {
+        let empty = Data("{}".utf8)
+        StubURLProtocol.responses = [
+            "/usage/websites/summaries?from=2026-08-01&to=2026-08-09": empty,
+            "/usage/websites/summaries": empty,
+        ]
+        StubURLProtocol.requests = []
+        defer {
+            StubURLProtocol.responses = [:]
+            StubURLProtocol.requests = []
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let client = APIClient(session: URLSession(configuration: configuration))
+
+        try await client.deleteWebsiteUsage(from: "2026-08-01", to: "2026-08-09")
+        try await client.deleteWebsiteUsage()
+
+        XCTAssertEqual(StubURLProtocol.requests.map(\.path), [
+            "/usage/websites/summaries?from=2026-08-01&to=2026-08-09",
+            "/usage/websites/summaries",
+        ])
+        XCTAssertEqual(StubURLProtocol.requests.map(\.method), ["DELETE", "DELETE"])
+    }
+
     private func pageData(
         tasks: [ProductivityTask],
         nextCursor: String?,
@@ -83,6 +108,7 @@ final class APIClientTests: XCTestCase {
 
 private final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var responses: [String: Data] = [:]
+    nonisolated(unsafe) static var requests: [(path: String, method: String)] = []
 
     override class func canInit(with request: URLRequest) -> Bool {
         true
@@ -94,6 +120,7 @@ private final class StubURLProtocol: URLProtocol {
 
     override func startLoading() {
         let key = (request.url?.path ?? "") + (request.url?.query.map { "?\($0)" } ?? "")
+        Self.requests.append((key, request.httpMethod ?? "GET"))
         guard let data = Self.responses[key] else {
             let response = HTTPURLResponse(
                 url: request.url!,

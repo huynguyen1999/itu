@@ -1,5 +1,23 @@
 # Project Progress
 
+## Completed deployment: Chromium Browser Integration core
+
+- Added one dependency-free Manifest V3 extension under `extension/`, with an explicit local opt-in, hostname-only **Browser Activity**, incognito and non-HTTP(S) exclusion, active-tab/window reconciliation, heartbeat, deduplication, and bounded reconnect behavior.
+- Added the signed `BrowserActivityHost` target, exact Edge native-messaging manifest installer, 16 KB framed-message boundary, strict protocol/browser/hostname/incognito validation, atomic App Group state, and clean disconnect state.
+- Added `WebsiteUsageTracker`, local **Website Usage Summary** persistence and upload watermarks, foreground/session/freshness guards, midnight/restart handling, shared retention, and range/all deletion without changing foreground-application totals.
+- Added authenticated `/usage/websites/summaries` GET, batch POST, and DELETE endpoints; owned macOS Sync Device enforcement; both-opt-in gating; concurrency-safe composite upserts; aggregation; retention cleanup; and an additive migration.
+- Verification passed: extension 6/6 tests; API Prisma validation, typecheck, build, and 52 suites / 211 tests; signed macOS Debug build and final 187/187 tests; native active/inactive and rejection boundary proofs; scoped whitespace checks.
+- The migration was not deployed and live Edge-to-host acceptance was not exercised. Website charts/read UI and Browser Integration status/install UI remain follow-up scope; existing staged and unstaged work and Git state were preserved.
+
+## Completed deployment: macOS foreground usage monitoring
+
+- Added explicit opt-in macOS foreground-app tracking, off by default, which continues while the frontmost application is idle and excludes lock, sleep, and screen-off periods.
+- Added local daily per-app summaries, 15-minute changed-summary uploads, immediate day-rollover upload, retry scheduling, and 7–365-day local retention and deletion controls.
+- Added the `MACOS` Sync Device platform, authenticated usage summary endpoints, concurrency-safe device/day/app upserts, account ownership isolation, cross-device aggregation, and scheduled retention cleanup.
+- Added macOS and web Statistics totals, top apps, daily trends, and loading/error/empty states plus Settings controls for retention and confirmed range/all deletion. Pause and native Launch at Login remain macOS-local controls.
+- Verification passed: API typecheck, build, Prisma generate/validate, full 52-suite/204-test gate and focused 3-suite/16-test usage gate; web typecheck, build, full 34-file/178-test gate and focused settings/statistics tests; signed macOS Debug build, full test gate, and focused `UsageTrackingTests` 9/9.
+- Regenerated the API OpenAPI contract and updated the macOS roadmap. The former Observation macro environment blocker did not recur. Existing unrelated work and Git state were preserved; the additive migration was not deployed.
+
 ## Active deployment: deep Sync modules and cross-client reliability parity
 
 - Web and macOS keep their existing feature-facing interfaces while synchronization lifecycle, retry, conflict, device, WebSocket, and reconciliation behavior moves behind one deep platform module.

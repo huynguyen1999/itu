@@ -3,22 +3,25 @@ import { useGymOverview } from '../gymQueries';
 import { useCreateGymWorkout } from '../gymMutations';
 import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
-import { Play, Dumbbell, History, Activity, ChevronRight } from 'lucide-react';
+import { Dumbbell, History, Activity, ChevronRight } from 'lucide-react';
 
 export function GymOverviewPage() {
   const navigate = useNavigate();
   const { data: overview, isLoading } = useGymOverview();
-  const createWorkout = useCreateGymWorkout();
+  const startWorkout = useCreateGymWorkout();
+  const activeWorkout = overview?.recentWorkouts?.find((workout: any) => workout.status === 'ACTIVE');
 
-  const handleStartWorkout = () => {
-    createWorkout.mutate(
-      { title: 'Workout' },
-      {
-        onSuccess: (workout: any) => {
-          navigate(`/gym/workouts/${workout.id}`);
-        },
+  const recordWorkout = () => {
+    if (activeWorkout) {
+      navigate(`/gym/workouts/${activeWorkout.id}`);
+      return;
+    }
+
+    startWorkout.mutate({ title: 'Workout' }, {
+      onSuccess: (workout: any) => {
+        if (workout?.id) navigate(`/gym/workouts/${workout.id}`);
       },
-    );
+    });
   };
 
   if (isLoading) {
@@ -27,18 +30,18 @@ export function GymOverviewPage() {
 
   return (
     <div className="space-y-6">
-      {/* Primary CTA Hero Card */}
-      <Card className="p-6 border-emerald-500/20 bg-emerald-500/5 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="space-y-1 text-center md:text-left">
-          <h3 className="text-lg font-bold text-foreground">Ready to train?</h3>
-          <p className="text-xs text-muted-foreground">Start an empty workout and log your exercises and sets directly.</p>
+      <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Ready to train?</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Start a session and record your exercises, sets, and progress.</p>
         </div>
-
-        <Button size="lg" className="gap-2 px-6 font-bold" onClick={handleStartWorkout} disabled={createWorkout.isPending}>
-          <Play className="w-5 h-5 fill-current" />
-          Start Workout
+        <Button type="button" onClick={recordWorkout} disabled={startWorkout.isPending} className="shrink-0">
+          {startWorkout.isPending ? 'Starting...' : activeWorkout ? 'Continue workout' : 'Start workout'}
         </Button>
-      </Card>
+      </div>
+      {startWorkout.isError && (
+        <p role="alert" className="text-xs text-destructive">Couldn’t start a workout. Please try again.</p>
+      )}
 
       {/* Weekly Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -83,7 +86,7 @@ export function GymOverviewPage() {
 
         {(!overview?.recentWorkouts || overview.recentWorkouts.length === 0) ? (
           <Card className="p-8 text-center text-xs text-muted-foreground">
-            No workouts recorded yet. Click &quot;Start Workout&quot; to begin!
+            No workouts recorded yet. Your history will appear here after your first session.
           </Card>
         ) : (
           <div className="space-y-2">
@@ -97,7 +100,7 @@ export function GymOverviewPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-xs text-foreground">{w.title || 'Workout'}</span>
                     <span
-                      className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                        className={`text-xs font-mono px-1.5 py-0.5 rounded ${
                         w.status === 'COMPLETED'
                           ? 'bg-emerald-500/10 text-emerald-500'
                           : w.status === 'ACTIVE'

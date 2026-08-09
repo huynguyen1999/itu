@@ -1,7 +1,8 @@
 import { CSSProperties, PointerEvent as ReactPointerEvent, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { JournalSidebar } from './JournalSidebar';
-import { JournalOverviewPage } from './JournalOverviewPage';
+import { JournalDashboard } from './JournalDashboard';
+import { JournalEntryPage } from './JournalEntryPage';
 import { NotePage } from './components/NotePage';
 import { JournalSearchPage } from './JournalSearchPage';
 import { WeeklyReviewPage } from './weekly/WeeklyReviewPage';
@@ -33,7 +34,7 @@ export function JournalWorkspace() {
       <section className="itu-journal-content">
         <div className="itu-journal-content__inner">
           <Routes>
-            <Route index element={<JournalOverviewPage />} />
+            <Route index element={<JournalDashboard />} />
             <Route path="daily" element={<NotePage isDaily={true} />} />
             <Route path="daily/:date" element={<NotePage isDaily={true} />} />
             <Route path="weekly" element={<WeeklyReviewPage />} />
@@ -41,7 +42,7 @@ export function JournalWorkspace() {
 
             <Route path="notes" element={<JournalSearchPage />} />
             <Route path="notes/:entryId" element={<NotePage isDaily={false} />} />
-            <Route path="entry/:id" element={<NotePage isDaily={false} />} />
+            <Route path="entry/:id" element={<JournalEntryPage />} />
             <Route path="templates" element={<TemplateEditor isOpen={true} onClose={() => navigate('/journal')} />} />
             <Route path="*" element={<Navigate to="/journal" replace />} />
           </Routes>

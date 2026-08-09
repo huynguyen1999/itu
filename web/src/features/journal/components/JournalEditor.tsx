@@ -1,6 +1,23 @@
 import { useState } from 'react';
-import { Calendar, History, LayoutTemplate, Save, Trash2 } from 'lucide-react';
-import type { JournalEntry, JournalEntryKind, JournalExpense, JournalWeeklyReview, JournalWorkout } from '../journal.types';
+import {
+  Calendar,
+  Check,
+  CloudOff,
+  History,
+  LayoutTemplate,
+  RefreshCw,
+  Save,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react';
+import type {
+  JournalEntry,
+  JournalEntryKind,
+  JournalExpense,
+  JournalWeeklyReview,
+  JournalWorkout,
+} from '../journal.types';
+import { getLocalTodayDateString } from '../journalDate';
 import { TagPicker } from './TagPicker';
 import { AttachmentTray } from './AttachmentTray';
 import { ExpenseEditor } from './ExpenseEditor';
@@ -9,8 +26,8 @@ import { WeeklyReviewEditor } from './WeeklyReviewEditor';
 import { RevisionHistory } from './RevisionHistory';
 import { TemplateEditor } from './TemplateEditor';
 import { JournalMarkdownEditor, SaveStatus } from './JournalMarkdownEditor';
+import { useSync } from '@/shared/sync/SyncProvider';
 import { Button } from '@/shared/ui/button';
-import { Card, CardContent } from '@/shared/ui/card';
 
 interface JournalEditorProps {
   initialEntry?: Partial<JournalEntry>;
@@ -20,17 +37,12 @@ interface JournalEditorProps {
 }
 
 export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: JournalEditorProps) {
+  const { state: syncState } = useSync();
   const [kind, setKind] = useState<JournalEntryKind>(initialEntry?.kind || 'NOTE');
   const [title, setTitle] = useState(initialEntry?.title || '');
   const [contentMarkdown, setContentMarkdown] = useState(initialEntry?.contentMarkdown || '');
-  const [entryDate, setEntryDate] = useState(
-    initialEntry?.entryDate
-      ? new Date(initialEntry.entryDate).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0],
-  );
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
-    initialEntry?.tags?.map((t) => t.id) || [],
-  );
+  const [entryDate, setEntryDate] = useState(toDateInputValue(initialEntry?.entryDate));
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(initialEntry?.tags?.map((t) => t.id) || []);
   const [expense, setExpense] = useState<Partial<JournalExpense> | null>(initialEntry?.expense || null);
   const [workout, setWorkout] = useState<Partial<JournalWorkout> | null>(initialEntry?.workout || null);
   const [weeklyReview, setWeeklyReview] = useState<Partial<JournalWeeklyReview> | null>(
@@ -42,14 +54,16 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
 
   const handleSave = async (explicitMarkdown?: string) => {
-    if (!title.trim()) return;
+    const nextContent = explicitMarkdown !== undefined ? explicitMarkdown : contentMarkdown;
+    if (!title.trim() && !nextContent.trim()) return;
+
     setSaveStatus('syncing');
     try {
       await onSave({
         id: initialEntry?.id,
         kind,
-        title: title.trim(),
-        contentMarkdown: explicitMarkdown !== undefined ? explicitMarkdown : contentMarkdown,
+        title: title.trim() || (kind === 'NOTE' ? 'Untitled note' : 'Untitled entry'),
+        contentMarkdown: nextContent,
         entryDate,
         templateId: initialEntry?.templateId,
         version: initialEntry?.version,
@@ -57,9 +71,10 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
         expense: kind === 'EXPENSE' ? (expense as any) : null,
         workout: kind === 'WORKOUT' ? (workout as any) : null,
         weeklyReview: kind === 'WEEKLY_REVIEW' ? (weeklyReview as any) : null,
-      } as any);
-      setSaveStatus('synced');
-      setTimeout(() => setSaveStatus('saved'), 2000);
+      });
+      // The offline mutation resolves after the local outbox/cache write. The
+      // sync badge below communicates whether the server acknowledgement is pending.
+      setSaveStatus('saved');
     } catch {
       setSaveStatus('conflict');
     }
@@ -67,161 +82,229 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
 
   const applyTemplate = (template: any) => {
     setKind(template.entryKind);
-    if (template.titleTemplate) {
-      setTitle(template.titleTemplate.replace('{{date}}', entryDate));
-    }
-    if (template.bodyMarkdown) {
-      setContentMarkdown(template.bodyMarkdown);
-    }
+    if (template.titleTemplate) setTitle(template.titleTemplate.replace('{{date}}', entryDate));
+    if (template.bodyMarkdown) setContentMarkdown(template.bodyMarkdown);
   };
 
+  const syncPresentation = getSyncPresentation(syncState);
+
   return (
-    <div className="space-y-4 max-w-4xl mx-auto pb-12">
-      {/* Action Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-card border border-border sticky top-3 z-30 shadow-md">
-        <div className="flex items-center gap-2">
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as JournalEntryKind)}
-            className="bg-background border border-input text-foreground font-semibold text-xs rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="NOTE">NOTE</option>
-            <option value="WEEKLY_REVIEW">WEEKLY REVIEW</option>
-            <option value="EXPENSE">EXPENSE</option>
-            <option value="WORKOUT">WORKOUT</option>
-          </select>
+    <div className="mx-auto max-w-4xl space-y-5 pb-14">
+      <div className="sticky top-3 z-30 rounded-[var(--itu-radius-m)] border border-border bg-card/95 p-3 shadow-[var(--itu-shadow-pop)] backdrop-blur sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <label className="sr-only" htmlFor="journal-entry-kind">
+              Entry type
+            </label>
+            <select
+              id="journal-entry-kind"
+              value={kind}
+              onChange={(event) => setKind(event.target.value as JournalEntryKind)}
+              className="h-9 max-w-full rounded-[var(--itu-radius-s)] border border-input bg-background px-3 text-xs font-semibold text-foreground outline-none transition-colors focus:border-[var(--itu-teal-500)] focus:ring-2 focus:ring-ring"
+            >
+              <option value="NOTE">Note</option>
+              <option value="WEEKLY_REVIEW">Weekly review</option>
+              <option value="EXPENSE">Expense entry</option>
+              <option value="WORKOUT">Workout entry</option>
+            </select>
 
-          <div className="flex items-center gap-1.5 bg-background border border-input rounded-md px-2.5 py-1 text-xs text-foreground">
-            <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-            <input
-              type="date"
-              value={entryDate}
-              onChange={(e) => setEntryDate(e.target.value)}
-              className="bg-transparent focus:outline-none text-foreground"
-            />
+            <label className="inline-flex h-9 items-center gap-2 rounded-[var(--itu-radius-s)] border border-input bg-background px-3 text-xs text-muted-foreground focus-within:border-[var(--itu-teal-500)] focus-within:ring-2 focus-within:ring-ring">
+              <Calendar className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+              <span className="sr-only">Entry date</span>
+              <input
+                type="date"
+                value={entryDate}
+                onChange={(event) => setEntryDate(event.target.value)}
+                onBlur={() => void handleSave()}
+                className="bg-transparent text-foreground outline-none"
+              />
+            </label>
+
+            <SyncStatus phase={syncPresentation.phase} label={syncPresentation.label} />
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 text-xs">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowTemplates(true)}
-            className="gap-1"
-          >
-            <LayoutTemplate className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Templates</span>
-          </Button>
-
-          {initialEntry?.id && (
+          <div className="flex flex-wrap items-center gap-1.5">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setShowHistory(true)}
-              className="gap-1"
+              onClick={() => setShowTemplates(true)}
+              className="gap-1.5"
             >
-              <History className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Revisions</span>
+              <LayoutTemplate className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Templates</span>
+              <span className="sr-only sm:hidden">Open templates</span>
             </Button>
-          )}
-
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => void handleSave()}
-            disabled={isSaving}
-            className="gap-1.5"
-          >
-            <Save className="w-3.5 h-3.5" />
-            {isSaving ? 'Saving...' : 'Save'}
-          </Button>
-
-          {onDelete && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => void onDelete()}
-              className="text-destructive hover:bg-destructive/10"
-            >
-              <Trash2 className="w-4 h-4" />
+            {initialEntry?.id && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowHistory(true)}
+                className="gap-1.5"
+              >
+                <History className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="hidden sm:inline">Revisions</span>
+                <span className="sr-only sm:hidden">Open revisions</span>
+              </Button>
+            )}
+            <Button type="button" size="sm" onClick={() => void handleSave()} disabled={isSaving} className="gap-1.5">
+              <Save className="h-3.5 w-3.5" aria-hidden="true" />
+              {isSaving ? 'Saving…' : 'Save'}
             </Button>
-          )}
+            {onDelete && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => void onDelete()}
+                disabled={isSaving}
+                aria-label="Delete journal entry"
+                title="Delete journal entry"
+                className="text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            )}
+          </div>
         </div>
+
+        {saveStatus === 'conflict' && (
+          <p
+            role="alert"
+            className="mt-3 flex items-center gap-2 border-t border-border/60 pt-3 text-xs text-destructive"
+          >
+            <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />
+            This change could not be queued. Your current text is still on this page; try saving again.
+          </p>
+        )}
       </div>
 
-      {/* Main Entry Title & Tags */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <input
-            type="text"
-            placeholder="Entry Title..."
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-transparent text-xl font-bold text-foreground placeholder:text-muted-foreground focus:outline-none"
-          />
+      <main className="rounded-[var(--itu-radius-l)] border border-border bg-card p-4 shadow-[var(--itu-shadow-card)] sm:p-7">
+        <div className="space-y-4">
+          <label className="block">
+            <span className="sr-only">Entry title</span>
+            <input
+              type="text"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              onBlur={() => void handleSave()}
+              placeholder="Add a title if you need one"
+              className="w-full bg-transparent font-display text-3xl font-bold tracking-tight text-foreground outline-none placeholder:text-muted-foreground/45 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 sm:text-4xl"
+            />
+          </label>
 
           <TagPicker selectedTagIds={selectedTagIds} onChange={setSelectedTagIds} />
-        </CardContent>
-      </Card>
 
-      {/* Specialized Editors */}
+          <div className="border-t border-border/60 pt-5">
+            <JournalMarkdownEditor
+              value={contentMarkdown}
+              onChange={setContentMarkdown}
+              onSave={(value) => void handleSave(value)}
+              saveStatus={saveStatus}
+              placeholder="Start with what is true today…"
+              minHeight="440px"
+            />
+          </div>
+        </div>
+      </main>
+
       {kind === 'EXPENSE' && (
-        <ExpenseEditor
-          expense={expense as any}
-          onChange={(updated) => setExpense({ ...expense, ...updated })}
-        />
+        <section aria-labelledby="expense-details" className="space-y-2">
+          <h2
+            id="expense-details"
+            className="text-xs font-mono font-bold uppercase tracking-[0.16em] text-muted-foreground"
+          >
+            Structured details
+          </h2>
+          <ExpenseEditor expense={expense as any} onChange={(updated) => setExpense({ ...expense, ...updated })} />
+        </section>
       )}
 
       {kind === 'WORKOUT' && (
-        <WorkoutEditor
-          workout={workout as any}
-          onChange={(updated) => setWorkout({ ...workout, ...updated })}
-        />
+        <section aria-labelledby="workout-details" className="space-y-2">
+          <h2
+            id="workout-details"
+            className="text-xs font-mono font-bold uppercase tracking-[0.16em] text-muted-foreground"
+          >
+            Structured details
+          </h2>
+          <WorkoutEditor workout={workout as any} onChange={(updated) => setWorkout({ ...workout, ...updated })} />
+        </section>
       )}
 
       {kind === 'WEEKLY_REVIEW' && (
-        <WeeklyReviewEditor
-          weeklyReview={weeklyReview as any}
-          onChange={(updated) => setWeeklyReview({ ...weeklyReview, ...updated })}
-          entryDate={entryDate}
-        />
+        <section aria-labelledby="weekly-review-details" className="space-y-2">
+          <h2
+            id="weekly-review-details"
+            className="text-xs font-mono font-bold uppercase tracking-[0.16em] text-muted-foreground"
+          >
+            Structured details
+          </h2>
+          <WeeklyReviewEditor
+            weeklyReview={weeklyReview as any}
+            onChange={(updated) => setWeeklyReview({ ...weeklyReview, ...updated })}
+            entryDate={entryDate}
+          />
+        </section>
       )}
 
-      {/* Content Markdown Area with CodeMirror 6 */}
-      <JournalMarkdownEditor
-        value={contentMarkdown}
-        onChange={setContentMarkdown}
-        onSave={(val) => void handleSave(val)}
-        saveStatus={saveStatus}
-        placeholder="Write thoughts, daily reflection, notes..."
-        minHeight="340px"
-      />
-
-      {/* Attachment Tray */}
       {initialEntry?.id && (
-        <AttachmentTray
-          entryId={initialEntry.id}
-          attachments={initialEntry.attachments}
-        />
+        <section
+          aria-labelledby="journal-attachments"
+          className="rounded-[var(--itu-radius-m)] border border-border bg-card p-4 sm:p-5"
+        >
+          <h2 id="journal-attachments" className="sr-only">
+            Attachments
+          </h2>
+          <AttachmentTray entryId={initialEntry.id} attachments={initialEntry.attachments} />
+        </section>
       )}
 
-      {/* Modals */}
       {initialEntry?.id && (
-        <RevisionHistory
-          entryId={initialEntry.id}
-          isOpen={showHistory}
-          onClose={() => setShowHistory(false)}
-        />
+        <RevisionHistory entryId={initialEntry.id} isOpen={showHistory} onClose={() => setShowHistory(false)} />
       )}
 
-      <TemplateEditor
-        isOpen={showTemplates}
-        onClose={() => setShowTemplates(false)}
-        onSelectTemplate={applyTemplate}
-      />
+      <TemplateEditor isOpen={showTemplates} onClose={() => setShowTemplates(false)} onSelectTemplate={applyTemplate} />
     </div>
   );
+}
+
+function toDateInputValue(value?: string) {
+  return value?.slice(0, 10) || getLocalTodayDateString();
+}
+
+function SyncStatus({ phase, label }: { phase: string; label: string }) {
+  const Icon =
+    phase === 'offline' ? CloudOff : phase === 'syncing' ? RefreshCw : phase === 'conflict' ? TriangleAlert : Check;
+  const color =
+    phase === 'offline' || phase === 'conflict' ? 'text-[var(--itu-coral-500)]' : 'text-[var(--itu-teal-600)]';
+  return (
+    <span
+      className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--itu-radius-s)] border border-border bg-background px-2.5 text-[11px] text-muted-foreground"
+      title={label}
+    >
+      <Icon className={`h-3.5 w-3.5 ${color} ${phase === 'syncing' ? 'animate-spin' : ''}`} aria-hidden="true" />
+      <span className="hidden md:inline">{label}</span>
+      <span className="sr-only">Journal sync status: {label}</span>
+    </span>
+  );
+}
+
+function getSyncPresentation(state: { phase: string; pendingCount: number; conflictCount: number }) {
+  if (state.phase === 'offline') {
+    return {
+      phase: state.phase,
+      label: state.pendingCount
+        ? `${state.pendingCount} change${state.pendingCount === 1 ? '' : 's'} waiting`
+        : 'Offline',
+    };
+  }
+  if (state.phase === 'syncing') return { phase: state.phase, label: 'Syncing' };
+  if (state.phase === 'conflict') {
+    return { phase: state.phase, label: `${state.conflictCount} sync conflict${state.conflictCount === 1 ? '' : 's'}` };
+  }
+  if (state.pendingCount)
+    return { phase: state.phase, label: `${state.pendingCount} change${state.pendingCount === 1 ? '' : 's'} waiting` };
+  return { phase: state.phase, label: 'Up to date' };
 }

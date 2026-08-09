@@ -107,6 +107,16 @@ struct MainView: View {
                     PlanningView(section: activePlanSection)
                 }
             }
+            if retainedDestinations.contains(.matrix) || model.selectedSection == .matrix {
+                retainedDestination(isVisible: model.selectedSection == .matrix) {
+                    EisenhowerMatrixView()
+                }
+            }
+            if retainedDestinations.contains(.statistics) || model.selectedSection == .statistics {
+                retainedDestination(isVisible: model.selectedSection == .statistics) {
+                    StatisticsView()
+                }
+            }
             if retainedDestinations.contains(.focus) || model.selectedSection == .focus {
                 retainedDestination(isVisible: model.selectedSection == .focus) {
                     FocusView()
@@ -131,6 +141,10 @@ struct MainView: View {
         case .today, .inbox, .completed:
             retainedDestinations.insert(.plan)
             retainedPlanSection = section
+        case .matrix:
+            retainedDestinations.insert(.matrix)
+        case .statistics:
+            retainedDestinations.insert(.statistics)
         case .focus:
             retainedDestinations.insert(.focus)
         case .habits:
@@ -142,22 +156,6 @@ struct MainView: View {
 
     private var activePlanSection: AppSection {
         model.selectedSection.isRetainedPlanningSection ? model.selectedSection : retainedPlanSection
-    }
-
-    /// Whether the PlanningRail should be displayed for the given mode.
-    private func planRailVisible(mode: LayoutMode) -> Bool {
-        switch mode {
-        case .wide: return true
-        case .medium: return showPlanRail
-        case .narrow: return false
-        }
-    }
-
-    private var showPlanRailBinding: Binding<Bool> {
-        Binding(
-            get: { showPlanRail },
-            set: { showPlanRail = $0 }
-        )
     }
 
     private func retainedDestination<Content: View>(
@@ -176,10 +174,8 @@ struct MainView: View {
         switch model.selectedSection {
         case .upcoming:
             UpcomingView()
-        case .matrix:
-            EisenhowerMatrixView()
-        case .statistics:
-            StatisticsView()
+        case .journal:
+            JournalView()
         case .budget:
             BudgetView()
         case .gym:
@@ -198,14 +194,32 @@ struct MainView: View {
             ProfileView()
         case .settings:
             SettingsView()
-        case .home, .today, .inbox, .completed, .focus, .habits:
+        case .home, .today, .inbox, .completed, .matrix, .statistics, .focus, .habits:
             EmptyView()
         }
+    }
+
+    /// Whether the PlanningRail should be displayed for the given mode.
+    private func planRailVisible(mode: LayoutMode) -> Bool {
+        switch mode {
+        case .wide: return true
+        case .medium: return showPlanRail
+        case .narrow: return false
+        }
+    }
+
+    private var showPlanRailBinding: Binding<Bool> {
+        Binding(
+            get: { showPlanRail },
+            set: { showPlanRail = $0 }
+        )
     }
 
     private enum RetainedDestination: Hashable {
         case home
         case plan
+        case matrix
+        case statistics
         case focus
         case habits
     }
@@ -281,6 +295,13 @@ private struct PrimaryRail: View {
                             isSelected: model.selectedSection == .statistics
                         ) {
                             navigateTo(.statistics)
+                        }
+                        PrimaryRailButton(
+                            title: "Journal",
+                            systemImage: "book.closed",
+                            isSelected: model.selectedSection == .journal
+                        ) {
+                            navigateTo(.journal)
                         }
                         PrimaryRailButton(
                             title: "Budget",
@@ -861,7 +882,7 @@ private extension AppSection {
 
     var isRetainedDestination: Bool {
         switch self {
-        case .home, .today, .inbox, .completed, .focus, .habits:
+        case .home, .today, .inbox, .completed, .matrix, .statistics, .focus, .habits:
             true
         default:
             false

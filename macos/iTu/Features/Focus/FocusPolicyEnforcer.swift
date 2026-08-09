@@ -8,10 +8,10 @@ protocol WorkspaceProviding {
     var runningApplications: [RunningApplicationProviding] { get }
 
     @discardableResult
-    func observeActivations(_ handler: @escaping (RunningApplicationProviding) -> Void) -> AnyObject
+    func observeActivations(_ handler: @escaping @Sendable (RunningApplicationProviding) -> Void) -> AnyObject
 }
 
-protocol RunningApplicationProviding {
+protocol RunningApplicationProviding: Sendable {
     var bundleIdentifier: String? { get }
     var localizedName: String? { get }
     var isTerminated: Bool { get }
@@ -22,7 +22,7 @@ protocol RunningApplicationProviding {
     func activate()
 }
 
-struct NSRunningApplicationAdapter: RunningApplicationProviding {
+struct NSRunningApplicationAdapter: RunningApplicationProviding, @unchecked Sendable {
     let application: NSRunningApplication
 
     var bundleIdentifier: String? { application.bundleIdentifier }
@@ -32,7 +32,7 @@ struct NSRunningApplicationAdapter: RunningApplicationProviding {
     @discardableResult
     func hide() -> Bool { application.hide() }
 
-    func activate() { application.activate(options: .activateIgnoringOtherApps) }
+    func activate() { application.activate() }
 }
 
 struct NSWorkspaceAdapter: WorkspaceProviding {
@@ -46,7 +46,7 @@ struct NSWorkspaceAdapter: WorkspaceProviding {
         workspace.runningApplications.map(NSRunningApplicationAdapter.init)
     }
 
-    func observeActivations(_ handler: @escaping (RunningApplicationProviding) -> Void) -> AnyObject {
+    func observeActivations(_ handler: @escaping @Sendable (RunningApplicationProviding) -> Void) -> AnyObject {
         workspace.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
@@ -249,7 +249,7 @@ final class FocusPolicyEnforcer {
            previous.bundleIdentifier.map({ !blockedBundleIdentifiers.contains($0) }) == true {
             previous.activate()
         } else {
-            NSRunningApplication.current.activate(options: .activateIgnoringOtherApps)
+            NSRunningApplication.current.activate()
         }
     }
 

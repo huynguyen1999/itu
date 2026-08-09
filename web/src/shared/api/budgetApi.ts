@@ -1,6 +1,6 @@
 import type { ApiClientContext } from './apiContext';
 
-export interface BudgetApi {
+export type BudgetApi = {
   getBudgetOverview(period?: string): Promise<any>;
   getBudgetCategories(): Promise<any[]>;
   createBudgetCategory(data: { name: string; type?: 'EXPENSE' | 'INCOME'; icon?: string; color?: string }): Promise<any>;
@@ -34,7 +34,7 @@ export interface BudgetApi {
     note: string;
   }>): Promise<any>;
   deleteBudgetTransaction(id: string): Promise<any>;
-}
+};
 
 export function createBudgetApi(ctx: ApiClientContext): BudgetApi {
   return {

@@ -3,157 +3,208 @@ import XCTest
 
 @MainActor
 final class CompanionTests: XCTestCase {
-    var model: AppModel!
-    var router: AppNavigationRouter!
-    var dismissCalled = false
+    private var model: AppModel!
+    private var router: AppNavigationRouter!
+    private var viewModel: CompanionViewModel!
 
     override func setUp() {
         super.setUp()
         model = AppModel()
         router = AppNavigationRouter(model: model, openMainWindow: {})
-        dismissCalled = false
+        viewModel = CompanionViewModel(model: model, router: router, dismissCompanion: {})
     }
 
     override func tearDown() {
-        model = nil
+        viewModel = nil
         router = nil
+        model = nil
         super.tearDown()
     }
 
-    func testViewModelDefaultListWhenEmpty() {
-        let viewModel = CompanionViewModel(model: model, router: router) {
-            self.dismissCalled = true
-        }
+    func testPresentationResetsToTasksAndHabits() {
+        viewModel.selectedTab = .deck
+        viewModel.searchText = "budget"
+        viewModel.isTaskCapturing = true
+        viewModel.resetForPresentation()
 
-        // Search text is empty on start
+        XCTAssertEqual(viewModel.selectedTab, .tasksHabits)
+        XCTAssertTrue(viewModel.searchText.isEmpty)
+        XCTAssertFalse(viewModel.isTaskCapturing)
+    }
+
+    func testCommandNumberMappingIsStable() {
+        XCTAssertEqual(CompanionTab.tasksHabits.rawValue, 1)
+        XCTAssertEqual(CompanionTab.note.rawValue, 2)
+        XCTAssertEqual(CompanionTab.focus.rawValue, 3)
+        XCTAssertEqual(CompanionTab.deck.rawValue, 4)
+    }
+
+    func testFocusReturnShortcutChoosesStartPauseOrResume() {
+        XCTAssertNil(viewModel.focusShortcutAction())
+
+        viewModel.selectedTab = .focus
+        XCTAssertEqual(viewModel.focusShortcutAction(), "start")
+
+        var session = FocusSession.optimistic(id: "focus", task: nil, phase: .work, plannedSeconds: 1_800, startedAt: "2026-08-09T00:00:00Z")
+        model.focusTimer.activeSession = session
+        XCTAssertEqual(viewModel.focusShortcutAction(), "pause")
+
+        session.status = .paused
+        model.focusTimer.activeSession = session
+        XCTAssertEqual(viewModel.focusShortcutAction(), "resume")
+    }
+
+    func testCompanionPanelHidesWhenApplicationDeactivates() {
+        let panel = CompanionPanel(contentRect: NSRect(x: 0, y: 0, width: 650, height: 520))
+        XCTAssertTrue(panel.hidesOnDeactivate)
+    }
+
+    func testTabSwitchClearsSearchAndNestedFlow() {
+        let deck = DeckModel(id: "deck", title: "Swift", description: "", cardCount: 1, dueCount: 1, color: "teal", icon: "book")
+        viewModel.searchText = "swift"
+        viewModel.beginAddingCard(to: deck)
+
+        viewModel.selectTab(.focus)
+
+        XCTAssertTrue(viewModel.searchText.isEmpty)
+        XCTAssertNil(viewModel.addingCardDeckID)
+        XCTAssertEqual(viewModel.selectedTab, .focus)
+    }
+
+    func testEscapeCancelsInnerStateBeforePanelClose() {
+        viewModel.searchText = "task"
+        XCTAssertTrue(viewModel.handleEscape())
         XCTAssertTrue(viewModel.searchText.isEmpty)
 
-        // Verify TODAY section has a placeholder when no tasks
-        let todayItems = viewModel.items.filter { $0.section == .today }
-        XCTAssertTrue(todayItems.contains { $0.title == "All caught up!" })
+        viewModel.isTaskCapturing = true
+        viewModel.taskCaptureText = "Draft"
+        XCTAssertTrue(viewModel.handleEscape())
+        XCTAssertFalse(viewModel.isTaskCapturing)
 
-        // Verify HABITS section has a placeholder when no habits
-        let habitsItems = viewModel.items.filter { $0.section == .habits }
-        XCTAssertTrue(habitsItems.contains { $0.title == "No active habits" })
-
-        // Verify FOCUS section has idle controls
-        let focusItems = viewModel.items.filter { $0.section == .focus }
-        XCTAssertTrue(focusItems.contains { $0.title == "No active session" })
-        XCTAssertTrue(focusItems.contains { $0.title == "Start Focus" })
+        XCTAssertFalse(viewModel.handleEscape())
     }
 
-    func testViewModelSearchRankingAndFiltering() {
-        let viewModel = CompanionViewModel(model: model, router: router) {
-            self.dismissCalled = true
-        }
+    func testSearchSelectionWraps() {
+        viewModel.searchText = "open"
+        XCTAssertFalse(viewModel.searchItems.isEmpty)
+        viewModel.selectedSearchIndex = 0
+        viewModel.moveSearchSelection(-1)
+        XCTAssertEqual(viewModel.selectedSearchIndex, viewModel.searchItems.count - 1)
+        viewModel.moveSearchSelection(1)
+        XCTAssertEqual(viewModel.selectedSearchIndex, 0)
+    }
 
-        // Add mock tasks
-        model.tasks = [
-            ProductivityTask(
-                id: "1",
-                taskListId: "inbox",
-                title: "Review gym budget",
-                descriptionMarkdown: "",
-                priority: .high,
-                important: true,
-                urgent: false,
-                urgencyReason: "",
-                status: .inbox,
-                sortOrder: 1.0,
-                version: 1
-            ),
-            ProductivityTask(
-                id: "2",
-                taskListId: "inbox",
-                title: "Water plants",
-                descriptionMarkdown: "",
-                priority: .none,
-                important: false,
-                urgent: false,
-                urgencyReason: "",
-                status: .inbox,
-                sortOrder: 2.0,
-                version: 1
-            ),
-            ProductivityTask(
-                id: "3",
-                taskListId: "inbox",
-                title: "Budget tracking setup",
-                descriptionMarkdown: "",
-                priority: .none,
-                important: false,
-                urgent: false,
-                urgencyReason: "",
-                status: .completed,
-                sortOrder: 3.0,
-                version: 1
-            )
+    func testTaskProjectionIncludesCompletedTodayAndSeparatesOverdue() {
+        let day = "2026-08-09"
+        let tasks = [
+            task("today", dueAt: "2026-08-09", status: .inbox),
+            task("done", dueAt: "2026-08-09", status: .completed),
+            task("overdue", dueAt: "2026-08-08", status: .planned),
+            task("nested", parentID: "today", dueAt: "2026-08-09", status: .inbox),
+            task("canceled", dueAt: "2026-08-09", status: .canceled)
         ]
 
-        // Type query
-        viewModel.searchText = "budget"
+        let result = CompanionViewModel.partitionTasks(tasks, day: day)
 
-        // Result list should group tasks under .tasks and exclude completed task "3"
-        let taskItems = viewModel.items.filter { $0.section == .tasks }
-        XCTAssertEqual(taskItems.count, 1)
-        XCTAssertTrue(taskItems.contains { $0.title == "Review gym budget" })
-        XCTAssertFalse(taskItems.contains { $0.title == "Budget tracking setup" })
-
-        // Result list should include quick capture option
-        let captureItems = viewModel.items.filter { $0.section == .quickCapture }
-        XCTAssertEqual(captureItems.count, 1)
-        XCTAssertTrue(captureItems.first?.title.contains("Create task") == true)
+        XCTAssertEqual(Set(result.today.map(\.id)), ["today", "done"])
+        XCTAssertEqual(result.overdue.map(\.id), ["overdue"])
     }
 
-    func testViewModelKeyboardNavigationClamping() {
-        let viewModel = CompanionViewModel(model: model, router: router) {
-            self.dismissCalled = true
-        }
-
-        XCTAssertGreaterThan(viewModel.items.count, 0)
-
-        // Reset index
-        viewModel.resetSelection()
-        XCTAssertEqual(viewModel.selectedIndex, 0)
-
-        // Go up should wrap to the end of items
-        viewModel.moveSelectionUp()
-        XCTAssertEqual(viewModel.selectedIndex, viewModel.items.count - 1)
-
-        // Go down should wrap back to 0
-        viewModel.moveSelectionDown()
-        XCTAssertEqual(viewModel.selectedIndex, 0)
+    func testTodayTaskMatchesEitherScheduledOrDueDate() {
+        let task = task("mixed", scheduledAt: "2026-08-08", dueAt: "2026-08-09", status: .planned)
+        let result = CompanionViewModel.partitionTasks([task], day: "2026-08-09")
+        XCTAssertEqual(result.today.map(\.id), ["mixed"])
+        XCTAssertTrue(result.overdue.isEmpty)
     }
 
-    func testViewModelSectionNavigationJumps() {
-        let viewModel = CompanionViewModel(model: model, router: router) {
-            self.dismissCalled = true
-        }
+    func testPlannedTaskMovesToInProgressFromCompanion() async {
+        let task = task("planned", status: .planned)
+        model.tasks = [task]
 
-        viewModel.resetSelection()
-        XCTAssertEqual(viewModel.items[viewModel.selectedIndex].section, .today)
+        await viewModel.toggleTask(task)
 
-        // Jumps from .today to .habits
-        viewModel.selectNextSection()
-        XCTAssertEqual(viewModel.items[viewModel.selectedIndex].section, .habits)
-        
-        // Jumps from .habits to .focus
-        viewModel.selectNextSection()
-        XCTAssertEqual(viewModel.items[viewModel.selectedIndex].section, .focus)
+        XCTAssertEqual(model.tasks.first?.status, .inProgress)
     }
 
-    func testFocusActionRetainsCompanionOpenState() {
-        let viewModel = CompanionViewModel(model: model, router: router) {
-            self.dismissCalled = true
-        }
+    func testLivingNoteUsesNewestDuplicateForLocalDay() {
+        let notes = [
+            note("old", entryDate: "2026-08-09", updatedAt: "2026-08-09T08:00:00Z"),
+            note("new", entryDate: "2026-08-09", updatedAt: "2026-08-09T09:00:00Z"),
+            note("other", entryDate: "2026-08-08", updatedAt: "2026-08-09T10:00:00Z")
+        ]
+        XCTAssertEqual(CompanionViewModel.todayNote(in: notes, day: "2026-08-09")?.id, "new")
+    }
 
-        // Find Start Focus item
-        if let startIndex = viewModel.items.firstIndex(where: { $0.id == "focus-start" }) {
-            viewModel.selectedIndex = startIndex
-            viewModel.executeSelection()
-            
-            // Verify dismiss was NOT called
-            XCTAssertFalse(self.dismissCalled)
-        }
+    func testDecksSortDueFirstThenAlphabetically() {
+        model.decks = [
+            DeckModel(id: "z", title: "Zulu", description: "", cardCount: 1, dueCount: 0, color: "teal", icon: "book"),
+            DeckModel(id: "a", title: "Alpha", description: "", cardCount: 2, dueCount: 3, color: "teal", icon: "book"),
+            DeckModel(id: "b", title: "Beta", description: "", cardCount: 2, dueCount: 7, color: "teal", icon: "book")
+        ]
+        XCTAssertEqual(viewModel.sortedDecks.map(\.id), ["b", "a", "z"])
+    }
+
+    func testFlashcardCreationRequiresFrontAndBack() async {
+        let deck = DeckModel(id: "deck", title: "Swift", description: "", cardCount: 0, dueCount: 0, color: "teal", icon: "book")
+        viewModel.beginAddingCard(to: deck)
+        viewModel.cardFront = "Question"
+
+        await viewModel.saveCard()
+
+        XCTAssertEqual(viewModel.cardValidationMessage, "Front and back are required.")
+        XCTAssertEqual(viewModel.addingCardDeckID, deck.id)
+    }
+
+    func testFocusTaskSelectionIncludesActiveUnscheduledTasks() {
+        let unscheduled = task("unscheduled", status: .inbox)
+        let completed = task("completed", dueAt: viewModel.today, status: .completed)
+        model.tasks = [completed, unscheduled]
+
+        XCTAssertEqual(viewModel.focusTaskCandidates.map(\.id), ["unscheduled"])
+        viewModel.selectFocusTask("unscheduled")
+        XCTAssertEqual(model.focusTimer.linkedTask?.id, "unscheduled")
+        viewModel.selectFocusTask(nil)
+        XCTAssertNil(model.focusTimer.linkedTask)
+    }
+
+    func testDailyStatusUsesScheduledOccurrencesAndDueCards() {
+        let day = viewModel.today
+        model.tasks = [task("today", dueAt: day, status: .completed), task("old", dueAt: "2000-01-01", status: .inbox)]
+        model.habits = [HabitModel(id: "habit", name: "Read")]
+        model.habitOccurrences = [HabitOccurrenceModel(id: "occurrence", habitId: "habit", occurrenceDate: day, status: .completed, value: 1)]
+        model.decks = [DeckModel(id: "deck", title: "Swift", description: "", cardCount: 8, dueCount: 5, color: "teal", icon: "book")]
+
+        XCTAssertEqual(viewModel.dailyStatus.taskCount, 1)
+        XCTAssertEqual(viewModel.dailyStatus.habitCount, 1)
+        XCTAssertEqual(viewModel.dailyStatus.dueCardCount, 5)
+    }
+
+    private func task(
+        _ id: String,
+        parentID: String? = nil,
+        scheduledAt: String? = nil,
+        dueAt: String? = nil,
+        status: TaskStatus
+    ) -> ProductivityTask {
+        ProductivityTask(
+            id: id,
+            taskListId: "inbox",
+            parentId: parentID,
+            title: id,
+            descriptionMarkdown: "",
+            priority: .none,
+            important: false,
+            urgent: false,
+            urgencyReason: "",
+            scheduledStartAt: scheduledAt,
+            dueAt: dueAt,
+            status: status,
+            sortOrder: 1,
+            version: 1
+        )
+    }
+
+    private func note(_ id: String, entryDate: String, updatedAt: String) -> JournalNoteModel {
+        JournalNoteModel(id: id, userId: "user", kind: "DAILY", title: id, contentMarkdown: "", entryDate: entryDate, updatedAt: updatedAt)
     }
 }

@@ -1,4 +1,4 @@
-import type { GrowthSkill, GrowthStatistics, StudyCalendarDay } from '@/shared/api/types';
+import type { GrowthSkill, GrowthStatistics, StudyCalendarDay, UsageSummary } from '@/shared/api/types';
 import { isSelectableGrowthEntry } from '@/shared/growthEntryFilters';
 
 export interface StatisticsDateRange {
@@ -12,6 +12,97 @@ export interface TrendPoint {
   completedTasks: number;
   focusedMinutes: number;
   xp: number;
+}
+
+export interface UsageTrendPoint {
+  key: string;
+  label: string;
+  activeSeconds: number;
+}
+
+export interface UsageStackPoint {
+  key: string;
+  label: string;
+  [series: string]: string | number;
+}
+
+export function buildUsageTrendData(summary: UsageSummary | undefined, range: StatisticsDateRange): UsageTrendPoint[] {
+  const daily = new Map((summary?.daily ?? []).map((point) => [point.localDate, finiteNumber(point.activeSeconds)]));
+  return enumerateDates(range).map((date) => ({
+    key: date,
+    label: bucketLabel(date, 'day'),
+    activeSeconds: daily.get(date) ?? 0,
+  }));
+}
+
+export function selectTopUsageApps(summary: UsageSummary | undefined, limit = 5) {
+  return [...(summary?.topApps ?? [])]
+    .map((app) => ({ ...app, activeSeconds: finiteNumber(app.activeSeconds) }))
+    .filter((app) => app.activeSeconds > 0)
+    .sort((a, b) => b.activeSeconds - a.activeSeconds || a.displayName.localeCompare(b.displayName))
+    .slice(0, limit);
+}
+
+export function buildUsageStackData(
+  summary: UsageSummary | undefined,
+  range: StatisticsDateRange,
+  apps: UsageSummary['topApps'],
+): UsageStackPoint[] {
+  const selectedHourlyApps = (summary?.hourlyApps ?? []).filter((app) => app.localDate === range.from);
+  const totals = new Map((summary?.daily ?? []).map((day) => [day.localDate, finiteNumber(day.activeSeconds)]));
+  const dailyApps = new Map(
+    (summary?.dailyApps ?? []).map((app) => [`${app.localDate}\u0000${app.bundleId}`, finiteNumber(app.activeSeconds)]),
+  );
+  if (range.from === range.to) {
+    const hourlyApps = new Map(
+      selectedHourlyApps.map((app) => [
+        `${app.localDate}\u0000${app.hour}\u0000${app.bundleId}`,
+        finiteNumber(app.activeSeconds),
+      ]),
+    );
+    const hourlyByBundle = new Map<string, number>();
+    selectedHourlyApps.forEach((app) =>
+      hourlyByBundle.set(app.bundleId, (hourlyByBundle.get(app.bundleId) ?? 0) + finiteNumber(app.activeSeconds)),
+    );
+    const hourlyTotal = selectedHourlyApps.reduce((total, app) => total + finiteNumber(app.activeSeconds), 0);
+    const legacyTotal = Math.max(0, (totals.get(range.from) ?? 0) - hourlyTotal);
+    const fallbackHour = new Date().getHours();
+    return Array.from({ length: 24 }, (_, hour) => {
+      const point: UsageStackPoint = {
+        key: `${range.from}-${hour}`,
+        label: `${String(hour).padStart(2, '0')}:00`,
+      };
+      let shownSeconds = 0;
+      apps.forEach((app, index) => {
+        const legacySeconds = Math.max(
+          0,
+          (dailyApps.get(`${range.from}\u0000${app.bundleId}`) ?? 0) - (hourlyByBundle.get(app.bundleId) ?? 0),
+        );
+        const seconds =
+          (hourlyApps.get(`${range.from}\u0000${hour}\u0000${app.bundleId}`) ?? 0) +
+          (hour === fallbackHour ? legacySeconds : 0);
+        point[`app${index}`] = seconds;
+        shownSeconds += seconds;
+      });
+      const totalSeconds = selectedHourlyApps
+        .filter((app) => app.hour === hour)
+        .reduce((total, app) => total + finiteNumber(app.activeSeconds), hour === fallbackHour ? legacyTotal : 0);
+      point.other = Math.max(0, totalSeconds - shownSeconds);
+      return point;
+    });
+  }
+
+  return enumerateDates(range).map((date) => {
+    const point: UsageStackPoint = { key: date, label: bucketLabel(date, 'day') };
+    let shownSeconds = 0;
+    apps.forEach((app, index) => {
+      const seconds = dailyApps.get(`${date}\u0000${app.bundleId}`) ?? 0;
+      point[`app${index}`] = seconds;
+      shownSeconds += seconds;
+    });
+    point.other = Math.max(0, (totals.get(date) ?? 0) - shownSeconds);
+    return point;
+  });
 }
 
 export function selectTopAttributes(skills: GrowthSkill[]) {

@@ -347,6 +347,16 @@ final class SettingsStore {
         didSet { save() }
     }
 
+    var usagePreferences: UsagePreferences {
+        didSet {
+            save()
+            onUsagePreferencesChanged?(usagePreferences)
+        }
+    }
+
+    @ObservationIgnored
+    var onUsagePreferencesChanged: ((UsagePreferences) -> Void)?
+
     public var journalDefaultEditorMode: String {
         get { UserDefaults.standard.string(forKey: "itu_journal_default_editor_mode") ?? "LIVE" }
         set { UserDefaults.standard.set(newValue, forKey: "itu_journal_default_editor_mode") }
@@ -411,6 +421,7 @@ final class SettingsStore {
             self.showCompanionShortcut = saved.showCompanionShortcut ?? true
             self.companionKeepAbove = saved.companionKeepAbove ?? true
             self.companionRememberPosition = saved.companionRememberPosition ?? true
+            self.usagePreferences = saved.usagePreferences ?? UsagePreferences()
         } else {
             self.themeMode = .system
             self.taskDefaults = TaskDefaultsSettings()
@@ -420,6 +431,7 @@ final class SettingsStore {
             self.showCompanionShortcut = true
             self.companionKeepAbove = true
             self.companionRememberPosition = true
+            self.usagePreferences = UsagePreferences()
         }
         self.planningViewSettings = loadPlanningViewSettings()
     }
@@ -441,7 +453,8 @@ final class SettingsStore {
             accountBaseXp: accountBaseXp,
             showCompanionShortcut: showCompanionShortcut,
             companionKeepAbove: companionKeepAbove,
-            companionRememberPosition: companionRememberPosition
+            companionRememberPosition: companionRememberPosition,
+            usagePreferences: usagePreferences
         )
         if let data = try? JSONEncoder().encode(payload) {
             UserDefaults.standard.set(data, forKey: Self.userDefaultsKey)
@@ -457,5 +470,6 @@ final class SettingsStore {
         let showCompanionShortcut: Bool?
         let companionKeepAbove: Bool?
         let companionRememberPosition: Bool?
+        let usagePreferences: UsagePreferences?
     }
 }

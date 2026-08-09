@@ -28,6 +28,7 @@ import path from 'path';
               '/ai*',
               '/trash*',
               '/devices*',
+              '/usage*',
               '/cards*',
             ],
           },

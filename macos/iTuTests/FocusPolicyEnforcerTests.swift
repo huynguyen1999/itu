@@ -3,7 +3,7 @@ import XCTest
 
 @MainActor
 final class FocusPolicyEnforcerTests: XCTestCase {
-    private final class FakeApplication: RunningApplicationProviding {
+    private final class FakeApplication: RunningApplicationProviding, @unchecked Sendable {
         var bundleIdentifier: String?
         var localizedName: String?
         var isTerminated = false
@@ -30,10 +30,10 @@ final class FocusPolicyEnforcerTests: XCTestCase {
     private final class FakeWorkspace: WorkspaceProviding {
         var frontmostApplication: RunningApplicationProviding?
         var runningApplications: [RunningApplicationProviding] = []
-        private var activationHandlers: [(RunningApplicationProviding) -> Void] = []
+        private var activationHandlers: [@Sendable (RunningApplicationProviding) -> Void] = []
 
         @discardableResult
-        func observeActivations(_ handler: @escaping (RunningApplicationProviding) -> Void) -> AnyObject {
+        func observeActivations(_ handler: @escaping @Sendable (RunningApplicationProviding) -> Void) -> AnyObject {
             activationHandlers.append(handler)
             return self
         }

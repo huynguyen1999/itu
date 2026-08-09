@@ -13,6 +13,7 @@ import {
   PrismaScheduledJobRepository,
   PrismaReminderRepository,
   PrismaSyncDeviceRepository,
+  PrismaUsageRepository,
   PrismaStudySessionRepository,
   PrismaTrashRepository,
   PrismaUserRepository,
@@ -56,6 +57,7 @@ import {
     PrismaScheduledJobRepository,
     PrismaReminderRepository,
     PrismaSyncDeviceRepository,
+    PrismaUsageRepository,
     SrsSchedulerService,
     PrismaSyncRepository,
     PrismaAccessRepository,
@@ -83,6 +85,7 @@ import {
     { provide: TOKENS.SCHEDULED_JOB_REPOSITORY, useExisting: PrismaScheduledJobRepository },
     { provide: TOKENS.REMINDER_REPOSITORY, useExisting: PrismaReminderRepository },
     { provide: TOKENS.SYNC_DEVICE_REPOSITORY, useExisting: PrismaSyncDeviceRepository },
+    { provide: TOKENS.USAGE_REPOSITORY, useExisting: PrismaUsageRepository },
     { provide: TOKENS.ACCESS_REPOSITORY, useExisting: PrismaAccessRepository },
     { provide: TOKENS.PRODUCTIVITY_REPOSITORY, useExisting: PrismaProductivityRepository },
     { provide: TOKENS.GROWTH_REPOSITORY, useExisting: PrismaGrowthRepository },
@@ -109,6 +112,7 @@ import {
     PrismaScheduledJobRepository,
     PrismaReminderRepository,
     PrismaSyncDeviceRepository,
+    PrismaUsageRepository,
     PrismaAccessRepository,
     PrismaProductivityRepository,
     PrismaGrowthRepository,
@@ -135,6 +139,7 @@ import {
     TOKENS.SCHEDULED_JOB_REPOSITORY,
     TOKENS.REMINDER_REPOSITORY,
     TOKENS.SYNC_DEVICE_REPOSITORY,
+    TOKENS.USAGE_REPOSITORY,
     TOKENS.ACCESS_REPOSITORY,
     TOKENS.PRODUCTIVITY_REPOSITORY,
     TOKENS.GROWTH_REPOSITORY,
@@ -146,4 +151,3 @@ import {
   ],
 })
 export class PersistenceModule {}
-

@@ -16,8 +16,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"*.json\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"*.json\"",
     "test": "vitest run --passWithNoTests",
-    "typecheck": "tsc --noEmit",
-    "api:generate": "orval"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
@@ -54,7 +53,6 @@
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.5.2",
     "eslint": "^9.0.0",
-    "orval": "^8.23.0",
     "postcss": "^8.5.16",
     "prettier": "^3.5.3",
     "tailwindcss": "^3.4",

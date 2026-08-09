@@ -1,21 +1,11 @@
-import { useState } from 'react';
-import {
-  BookOpen,
-  Calendar,
-  Dumbbell,
-  FileText,
-  Plus,
-  Receipt,
-  Search,
-  Sparkles,
-} from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { BookOpen, FileText, Plus, Search, Sparkles, CloudOff, RefreshCw, TriangleAlert, Check } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useJournalEntries, useJournalTemplates } from './journalQueries';
-import { useCreateJournalEntryMutation } from './journalMutations';
 import { JournalEntryCard } from './components/JournalEntryCard';
 import { createUlid } from '../../shared/sync/syncIdentity';
+import { getLocalTodayDateString, formatDateStringToLocalDisplay } from './journalDate';
+import { useSync } from '@/shared/sync/SyncProvider';
 import { Button } from '@/shared/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
 
 interface JournalDashboardProps {
   defaultKind?: 'NOTE' | 'WEEKLY_REVIEW' | 'EXPENSE' | 'WORKOUT';
@@ -23,43 +13,39 @@ interface JournalDashboardProps {
 
 export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
   const navigate = useNavigate();
-  const { data: entries = [], isLoading } = useJournalEntries(
-    defaultKind ? { kind: defaultKind } : undefined,
-  );
+  const { state: syncState } = useSync();
+  const {
+    data: entries = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useJournalEntries(defaultKind ? { kind: defaultKind } : undefined);
   const { data: templates = [] } = useJournalTemplates();
-  const createMutation = useCreateJournalEntryMutation();
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalTodayDateString();
   const todayNote = entries.find((e) => e.entryDate.startsWith(todayStr) && e.kind === 'NOTE');
 
   const filteredEntries = defaultKind ? entries.filter((e) => e.kind === defaultKind) : entries;
-  const recentNotes = filteredEntries.slice(0, 6);
+  const recentEntries = filteredEntries.slice(0, 6);
 
-  const expensesThisWeek = entries
-    .filter((e) => e.kind === 'EXPENSE' && e.expense)
-    .reduce((acc, e) => acc + Number(e.expense?.amount || 0), 0);
-
-  const lastWorkout = entries.find((e) => e.kind === 'WORKOUT' && e.workout);
-
-  const handleStartDailyNote = async () => {
+  const handleStartDailyNote = () => {
     if (todayNote) {
       navigate(`/journal/entry/${todayNote.id}`);
       return;
     }
     const newId = createUlid();
     const dailyTpl = templates.find((t) => t.name.toLowerCase().includes('daily'));
-    const defaultBody = dailyTpl
-      ? dailyTpl.bodyMarkdown
-      : `## Today\n\n## What went well?\n\n## What could be better?\n\n## Tomorrow`;
+    const defaultBody = dailyTpl ? dailyTpl.bodyMarkdown : '';
 
-    await createMutation.mutateAsync({
-      id: newId,
-      kind: 'NOTE',
-      title: `Daily Note — ${new Date().toLocaleDateString()}`,
-      contentMarkdown: defaultBody,
-      entryDate: todayStr,
+    navigate(`/journal/entry/${newId}`, {
+      state: {
+        isNew: true,
+        kind: 'NOTE',
+        title: '',
+        contentMarkdown: defaultBody,
+        entryDate: todayStr,
+      },
     });
-    navigate(`/journal/entry/${newId}`);
   };
 
   const handleCreateNew = (kind: 'NOTE' | 'WEEKLY_REVIEW' | 'EXPENSE' | 'WORKOUT') => {
@@ -68,215 +54,207 @@ export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
       NOTE: `Note — ${new Date().toLocaleDateString()}`,
       WEEKLY_REVIEW: `Weekly Review — Week ${getWeekNumber(new Date())}`,
       EXPENSE: `Expense Log — ${new Date().toLocaleDateString()}`,
-      WORKOUT: `Gym Workout — ${new Date().toLocaleDateString()}`,
+      WORKOUT: `Workout — ${new Date().toLocaleDateString()}`,
     };
     navigate(`/journal/entry/${newId}`, {
       state: { isNew: true, kind, title: titleMap[kind], entryDate: todayStr },
     });
   };
 
+  const syncPresentation = getSyncPresentation(syncState);
+
   return (
-    <div className="space-y-6">
-      {/* Dashboard Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-xl bg-card border border-border">
-        <div className="space-y-1">
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-primary" />
-            {defaultKind === 'NOTE'
-              ? 'Daily Notes & Diary'
-              : defaultKind === 'WEEKLY_REVIEW'
-              ? 'Weekly Reviews'
-              : defaultKind === 'EXPENSE'
-              ? 'Money & Expenses'
-              : defaultKind === 'WORKOUT'
-              ? 'Gym Workouts'
-              : 'Journal Overview'}
+    <div className="mx-auto max-w-5xl space-y-8 pb-12">
+      <header className="flex flex-col gap-5 border-b border-border/60 pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0 space-y-2">
+          <p className="flex items-center gap-2 text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-primary">
+            <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+            Daily writing
+          </p>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            Make a little room.
           </h1>
-          <p className="text-xs text-muted-foreground">
-            Personal productivity timeline, daily reflections, financial logs, and training history.
+          <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+            A quiet place for the day as it is. Write freely first; organize it when you are ready.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/journal/notes')}
-            className="gap-1.5"
-          >
-            <Search className="w-4 h-4" />
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <SyncStatus phase={syncPresentation.phase} label={syncPresentation.label} />
+          <Button variant="outline" size="sm" onClick={() => navigate('/journal/notes')} className="gap-1.5">
+            <Search className="h-4 w-4" aria-hidden="true" />
             Search
           </Button>
-
-          <Button
-            size="sm"
-            onClick={() => handleCreateNew(defaultKind || 'NOTE')}
-            className="gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            New Entry
+          <Button size="sm" onClick={() => handleCreateNew(defaultKind || 'NOTE')} className="gap-1.5">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New note
           </Button>
         </div>
-      </div>
+      </header>
 
-      {/* Grid Dashboard Widgets */}
-      {!defaultKind && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* TODAY DAILY NOTE CARD */}
-          <Card className="flex flex-col justify-between">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-primary uppercase tracking-wider text-[10px]">
-                  TODAY'S REFLECTION
-                </span>
-                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-              </div>
-              <CardTitle className="text-base">{todayNote ? todayNote.title : 'Daily Note'}</CardTitle>
-              <CardDescription className="text-xs line-clamp-2">
-                {todayNote
-                  ? todayNote.contentMarkdown || 'Empty daily reflection...'
-                  : "Capture today's highlights, learning, and progress."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-2">
+      <section aria-labelledby="journal-today" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_250px]">
+        <div className="relative overflow-hidden rounded-[var(--itu-radius-l)] border border-[var(--itu-teal-700)] bg-[var(--itu-teal-900)] p-6 text-white shadow-[var(--itu-shadow-card)] sm:p-8">
+          <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-[var(--itu-teal-400)]/20 blur-3xl" />
+          <div className="relative flex min-h-[210px] flex-col justify-between gap-8">
+            <div className="space-y-3">
+              <p className="text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-[var(--itu-teal-400)]">
+                {formatDateStringToLocalDisplay(todayStr)}
+              </p>
+              <h2 id="journal-today" className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+                {todayNote ? todayNote.title || 'Today’s note' : 'What is on your mind?'}
+              </h2>
+              <p className="max-w-xl text-sm leading-relaxed text-white/70">
+                {todayNote?.contentMarkdown
+                  ? stripMarkdown(todayNote.contentMarkdown)
+                  : 'Start with one honest sentence. There is no format to get right.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
               <Button
                 variant="secondary"
-                size="sm"
-                className="w-full justify-center gap-1.5"
-                onClick={() => void handleStartDailyNote()}
+                size="lg"
+                onClick={handleStartDailyNote}
+                className="gap-2 bg-white text-[var(--itu-teal-900)] hover:bg-white/90"
               >
-                <Sparkles className="w-3.5 h-3.5 text-primary" />
-                {todayNote ? 'Open Daily Note →' : "Start Today's Reflection →"}
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                {todayNote ? 'Continue writing' : 'Start today’s note'}
               </Button>
-            </CardContent>
-          </Card>
-
-          {/* EXPENSES WIDGET */}
-          <Card className="flex flex-col justify-between">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-primary uppercase tracking-wider text-[10px]">
-                  MONEY / EXPENSES
-                </span>
-                <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
-              </div>
-              <div className="text-xl font-bold font-mono text-foreground">
-                {expensesThisWeek.toLocaleString()} VND
-              </div>
-              <CardDescription className="text-xs">Logged expenses</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="w-full justify-center gap-1.5"
-                onClick={() => handleCreateNew('EXPENSE')}
-              >
-                <Receipt className="w-3.5 h-3.5 text-primary" />
-                Log Expense →
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* GYM WORKOUT WIDGET */}
-          <Card className="flex flex-col justify-between">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-primary uppercase tracking-wider text-[10px]">
-                  LAST WORKOUT
-                </span>
-                <Dumbbell className="w-3.5 h-3.5 text-muted-foreground" />
-              </div>
-              <CardTitle className="text-base">{lastWorkout ? lastWorkout.title : 'Gym Session'}</CardTitle>
-              <CardDescription className="text-xs font-mono">
-                {lastWorkout?.workout?.exercises?.length || 0} exercises recorded
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="w-full justify-center gap-1.5"
-                onClick={() => handleCreateNew('WORKOUT')}
-              >
-                <Dumbbell className="w-3.5 h-3.5 text-primary" />
-                Log Workout →
-              </Button>
-            </CardContent>
-          </Card>
+              <span className="text-xs text-white/60">Your draft is saved locally as you write.</span>
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* QUICK TEMPLATES */}
-      <div className="space-y-2">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Quick Capture Presets
-        </h3>
-        <div className="flex flex-wrap gap-2 text-xs">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleCreateNew('NOTE')}
-            className="gap-1.5"
-          >
-            <FileText className="w-3.5 h-3.5 text-primary" />
-            Normal Note
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleCreateNew('WEEKLY_REVIEW')}
-            className="gap-1.5"
-          >
-            <Calendar className="w-3.5 h-3.5 text-primary" />
-            Weekly Review
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleCreateNew('EXPENSE')}
-            className="gap-1.5"
-          >
-            <Receipt className="w-3.5 h-3.5 text-primary" />
-            Expense Log
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleCreateNew('WORKOUT')}
-            className="gap-1.5"
-          >
-            <Dumbbell className="w-3.5 h-3.5 text-primary" />
-            Gym Workout
-          </Button>
-        </div>
-      </div>
+        <aside className="rounded-[var(--itu-radius-m)] border border-border bg-card p-5 shadow-[var(--itu-shadow-card)]">
+          <p className="text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-muted-foreground">
+            Keep the thread
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-foreground">
+            Notes can stay rough. Tags, templates, attachments, and revisions are there when the thought is out.
+          </p>
+          <div className="mt-5 border-t border-border/60 pt-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/journal/weekly')}
+              className="w-full justify-between px-2 text-left"
+            >
+              Weekly review
+              <span aria-hidden="true">→</span>
+            </Button>
+          </div>
+        </aside>
+      </section>
 
-      {/* RECENT ENTRIES LIST */}
-      <div className="space-y-3">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          {defaultKind ? `${defaultKind} Entries` : 'Recent Journal Entries'}
-        </h3>
-        {isLoading ? (
-          <div className="text-xs text-muted-foreground py-6">Loading entries...</div>
-        ) : recentNotes.length === 0 ? (
-          <Card className="p-8 text-center space-y-2">
-            <BookOpen className="w-8 h-8 text-muted-foreground mx-auto" />
-            <div className="text-sm font-semibold text-foreground">No entries found</div>
-            <p className="text-xs text-muted-foreground">
-              Create your first entry or select a template above.
+      <section aria-labelledby="journal-recent" className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-muted-foreground">
+              {defaultKind ? `${formatKind(defaultKind)} entries` : 'Your pages'}
             </p>
-          </Card>
+            <h2 id="journal-recent" className="mt-1 text-xl font-semibold tracking-tight text-foreground">
+              Recent writing
+            </h2>
+          </div>
+          <Button variant="link" size="sm" onClick={() => navigate('/journal/notes')}>
+            Browse all notes
+          </Button>
+        </div>
+
+        {isError && (
+          <div
+            role="alert"
+            className="rounded-[var(--itu-radius-m)] border border-[var(--itu-coral-500)]/30 bg-[var(--itu-coral-100)]/60 p-5"
+          >
+            <p className="text-sm font-semibold text-foreground">Your journal could not be loaded.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Your local drafts are still safe. Try loading the list again.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()} className="mt-4">
+              Try again
+            </Button>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div aria-busy="true" className="grid gap-3 md:grid-cols-2">
+            {[0, 1, 2, 3].map((item) => (
+              <div
+                key={item}
+                className="h-36 animate-pulse rounded-[var(--itu-radius-m)] border border-border bg-card"
+              />
+            ))}
+          </div>
+        ) : recentEntries.length === 0 ? (
+          isError ? null : (
+            <div className="rounded-[var(--itu-radius-m)] border border-dashed border-border bg-card p-10 text-center">
+              <FileText className="mx-auto h-8 w-8 text-primary/70" aria-hidden="true" />
+              <p className="mt-3 text-sm font-semibold text-foreground">Nothing written here yet.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Start today’s note, or open a blank note when a thought arrives.
+              </p>
+              <Button size="sm" onClick={() => handleCreateNew('NOTE')} className="mt-4">
+                Write a note
+              </Button>
+            </div>
+          )
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {recentNotes.map((entry) => (
+          <div className="grid gap-3 md:grid-cols-2">
+            {recentEntries.map((entry) => (
               <JournalEntryCard key={entry.id} entry={entry} />
             ))}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
+}
+
+function SyncStatus({ phase, label }: { phase: string; label: string }) {
+  const Icon =
+    phase === 'offline' ? CloudOff : phase === 'syncing' ? RefreshCw : phase === 'conflict' ? TriangleAlert : Check;
+  const color =
+    phase === 'offline' || phase === 'conflict' ? 'text-[var(--itu-coral-500)]' : 'text-[var(--itu-teal-600)]';
+  return (
+    <span
+      className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--itu-radius-s)] border border-border bg-card px-3 text-[11px] text-muted-foreground"
+      title={label}
+    >
+      <Icon className={`h-3.5 w-3.5 ${color} ${phase === 'syncing' ? 'animate-spin' : ''}`} aria-hidden="true" />
+      <span className="hidden sm:inline">{label}</span>
+      <span className="sr-only">Journal sync status: {label}</span>
+    </span>
+  );
+}
+
+function getSyncPresentation(state: { phase: string; pendingCount: number; conflictCount: number }) {
+  if (state.phase === 'offline') {
+    return {
+      phase: state.phase,
+      label: state.pendingCount
+        ? `${state.pendingCount} draft${state.pendingCount === 1 ? '' : 's'} waiting`
+        : 'Offline',
+    };
+  }
+  if (state.phase === 'syncing') return { phase: state.phase, label: 'Syncing' };
+  if (state.phase === 'conflict') {
+    return { phase: state.phase, label: `${state.conflictCount} sync conflict${state.conflictCount === 1 ? '' : 's'}` };
+  }
+  if (state.pendingCount)
+    return { phase: state.phase, label: `${state.pendingCount} change${state.pendingCount === 1 ? '' : 's'} waiting` };
+  return { phase: state.phase, label: 'Up to date' };
+}
+
+function stripMarkdown(value: string) {
+  return (
+    value
+      .replace(/[#*_>`\[\]]/g, '')
+      .replace(/\n+/g, ' ')
+      .trim() || 'An empty page, ready for the next line.'
+  );
+}
+
+function formatKind(kind: JournalDashboardProps['defaultKind']) {
+  return kind ? kind.replace('_', ' ').toLowerCase() : 'journal';
 }
 
 function getWeekNumber(d: Date): number {

@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 struct CompanionPositioning {
     private static let positionKey = "iTu_CompanionWindowFrame"
 
@@ -39,8 +40,8 @@ struct CompanionPositioning {
         guard let screen = targetScreen else { return }
         let visibleFrame = screen.visibleFrame
         
-        let width: CGFloat = 680
-        let height: CGFloat = 450
+        let width: CGFloat = 650
+        let height: CGFloat = 520
         let x = visibleFrame.midX - width / 2
         let y = visibleFrame.minY + (visibleFrame.height * 0.15) // bottom-center
         

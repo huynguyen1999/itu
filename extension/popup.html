@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>iTu Browser Activity</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">i</div>
+        <div>
+          <p class="eyebrow">Browser Activity</p>
+          <h1>Today</h1>
+        </div>
+        <p id="status" class="status-pill" role="status" aria-live="polite">Paused</p>
+      </header>
+
+      <section class="usage-card" aria-labelledby="usage-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Tracked time</p>
+            <h2 id="usage-heading">Where your time went</h2>
+          </div>
+          <span class="day-label">Local day</span>
+        </div>
+        <div class="usage-workspace">
+          <div class="usage-overview">
+            <div class="usage-visual">
+              <div id="pie-chart" class="pie-chart" role="img" aria-label="No website activity recorded">
+                <div class="pie-center">
+                  <strong id="usage-total">0m</strong>
+                  <span>active</span>
+                </div>
+              </div>
+              <div class="legend-wrap">
+                <p id="usage-subtitle" class="usage-subtitle">No HTTP(S) activity yet</p>
+                <ul id="usage-legend" class="legend" aria-label="Domain activity breakdown"></ul>
+              </div>
+            </div>
+            <div id="usage-empty" class="empty-state" hidden>
+              <span class="empty-orbit" aria-hidden="true">✦</span>
+              <p>Open a website to start building today’s picture.</p>
+            </div>
+            <div id="domain-list-wrap" class="list-wrap" hidden>
+              <div class="list-heading">
+                <h3>Domains</h3>
+                <span id="usage-count" class="list-count"></span>
+              </div>
+              <ul id="domain-list" class="domain-list" aria-label="Website domain activity"></ul>
+            </div>
+          </div>
+
+          <aside id="domain-detail" class="domain-detail" aria-labelledby="detail-domain" hidden>
+            <div class="detail-heading">
+              <div>
+                <p class="eyebrow">URL detail</p>
+                <h3 id="detail-domain"></h3>
+                <p id="detail-summary" class="detail-summary"></p>
+              </div>
+              <button id="detail-close" class="icon-button" type="button" aria-label="Close URL detail">×</button>
+            </div>
+            <ul id="detail-list" class="detail-list" aria-label="URLs for selected domain"></ul>
+          </aside>
+        </div>
+      </section>
+
+      <details id="settings-panel" class="settings-panel">
+        <summary><span>Connection settings</span><span class="chevron" aria-hidden="true">⌄</span></summary>
+        <form id="settings">
+          <label class="toggle"><input id="website" type="checkbox"> Track website activity</label>
+          <label>Backend URL<input id="api-url" type="url" placeholder="http://localhost:3000" required></label>
+          <label>DSN key<input id="dsn-key" type="password" autocomplete="off" placeholder="itu_dsn_…" required></label>
+          <button type="submit">Save connection</button>
+        </form>
+        <p id="error" role="alert"></p>
+      </details>
+      <p class="privacy">Normalized URLs are shared with iTu. If the backend is unavailable, summaries stay in this browser for up to 7 days.</p>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

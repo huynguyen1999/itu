@@ -1,11 +1,3 @@
-import {
-  changePassword as changePasswordApi,
-  getAuthSession,
-  login as loginApi,
-  logout as logoutApi,
-  register as registerApi,
-  updateProfile as updateProfileApi,
-} from '../../generated/api/auth/auth';
 import { API_BASE_URL } from './httpClient';
 import type { ApiClientContext } from './apiContext';
 import type { AuthSession } from './types';
@@ -13,12 +5,13 @@ import type { AuthSession } from './types';
 export function createAuthApi(ctx: ApiClientContext) {
   return {
     async login(identifierOrEmail: string, password: string) {
-      const res = await loginApi({ identifier: identifierOrEmail, password } as any);
-      return res as unknown as AuthSession;
+      return ctx.request<AuthSession>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ identifier: identifierOrEmail, password }),
+      });
     },
     async logout() {
-      const res = await logoutApi();
-      return res as unknown as { ok: true };
+      return ctx.request<{ ok: true }>('/auth/logout', { method: 'POST' });
     },
     async register(
       data: { email?: string; username?: string; password: string; displayName?: string } | string,
@@ -26,20 +19,25 @@ export function createAuthApi(ctx: ApiClientContext) {
       displayName?: string,
     ) {
       const payload = typeof data === 'string' ? { email: data, password: password!, displayName } : data;
-      const res = await registerApi(payload as any);
-      return res as unknown as AuthSession;
+      return ctx.request<AuthSession>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
     },
     async me() {
-      const res = await getAuthSession();
-      return res as unknown as AuthSession;
+      return ctx.request<AuthSession>('/auth/me');
     },
     async updateProfile(data: { displayName?: string | null; username?: string | null }) {
-      const res = await updateProfileApi(data as any);
-      return res as unknown as AuthSession;
+      return ctx.request<AuthSession>('/auth/me', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
     },
     async changePassword(data: { currentPassword: string; newPassword: string }) {
-      const res = await changePasswordApi(data as any);
-      return res as unknown as { ok: true };
+      return ctx.request<{ ok: true }>('/auth/password', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
     },
     exportData() {
       return ctx.request<unknown>('/auth/data-export');

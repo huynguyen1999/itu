@@ -3,6 +3,7 @@ import { PreferencesController } from './preferences.controller';
 import {
   PreferencesService,
   DEFAULT_MONEY_PREFERENCES,
+  DEFAULT_BUDGET_PREFERENCES,
   DEFAULT_GYM_PREFERENCES,
   DEFAULT_TASK_PREFERENCES,
   DEFAULT_FOCUS_PREFERENCES,
@@ -11,6 +12,7 @@ import {
   DEFAULT_GROWTH_PREFERENCES,
   DEFAULT_LEARN_PREFERENCES,
   DEFAULT_JOURNAL_PREFERENCES,
+  DEFAULT_USAGE_PREFERENCES,
 } from '@core/application/use-cases/preferences.service';
 import { PrismaService } from '@infrastructure/persistence/prisma/prisma.service';
 import { AuthGuard } from '../guards/auth.guard';
@@ -56,7 +58,9 @@ describe('PreferencesController', () => {
       learn: DEFAULT_LEARN_PREFERENCES,
       journal: DEFAULT_JOURNAL_PREFERENCES,
       money: DEFAULT_MONEY_PREFERENCES,
+      budget: DEFAULT_BUDGET_PREFERENCES,
       gym: DEFAULT_GYM_PREFERENCES,
+      usage: DEFAULT_USAGE_PREFERENCES,
     });
     expect(mockPrisma.userPreferences.findUnique).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
@@ -124,5 +128,24 @@ describe('PreferencesController', () => {
     expect(result.weightUnit).toBe('LBS');
     expect(result.defaultRestSeconds).toBe(180);
     expect(mockPrisma.userPreferences.upsert).toHaveBeenCalled();
+  });
+
+  it('should validate usage retention bounds', async () => {
+    mockPrisma.userPreferences.findUnique.mockResolvedValue(null);
+    mockPrisma.userPreferences.upsert.mockResolvedValue({} as any);
+    await expect(controller.updateUsagePreferences({ user: { sub: 'user-1' } } as any, { retentionDays: 7 })).resolves.toMatchObject({ retentionDays: 7 });
+    await expect(controller.updateUsagePreferences({ user: { sub: 'user-1' } } as any, { retentionDays: 365 })).resolves.toMatchObject({ retentionDays: 365 });
+    await expect(controller.updateUsagePreferences({ user: { sub: 'user-1' } } as any, { retentionDays: 6 })).rejects.toThrow('between 7 and 365');
+    await expect(controller.updateUsagePreferences({ user: { sub: 'user-1' } } as any, { retentionDays: 366 })).rejects.toThrow('between 7 and 365');
+  });
+
+  it('should persist the website tracking opt-in', async () => {
+    mockPrisma.userPreferences.findUnique.mockResolvedValue(null);
+    mockPrisma.userPreferences.upsert.mockResolvedValue({} as any);
+
+    await expect(controller.updateUsagePreferences(
+      { user: { sub: 'user-1' } } as any,
+      { websiteTrackingEnabled: true },
+    )).resolves.toMatchObject({ websiteTrackingEnabled: true });
   });
 });

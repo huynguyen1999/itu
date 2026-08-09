@@ -6,6 +6,7 @@ final class CompanionWindowController {
     private let model: AppModel
     private let router: AppNavigationRouter
     private var panel: CompanionPanel?
+    private var viewModel: CompanionViewModel?
 
     init(model: AppModel, router: AppNavigationRouter) {
         self.model = model
@@ -20,13 +21,15 @@ final class CompanionWindowController {
             let viewModel = CompanionViewModel(model: model, router: router) { [weak self] in
                 self?.hide()
             }
+            self.viewModel = viewModel
             let hostedView = CompanionView(viewModel: viewModel)
                 .environment(model)
             let hostingController = NSHostingController(rootView: hostedView)
             
             panel.contentViewController = hostingController
             panel.onEscape = { [weak self] in
-                self?.hide()
+                guard let self else { return }
+                if self.viewModel?.handleEscape() != true { self.hide() }
             }
             panel.onCommandW = { [weak self] in
                 self?.hide()
@@ -50,6 +53,8 @@ final class CompanionWindowController {
         }
         
         guard let panel = self.panel else { return }
+
+        viewModel?.prepareForPresentation()
         
         panel.level = model.settingsStore.companionKeepAbove ? .floating : .normal
         
@@ -65,6 +70,7 @@ final class CompanionWindowController {
 
     func hide() {
         guard let panel = panel else { return }
+        viewModel?.prepareForDismissal()
         if model.settingsStore.companionRememberPosition {
             CompanionPositioning.savePosition(for: panel)
         }
