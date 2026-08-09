@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlignLeft, Clock, History, Link as LinkIcon, Sliders, X } from 'lucide-react';
+import { AlignLeft, Clock, History, Sliders, X } from 'lucide-react';
 import type { JournalEntry, JournalEntryRevision } from '../journal.types';
 import { useJournalRevisions } from '../journalQueries';
 import { useRestoreJournalRevisionMutation } from '../journalMutations';
@@ -11,7 +11,7 @@ interface NoteInspectorProps {
 }
 
 export function NoteInspector({ entry, onClose, onSelectHeading }: NoteInspectorProps) {
-  const [activeTab, setActiveTab] = useState<'outline' | 'backlinks' | 'properties' | 'revisions'>('outline');
+  const [activeTab, setActiveTab] = useState<'outline' | 'properties' | 'revisions'>('outline');
   const { data: revisions = [] } = useJournalRevisions(entry.id);
   const restoreRevisionMutation = useRestoreJournalRevisionMutation();
 
@@ -31,7 +31,7 @@ export function NoteInspector({ entry, onClose, onSelectHeading }: NoteInspector
 
   const handleRestore = async (revision: JournalEntryRevision) => {
     if (confirm(`Restore revision #${revision.revisionNumber}?`)) {
-      await restoreRevisionMutation.mutateAsync({ entryId: entry.id, revisionId: revision.id });
+      await restoreRevisionMutation.mutateAsync({ entryId: entry.id, revisionId: revision.id, snapshot: revision.snapshot });
     }
   };
 
@@ -49,16 +49,6 @@ export function NoteInspector({ entry, onClose, onSelectHeading }: NoteInspector
             }`}
           >
             <AlignLeft className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('backlinks')}
-            title="Backlinks"
-            className={`p-1.5 rounded-md transition-colors ${
-              activeTab === 'backlinks' ? 'bg-primary/15 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <LinkIcon className="w-4 h-4" />
           </button>
           <button
             type="button"
@@ -117,15 +107,6 @@ export function NoteInspector({ entry, onClose, onSelectHeading }: NoteInspector
                 ))}
               </ul>
             )}
-          </div>
-        )}
-
-        {activeTab === 'backlinks' && (
-          <div>
-            <h4 className="font-semibold text-foreground text-xs uppercase tracking-wider mb-2 text-muted-foreground">
-              Backlinks
-            </h4>
-            <p className="text-muted-foreground text-xs italic">0 references to this note</p>
           </div>
         )}
 

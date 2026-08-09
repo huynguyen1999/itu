@@ -32,12 +32,19 @@ Feature-specific behavior stays in `features`; behavior shared across product ar
 - **Focus and Habits:** the Focus workspace, global Focus timer, Habit tracking, occurrence actions, progress, and history.
 - **Learning:** Flashcard Decks, deck details, review, and Learning History under the Learn workspace.
 - **Growth:** Attributes, Skills, Shop, Inventory-facing actions, ledger, settings, and Growth Receipt overlays.
-- **Journal:** entry browsing/editing, tags/templates, attachments, and weekly views.
+- **Journal:** Note and Weekly Review browsing/editing, tags/templates,
+  attachments, revisions, Trash, and read-only Budget/Gym summaries.
 - **Budget:** overview, transactions, budgets/categories, and calendar views.
 - **Gym:** overview, active workouts, exercise library, and workout history.
 - **Account and operations:** authentication, profile, settings, Statistics, sync/conflict status, and recoverable Trash.
 
 `features/ai` supplies AI-assisted learning behavior rather than a standalone route. Legacy Journal money/gym URLs redirect to the dedicated Budget and Gym workspaces.
+
+Budget Transactions and Gym Workouts are owned by their dedicated feature
+surfaces and sync entities; they are not Journal Entry kinds. Journal writes
+use the `journal.*`, `journal_attachment.delete`, `journal_revision.restore`,
+`journal_template.*`, and `journal_tag.create` mutation kinds through the
+shared outbox.
 
 ## Application composition
 
@@ -156,3 +163,5 @@ flowchart LR
 - TanStack Query remains authoritative for rendered server state even when IndexedDB persists a dehydrated cache.
 - WebSocket payloads are invalidations only and must not be treated as authoritative entity data.
 - Browser-extension tracking is configured from web settings but runs independently of the web client.
+- Money is transported as decimal strings; product date boundaries use the
+  `Asia/Ho_Chi_Minh` Product Calendar while instants remain UTC.

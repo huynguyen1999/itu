@@ -27,7 +27,7 @@ export function JournalEntryPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const isNew = Boolean(draftState?.isNew);
-  const initialKind = draftState?.kind || 'NOTE';
+  const initialKind: JournalEntryKind = draftState?.kind === 'WEEKLY_REVIEW' ? 'WEEKLY_REVIEW' : 'NOTE';
   const initialTitle = draftState?.title || '';
   const initialContentMarkdown = draftState?.contentMarkdown || '';
   const initialEntryDate = draftState?.entryDate || getLocalTodayDateString();
@@ -53,8 +53,6 @@ export function JournalEntryPage() {
         templateId: data.templateId,
         tagIds: (data as any).tagIds,
         weeklyReview: data.weeklyReview,
-        expense: data.expense,
-        workout: data.workout,
       });
       if (entryId) {
         navigate(`/journal/entry/${entryId}`, { replace: true });
@@ -70,8 +68,6 @@ export function JournalEntryPage() {
         templateId: data.templateId,
         tagIds: (data as any).tagIds,
         weeklyReview: data.weeklyReview,
-        expense: data.expense,
-        workout: data.workout,
       });
     }
   };

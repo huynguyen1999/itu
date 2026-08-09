@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
-import { LayoutTemplate, Plus, Trash2, X } from 'lucide-react';
+import { LayoutTemplate, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useJournalTemplates } from '../journalQueries';
-import { useCreateJournalTemplateMutation, useDeleteJournalTemplateMutation } from '../journalMutations';
+import {
+  useCreateJournalTemplateMutation,
+  useDeleteJournalTemplateMutation,
+  useUpdateJournalTemplateMutation,
+} from '../journalMutations';
 import type { JournalEntryKind } from '../journal.types';
 
 interface TemplateEditorProps {
@@ -13,6 +17,7 @@ interface TemplateEditorProps {
 export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEditorProps) {
   const { data: templates = [] } = useJournalTemplates();
   const createMutation = useCreateJournalTemplateMutation();
+  const updateMutation = useUpdateJournalTemplateMutation();
   const deleteMutation = useDeleteJournalTemplateMutation();
 
   const [name, setName] = useState('');
@@ -20,6 +25,7 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
   const [titleTemplate, setTitleTemplate] = useState('{{date}}');
   const [bodyMarkdown, setBodyMarkdown] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -33,21 +39,52 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
 
   if (!isOpen) return null;
 
-  const handleCreate = async () => {
+  const resetForm = () => {
+    setName('');
+    setEntryKind('NOTE');
+    setTitleTemplate('{{date}}');
+    setBodyMarkdown('');
+    setIsCreating(false);
+    setEditingId(null);
+  };
+
+  const handleSave = async () => {
     if (!name.trim()) return;
     try {
-      await createMutation.mutateAsync({
-        name: name.trim(),
-        entryKind,
-        titleTemplate: titleTemplate.trim(),
-        bodyMarkdown: bodyMarkdown.trim(),
-      });
-      setName('');
-      setBodyMarkdown('');
-      setIsCreating(false);
+      if (editingId) {
+        await updateMutation.mutateAsync({
+          id: editingId,
+          name: name.trim(),
+          entryKind,
+          titleTemplate: titleTemplate.trim(),
+          bodyMarkdown: bodyMarkdown.trim(),
+        });
+      } else {
+        await createMutation.mutateAsync({
+          name: name.trim(),
+          entryKind,
+          titleTemplate: titleTemplate.trim(),
+          bodyMarkdown: bodyMarkdown.trim(),
+        });
+      }
+      resetForm();
     } catch (err) {
-      console.error('Failed to create template', err);
+      console.error(`Failed to ${editingId ? 'update' : 'create'} template`, err);
     }
+  };
+
+  const startCreate = () => {
+    resetForm();
+    setIsCreating(true);
+  };
+
+  const startEdit = (template: (typeof templates)[number]) => {
+    setEditingId(template.id);
+    setIsCreating(false);
+    setName(template.name);
+    setEntryKind(template.entryKind);
+    setTitleTemplate(template.titleTemplate);
+    setBodyMarkdown(template.bodyMarkdown);
   };
 
   const handleDelete = async (id: string) => {
@@ -84,7 +121,7 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
           {!isCreating && (
             <button
               type="button"
-              onClick={() => setIsCreating(true)}
+              onClick={startCreate}
               className="w-full p-2.5 rounded-xl border border-dashed border-slate-700 hover:border-emerald-500/50 hover:bg-slate-800/50 text-slate-300 transition-colors flex items-center justify-center gap-1.5 font-medium"
             >
               <Plus className="w-4 h-4" />
@@ -92,9 +129,9 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
             </button>
           )}
 
-          {isCreating && (
+          {(isCreating || editingId) && (
             <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-              <div className="font-semibold text-slate-200">New Template</div>
+              <div className="font-semibold text-slate-200">{editingId ? 'Edit Template' : 'New Template'}</div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-slate-400 mb-1">Template Name</label>
@@ -115,8 +152,6 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
                   >
                     <option value="NOTE">NOTE</option>
                     <option value="WEEKLY_REVIEW">WEEKLY_REVIEW</option>
-                    <option value="EXPENSE">EXPENSE</option>
-                    <option value="WORKOUT">WORKOUT</option>
                   </select>
                 </div>
               </div>
@@ -146,17 +181,17 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
               <div className="flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsCreating(false)}
+                  onClick={resetForm}
                   className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleCreate()}
+                  onClick={() => void handleSave()}
                   className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
                 >
-                  Save Template
+                  {editingId ? 'Save Changes' : 'Save Template'}
                 </button>
               </div>
             </div>
@@ -193,6 +228,16 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
                       className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 font-medium transition-colors"
                     >
                       Use
+                    </button>
+                  )}
+                  {!tpl.builtIn && (
+                    <button
+                      type="button"
+                      onClick={() => startEdit(tpl)}
+                      className="p-1 text-slate-500 hover:text-emerald-400 transition-colors"
+                      aria-label={`Edit ${tpl.name}`}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
                     </button>
                   )}
                   {!tpl.builtIn && (

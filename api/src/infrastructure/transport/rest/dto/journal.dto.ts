@@ -1,5 +1,5 @@
 import { IsArray, IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsObject } from 'class-validator';
-import { ExpenseCategory, JournalEntryKind, PaymentMethod } from '@core/domain/enums';
+import { JournalEntryKind } from '@core/domain/enums';
 
 export class CreateJournalEntryDto {
   @IsString()
@@ -37,37 +37,12 @@ export class CreateJournalEntryDto {
     periodStart: string;
     periodEnd: string;
     summarySnapshot: Record<string, unknown>;
+    wentWellMarkdown?: string | null;
+    frictionMarkdown?: string | null;
+    nextWeekMarkdown?: string | null;
+    experimentSnapshot?: Record<string, unknown> | null;
   };
 
-  @IsOptional()
-  @IsObject()
-  expense?: {
-    amount: number | string;
-    currency?: string;
-    category?: ExpenseCategory;
-    merchant?: string;
-    paymentMethod?: PaymentMethod;
-    transactionAt?: string;
-  };
-
-  @IsOptional()
-  @IsObject()
-  workout?: {
-    startedAt?: string;
-    durationMinutes?: number;
-    exercises: {
-      id?: string;
-      exerciseId: string;
-      sortOrder?: number;
-      note?: string;
-      sets: {
-        id?: string;
-        sortOrder?: number;
-        reps: number;
-        weight: number;
-      }[];
-    }[];
-  };
 }
 
 export class UpdateJournalEntryDto {
@@ -102,37 +77,12 @@ export class UpdateJournalEntryDto {
     periodStart?: string;
     periodEnd?: string;
     summarySnapshot?: Record<string, unknown>;
+    wentWellMarkdown?: string | null;
+    frictionMarkdown?: string | null;
+    nextWeekMarkdown?: string | null;
+    experimentSnapshot?: Record<string, unknown> | null;
   };
 
-  @IsOptional()
-  @IsObject()
-  expense?: {
-    amount?: number | string;
-    currency?: string;
-    category?: ExpenseCategory;
-    merchant?: string;
-    paymentMethod?: PaymentMethod;
-    transactionAt?: string;
-  };
-
-  @IsOptional()
-  @IsObject()
-  workout?: {
-    startedAt?: string;
-    durationMinutes?: number;
-    exercises?: {
-      id?: string;
-      exerciseId: string;
-      sortOrder?: number;
-      note?: string;
-      sets: {
-        id?: string;
-        sortOrder?: number;
-        reps: number;
-        weight: number;
-      }[];
-    }[];
-  };
 }
 
 export class CreateJournalTemplateDto {
@@ -213,15 +163,11 @@ export class SearchJournalQueryDto {
 
   @IsOptional()
   @IsString()
-  currency?: string;
-
-  @IsOptional()
-  @IsEnum(ExpenseCategory)
-  category?: ExpenseCategory;
+  query?: string;
 
   @IsOptional()
   @IsString()
-  query?: string;
+  includeDeleted?: string;
 }
 
 export class WeeklySummaryQueryDto {
@@ -231,9 +177,3 @@ export class WeeklySummaryQueryDto {
   @IsDateString()
   periodEnd!: string;
 }
-
-export class CreateExerciseDefinitionDto {
-  @IsString()
-  name!: string;
-}
-

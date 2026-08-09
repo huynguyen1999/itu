@@ -112,9 +112,11 @@ export class GymController {
 
   @Post('workouts')
   createWorkout(@Req() req: AuthenticatedRequest, @Body() dto: CreateWorkoutDto) {
+    if (dto.status === 'COMPLETED' && !dto.endedAt) throw new BadRequestException('endedAt is required for completed workouts');
     return this.gymService.createWorkout(req.user.sub, {
       ...dto,
       startedAt: dto.startedAt ? new Date(dto.startedAt) : undefined,
+      endedAt: dto.endedAt ? new Date(dto.endedAt) : undefined,
     });
   }
 

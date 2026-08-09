@@ -4,15 +4,14 @@ import { Link } from 'react-router-dom';
 import { useBudgetOverview } from '../budgetQueries';
 import { Button } from '@/shared/ui/button';
 import { CategoryIcon } from '../budgetCategoryIcons';
+import { currentBudgetPeriod, shiftBudgetPeriod } from '../budgetPeriod';
 
 export function BudgetOverviewPage() {
-  const [period, setPeriod] = useState(() => new Date().toISOString().substring(0, 7));
+  const [period, setPeriod] = useState(currentBudgetPeriod);
   const { data: overview, isLoading, isError } = useBudgetOverview(period);
 
   const moveMonth = (offset: number) => {
-    const [year, month] = period.split('-').map(Number);
-    const next = new Date(year, month - 1 + offset, 1);
-    setPeriod(next.toISOString().substring(0, 7));
+    setPeriod(shiftBudgetPeriod(period, offset));
   };
 
   const formatCurrency = (value: number, currency = 'VND') =>

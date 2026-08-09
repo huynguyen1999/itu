@@ -26,7 +26,7 @@ This glossary defines the domain language evidenced by iTu's product documentati
 | **Task** | A discrete piece of work that a **User** intends to complete. | To-do, todo, item, action |
 | **Subtask** | A **Task** whose parent is another **Task**. | Child item, checklist item |
 | **Section** | An ordered grouping of **Tasks** within a **Project**. | Column, group, category |
-| **Tag** | A reusable label that classifies **Tasks** or **Habits**. | Label, keyword |
+| **Tag** | A reusable label that classifies **Tasks**, **Habits**, or **Journal Entries**. | Label, keyword |
 | **Priority** | A user-selected importance level for a **Task**. | Rank, urgency |
 | **Due Date** | The latest intended completion time for a **Task**. | Deadline, target date |
 | **Scheduled Time** | A time range reserved for working on a **Task**. | Due date, appointment |
@@ -35,7 +35,7 @@ This glossary defines the domain language evidenced by iTu's product documentati
 | **Task Occurrence** | One scheduled instance of a recurring **Task**. | Task repetition, recurring task |
 | **Reminder** | A scheduled request to notify a **User** about a **Task**. | Alert, notification |
 | **Notification** | A delivered in-product message created from a **Reminder**. | Reminder, message |
-| **Trash** | The recoverable holding area for deleted **Tasks**, **Flashcard Decks**, and **Flashcards**. | Archive, deleted items |
+| **Trash** | The recoverable holding area for deleted **Tasks**, **Flashcard Decks**, **Flashcards**, or **Journal Entries**. | Archive, deleted items |
 | **Restore** | The operation that returns an item from **Trash** to its active context. | Undo delete, recover |
 
 ## Focus work
@@ -60,6 +60,22 @@ This glossary defines the domain language evidenced by iTu's product documentati
 | **Domain Usage Summary** | A Statistics projection that combines **Website Usage Summaries** sharing the same normalized hostname. | Website Usage Summary, URL usage |
 | **Browser Integration** | The Chromium extension and DSN-authenticated API path that carry **Browser Activity** directly into iTu. | Browser tracker, extension bridge |
 | **Browser Extension DSN** | A rotatable secret that authorizes one or more Chromium extension installations to submit **Website Usage Summaries** for a **User Account** without a login bearer token. | API key, bearer token |
+
+## Journal, budget, and gym
+
+| Term | Definition | Aliases to avoid |
+| --- | --- | --- |
+| **Journal Entry** | A retained personal log whose kind is **Note** or **Weekly Review**. | Journal item, entry type |
+| **Note** | A free-form **Journal Entry** containing title and Markdown content. | Memo, post |
+| **Weekly Review** | A structured **Journal Entry** for a date range, with editable reflection fields and read-only activity summaries. | Weekly summary, report |
+| **Journal Template** | A reusable title/body/defaults preset for a **Note** or **Weekly Review**. | Journal form, preset |
+| **Journal Attachment** | File metadata and upload state associated with a **Journal Entry**. | Journal file, media item |
+| **Journal Revision** | An immutable snapshot of a **Journal Entry** captured before an accepted update or restore. | Version, history item |
+| **Budget Transaction** | A standalone dated income or expense record owned by the Budget domain. | Expense, journal expense, money item |
+| **Gym Workout** | A standalone exercise aggregate with `IN_PROGRESS` or `COMPLETED` status. | Journal workout, gym session |
+| **Exercise Definition** | A reusable Gym exercise definition whose presentation and unit defaults can be archived or edited. | Exercise template, movement |
+| **Workout Status** | The lifecycle state of a **Gym Workout**: `IN_PROGRESS` or `COMPLETED`. | Workout phase, gym state |
+| **Product Calendar** | The local calendar rule used for product dates; current rules use `Asia/Ho_Chi_Minh` while instants remain UTC. | Server timezone, display timezone |
 
 ## Habits and routines
 
@@ -139,6 +155,11 @@ This glossary defines the domain language evidenced by iTu's product documentati
 - A **Sync Conflict** concerns one **User Account** and one or more competing changes.
 - A **Project** contains zero or more **Sections** and **Tasks**; a **Task** may have **Subtasks**.
 - A **Task** may have many **Tags**, **Reminders**, and **Focus Sessions**.
+- A **Journal Entry** may have many **Tags**, **Journal Attachments**, and
+  **Journal Revisions**; a **Weekly Review** may include read-only Budget and
+  Gym activity summaries.
+- The Budget domain owns **Budget Transactions**; the Gym domain owns
+  **Exercise Definitions** and **Gym Workouts**. Neither is a Journal Entry.
 - A **Reminder** may produce one **Notification**.
 - A recurring **Task** produces zero or more **Task Occurrences**.
 - A **Focus Session** may use one **Focus Preset** and one **Focus Policy**, and may contain multiple **Focus Cycles** and **Focus Interruptions**.
@@ -184,5 +205,8 @@ This glossary defines the domain language evidenced by iTu's product documentati
 - **“Attribute” and “skill” share one persistence model (`GrowthSkill`) but are different domain concepts.** Use **Attribute** and **Skill** according to their progression role, not the storage type.
 - **The AI Tutor is not represented by the current implementation.** The code currently provides **Card Suggestions** and **Study Feedback**; define a **Tutor Conversation** model and workflow before treating **AI Tutor** as implemented domain behavior.
 - **Achievement is in the product language but has no corresponding Prisma model or API surface in the scanned code.** Keep **Achievement** as an intended concept, but do not claim it is currently implemented.
-- **Cross-platform terminology is inconsistent.** Product documentation names Web, macOS, and iOS, while the sync platform enum currently includes WEB, IOS, and WATCHOS; resolve whether macOS is a first-class **Platform** before adding platform-specific rules.
+- **Cross-platform terminology is explicit.** Product documentation names Web,
+  macOS, and iOS, and the sync platform enum includes `MACOS`; use **Platform**
+  and **Sync Device** consistently rather than inventing a separate native-app
+  term.
 - **The glossary source of truth is `agent_docs/ubiquitous_language.md`.** Do not create a second root glossary with competing definitions.

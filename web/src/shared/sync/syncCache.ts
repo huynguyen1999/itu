@@ -36,15 +36,19 @@ const QUERY_PREFIXES: Record<string, string[]> = {
   growthattributemapping: ['growth'],
   journalentry: ['journal-entries', 'journal-dashboard', 'journal'],
   journaltemplate: ['journal-templates', 'journal'],
+  journal_tag: ['journal-tags', 'journal'],
   journaltag: ['journal-tags', 'journal'],
-  exercisedefinition: ['exercise-definitions', 'gym', 'journal'],
-  moneycategory: ['budget', 'journal'],
-  moneybudgetperiod: ['budget', 'journal'],
-  moneycategorybudget: ['budget', 'journal'],
-  journalexpense: ['budget', 'journal-entries', 'journal'],
-  journalworkout: ['gym', 'journal-entries', 'journal'],
-  journalworkoutexercise: ['gym', 'journal'],
-  journalworkoutset: ['gym', 'journal'],
+  journal_attachment: ['journal-entries', 'journal'],
+  journalattachment: ['journal-entries', 'journal'],
+  journal_revision: ['journal-entries', 'journal'],
+  exercisedefinition: ['exercise-definitions', 'gym'],
+  gymworkout: ['gym', 'gym-workouts'],
+  moneycategory: ['budget'],
+  moneybudgetperiod: ['budget'],
+  moneycategorybudget: ['budget'],
+  budgettransaction: ['budget'],
+  budgetpreferences: ['user-preferences'],
+  gympreferences: ['user-preferences'],
 };
 
 const OPTIMISTIC_INSERT_PREFIXES: Record<string, string[]> = {
@@ -55,11 +59,12 @@ const OPTIMISTIC_INSERT_PREFIXES: Record<string, string[]> = {
   habit: ['habits'],
   journalentry: ['journal-entries'],
   journaltemplate: ['journal-templates'],
+  journal_tag: ['journal-tags'],
   journaltag: ['journal-tags'],
   exercisedefinition: ['exercise-definitions', 'gym'],
+  gymworkout: ['gym'],
   moneycategory: ['budget'],
-  journalexpense: ['budget'],
-  journalworkout: ['gym'],
+  budgettransaction: ['budget'],
 };
 
 export function applySyncChanges(queryClient: QueryClient, response: SyncResponse): void {
@@ -69,6 +74,53 @@ export function applySyncChanges(queryClient: QueryClient, response: SyncRespons
 }
 
 function applyOptimisticChange(queryClient: QueryClient, change: SyncResponse['changes'][number]): void {
+  if (change.entityType === 'budgetpreferences' || change.entityType === 'gympreferences') {
+    queryClient.setQueryData(['user-preferences'], (current) => {
+      if (!isRecord(current) || !isRecord(change.data)) return current;
+      const key = change.entityType === 'budgetpreferences' ? 'budget' : 'gym';
+      const next = { ...current, [key]: { ...(isRecord(current[key]) ? current[key] : {}), ...change.data } };
+      if (key === 'budget') next.money = next.budget;
+      return next;
+    });
+    return;
+  }
+  if (change.entityType === 'budgettransaction') {
+    queryClient.setQueriesData({ queryKey: ['budget', 'transactions'] }, (current) =>
+      updateCollection(current, change.entityId, change.data, change.deleted),
+    );
+    return;
+  }
+  if (change.entityType === 'exercisedefinition') {
+    queryClient.setQueriesData({ queryKey: ['exercise-definitions'] }, (current) =>
+      updateCachedValue(current, change.entityId, change.data, change.deleted),
+    );
+    queryClient.setQueriesData({ queryKey: ['gym', 'exercises'] }, (current) =>
+      updateCollection(current, change.entityId, change.data, change.deleted),
+    );
+    return;
+  }
+  if (change.entityType === 'gymworkout') {
+    queryClient.setQueriesData({ queryKey: ['gym', 'workouts'] }, (current) =>
+      updateCollection(current, change.entityId, change.data, change.deleted),
+    );
+    if (change.entityId) queryClient.setQueryData(['gym', 'workout', change.entityId], change.deleted ? undefined : change.data);
+    queryClient.setQueryData(['gym', 'overview'], (current) => {
+      if (!isRecord(current) || !Array.isArray(current.recentWorkouts)) return current;
+      return {
+        ...current,
+        recentWorkouts: updateCollection(current.recentWorkouts, change.entityId, change.data, change.deleted),
+      };
+    });
+    return;
+  }
+  if (change.entityType === 'journal_revision') {
+    if (!isRecord(change.data) || typeof change.data.entryId !== 'string') return;
+    const { entryId, ...restored } = change.data;
+    queryClient.setQueriesData({ queryKey: ['journal-entries'] }, (current) =>
+      updateCachedEntity(current, entryId, { ...restored, id: entryId }, false, false, false),
+    );
+    return;
+  }
   if (change.entityType === 'growthattributemapping') {
     applyGrowthAttributeMappingChange(queryClient, change);
     return;

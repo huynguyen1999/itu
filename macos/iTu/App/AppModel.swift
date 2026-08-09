@@ -248,13 +248,23 @@ final class AppModel {
     var gymOverview: GymOverviewModel?
     var gymExercises: [ExerciseModel] = []
     var gymWorkouts: [WorkoutModel] = []
+    var budgetPeriods: [BudgetPeriodModel] = []
+    var gymExerciseStats: [String: ExerciseStatsModel] = [:]
+    var budgetPreferences = BudgetPreferencesModel()
+    var gymPreferences = GymPreferencesModel()
     var journalNotes: [JournalNoteModel] = []
+    var journalTags: [JournalTagModel] = []
+    var journalTemplates: [JournalTemplateModel] = []
+    var journalRevisionsByEntryID: [String: [JournalEntryRevisionModel]] = [:]
+    var journalPreferences = JournalPreferencesModel()
     var usageStatistics: UsageStatistics?
+    var websiteUsageStatistics: WebsiteUsageStatistics?
     var localUsageSummaries: [UsageSummary] = []
     var localWebsiteUsageSummaries: [WebsiteUsageSummary] = []
     var usageIsLocalOnly = false
     var usageLoading = false
     var usageError: String?
+    var websiteUsageError: String?
     @ObservationIgnored var usageServerStatistics: UsageStatistics?
     @ObservationIgnored var usageTracker: ForegroundUsageTracker?
     @ObservationIgnored var websiteUsageTracker: WebsiteUsageTracker?
@@ -465,6 +475,23 @@ final class AppModel {
         growthAttributeMappings = snapshot.growthAttributeMappings
         localUsageSummaries = snapshot.usageSummaries
         localWebsiteUsageSummaries = snapshot.websiteUsageSummaries
+        budgetCategories = snapshot.budgetCategories
+        budgetPeriods = snapshot.budgetPeriods
+        budgetTransactions = snapshot.budgetTransactions
+        gymExercises = snapshot.gymExercises
+        gymWorkouts = snapshot.gymWorkouts
+        budgetPreferences = snapshot.budgetPreferences
+        gymPreferences = snapshot.gymPreferences
+        journalNotes = snapshot.journalNotes.filter { $0.deletedAt == nil }
+        journalTags = snapshot.journalTags
+        journalTemplates = snapshot.journalTemplates.filter { $0.archivedAt == nil }
+        journalRevisionsByEntryID = snapshot.journalRevisionsByEntryID
+        journalPreferences = snapshot.journalPreferences
+        settingsStore.journalDefaultEditorMode = journalPreferences.defaultEditorMode.uppercased() == "EDIT" ? "SOURCE" : journalPreferences.defaultEditorMode
+        settingsStore.journalAutoCreateDailyNote = journalPreferences.autoCreateDailyNote
+        settingsStore.journalAutoOpenTodayNote = journalPreferences.autoOpenTodayNote
+        settingsStore.journalWeekStartDay = journalPreferences.weekStartDay
+        settingsStore.journalAutoCreateWeeklyReview = journalPreferences.autoCreateWeeklyReview
         let active = snapshot.focusSessions.first {
             $0.status == .active || $0.status == .paused
         }
@@ -545,8 +572,9 @@ final class AppModel {
             do {
                 try await apiClient.uploadWebsiteUsageSummaries(pendingWebsites, deviceId: syncCoordinator.syncDeviceId)
                 apply(try await offlineStore.markWebsiteUsageUploaded(pendingWebsites))
+                websiteUsageError = nil
             } catch {
-                usageError = error.localizedDescription
+                websiteUsageError = error.localizedDescription
                 failed = true
             }
         }
@@ -557,11 +585,13 @@ final class AppModel {
     func refreshUsage(from: String? = nil, to: String? = nil) async {
         usageLoading = true
         usageError = nil
+        websiteUsageError = nil
         defer { usageLoading = false }
         usageUploadTask?.cancel()
         usageUploadTask = nil
         await uploadUsage()
         let local = await offlineStore.usageSummaries(from: from, to: to)
+        let localWeb = await offlineStore.websiteUsageSummaries(from: from, to: to)
         do {
             let server = try await apiClient.fetchUsage(from: from, to: to)
             let pending = await offlineStore.pendingUsageDeltas(from: from, to: to)
@@ -575,6 +605,15 @@ final class AppModel {
             usageStatistics = .aggregating(local)
             usageError = local.isEmpty ? error.localizedDescription : nil
         }
+        do {
+            let serverWeb = try await apiClient.fetchWebsiteUsage(from: from, to: to)
+            let pendingWeb = await offlineStore.pendingWebsiteUsageDeltas(from: from, to: to)
+            websiteUsageStatistics = serverWeb.adding(pendingWeb)
+            websiteUsageError = nil
+        } catch {
+            websiteUsageStatistics = .aggregating(localWeb)
+            websiteUsageError = error.localizedDescription
+        }
     }
 
     func deleteUsage(from: String? = nil, to: String? = nil) async {
@@ -583,7 +622,10 @@ final class AppModel {
             try await apiClient.deleteWebsiteUsage(from: from, to: to)
             apply(try await offlineStore.deleteUsage(from: from, to: to))
             usageStatistics = nil
-        } catch { usageError = error.localizedDescription }
+            websiteUsageStatistics = nil
+        } catch {
+            usageError = error.localizedDescription
+        }
     }
 
     func stopUsageTracking() {

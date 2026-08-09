@@ -2,7 +2,7 @@ import { useState, type ChangeEvent } from 'react';
 import { FileText, Image as ImageIcon, Paperclip, Trash2 } from 'lucide-react';
 import type { JournalAttachment } from '../journal.types';
 import { enqueueJournalAttachment } from '../attachmentQueue';
-import { api } from '../../../shared/api/client';
+import { useDeleteJournalAttachmentMutation } from '../journalMutations';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface AttachmentTrayProps {
@@ -13,6 +13,7 @@ interface AttachmentTrayProps {
 
 export function AttachmentTray({ entryId, attachments = [], onAttachmentAdded }: AttachmentTrayProps) {
   const queryClient = useQueryClient();
+  const deleteMutation = useDeleteJournalAttachmentMutation();
   const [isUploading, setIsUploading] = useState(false);
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -34,8 +35,8 @@ export function AttachmentTray({ entryId, attachments = [], onAttachmentAdded }:
 
   const handleDeleteAttachment = async (attachmentId: string) => {
     try {
-      await api.delete(`/journal/attachments/${attachmentId}`);
-      void queryClient.invalidateQueries({ queryKey: ['journal-entries'] });
+      await deleteMutation.mutateAsync(attachmentId);
+      await queryClient.invalidateQueries({ queryKey: ['journal-entries'] });
     } catch (err) {
       console.error('Failed to delete attachment', err);
     }

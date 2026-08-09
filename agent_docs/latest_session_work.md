@@ -2,29 +2,33 @@
 
 ## Session date
 
-2026-08-09
+2026-08-10
 
 ## Completed
 
-- Added the Edge-first Chromium extension under `extension/`, signed native host and installer, App Group Browser Activity bridge, macOS WebsiteUsageTracker, local persistence/upload/deletion, authenticated website-summary API routes, database migration, preferences, tests, OpenAPI, glossary, roadmap, and installation instructions.
-- Preserved the privacy boundary: hostname only, no incognito or privileged schemes, no credentials or API access in the extension, and no website-time addition to foreground-app totals.
-- Repaired the extension/host wire-schema mismatch, inactive-state finalization, and website range/all deletion across local and backend storage.
-- Preserved existing staged/unstaged work and made no Git-state mutations.
+- Separated Budget Transactions and Gym Workouts from Journal with standalone Prisma models, repositories, REST contracts, Sync handlers, versions, tombstones, and Workout Exercise snapshots.
+- Narrowed Journal to Notes and Weekly Reviews while retaining Tags, Templates, Attachments, Revisions, Trash, structured reflections, and read-only activity summaries. Removed the former Expense/Workout Journal runtime contracts and data.
+- Implemented the retained Budget, Gym, and Journal capability union on Web and macOS with durable optimistic outboxes, restart/reconnect reconciliation, conflict handling, decimal-string money, optional durable Exercise images, idempotent Journal attachment upload, offline attachment deletion, and offline revision restore.
+- Added both Gym Workout entry paths: `IN_PROGRESS` to `COMPLETED`, and direct `COMPLETED` creation.
+- Locked Budget and Journal product-calendar calculations to `Asia/Ho_Chi_Minh` and normalized Weekly Review date contracts to `YYYY-MM-DD`.
+- Repaired missing Website Usage Summaries in macOS Statistics by correcting the batch upload route, merging server and pending local values, and fixing browser attribution/error states.
+- Updated the parity plan, Journal contract, roadmap, glossary, and platform architecture documents. Preserved unrelated architecture walkthrough changes and Git state.
+- Ran the guarded development Journal reset against the local `iTu` database: 7 entries and 11 revisions removed; no Journal attachments/media, templates, or tags existed.
 
 ## Verification
 
-- Extension: 6/6 Node tests passed.
-- API: Prisma validate, typecheck, build, and full 52-suite / 211-test gate passed; OpenAPI regeneration passed.
-- macOS: signed host and app builds passed; native protocol boundary tests passed; final full signed test gate passed 187/187.
-- Scoped `git diff --check` passed. Logs are under `/tmp/verify-1-*` and `/tmp/itu-mac-bridge-*`.
+- API: Prisma generate/validate, typecheck, build, and 56 suites / 227 tests passed.
+- Web: typecheck, build, and 43 files / 206 tests passed.
+- macOS: all touched Swift sources/tests parse; focused offline parity regressions were added; independent cross-platform review found no remaining production code blockers.
+- `git diff --check` passes.
 
 ## Unfinished
 
-- Migrations `20260809030000_usage_summaries` and `20260809040000_website_usage_summaries` have not been deployed.
-- Live unpacked-Edge to installed-native-host smoke testing has not been exercised.
-- Website summary read/rendering in macOS and web Statistics plus in-app Browser Integration status/install UI remain follow-up scope.
-- Existing unrelated deployments and dirty worktree changes remain in place.
+- The post-repair signed macOS focused/full build and test gate is blocked before compilation because GitHub DNS/cache access cannot resolve the existing `KeyboardShortcuts` package. Earlier signed suites passed before the final native repair.
+- The separation migration `20260810000000_budget_gym_journal_separation` was not applied. The environment rejected the migration-status permission request; do not bypass that boundary.
+- Manual two-device conflict and offline restart/reconnect acceptance has not been exercised against running clients.
+- The separation migration is a disposable-development cutover and must not be deployed to retained production Journal data without a separate data-migration decision.
 
 ## Next entry point
 
-Deploy the two additive usage migrations through the normal release process, follow `extension/README.md` to install the unpacked Edge extension and signed host, then run the live tab-switch/background/lock/reconnect acceptance flow against the deployed API.
+When dependency access is available, run the signed macOS focused and full gates with automatic Apple Development signing. Then inspect/apply the separation migration only to the disposable local database and execute the two-device active-Workout conflict plus offline Journal attachment/revision acceptance flow.

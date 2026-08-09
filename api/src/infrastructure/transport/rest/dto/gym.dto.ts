@@ -97,6 +97,28 @@ export class CreateWorkoutDto {
   @IsOptional()
   @IsString()
   startedAt?: string;
+
+  @ApiPropertyOptional({ enum: ['IN_PROGRESS', 'ACTIVE', 'COMPLETED'], default: 'IN_PROGRESS' })
+  @IsOptional()
+  @IsEnum(['IN_PROGRESS', 'ACTIVE', 'COMPLETED'])
+  status?: 'IN_PROGRESS' | 'ACTIVE' | 'COMPLETED';
+
+  @ApiPropertyOptional({ description: 'ISO date string of end time' })
+  @IsOptional()
+  @IsString()
+  endedAt?: string;
+
+  @ApiPropertyOptional({ description: 'Duration in minutes' })
+  @IsOptional()
+  @IsNumber()
+  durationMinutes?: number;
+
+  @ApiPropertyOptional({ description: 'Workout exercises', type: [Object] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateWorkoutExerciseDto)
+  exercises?: UpdateWorkoutExerciseDto[];
 }
 
 export class UpdateWorkoutSetDto {
@@ -195,10 +217,10 @@ export class UpdateWorkoutDto {
   @IsNumber()
   durationMinutes?: number;
 
-  @ApiPropertyOptional({ enum: ['ACTIVE', 'COMPLETED', 'ABANDONED'] })
+  @ApiPropertyOptional({ enum: ['IN_PROGRESS', 'ACTIVE', 'COMPLETED'] })
   @IsOptional()
-  @IsEnum(['ACTIVE', 'COMPLETED', 'ABANDONED'])
-  status?: 'ACTIVE' | 'COMPLETED' | 'ABANDONED';
+  @IsEnum(['IN_PROGRESS', 'ACTIVE', 'COMPLETED'])
+  status?: 'IN_PROGRESS' | 'ACTIVE' | 'COMPLETED';
 
   @ApiPropertyOptional({ description: 'Workout exercises', type: [UpdateWorkoutExerciseDto] })
   @IsOptional()

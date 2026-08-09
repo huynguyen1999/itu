@@ -42,7 +42,7 @@ export function WorkoutHistoryPage() {
                     className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
                       w.status === 'COMPLETED'
                         ? 'bg-emerald-500/10 text-emerald-500'
-                        : w.status === 'ACTIVE'
+                        : w.status === 'ACTIVE' || w.status === 'IN_PROGRESS'
                         ? 'bg-blue-500/10 text-blue-500'
                         : 'bg-muted text-muted-foreground'
                     }`}

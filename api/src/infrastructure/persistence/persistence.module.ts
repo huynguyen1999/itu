@@ -29,14 +29,12 @@ import {
   PrismaJournalRepository,
   PrismaJournalTemplateRepository,
   PrismaJournalTagRepository,
-  PrismaExerciseDefinitionRepository,
   PrismaJournalAttachmentRepository,
 } from './prisma/prisma-journal.repository';
 import {
   JOURNAL_REPOSITORY,
   JOURNAL_TEMPLATE_REPOSITORY,
   JOURNAL_TAG_REPOSITORY,
-  EXERCISE_DEFINITION_REPOSITORY,
   JOURNAL_ATTACHMENT_REPOSITORY,
 } from '@core/application/use-cases/journal/journal.service';
 
@@ -68,7 +66,6 @@ import {
     PrismaJournalRepository,
     PrismaJournalTemplateRepository,
     PrismaJournalTagRepository,
-    PrismaExerciseDefinitionRepository,
     PrismaJournalAttachmentRepository,
     { provide: TOKENS.USER_REPOSITORY, useExisting: PrismaUserRepository },
     { provide: TOKENS.DECK_REPOSITORY, useExisting: PrismaDeckRepository },
@@ -92,7 +89,6 @@ import {
     { provide: JOURNAL_REPOSITORY, useClass: PrismaJournalRepository },
     { provide: JOURNAL_TEMPLATE_REPOSITORY, useClass: PrismaJournalTemplateRepository },
     { provide: JOURNAL_TAG_REPOSITORY, useClass: PrismaJournalTagRepository },
-    { provide: EXERCISE_DEFINITION_REPOSITORY, useClass: PrismaExerciseDefinitionRepository },
     { provide: JOURNAL_ATTACHMENT_REPOSITORY, useClass: PrismaJournalAttachmentRepository },
   ],
   exports: [
@@ -121,7 +117,6 @@ import {
     PrismaJournalRepository,
     PrismaJournalTemplateRepository,
     PrismaJournalTagRepository,
-    PrismaExerciseDefinitionRepository,
     PrismaJournalAttachmentRepository,
     SrsSchedulerService,
     TOKENS.USER_REPOSITORY,
@@ -146,7 +141,6 @@ import {
     JOURNAL_REPOSITORY,
     JOURNAL_TEMPLATE_REPOSITORY,
     JOURNAL_TAG_REPOSITORY,
-    EXERCISE_DEFINITION_REPOSITORY,
     JOURNAL_ATTACHMENT_REPOSITORY,
   ],
 })

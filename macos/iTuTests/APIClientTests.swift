@@ -88,6 +88,70 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(StubURLProtocol.requests.map(\.method), ["DELETE", "DELETE"])
     }
 
+    func testFetchWebsiteUsageParsesServerResponse() async throws {
+        let json = Data(
+            """
+            {
+              "totalActiveSeconds": 120,
+              "hostnames": [
+                { "hostname": "github.com", "activeSeconds": 120 }
+              ],
+              "topHostnames": [
+                { "hostname": "github.com", "activeSeconds": 120 }
+              ],
+              "daily": [
+                { "localDate": "2026-08-09", "activeSeconds": 120 }
+              ],
+              "browsers": [
+                { "browserBundleId": "com.google.Chrome", "browserDisplayName": "Google Chrome", "activeSeconds": 120 }
+              ]
+            }
+            """.utf8
+        )
+        StubURLProtocol.responses = [
+            "/usage/websites/summaries?from=2026-08-01&to=2026-08-09": json,
+        ]
+        StubURLProtocol.requests = []
+        defer {
+            StubURLProtocol.responses = [:]
+            StubURLProtocol.requests = []
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let client = APIClient(session: URLSession(configuration: configuration))
+
+        let stats = try await client.fetchWebsiteUsage(from: "2026-08-01", to: "2026-08-09")
+
+        XCTAssertEqual(stats.totalActiveSeconds, 120)
+        XCTAssertEqual(stats.hostnames.first?.hostname, "github.com")
+        XCTAssertEqual(stats.hostnames.first?.activeSeconds, 120)
+    }
+
+    func testUploadWebsiteUsageUsesBatchEndpoint() async throws {
+        StubURLProtocol.responses = ["/usage/websites/summaries/batch": Data("{}".utf8)]
+        StubURLProtocol.requests = []
+        defer {
+            StubURLProtocol.responses = [:]
+            StubURLProtocol.requests = []
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let client = APIClient(session: URLSession(configuration: configuration))
+        let summary = WebsiteUsageSummary(
+            localDate: "2026-08-09",
+            browserBundleId: BrowserActivityState.edgeBundleID,
+            browserDisplayName: "Microsoft Edge",
+            hostname: "example.com",
+            timezone: "Asia/Ho_Chi_Minh",
+            activeSeconds: 30
+        )
+
+        try await client.uploadWebsiteUsageSummaries([summary], deviceId: "device-1")
+
+        XCTAssertEqual(StubURLProtocol.requests.map(\.path), ["/usage/websites/summaries/batch"])
+        XCTAssertEqual(StubURLProtocol.requests.map(\.method), ["POST"])
+    }
+
     private func pageData(
         tasks: [ProductivityTask],
         nextCursor: String?,

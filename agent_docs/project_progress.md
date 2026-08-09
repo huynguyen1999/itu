@@ -1,5 +1,15 @@
 # Project Progress
 
+## Implementation complete: offline-first Budget, Gym, and Journal parity
+
+- Canonical plan: [`plans/macos-budget-gym-journal-parity.md`](../plans/macos-budget-gym-journal-parity.md).
+- Budget Transactions, Gym Workouts, and Journal now have separate persistence, application, REST, and Sync boundaries. Journal is limited to Notes and Weekly Reviews; Tags, Templates, Attachments, Revisions, and Trash remain supported.
+- Web and macOS implement the retained feature union through durable optimistic outboxes, including active-to-completed and direct-completed Gym Workouts, optional durable Exercise image uploads, Journal attachment deletion, and revision restore.
+- Money remains decimal-string/Prisma Decimal end to end, and Budget/Journal calendar boundaries use `Asia/Ho_Chi_Minh`.
+- macOS Website Usage Summaries now use the correct batch upload endpoint and render server values merged with pending local deltas.
+- Verification passed for API (56 suites / 227 tests, Prisma generate/validate, typecheck, build), Web (43 files / 206 tests, typecheck, build), native Swift parsing, independent parity review, and whitespace checks.
+- Deployment verification remains open: the post-repair signed macOS build/test could not resolve `KeyboardShortcuts` because GitHub DNS/cache access was unavailable; the local separation migration was not applied after its permission request was rejected; manual two-device conflict acceptance remains unrun. The guarded local Journal reset removed 7 entries and 11 revisions and found no Journal media.
+
 ## Completed deployment: Chromium Browser Integration core
 
 - Added one dependency-free Manifest V3 extension under `extension/`, with an explicit local opt-in, hostname-only **Browser Activity**, incognito and non-HTTP(S) exclusion, active-tab/window reconciliation, heartbeat, deduplication, and bounded reconnect behavior.

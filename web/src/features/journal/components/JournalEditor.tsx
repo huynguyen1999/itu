@@ -13,15 +13,11 @@ import {
 import type {
   JournalEntry,
   JournalEntryKind,
-  JournalExpense,
   JournalWeeklyReview,
-  JournalWorkout,
 } from '../journal.types';
 import { getLocalTodayDateString } from '../journalDate';
 import { TagPicker } from './TagPicker';
 import { AttachmentTray } from './AttachmentTray';
-import { ExpenseEditor } from './ExpenseEditor';
-import { WorkoutEditor } from './WorkoutEditor';
 import { WeeklyReviewEditor } from './WeeklyReviewEditor';
 import { RevisionHistory } from './RevisionHistory';
 import { TemplateEditor } from './TemplateEditor';
@@ -38,13 +34,11 @@ interface JournalEditorProps {
 
 export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: JournalEditorProps) {
   const { state: syncState } = useSync();
-  const [kind, setKind] = useState<JournalEntryKind>(initialEntry?.kind || 'NOTE');
+  const [kind, setKind] = useState<JournalEntryKind>(initialEntry?.kind === 'WEEKLY_REVIEW' ? 'WEEKLY_REVIEW' : 'NOTE');
   const [title, setTitle] = useState(initialEntry?.title || '');
   const [contentMarkdown, setContentMarkdown] = useState(initialEntry?.contentMarkdown || '');
   const [entryDate, setEntryDate] = useState(toDateInputValue(initialEntry?.entryDate));
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(initialEntry?.tags?.map((t) => t.id) || []);
-  const [expense, setExpense] = useState<Partial<JournalExpense> | null>(initialEntry?.expense || null);
-  const [workout, setWorkout] = useState<Partial<JournalWorkout> | null>(initialEntry?.workout || null);
   const [weeklyReview, setWeeklyReview] = useState<Partial<JournalWeeklyReview> | null>(
     initialEntry?.weeklyReview || null,
   );
@@ -68,9 +62,7 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
         templateId: initialEntry?.templateId,
         version: initialEntry?.version,
         tagIds: selectedTagIds,
-        expense: kind === 'EXPENSE' ? (expense as any) : null,
-        workout: kind === 'WORKOUT' ? (workout as any) : null,
-        weeklyReview: kind === 'WEEKLY_REVIEW' ? (weeklyReview as any) : null,
+        weeklyReview: kind === 'WEEKLY_REVIEW' ? (weeklyReview as JournalWeeklyReview) : null,
       });
       // The offline mutation resolves after the local outbox/cache write. The
       // sync badge below communicates whether the server acknowledgement is pending.
@@ -81,7 +73,7 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
   };
 
   const applyTemplate = (template: any) => {
-    setKind(template.entryKind);
+    if (template.entryKind === 'NOTE' || template.entryKind === 'WEEKLY_REVIEW') setKind(template.entryKind);
     if (template.titleTemplate) setTitle(template.titleTemplate.replace('{{date}}', entryDate));
     if (template.bodyMarkdown) setContentMarkdown(template.bodyMarkdown);
   };
@@ -104,8 +96,6 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
             >
               <option value="NOTE">Note</option>
               <option value="WEEKLY_REVIEW">Weekly review</option>
-              <option value="EXPENSE">Expense entry</option>
-              <option value="WORKOUT">Workout entry</option>
             </select>
 
             <label className="inline-flex h-9 items-center gap-2 rounded-[var(--itu-radius-s)] border border-input bg-background px-3 text-xs text-muted-foreground focus-within:border-[var(--itu-teal-500)] focus-within:ring-2 focus-within:ring-ring">
@@ -209,30 +199,6 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
         </div>
       </main>
 
-      {kind === 'EXPENSE' && (
-        <section aria-labelledby="expense-details" className="space-y-2">
-          <h2
-            id="expense-details"
-            className="text-xs font-mono font-bold uppercase tracking-[0.16em] text-muted-foreground"
-          >
-            Structured details
-          </h2>
-          <ExpenseEditor expense={expense as any} onChange={(updated) => setExpense({ ...expense, ...updated })} />
-        </section>
-      )}
-
-      {kind === 'WORKOUT' && (
-        <section aria-labelledby="workout-details" className="space-y-2">
-          <h2
-            id="workout-details"
-            className="text-xs font-mono font-bold uppercase tracking-[0.16em] text-muted-foreground"
-          >
-            Structured details
-          </h2>
-          <WorkoutEditor workout={workout as any} onChange={(updated) => setWorkout({ ...workout, ...updated })} />
-        </section>
-      )}
-
       {kind === 'WEEKLY_REVIEW' && (
         <section aria-labelledby="weekly-review-details" className="space-y-2">
           <h2
@@ -242,7 +208,7 @@ export function JournalEditor({ initialEntry, onSave, onDelete, isSaving }: Jour
             Structured details
           </h2>
           <WeeklyReviewEditor
-            weeklyReview={weeklyReview as any}
+            weeklyReview={weeklyReview}
             onChange={(updated) => setWeeklyReview({ ...weeklyReview, ...updated })}
             entryDate={entryDate}
           />

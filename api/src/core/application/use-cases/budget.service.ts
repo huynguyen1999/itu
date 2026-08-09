@@ -45,11 +45,11 @@ export class BudgetService {
     return this.budgetRepo.getPeriod(userId, periodStr);
   }
 
-  async updatePeriod(userId: string, periodStr: string, overallLimit: number): Promise<BudgetPeriodDomain> {
+  async updatePeriod(userId: string, periodStr: string, overallLimit: string): Promise<BudgetPeriodDomain> {
     return this.budgetRepo.updatePeriod(userId, periodStr, overallLimit);
   }
 
-  async updateCategoryLimit(userId: string, periodStr: string, categoryId: string, limit: number): Promise<BudgetPeriodDomain> {
+  async updateCategoryLimit(userId: string, periodStr: string, categoryId: string, limit: string): Promise<BudgetPeriodDomain> {
     return this.budgetRepo.updateCategoryLimit(userId, periodStr, categoryId, limit);
   }
 

@@ -20,6 +20,7 @@ import { PrismaSyncFocusHabits } from './prisma-sync-focus-habits';
 import { PrismaSyncTasks } from './prisma-sync-tasks';
 import { PrismaSyncGrowthMutations } from './prisma-sync-growth-mutations';
 import { PrismaSyncJournal, JOURNAL_SYNC_INCLUDE } from './prisma-sync-journal';
+import { PrismaSyncBudgetGym } from './prisma-sync-budget-gym';
 import { TASK_SYNC_INCLUDE, Tx } from './prisma-sync-mutation.shared';
 import { mapCard, mapDeck } from './prisma.mappers';
 import { deriveUrgency } from '@core/application/use-cases/productivity-rules';
@@ -48,6 +49,7 @@ export class PrismaSyncRepository implements ISyncRepository {
   private readonly taskMutations = new PrismaSyncTasks();
   private readonly growthMutations = new PrismaSyncGrowthMutations();
   private readonly journalMutations = new PrismaSyncJournal();
+  private readonly budgetGymMutations = new PrismaSyncBudgetGym();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -174,7 +176,7 @@ export class PrismaSyncRepository implements ISyncRepository {
       changes.filter((change) => change.entityType === type && !change.deleted).map((change) => change.entityId);
 
     const deckIds = ids('deck');
-    const [tasks, taskLists, habits, decks, cards, deckStats] = await Promise.all([
+    const [tasks, taskLists, habits, decks, cards, budgetTransactions, gymWorkouts, deckStats] = await Promise.all([
       this.prisma.task.findMany({
         where: { userId, id: { in: ids('task') }, deletedAt: null },
         include: {
@@ -205,6 +207,8 @@ export class PrismaSyncRepository implements ISyncRepository {
           reviewStates: true,
         },
       }),
+      this.prisma.budgetTransaction.findMany({ where: { userId, id: { in: ids('budgettransaction') }, deletedAt: null }, include: { categoryRel: true } }),
+      this.prisma.gymWorkout.findMany({ where: { userId, id: { in: ids('gymworkout') }, deletedAt: null }, include: { exercises: { include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } } } }),
       this.deckStudyStats(userId, deckIds),
     ]);
 
@@ -228,8 +232,10 @@ export class PrismaSyncRepository implements ISyncRepository {
       });
     }
     for (const card of cards) resources.set(`card:${card.id}`, mapCard(card));
+    for (const transaction of budgetTransactions) resources.set(`budgettransaction:${transaction.id}`, transaction);
+    for (const workout of gymWorkouts) resources.set(`gymworkout:${workout.id}`, workout);
 
-    const completeTypes = new Set(['task', 'tasklist', 'habit', 'deck', 'card']);
+    const completeTypes = new Set(['task', 'tasklist', 'habit', 'deck', 'card', 'budgettransaction', 'gymworkout']);
     return changes.map((change) => {
       const key = `${change.entityType}:${change.entityId}`;
       const resource = change.deleted ? null : resources.get(key);
@@ -323,6 +329,7 @@ export class PrismaSyncRepository implements ISyncRepository {
       this.focusHabitsMutations,
       this.taskMutations,
       this.growthMutations,
+      this.budgetGymMutations,
       this.journalMutations,
     ].find((candidate) => candidate.kinds.includes(mutation.kind));
     if (!handler) throw new InvalidSyncMutationException(`Unsupported sync mutation kind: ${mutation.kind}`);
@@ -372,6 +379,10 @@ export class PrismaSyncRepository implements ISyncRepository {
       journalTemplates,
       journalTags,
       exerciseDefinitions,
+      budgetCategories,
+      budgetPeriods,
+      budgetTransactions,
+      gymWorkouts,
     ] = await Promise.all([
       this.prisma.deck.findMany({ where: { userId, archived: false } }),
       this.prisma.card.findMany({ where: { userId, status: CardStatus.ACTIVE, deck: { archived: false } } }),
@@ -433,6 +444,10 @@ export class PrismaSyncRepository implements ISyncRepository {
       this.prisma.journalTemplate.findMany({ where: { userId, archivedAt: null } }),
       this.prisma.journalTag.findMany({ where: { userId } }),
       this.prisma.exerciseDefinition.findMany({ where: { userId } }),
+      this.prisma.budgetCategory.findMany({ where: { userId } }),
+      this.prisma.budgetPeriod.findMany({ where: { userId }, include: { categoryBudgets: true } }),
+      this.prisma.budgetTransaction.findMany({ where: { userId, deletedAt: null }, include: { categoryRel: true } }),
+      this.prisma.gymWorkout.findMany({ where: { userId, deletedAt: null }, include: { exercises: { include: { exercise: true, sets: true } } } }),
     ]);
     const rows: Array<{ entityType: string; entityId: string; deleted: false; data: Prisma.JsonValue }> = [];
     const add = (entityType: string, values: Array<{ id: string }>) => {
@@ -482,6 +497,10 @@ export class PrismaSyncRepository implements ISyncRepository {
     add('journaltemplate', journalTemplates as any);
     add('journaltag', journalTags as any);
     add('exercisedefinition', exerciseDefinitions as any);
+    add('moneycategory', budgetCategories as any);
+    add('moneybudgetperiod', budgetPeriods as any);
+    add('budgettransaction', budgetTransactions as any);
+    add('gymworkout', gymWorkouts as any);
     return rows;
   }
 }

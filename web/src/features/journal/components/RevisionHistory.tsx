@@ -17,9 +17,9 @@ export function RevisionHistory({ entryId, isOpen, onClose }: RevisionHistoryPro
 
   if (!isOpen) return null;
 
-  const handleRestore = async (revisionId: string) => {
+  const handleRestore = async (revision: JournalEntryRevision) => {
     try {
-      await restoreMutation.mutateAsync({ entryId, revisionId });
+      await restoreMutation.mutateAsync({ entryId, revisionId: revision.id, snapshot: revision.snapshot });
       onClose();
     } catch (err) {
       console.error('Failed to restore revision', err);
@@ -82,7 +82,7 @@ export function RevisionHistory({ entryId, isOpen, onClose }: RevisionHistoryPro
                     </button>
                     <button
                       type="button"
-                      onClick={() => void handleRestore(rev.id)}
+                      onClick={() => void handleRestore(rev)}
                       disabled={restoreMutation.isPending}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
                     >

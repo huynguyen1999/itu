@@ -17,6 +17,10 @@ struct GymView: View {
     @State private var isSelectingExerciseImage = false
     @State private var isCreatingExercise = false
     @State private var exerciseError: String?
+    @State private var restTimer = GymRestTimer()
+    @State private var restTimerTick = Date()
+    @State private var editingExerciseID: String?
+    @State private var editingExerciseName = ""
 
     private var activeWorkout: WorkoutModel? {
         model.gymWorkouts.first { $0.status == "ACTIVE" }
@@ -77,6 +81,10 @@ struct GymView: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(syncColor)
                     .accessibilityLabel("Gym sync status: \(syncStatus)")
+                if model.conflicts.contains(where: { ["gymworkout", "exercisedefinition"].contains($0.entityType.lowercased()) }) {
+                    Label("Gym change needs conflict resolution", systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .medium)).foregroundStyle(iTuTheme.amber)
+                }
             }
             Spacer()
         }
@@ -146,6 +154,14 @@ struct GymView: View {
                         Text("IN PROGRESS")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(iTuTheme.teal)
+                    }
+                    HStack(spacing: 8) {
+                        Text(restTimer.isRunning ? "Rest \(Int(restTimer.remaining))s" : "Rest timer")
+                            .font(.system(size: 12, design: .monospaced)).foregroundStyle(iTuTheme.inkDim)
+                        Button(restTimer.isRunning ? "Stop" : "Start \(model.gymPreferences.defaultRestSeconds)s") {
+                            if restTimer.isRunning { restTimer.stop() } else { restTimer.start(seconds: model.gymPreferences.defaultRestSeconds) }
+                            restTimerTick = Date()
+                        }.buttonStyle(.bordered).controlSize(.small)
                     }
 
                     if let exercises = workout.exercises, !exercises.isEmpty {
@@ -329,99 +345,197 @@ struct GymView: View {
 
     @ViewBuilder
     private var exercisesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Exercise Library")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(iTuTheme.ink)
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Add Exercise")
-                    .font(.system(size: 14, weight: .semibold))
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Exercise Library")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(iTuTheme.ink)
-                HStack(spacing: 10) {
-                    TextField("Exercise name", text: $newExerciseName)
+                Spacer()
+                Text("\(model.gymExercises.count) \(model.gymExercises.count == 1 ? "exercise" : "exercises")")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "figure.strengthtraining.traditional")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(iTuTheme.teal)
+                    Text("Add exercise")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(iTuTheme.ink)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Exercise name")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(iTuTheme.inkDim)
+                    TextField("Barbell back squat", text: $newExerciseName)
                         .textFieldStyle(.roundedBorder)
-                    Picker("Metric", selection: $newExerciseMetricType) {
-                        Text("Weight & Reps").tag("WEIGHT_REPS")
-                        Text("Reps Only").tag("REPS")
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Metric type")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(iTuTheme.inkDim)
+                    Picker("", selection: $newExerciseMetricType) {
+                        Text("Weight & reps").tag("WEIGHT_REPS")
+                        Text("Reps only").tag("REPS")
                         Text("Duration").tag("DURATION")
-                        Text("Distance & Duration").tag("DISTANCE_DURATION")
+                        Text("Distance & duration").tag("DISTANCE_DURATION")
                     }
-                    .frame(width: 170)
+                    .pickerStyle(.segmented)
                 }
-                HStack(spacing: 10) {
-                    TextField("Equipment", text: $newExerciseEquipment)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Primary muscle", text: $newExerciseMuscleGroup)
+
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 4) {
+                            Text("Equipment")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(iTuTheme.inkDim)
+                            Text("(optional)")
+                                .font(.system(size: 12))
+                                .foregroundStyle(iTuTheme.inkFaint)
+                        }
+                        TextField("Barbell", text: $newExerciseEquipment)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 4) {
+                            Text("Primary muscle")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(iTuTheme.inkDim)
+                            Text("(optional)")
+                                .font(.system(size: 12))
+                                .foregroundStyle(iTuTheme.inkFaint)
+                        }
+                        TextField("Quadriceps", text: $newExerciseMuscleGroup)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        Text("Instructions")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(iTuTheme.inkDim)
+                        Text("(optional)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(iTuTheme.inkFaint)
+                    }
+                    TextField("Brace your core, keep your chest up, and squat until your hips drop below your knees.", text: $newExerciseDescription)
                         .textFieldStyle(.roundedBorder)
                 }
-                TextField("Instructions", text: $newExerciseDescription)
-                    .textFieldStyle(.roundedBorder)
-                HStack(spacing: 10) {
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Reference image")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(iTuTheme.inkDim)
+
                     Button {
                         isSelectingExerciseImage = true
                     } label: {
-                        Label(newExerciseImageName.isEmpty ? "Choose Reference Image" : "Change Reference Image", systemImage: "photo")
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(iTuTheme.canvas)
+                                    .frame(width: 36, height: 36)
+
+                                if let data = newExerciseImageData, let nsImage = NSImage(data: data) {
+                                    Image(nsImage: nsImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 36, height: 36)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                } else {
+                                    Image(systemName: "photo.on.rectangle.angled")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(iTuTheme.inkDim)
+                                }
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(newExerciseImageName.isEmpty ? "Choose reference image" : newExerciseImageName)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(iTuTheme.ink)
+                                    .lineLimit(1)
+                                Text(newExerciseImageName.isEmpty ? "PNG or JPG, up to 5 MB" : "Click to replace image")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(iTuTheme.inkDim)
+                            }
+
+                            Spacer()
+
+                            if !newExerciseImageName.isEmpty {
+                                Text("Attached")
+                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(iTuTheme.teal)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(iTuTheme.mintTint)
+                                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                            } else {
+                                Text("Required")
+                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(iTuTheme.coral)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(iTuTheme.coral.opacity(0.12))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                            .stroke(iTuTheme.coral.opacity(0.28), lineWidth: 1)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                            }
+                        }
+                        .padding(12)
+                        .background(iTuTheme.canvas)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(newExerciseImageData != nil ? iTuTheme.teal.opacity(0.5) : iTuTheme.border, lineWidth: 1)
+                        )
                     }
-                    .buttonStyle(.bordered)
-                    if !newExerciseImageName.isEmpty {
-                        Text(newExerciseImageName)
-                            .font(.system(size: 12))
-                            .foregroundStyle(iTuTheme.teal)
-                            .lineLimit(1)
-                    } else {
-                        Text("Required")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(iTuTheme.coral)
-                    }
-                    Spacer()
-                    Button(isCreatingExercise ? "Saving…" : "Create Exercise") {
-                        createExercise()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(iTuTheme.teal)
-                    .disabled(newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || newExerciseImageData == nil || isCreatingExercise)
+                    .buttonStyle(.plain)
                 }
+
                 if let exerciseError {
                     Text(exerciseError)
                         .font(.system(size: 12))
                         .foregroundStyle(iTuTheme.coral)
                 }
+
+                Divider().overlay(iTuTheme.border)
+
+                HStack {
+                        Text(newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                         ? "An exercise name is required"
+                         : (newExerciseImageData == nil ? "Ready to create without an image" : "Ready to create"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(iTuTheme.inkDim)
+
+                    Spacer()
+
+                    Button(isCreatingExercise ? "Creating…" : "Create exercise") {
+                        createExercise()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(iTuTheme.teal)
+                    .disabled(newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreatingExercise)
+                }
             }
-            .padding(16)
+            .padding(20)
             .background(iTuTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(iTuTheme.border, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(iTuTheme.border, lineWidth: 1))
 
             if model.gymExercises.isEmpty {
-                emptyState("No exercises in the library yet.")
+                emptyExerciseLibraryState
             } else {
                 VStack(spacing: 8) {
                     ForEach(model.gymExercises) { exercise in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(exercise.name)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(iTuTheme.ink)
-                                Text("\(exercise.primaryMuscleGroup ?? "General") • \(exercise.equipment ?? "Bodyweight")")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(iTuTheme.inkDim)
-                            }
-                            Spacer()
-                            Image(systemName: exercise.imageUrl == nil ? "photo" : "photo.fill")
-                                .foregroundStyle(exercise.imageUrl == nil ? iTuTheme.inkFaint : iTuTheme.teal)
-                                .accessibilityLabel(exercise.imageUrl == nil ? "No reference image" : "Reference image attached")
-                            Text(metricLabel(exercise.metricType))
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(iTuTheme.teal)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(iTuTheme.canvas)
-                                .clipShape(Capsule())
-                        }
-                        .padding(12)
-                        .background(iTuTheme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        exerciseRow(exercise)
                     }
                 }
             }
@@ -445,10 +559,104 @@ struct GymView: View {
         }
     }
 
+    @ViewBuilder
+    private var emptyExerciseLibraryState: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(iTuTheme.canvas)
+                    .frame(width: 44, height: 44)
+                Image(systemName: "figure.cross-training")
+                    .font(.system(size: 20))
+                    .foregroundStyle(iTuTheme.teal)
+            }
+            Text("No exercises in the library yet")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(iTuTheme.ink)
+            Text("Exercises you create will show up here, ready to add into any routine.")
+                .font(.system(size: 13))
+                .foregroundStyle(iTuTheme.inkDim)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 320)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .padding(.horizontal, 24)
+        .background(iTuTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(iTuTheme.border, lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func exerciseRow(_ exercise: ExerciseModel) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(iTuTheme.canvas)
+                    .frame(width: 40, height: 40)
+
+                if let urlString = exercise.imageUrl, let url = URL(string: urlString) {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        } else {
+                            Image(systemName: "photo")
+                                .foregroundStyle(iTuTheme.inkFaint)
+                        }
+                    }
+                    .frame(width: 40, height: 40)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                } else {
+                    Image(systemName: "figure.strengthtraining.traditional")
+                        .font(.system(size: 16))
+                        .foregroundStyle(iTuTheme.teal)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(exercise.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(iTuTheme.ink)
+                Text("\(exercise.primaryMuscleGroup ?? "General") • \(exercise.equipment ?? "Bodyweight")")
+                    .font(.system(size: 11))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+
+            Spacer()
+
+            Text(metricLabel(exercise.metricType))
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(iTuTheme.teal)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(iTuTheme.mintTint)
+                .clipShape(Capsule())
+            Button("Edit") { editingExerciseID = exercise.id; editingExerciseName = exercise.name }.buttonStyle(.borderless)
+            Button("Archive") { Task { _ = await model.archiveGymExercise(id: exercise.id) } }.buttonStyle(.borderless)
+            }
+            if editingExerciseID == exercise.id {
+                HStack {
+                    TextField("Exercise name", text: $editingExerciseName).textFieldStyle(.roundedBorder)
+                    Button("Save") { Task { let ok = await model.updateGymExercise(id: exercise.id, patch: ["name": .string(editingExerciseName)]); if ok { editingExerciseID = nil } } }.buttonStyle(.borderedProminent).tint(iTuTheme.teal)
+                }
+            }
+        }
+        .padding(12)
+        .background(iTuTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(iTuTheme.border, lineWidth: 1)
+        )
+    }
+
     private func createExercise() {
         let name = newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, let imageData = newExerciseImageData else {
-            exerciseError = "Add an exercise name and reference image before saving."
+        guard !name.isEmpty else {
+            exerciseError = "Add an exercise name before saving."
             return
         }
         isCreatingExercise = true
@@ -460,7 +668,7 @@ struct GymView: View {
                 metricType: newExerciseMetricType,
                 equipment: newExerciseEquipment.trimmingCharacters(in: .whitespacesAndNewlines),
                 primaryMuscleGroup: newExerciseMuscleGroup.trimmingCharacters(in: .whitespacesAndNewlines),
-                imageData: imageData,
+                imageData: newExerciseImageData,
                 fileName: newExerciseImageName,
                 mimeType: newExerciseImageMimeType
             )
@@ -516,6 +724,12 @@ struct GymView: View {
                 .padding(.vertical, 4)
                 .background(iTuTheme.canvas)
                 .clipShape(Capsule())
+            if workout.status == "COMPLETED" {
+                Button("Edit") { Task { _ = await model.updateGymWorkout(id: workout.id, patch: ["title": .string(workout.title)]) } }.buttonStyle(.borderless)
+            }
+            Button { Task { _ = await model.deleteGymWorkout(id: workout.id) } } label: { Image(systemName: "trash") }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Delete workout")
         }
         .padding(12)
         .background(iTuTheme.surface)

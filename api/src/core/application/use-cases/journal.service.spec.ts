@@ -1,12 +1,12 @@
 import { JournalService } from './journal/journal.service';
 import { JournalEntryKind } from '@core/domain/enums';
+import { Prisma } from '@prisma/client';
 
 describe('JournalService', () => {
   let service: JournalService;
   let mockJournalRepo: any;
   let mockTemplateRepo: any;
   let mockTagRepo: any;
-  let mockExerciseRepo: any;
   let mockAttachmentRepo: any;
   let mockPrisma: any;
 
@@ -31,10 +31,6 @@ describe('JournalService', () => {
       list: jest.fn().mockResolvedValue([]),
       findOrCreateByName: jest.fn().mockResolvedValue({ id: 'tag1', name: 'work' }),
     };
-    mockExerciseRepo = {
-      list: jest.fn().mockResolvedValue([]),
-      findOrCreateByName: jest.fn().mockResolvedValue({ id: 'ex1', name: 'Bench Press' }),
-    };
     mockAttachmentRepo = {
       create: jest.fn().mockResolvedValue({ id: 'att1' }),
       delete: jest.fn().mockResolvedValue(true),
@@ -47,8 +43,10 @@ describe('JournalService', () => {
         count: jest.fn().mockResolvedValue(12),
       },
       reviewLog: { count: jest.fn().mockResolvedValue(50) },
-      journalExpense: { findMany: jest.fn().mockResolvedValue([{ amount: 100000, currency: 'VND' }]) },
-      journalWorkout: { count: jest.fn().mockResolvedValue(2) },
+      budgetTransaction: {
+        findMany: jest.fn().mockResolvedValue([{ amount: new Prisma.Decimal('100000.00'), currency: 'VND' }]),
+      },
+      gymWorkout: { count: jest.fn().mockResolvedValue(2) },
       growthLedgerEntry: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 300 } }) },
     };
 
@@ -56,7 +54,6 @@ describe('JournalService', () => {
       mockJournalRepo,
       mockTemplateRepo,
       mockTagRepo,
-      mockExerciseRepo,
       mockAttachmentRepo,
       mockPrisma,
     );
@@ -80,7 +77,7 @@ describe('JournalService', () => {
       focus: { minutes: 120, sessions: 4 },
       habits: { completed: 12, scheduled: 15 },
       learning: { reviews: 50 },
-      expenses: { VND: 100000 },
+      expenses: { VND: '100000.00' },
       workouts: { sessions: 2 },
       growth: { xpEarned: 300 },
     });

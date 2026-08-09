@@ -304,7 +304,9 @@ model User {
   journalTags                 JournalTag[]
   budgetCategories            BudgetCategory[]
   budgetPeriods               BudgetPeriod[]
+  budgetTransactions          BudgetTransaction[]
   exerciseDefinitions         ExerciseDefinition[]
+  gymWorkouts                 GymWorkout[]
   journalAttachments         JournalAttachment[]
   preferences                 UserPreferences?
   usageSummaries              UsageSummary[]
@@ -1580,26 +1582,11 @@ model SyncFieldClock {
 enum JournalEntryKind {
   NOTE
   WEEKLY_REVIEW
-  EXPENSE
-  WORKOUT
 }
 
 enum TransactionType {
   EXPENSE
   INCOME
-}
-
-enum ExpenseCategory {
-  FOOD
-  TRANSPORT
-  SHOPPING
-  BILLS
-  HEALTH
-  EDUCATION
-  ENTERTAINMENT
-  FITNESS
-  TRAVEL
-  OTHER
 }
 
 enum PaymentMethod {
@@ -1645,8 +1632,6 @@ model JournalEntry {
   user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   template        JournalTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
   weeklyReview    JournalWeeklyReview?
-  expense         JournalExpense?
-  workout         JournalWorkout?
   revisions       JournalEntryRevision[]
   tags            JournalTagAssignment[]
   attachments     JournalAttachment[]
@@ -1661,15 +1646,18 @@ model JournalWeeklyReview {
   periodStart     DateTime     @db.Date
   periodEnd       DateTime     @db.Date
   summarySnapshot Json
+  wentWellMarkdown String?
+  frictionMarkdown String?
+  nextWeekMarkdown String?
+  experimentSnapshot Json?
   entry           JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([periodStart, periodEnd])
 }
 
-enum WorkoutStatus {
-  ACTIVE
+enum GymWorkoutStatus {
+  IN_PROGRESS
   COMPLETED
-  ABANDONED
 }
 
 model BudgetCategory {
@@ -1686,7 +1674,7 @@ model BudgetCategory {
   version    Int                   @default(1)
   user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   limits     BudgetCategoryLimit[]
-  expenses   JournalExpense[]
+  transactions BudgetTransaction[]
 
   @@unique([userId, name])
   @@index([userId, archivedAt])
@@ -1724,23 +1712,28 @@ model BudgetCategoryLimit {
   @@map("MoneyCategoryBudget")
 }
 
-model JournalExpense {
-  entryId       String          @id
-  type          TransactionType @default(EXPENSE)
-  amount        Decimal         @db.Decimal(18, 2)
-  currency      String          @default("VND")
-  category      ExpenseCategory @default(OTHER)
-  categoryId    String?
-  merchant      String?
-  paymentMethod PaymentMethod   @default(CASH)
-  accountId     String?
-  transactionAt DateTime        @default(now())
-  entry         JournalEntry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  categoryRel   BudgetCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+model BudgetTransaction {
+  id             String          @id
+  userId         String
+  type           TransactionType  @default(EXPENSE)
+  amount         Decimal         @db.Decimal(18, 2)
+  currency       String          @default("VND")
+  categoryId     String
+  merchant       String?
+  paymentMethod  PaymentMethod   @default(CASH)
+  accountId      String?
+  transactionAt  DateTime        @default(now())
+  note           String?
+  version        Int             @default(1)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryRel    BudgetCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
-  @@index([category])
-  @@index([categoryId])
-  @@index([transactionAt])
+  @@index([userId, transactionAt])
+  @@index([userId, deletedAt])
+  @@index([categoryId, transactionAt])
 }
 
 model ExerciseDefinition {
@@ -1762,52 +1755,64 @@ model ExerciseDefinition {
   updatedAt            DateTime                 @updatedAt
   version              Int                      @default(1)
   user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workoutExercises     JournalWorkoutExercise[]
+  gymWorkoutExercises   GymWorkoutExercise[]
 
   @@unique([userId, normalizedName])
   @@index([userId, name])
   @@index([userId, archivedAt])
 }
 
-model JournalWorkout {
-  entryId         String                   @id
+model GymWorkout {
+  id              String          @id
+  userId          String
   title           String?
   source          String?
-  status          WorkoutStatus            @default(COMPLETED)
+  status          GymWorkoutStatus @default(IN_PROGRESS)
   startedAt       DateTime?
   endedAt         DateTime?
   durationMinutes Int?
-  entry           JournalEntry             @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  exercises       JournalWorkoutExercise[]
+  version         Int             @default(1)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises       GymWorkoutExercise[]
+
+  @@index([userId, startedAt])
+  @@index([userId, deletedAt])
+  @@index([userId, status])
 }
 
-model JournalWorkoutExercise {
-  id             String             @id
-  workoutEntryId String
+model GymWorkoutExercise {
+  id             String          @id
+  workoutId      String
   exerciseId     String
-  sortOrder      Int                @default(0)
+  exerciseName   String
+  metricType     ExerciseMetricType
+  weightUnit     WeightUnit
+  sortOrder      Int             @default(0)
   note           String?
   restSeconds    Int?
-  workout        JournalWorkout     @relation(fields: [workoutEntryId], references: [entryId], onDelete: Cascade)
+  workout        GymWorkout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise       ExerciseDefinition @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
-  sets           JournalWorkoutSet[]
+  sets           GymWorkoutSet[]
 
-  @@index([workoutEntryId, sortOrder])
+  @@index([workoutId, sortOrder])
   @@index([exerciseId])
 }
 
-model JournalWorkoutSet {
-  id                String                 @id
+model GymWorkoutSet {
+  id                String            @id
   workoutExerciseId String
-  sortOrder         Int                    @default(0)
-  type              WorkoutSetType         @default(NORMAL)
+  sortOrder         Int               @default(0)
+  type              WorkoutSetType     @default(NORMAL)
   reps              Int?
-  weight            Decimal?               @db.Decimal(8, 2)
+  weight            Decimal?          @db.Decimal(8, 2)
   durationSeconds   Int?
   distanceMeters    Float?
-  rpe               Decimal?               @db.Decimal(3, 1)
+  rpe               Decimal?          @db.Decimal(3, 1)
   completedAt       DateTime?
-  workoutExercise   JournalWorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  workoutExercise   GymWorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
 
   @@index([workoutExerciseId, sortOrder])
 }

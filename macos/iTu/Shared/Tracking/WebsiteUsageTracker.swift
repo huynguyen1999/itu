@@ -10,6 +10,7 @@ final class WebsiteUsageTracker {
     private var observers: [NSObjectProtocol] = []
     private var timer: Timer?
     private var currentHostname: String?
+    private var currentBrowserBundleID: String?
     private var lastObservedAt: Date?
     private var paused = true
     private(set) var isRunning = false
@@ -32,6 +33,7 @@ final class WebsiteUsageTracker {
         isRunning = true
         paused = false
         currentHostname = nil
+        currentBrowserBundleID = nil
         lastObservedAt = date
         installObservers()
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
@@ -45,6 +47,7 @@ final class WebsiteUsageTracker {
         isRunning = false
         paused = true
         currentHostname = nil
+        currentBrowserBundleID = nil
         timer?.invalidate()
         timer = nil
         observers.forEach(NotificationCenter.default.removeObserver)
@@ -61,6 +64,7 @@ final class WebsiteUsageTracker {
         paused = value
         lastObservedAt = date
         currentHostname = nil
+        currentBrowserBundleID = nil
     }
 
     func tick(at date: Date = Date()) {
@@ -71,31 +75,46 @@ final class WebsiteUsageTracker {
 
         guard let eligible = eligibleHostname(at: date) else {
             if let currentHostname, let lastObservedAt {
-                accrue(hostname: currentHostname, from: lastObservedAt, to: date)
+                accrue(
+                    hostname: currentHostname,
+                    bundleID: currentBrowserBundleID ?? BrowserActivityState.edgeBundleID,
+                    from: lastObservedAt,
+                    to: date
+                )
             }
             currentHostname = nil
+            currentBrowserBundleID = nil
             lastObservedAt = date
             return
         }
 
-        if eligible != currentHostname {
-            if let currentHostname, let lastObservedAt { accrue(hostname: currentHostname, from: lastObservedAt, to: date) }
-            currentHostname = eligible
+        if eligible.hostname != currentHostname || eligible.browserBundleID != currentBrowserBundleID {
+            if let currentHostname, let lastObservedAt {
+                accrue(
+                    hostname: currentHostname,
+                    bundleID: currentBrowserBundleID ?? BrowserActivityState.edgeBundleID,
+                    from: lastObservedAt,
+                    to: date
+                )
+            }
+            currentHostname = eligible.hostname
+            currentBrowserBundleID = eligible.browserBundleID
             lastObservedAt = date
             return
         }
 
         let previous = lastObservedAt ?? date
-        accrue(hostname: eligible, from: previous, to: date)
+        accrue(hostname: eligible.hostname, bundleID: eligible.browserBundleID, from: previous, to: date)
         lastObservedAt = date
     }
 
-    private func eligibleHostname(at date: Date) -> String? {
-        guard frontmostBundleID() == BrowserActivityState.edgeBundleID,
+    private func eligibleHostname(at date: Date) -> (hostname: String, browserBundleID: String)? {
+        guard let frontmost = frontmostBundleID(),
               let stateURL,
               let state = BrowserActivityState.load(from: stateURL),
               state.protocolVersion == BrowserActivityState.protocolVersion,
-              state.browserBundleId == BrowserActivityState.edgeBundleID,
+              BrowserActivityState.supportedBrowserBundleIDs.contains(frontmost),
+              state.browserBundleId == frontmost,
               state.connected,
               state.state == "active",
               !state.incognito,
@@ -104,11 +123,12 @@ final class WebsiteUsageTracker {
               date.timeIntervalSince(updated) <= 90,
               let hostname = state.hostname,
               let normalized = BrowserActivityState.normalizeHostname(hostname) else { return nil }
-        return normalized
+        return (normalized, frontmost)
     }
 
-    private func accrue(hostname: String, from start: Date, to end: Date) {
+    private func accrue(hostname: String, bundleID: String, from start: Date, to end: Date) {
         guard end > start else { return }
+        let displayName = BrowserActivityState.displayName(for: bundleID)
         var cursor = start
         while cursor < end {
             let dayStart = calendar.startOfDay(for: cursor)
@@ -118,8 +138,8 @@ final class WebsiteUsageTracker {
             if seconds > 0 {
                 onSummaryChanged?(WebsiteUsageSummary(
                     localDate: UsageDateFormatter.string(from: cursor, calendar: calendar),
-                    browserBundleId: BrowserActivityState.edgeBundleID,
-                    browserDisplayName: "Microsoft Edge",
+                    browserBundleId: bundleID,
+                    browserDisplayName: displayName,
                     hostname: hostname,
                     timezone: calendar.timeZone.identifier,
                     activeSeconds: seconds

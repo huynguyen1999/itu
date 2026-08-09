@@ -16,7 +16,7 @@ export interface BudgetCategoryLimitDomain {
   id: string;
   budgetPeriodId: string;
   categoryId: string;
-  limit: number;
+  limit: string;
   createdAt: Date;
   updatedAt: Date;
   category?: BudgetCategoryDomain;
@@ -27,7 +27,7 @@ export interface BudgetPeriodDomain {
   userId: string;
   period: string; // e.g. "2026-08"
   currency: string;
-  overallLimit: number;
+  overallLimit: string;
   createdAt: Date;
   updatedAt: Date;
   version: number;
@@ -38,7 +38,7 @@ export interface BudgetTransactionDomain {
   id: string;
   userId: string;
   type: 'EXPENSE' | 'INCOME';
-  amount: number;
+  amount: string;
   currency: string;
   category: string; // enum string or category name
   categoryId?: string | null;
@@ -46,24 +46,26 @@ export interface BudgetTransactionDomain {
   paymentMethod: string;
   transactionAt: Date;
   note?: string | null;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date | null;
 }
 
 export interface CategoryOverviewStat {
   category: BudgetCategoryDomain;
-  budget: number;
-  spent: number;
-  remaining: number;
+  budget: string;
+  spent: string;
+  remaining: string;
   percentage: number;
 }
 
 export interface BudgetOverviewDomain {
   period: string;
   currency: string;
-  income: number;
-  spent: number;
-  overallBudget: number;
-  remainingBudget: number;
+  income: string;
+  spent: string;
+  overallBudget: string;
+  remainingBudget: string;
   categories: CategoryOverviewStat[];
 }

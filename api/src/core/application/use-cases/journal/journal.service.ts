@@ -1,7 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { JournalEntryKind } from '@core/domain/enums';
 import {
-  ExerciseDefinitionModel,
   JournalAttachmentModel,
   JournalEntryModel,
   JournalEntryRevisionModel,
@@ -11,7 +10,6 @@ import {
 import {
   CreateJournalEntryData,
   CreateJournalTemplateData,
-  IExerciseDefinitionRepository,
   IJournalAttachmentRepository,
   IJournalRepository,
   IJournalTagRepository,
@@ -25,7 +23,6 @@ import { PrismaService } from '@infrastructure/persistence/prisma/prisma.service
 export const JOURNAL_REPOSITORY = 'JOURNAL_REPOSITORY';
 export const JOURNAL_TEMPLATE_REPOSITORY = 'JOURNAL_TEMPLATE_REPOSITORY';
 export const JOURNAL_TAG_REPOSITORY = 'JOURNAL_TAG_REPOSITORY';
-export const EXERCISE_DEFINITION_REPOSITORY = 'EXERCISE_DEFINITION_REPOSITORY';
 export const JOURNAL_ATTACHMENT_REPOSITORY = 'JOURNAL_ATTACHMENT_REPOSITORY';
 
 @Injectable()
@@ -37,8 +34,6 @@ export class JournalService {
     private readonly templateRepository: any,
     @Inject(JOURNAL_TAG_REPOSITORY)
     private readonly tagRepository: any,
-    @Inject(EXERCISE_DEFINITION_REPOSITORY)
-    private readonly exerciseRepository: any,
     @Inject(JOURNAL_ATTACHMENT_REPOSITORY)
     private readonly attachmentRepository: any,
     private readonly prisma: PrismaService,
@@ -126,14 +121,6 @@ export class JournalService {
     return this.tagRepository.create(userId, name, color);
   }
 
-  async listExercises(userId: string): Promise<ExerciseDefinitionModel[]> {
-    return this.exerciseRepository.list(userId);
-  }
-
-  async findOrCreateExercise(userId: string, name: string): Promise<ExerciseDefinitionModel> {
-    return this.exerciseRepository.findOrCreateByName(userId, name);
-  }
-
   async buildWeeklyReviewSnapshot(userId: string, periodStart: Date, periodEnd: Date) {
     const [tasksCompleted, focusStats, habitStats, reviewLogsCount, expensesRaw, workoutsCount, growthLedgerSum] =
       await Promise.all([
@@ -152,16 +139,12 @@ export class JournalService {
         this.prisma.reviewLog.count({
           where: { userId, createdAt: { gte: periodStart, lte: periodEnd } },
         }),
-        this.prisma.journalExpense.findMany({
-          where: {
-            entry: { userId, entryDate: { gte: periodStart, lte: periodEnd }, deletedAt: null },
-          },
+        this.prisma.budgetTransaction.findMany({
+          where: { userId, transactionAt: { gte: periodStart, lte: periodEnd }, deletedAt: null },
           select: { amount: true, currency: true },
         }),
-        this.prisma.journalWorkout.count({
-          where: {
-            entry: { userId, entryDate: { gte: periodStart, lte: periodEnd }, deletedAt: null },
-          },
+        this.prisma.gymWorkout.count({
+          where: { userId, startedAt: { gte: periodStart, lte: periodEnd }, deletedAt: null },
         }),
         this.prisma.growthLedgerEntry.aggregate({
           where: { userId, createdAt: { gte: periodStart, lte: periodEnd }, kind: 'ACTIVITY_AWARD' },
@@ -169,10 +152,10 @@ export class JournalService {
         }),
       ]);
 
-    const expenseTotals: Record<string, number> = {};
+    const expenseTotals = new Map<string, (typeof expensesRaw)[number]['amount']>();
     for (const exp of expensesRaw) {
-      const val = Number(exp.amount);
-      expenseTotals[exp.currency] = (expenseTotals[exp.currency] ?? 0) + val;
+      const current = expenseTotals.get(exp.currency);
+      expenseTotals.set(exp.currency, current ? current.add(exp.amount) : exp.amount);
     }
 
     const habitsCompleted = await this.prisma.habitOccurrence.count({
@@ -190,7 +173,9 @@ export class JournalService {
         scheduled: habitStats._count ?? 0,
       },
       learning: { reviews: reviewLogsCount },
-      expenses: expenseTotals,
+      expenses: Object.fromEntries(
+        [...expenseTotals].map(([currency, amount]) => [currency, amount.toFixed(2)]),
+      ),
       workouts: { sessions: workoutsCount },
       growth: { xpEarned: growthLedgerSum._sum.amount ?? 0 },
     };

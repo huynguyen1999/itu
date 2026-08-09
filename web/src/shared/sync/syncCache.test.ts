@@ -9,6 +9,104 @@ import {
 } from './syncCache';
 
 describe('applySyncChanges', () => {
+  it('projects an optimistic Journal tag into the Journal tags cache', () => {
+    const queryClient = new QueryClient();
+    const existing = [{ id: 'tag-1', name: 'work' }];
+    queryClient.setQueryData(['journal-tags'], existing);
+
+    applySyncChanges(queryClient, {
+      acknowledgedMutationIds: [],
+      cursor: '',
+      conflicts: [],
+      changes: [{ entityType: 'journal_tag', entityId: 'tag-2', deleted: false, data: { id: 'tag-2', name: 'study' } }],
+    });
+
+    expect(queryClient.getQueryData(['journal-tags'])).toEqual([
+      existing[0],
+      { id: 'tag-2', name: 'study' },
+    ]);
+  });
+
+  it('removes an optimistic Journal attachment from entry caches', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['journal-entries'], [
+      { id: 'entry-1', attachments: [{ id: 'attachment-1' }, { id: 'attachment-2' }] },
+    ]);
+
+    applySyncChanges(queryClient, {
+      acknowledgedMutationIds: [], cursor: '', conflicts: [],
+      changes: [{ entityType: 'journal_attachment', entityId: 'attachment-1', deleted: true, data: { id: 'attachment-1' } }],
+    });
+
+    expect(queryClient.getQueryData(['journal-entries'])).toEqual([
+      { id: 'entry-1', attachments: [{ id: 'attachment-2' }] },
+    ]);
+  });
+
+  it('projects an optimistic revision restore onto the entry cache', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['journal-entries'], [{ id: 'entry-1', title: 'Current', contentMarkdown: 'Current' }]);
+
+    applySyncChanges(queryClient, {
+      acknowledgedMutationIds: [], cursor: '', conflicts: [],
+      changes: [{
+        entityType: 'journal_revision',
+        entityId: 'revision-1',
+        deleted: false,
+        data: { entryId: 'entry-1', title: 'Restored', contentMarkdown: 'Older body' },
+      }],
+    });
+
+    expect(queryClient.getQueryData(['journal-entries'])).toEqual([
+      { id: 'entry-1', title: 'Restored', contentMarkdown: 'Older body' },
+    ]);
+  });
+
+  it('does not project removed Journal expense or workout entities', () => {
+    const queryClient = new QueryClient();
+    const budget = [{ id: 'budget-1' }];
+    const gym = [{ id: 'workout-1' }];
+    const journal = [{ id: 'entry-1', kind: 'NOTE' }];
+    queryClient.setQueryData(['budget'], budget);
+    queryClient.setQueryData(['gym'], gym);
+    queryClient.setQueryData(['journal-entries'], journal);
+
+    applySyncChanges(queryClient, {
+      acknowledgedMutationIds: [],
+      cursor: '',
+      conflicts: [],
+      changes: [
+        { entityType: 'journalexpense', entityId: 'expense-1', deleted: false, data: { id: 'expense-1' } },
+        { entityType: 'journalworkout', entityId: 'workout-2', deleted: false, data: { id: 'workout-2' } },
+      ],
+    });
+
+    expect(queryClient.getQueryData(['budget'])).toBe(budget);
+    expect(queryClient.getQueryData(['gym'])).toBe(gym);
+    expect(queryClient.getQueryData(['journal-entries'])).toBe(journal);
+  });
+
+  it('projects an optimistic active workout into the cached gym overview', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['gym', 'overview'], {
+      weeklyWorkoutsCount: 0,
+      recentWorkouts: [],
+    });
+    const workout = { id: 'workout-1', status: 'IN_PROGRESS', title: 'Workout', version: 1 };
+
+    applySyncChanges(queryClient, {
+      acknowledgedMutationIds: [],
+      cursor: '',
+      conflicts: [],
+      changes: [{ entityType: 'gymworkout', entityId: workout.id, deleted: false, data: workout }],
+    });
+
+    expect(queryClient.getQueryData(['gym', 'overview'])).toEqual({
+      weeklyWorkoutsCount: 0,
+      recentWorkouts: [workout],
+    });
+  });
+
   it('merges task changes into every cached task view', () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(['tasks', 'all'], [{ id: 'task-1', title: 'Before', version: 1 }]);

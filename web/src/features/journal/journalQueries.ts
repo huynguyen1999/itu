@@ -1,7 +1,6 @@
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import { api } from '../../shared/api/client';
 import type {
-  ExerciseDefinition,
   JournalEntry,
   JournalEntryRevision,
   JournalTag,
@@ -15,7 +14,7 @@ export const journalQueries = {
       queryKey: ['journal-entries', filter ?? {}],
       queryFn: async (): Promise<JournalEntry[]> => {
         const res = await api.get<JournalEntry[]>('/journal/entries', { params: filter });
-        return res.data;
+        return filter?.includeDeleted ? res.data : res.data.filter((entry) => !entry.deletedAt);
       },
     }),
 
@@ -57,15 +56,6 @@ export const journalQueries = {
       },
     }),
 
-  exercises: () =>
-    queryOptions({
-      queryKey: ['exercise-definitions'],
-      queryFn: async (): Promise<ExerciseDefinition[]> => {
-        const res = await api.get<ExerciseDefinition[]>('/journal/exercises');
-        return res.data;
-      },
-    }),
-
   weeklySummary: (periodStart: string, periodEnd: string) =>
     queryOptions({
       queryKey: ['journal-weekly-summary', periodStart, periodEnd],
@@ -95,10 +85,6 @@ export function useJournalTemplates() {
 
 export function useJournalTags() {
   return useQuery(journalQueries.tags());
-}
-
-export function useExerciseDefinitions() {
-  return useQuery(journalQueries.exercises());
 }
 
 export function useWeeklySummary(periodStart: string, periodEnd: string) {

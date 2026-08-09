@@ -112,7 +112,7 @@ flowchart LR
     Request["POST /sync\ndevice + client + cursor + mutations"]
     Service["SyncService"]
     Facade["PrismaSyncRepository"]
-    Handlers["Mutation handlers\ntasks, study, Focus/Habits, Growth, Journal"]
+    Handlers["Mutation handlers\ntasks, study, Focus/Habits, Growth, Journal, Budget, Gym"]
     Journal[("SyncMutation + SyncChange")]
     Result["Acknowledgements, conflicts, changes, cursor"]
     Socket["WebSocket invalidation notifier"]
@@ -125,6 +125,13 @@ flowchart LR
 [`prisma-sync.repository.ts`](../../api/src/infrastructure/persistence/prisma/prisma-sync.repository.ts) is the persistence facade. It provides idempotency by storing mutation IDs, applies mutations transactionally, records conflicts, and serves either an initial snapshot or incremental journal changes. Specialized mutation handlers keep the facade from owning every product rule.
 
 [`websocket-sync-invalidation.notifier.ts`](../../api/src/infrastructure/sync/websocket-sync-invalidation.notifier.ts) authenticates `/sync` upgrades with an access token plus device/client identity. It notifies every matching connection except the exact origin client. It does not transmit changed entities.
+
+Budget Transactions and Gym Workouts are separate synchronized entities. Their
+mutation handlers use `budgettransaction.*` and `gymworkout.*` kinds, enforce
+versions/tombstones, and never route through `JournalEntry`. Journal sync is
+limited to `journal.*`, `journal_attachment.delete`,
+`journal_revision.restore`, `journal_template.*`, and `journal_tag.create`;
+attachment bytes use the upload endpoint outside `/sync`.
 
 ## Background jobs
 
@@ -154,6 +161,9 @@ The publisher and consumer run in the same process but communicate through Rabbi
 ## Usage and extension boundary
 
 Authenticated clients manage tracking preferences, read summaries, and upload macOS device summaries through [`usage.controller.ts`](../../api/src/infrastructure/transport/rest/controllers/usage.controller.ts). The extension uses only `POST /usage/websites/ingest`, protected by [`browser-extension-dsn.guard.ts`](../../api/src/infrastructure/transport/rest/guards/browser-extension-dsn.guard.ts). [`usage.service.ts`](../../api/src/core/application/use-cases/usage.service.ts) validates ranges, ownership, opt-in state, normalization, and retention semantics.
+
+The macOS Statistics client reads Website Usage Summaries through the dedicated
+usage routes; local pending deltas are merged on the client before rendering.
 
 ## Architectural invariants
 

@@ -372,6 +372,16 @@ final class SettingsStore {
         set { UserDefaults.standard.set(newValue, forKey: "itu_journal_auto_open_today_note") }
     }
 
+    public var journalWeekStartDay: String {
+        get { UserDefaults.standard.string(forKey: "itu_journal_week_start_day") ?? "MONDAY" }
+        set { UserDefaults.standard.set(newValue, forKey: "itu_journal_week_start_day") }
+    }
+
+    public var journalAutoCreateWeeklyReview: Bool {
+        get { UserDefaults.standard.object(forKey: "itu_journal_auto_create_weekly_review") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "itu_journal_auto_create_weekly_review") }
+    }
+
     public var growthCelebrationStyle: String {
         get { UserDefaults.standard.string(forKey: "itu_growth_celebration_style") ?? "SUBTLE" }
         set { UserDefaults.standard.set(newValue, forKey: "itu_growth_celebration_style") }

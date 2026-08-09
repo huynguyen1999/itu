@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { Plus, Tag as TagIcon, X } from 'lucide-react';
 import { useJournalTags } from '../journalQueries';
-import { JournalTag } from '../journal.types';
-import { api } from '../../../shared/api/client';
-import { useQueryClient } from '@tanstack/react-query';
+import { useCreateJournalTagMutation } from '../journalMutations';
 
 interface TagPickerProps {
   selectedTagIds: string[];
@@ -12,7 +10,7 @@ interface TagPickerProps {
 
 export function TagPicker({ selectedTagIds, onChange }: TagPickerProps) {
   const { data: tags = [] } = useJournalTags();
-  const queryClient = useQueryClient();
+  const createTag = useCreateJournalTagMutation();
   const [isOpen, setIsOpen] = useState(false);
   const [newTagName, setNewTagName] = useState('');
 
@@ -21,9 +19,7 @@ export function TagPicker({ selectedTagIds, onChange }: TagPickerProps) {
   const handleCreateTag = async () => {
     if (!newTagName.trim()) return;
     try {
-      const res = await (api.post<JournalTag>)('/journal/tags', { name: newTagName.trim() });
-      const created = res.data;
-      void queryClient.invalidateQueries({ queryKey: ['journal-tags'] });
+      const created = await createTag.mutateAsync({ name: newTagName });
       onChange([...selectedTagIds, created.id]);
       setNewTagName('');
     } catch (err) {

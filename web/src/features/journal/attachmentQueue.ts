@@ -40,9 +40,7 @@ export async function enqueueJournalAttachment({ entryId, file }: EnqueueAttachm
   }
 
   // Trigger background upload if online
-  if (navigator.onLine) {
-    void processJournalAttachmentQueue();
-  }
+  if (isOnline()) retryAttachmentQueue();
 
   return {
     id: attachmentId,
@@ -57,7 +55,7 @@ export async function enqueueJournalAttachment({ entryId, file }: EnqueueAttachm
 }
 
 export async function processJournalAttachmentQueue(): Promise<void> {
-  if (!navigator.onLine) return;
+  if (!isOnline()) return;
   const database = (offlineSyncStore as any).database
     ? await (offlineSyncStore as any).database()
     : null;
@@ -72,12 +70,11 @@ export async function processJournalAttachmentQueue(): Promise<void> {
   for (const item of blobRecords) {
     try {
       const formData = new FormData();
+      formData.append('attachmentId', item.id);
       formData.append('entryId', item.entryId);
       formData.append('file', item.blob, item.fileName);
 
-      await api.post('/journal/attachments/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      await api.post('/journal/attachments/upload', formData);
 
       // Delete uploaded blob from IndexedDB
       const delTx = database.transaction(['journal-attachment-blobs', 'journal-attachment-upload-state'], 'readwrite');
@@ -87,4 +84,17 @@ export async function processJournalAttachmentQueue(): Promise<void> {
       console.warn(`Failed to upload attachment ${item.id}:`, err);
     }
   }
+}
+
+function isOnline() {
+  return typeof navigator !== 'undefined' && navigator.onLine;
+}
+
+function retryAttachmentQueue() {
+  void processJournalAttachmentQueue().catch(() => undefined);
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', retryAttachmentQueue);
+  retryAttachmentQueue();
 }

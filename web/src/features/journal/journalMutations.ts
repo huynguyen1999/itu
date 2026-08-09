@@ -1,19 +1,18 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../shared/api/client';
 import { createUlid } from '../../shared/sync/syncIdentity';
+import type { JournalTag, JournalWeeklyReview } from './journal.types';
 
 export interface CreateJournalEntryParams {
   id?: string;
-  kind: 'NOTE' | 'WEEKLY_REVIEW' | 'EXPENSE' | 'WORKOUT';
+  kind: 'NOTE' | 'WEEKLY_REVIEW';
   title: string;
   contentMarkdown?: string;
   entryDate: string;
   timezone?: string;
   templateId?: string | null;
   tagIds?: string[];
-  weeklyReview?: any;
-  expense?: any;
-  workout?: any;
+  weeklyReview?: Partial<JournalWeeklyReview> | null;
 }
 
 export function useCreateJournalEntryMutation() {
@@ -32,8 +31,6 @@ export function useCreateJournalEntryMutation() {
         templateId: params.templateId || null,
         tagIds: params.tagIds || [],
         weeklyReview: params.weeklyReview,
-        expense: params.expense,
-        workout: params.workout,
       };
 
       const optimisticEntry = {
@@ -50,8 +47,6 @@ export function useCreateJournalEntryMutation() {
         updatedAt: new Date().toISOString(),
         deletedAt: null,
         weeklyReview: params.weeklyReview || null,
-        expense: params.expense || null,
-        workout: params.workout || null,
         tags: [],
         attachments: [],
       };
@@ -94,9 +89,7 @@ export function useUpdateJournalEntryMutation() {
       timezone?: string;
       templateId?: string | null;
       tagIds?: string[];
-      weeklyReview?: any;
-      expense?: any;
-      workout?: any;
+      weeklyReview?: Partial<JournalWeeklyReview> | null;
     }) => {
       const payload: Record<string, unknown> = { ...data };
 
@@ -147,6 +140,82 @@ export function useDeleteJournalEntryMutation() {
   });
 }
 
+export function deleteJournalAttachment(id: string) {
+  return api.enqueueOfflineMutation(
+    {
+      kind: 'journal_attachment.delete',
+      entityId: id,
+      payload: { id },
+      optimistic: { id, deletedAt: new Date().toISOString() },
+    },
+    async () => {
+      const res = await api.delete(`/journal/attachments/${id}`);
+      return res.data;
+    },
+  );
+}
+
+export function useDeleteJournalAttachmentMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteJournalAttachment,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['journal-entries'] });
+    },
+  });
+}
+
+export interface CreateJournalTagParams {
+  name: string;
+  color?: string;
+}
+
+export function createJournalTag({ name, color }: CreateJournalTagParams): Promise<JournalTag> {
+  const normalizedName = name.trim();
+  if (!normalizedName) return Promise.reject(new Error('Tag name is required'));
+
+  const id = createUlid();
+  const payload: Record<string, unknown> = {
+    id,
+    name: normalizedName,
+    ...(color ? { color } : {}),
+  };
+  const now = new Date().toISOString();
+  const optimistic: JournalTag = {
+    id,
+    userId: 'local',
+    name: normalizedName.toLowerCase(),
+    color: (color || 'SLATE').toUpperCase(),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return api.enqueueOfflineMutation(
+    {
+      kind: 'journal_tag.create',
+      entityId: id,
+      payload,
+      optimistic,
+    },
+    async () => {
+      const res = await api.post<JournalTag>('/journal/tags', { name: normalizedName, ...(color ? { color } : {}) });
+      return res.data;
+    },
+  );
+}
+
+export function useCreateJournalTagMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createJournalTag,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['journal-tags'] });
+    },
+  });
+}
+
 export function useRestoreJournalEntryMutation() {
   const queryClient = useQueryClient();
 
@@ -176,15 +245,36 @@ export function useRestoreJournalRevisionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ entryId, revisionId }: { entryId: string; revisionId: string }) => {
-      const res = await api.post(`/journal/entries/${entryId}/revisions/${revisionId}/restore`);
-      return res.data;
-    },
+    mutationFn: restoreJournalRevision,
     onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['journal-entries'] });
       void queryClient.invalidateQueries({ queryKey: ['journal-entries', 'revisions', variables.entryId] });
     },
   });
+}
+
+export function restoreJournalRevision({
+  entryId,
+  revisionId,
+  snapshot = {},
+}: {
+  entryId: string;
+  revisionId: string;
+  snapshot?: Record<string, unknown>;
+}) {
+  const optimistic = { entryId, id: entryId, ...snapshot };
+  return api.enqueueOfflineMutation(
+    {
+      kind: 'journal_revision.restore',
+      entityId: revisionId,
+      payload: { entryId, revisionId },
+      optimistic,
+    },
+    async () => {
+      const res = await api.post(`/journal/entries/${entryId}/revisions/${revisionId}/restore`);
+      return res.data;
+    },
+  );
 }
 
 export function useCreateJournalTemplateMutation() {
@@ -193,7 +283,7 @@ export function useCreateJournalTemplateMutation() {
   return useMutation({
     mutationFn: async (params: {
       name: string;
-      entryKind: 'NOTE' | 'WEEKLY_REVIEW' | 'EXPENSE' | 'WORKOUT';
+      entryKind: 'NOTE' | 'WEEKLY_REVIEW';
       titleTemplate?: string;
       bodyMarkdown?: string;
       defaults?: Record<string, unknown>;
@@ -219,24 +309,34 @@ export function useCreateJournalTemplateMutation() {
   });
 }
 
+export interface UpdateJournalTemplateParams {
+  id: string;
+  name?: string;
+  entryKind?: 'NOTE' | 'WEEKLY_REVIEW';
+  bodyMarkdown?: string;
+  titleTemplate?: string;
+}
+
+export function updateJournalTemplate({ id, ...data }: UpdateJournalTemplateParams) {
+  return api.enqueueOfflineMutation(
+    {
+      kind: 'journal_template.update',
+      entityId: id,
+      payload: data,
+      optimistic: { id, ...data },
+    },
+    async () => {
+      const res = await api.patch(`/journal/templates/${id}`, data);
+      return res.data;
+    },
+  );
+}
+
 export function useUpdateJournalTemplateMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; name?: string; bodyMarkdown?: string; titleTemplate?: string }) => {
-      return api.enqueueOfflineMutation(
-        {
-          kind: 'journal_template.update',
-          entityId: id,
-          payload: data,
-          optimistic: { id, ...data },
-        },
-        async () => {
-          const res = await api.patch(`/journal/templates/${id}`, data);
-          return res.data;
-        },
-      );
-    },
+    mutationFn: updateJournalTemplate,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['journal-templates'] });
     },
@@ -266,18 +366,3 @@ export function useDeleteJournalTemplateMutation() {
     },
   });
 }
-
-export function useCreateExerciseDefinitionMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (name: string) => {
-      const res = await api.post('/journal/exercises', { name });
-      return res.data;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['exercise-definitions'] });
-    },
-  });
-}
-

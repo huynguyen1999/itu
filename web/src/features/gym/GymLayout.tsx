@@ -5,8 +5,27 @@ import { PageHeader } from '@/shared/ui/PageHeader';
 import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
 import { GymSettingsPopover } from './GymSettingsPopover';
 import { GymLocalNav } from './GymLocalNav';
+import { processGymExerciseImageQueue } from './exerciseImageQueue';
+import { useSync } from '@/shared/sync/SyncProvider';
+import { useEffect } from 'react';
 
 export function GymLayout() {
+  const { state: syncState } = useSync();
+  useEffect(() => {
+    void processGymExerciseImageQueue();
+    const retry = () => void processGymExerciseImageQueue();
+    window.addEventListener('online', retry);
+    const interval = window.setInterval(retry, 15_000);
+    return () => {
+      window.removeEventListener('online', retry);
+      window.clearInterval(interval);
+    };
+  }, []);
+  // A successful sync acknowledgement is the signal that the exercise now
+  // exists server-side; retry queued media immediately while still online.
+  useEffect(() => {
+    if (syncState.phase === 'up-to-date') void processGymExerciseImageQueue();
+  }, [syncState.phase]);
   const queryClient = useQueryClient();
   const userPreferences = useQuery({
     queryKey: ['user-preferences'],

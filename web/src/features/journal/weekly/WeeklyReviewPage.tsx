@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Calendar, CheckCircle2, Clock, Dumbbell, Flame, Sparkles, Trophy, Wallet, Zap } from 'lucide-react';
 import { useJournalEntry, useWeeklySummary } from '../journalQueries';
 import { useCreateJournalEntryMutation, useUpdateJournalEntryMutation } from '../journalMutations';
@@ -7,7 +7,6 @@ import { JournalMarkdownEditor } from '../components/JournalMarkdownEditor';
 import { createUlid } from '@/shared/sync/syncIdentity';
 
 export function WeeklyReviewPage() {
-  const navigate = useNavigate();
   const { entryId } = useParams();
 
   const isNew = !entryId || entryId === 'new';
@@ -16,7 +15,7 @@ export function WeeklyReviewPage() {
   const createMutation = useCreateJournalEntryMutation();
   const updateMutation = useUpdateJournalEntryMutation();
 
-  const [id, setId] = useState(entryId || createUlid());
+  const [id] = useState(entryId || createUlid());
   const [title, setTitle] = useState('Weekly Review — Week 32');
 
   const [periodStart, setPeriodStart] = useState(() => {
@@ -42,6 +41,13 @@ export function WeeklyReviewPage() {
   const [experimentSuccess, setExperimentSuccess] = useState('');
 
   const [contentMarkdown, setContentMarkdown] = useState('');
+
+  const tasksCompleted = weeklyMetrics?.tasks?.completed ?? 0;
+  const focusMinutes = weeklyMetrics?.focus?.minutes ?? 0;
+  const habitsCompleted = weeklyMetrics?.habits?.completed ?? 0;
+  const habitsScheduled = weeklyMetrics?.habits?.scheduled ?? 0;
+  const workoutsCount = weeklyMetrics?.workouts?.sessions ?? 0;
+  const spendingVnd = weeklyMetrics?.expenses?.VND ?? 0;
 
   useEffect(() => {
     if (existingEntry?.weeklyReview) {
@@ -154,7 +160,7 @@ export function WeeklyReviewPage() {
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Tasks
             </span>
             <p className="text-base font-bold text-foreground">
-              {weeklyMetrics?.tasks?.completed ?? 28} completed
+              {tasksCompleted} completed
             </p>
           </div>
 
@@ -163,7 +169,7 @@ export function WeeklyReviewPage() {
               <Clock className="w-3.5 h-3.5 text-blue-500" /> Focus Time
             </span>
             <p className="text-base font-bold text-foreground">
-              {weeklyMetrics?.focus?.minutes ? `${Math.round(weeklyMetrics.focus.minutes / 60)}h ${weeklyMetrics.focus.minutes % 60}m` : '12h 20m'}
+              {`${Math.round(focusMinutes / 60)}h ${focusMinutes % 60}m`}
             </p>
           </div>
 
@@ -172,7 +178,7 @@ export function WeeklyReviewPage() {
               <Zap className="w-3.5 h-3.5 text-amber-500" /> Habits
             </span>
             <p className="text-base font-bold text-foreground">
-              {weeklyMetrics?.habits?.completed ?? 18} / {weeklyMetrics?.habits?.scheduled ?? 21}
+              {habitsCompleted} / {habitsScheduled}
             </p>
           </div>
 
@@ -181,7 +187,7 @@ export function WeeklyReviewPage() {
               <Dumbbell className="w-3.5 h-3.5 text-purple-500" /> Training
             </span>
             <p className="text-base font-bold text-foreground">
-              {weeklyMetrics?.workouts?.sessions ?? 3} workouts
+              {workoutsCount} workouts
             </p>
           </div>
 
@@ -190,7 +196,7 @@ export function WeeklyReviewPage() {
               <Wallet className="w-3.5 h-3.5 text-teal-500" /> Spending
             </span>
             <p className="text-base font-bold text-foreground">
-              ₫{weeklyMetrics?.expenses?.VND ? weeklyMetrics.expenses.VND.toLocaleString() : '2,850,000'}
+              ₫{Number(spendingVnd).toLocaleString()}
             </p>
           </div>
         </div>

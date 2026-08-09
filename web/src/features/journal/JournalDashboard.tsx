@@ -6,9 +6,10 @@ import { createUlid } from '../../shared/sync/syncIdentity';
 import { getLocalTodayDateString, formatDateStringToLocalDisplay } from './journalDate';
 import { useSync } from '@/shared/sync/SyncProvider';
 import { Button } from '@/shared/ui/button';
+import type { JournalEntryKind } from './journal.types';
 
 interface JournalDashboardProps {
-  defaultKind?: 'NOTE' | 'WEEKLY_REVIEW' | 'EXPENSE' | 'WORKOUT';
+  defaultKind?: JournalEntryKind;
 }
 
 export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
@@ -23,9 +24,9 @@ export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
   const { data: templates = [] } = useJournalTemplates();
 
   const todayStr = getLocalTodayDateString();
-  const todayNote = entries.find((e) => e.entryDate.startsWith(todayStr) && e.kind === 'NOTE');
+  const todayNote = entries.find((e) => !e.deletedAt && e.entryDate.startsWith(todayStr) && e.kind === 'NOTE');
 
-  const filteredEntries = defaultKind ? entries.filter((e) => e.kind === defaultKind) : entries;
+  const filteredEntries = entries.filter((entry) => !entry.deletedAt && (!defaultKind || entry.kind === defaultKind));
   const recentEntries = filteredEntries.slice(0, 6);
 
   const handleStartDailyNote = () => {
@@ -48,13 +49,11 @@ export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
     });
   };
 
-  const handleCreateNew = (kind: 'NOTE' | 'WEEKLY_REVIEW' | 'EXPENSE' | 'WORKOUT') => {
+  const handleCreateNew = (kind: JournalEntryKind) => {
     const newId = createUlid();
     const titleMap = {
       NOTE: `Note — ${new Date().toLocaleDateString()}`,
       WEEKLY_REVIEW: `Weekly Review — Week ${getWeekNumber(new Date())}`,
-      EXPENSE: `Expense Log — ${new Date().toLocaleDateString()}`,
-      WORKOUT: `Workout — ${new Date().toLocaleDateString()}`,
     };
     navigate(`/journal/entry/${newId}`, {
       state: { isNew: true, kind, title: titleMap[kind], entryDate: todayStr },

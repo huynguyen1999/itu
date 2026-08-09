@@ -1,7 +1,6 @@
 import { Tx, recordSyncChange } from './prisma-sync-mutation.shared';
-import { ExpenseCategory, JournalEntryKind, PaymentMethod } from '@prisma/client';
+import { JournalEntryKind } from '@prisma/client';
 import { SyncConflict, SyncMutation } from '@core/application/ports/in/sync-use-case.port';
-import { createUlid } from './ulid';
 import {
   assertClientId,
   enumValue,
@@ -15,15 +14,6 @@ import {
 
 export const JOURNAL_SYNC_INCLUDE = {
   weeklyReview: true,
-  expense: true,
-  workout: {
-    include: {
-      exercises: {
-        include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' as const } } },
-        orderBy: { sortOrder: 'asc' as const },
-      },
-    },
-  },
   tags: { include: { tag: true } },
   attachments: { where: { deletedAt: null } },
 };
@@ -37,6 +27,9 @@ export class PrismaSyncJournal {
     'journal_template.create',
     'journal_template.update',
     'journal_template.delete',
+    'journal_tag.create',
+    'journal_attachment.delete',
+    'journal_revision.restore',
   ];
 
   async applyMutation(
@@ -46,6 +39,53 @@ export class PrismaSyncJournal {
   ): Promise<SyncConflict | null | undefined> {
     const payload = mutation.payload;
     switch (mutation.kind) {
+      case 'journal_attachment.delete': {
+        const attachment = await tx.journalAttachment.findFirst({ where: { id: mutation.entityId, userId } });
+        if (!attachment) return null;
+        const deleted = await tx.journalAttachment.update({ where: { id: attachment.id }, data: { deletedAt: new Date() } });
+        await recordSyncChange(tx, userId, 'journalattachment', deleted.id, 'DELETE', { id: deleted.id });
+        return null;
+      }
+      case 'journal_revision.restore': {
+        const revision = await tx.journalEntryRevision.findFirst({ where: { id: mutation.entityId, entry: { userId } } });
+        if (!revision) return notFound(mutation, 'journalrevision');
+        const snapshot = revision.snapshot as any;
+        const revisionCount = await tx.journalEntryRevision.count({ where: { entryId: revision.entryId } });
+        await tx.journalEntryRevision.create({ data: { id: `${revision.entryId}_rev_${revisionCount + 1}`, entryId: revision.entryId, revisionNumber: revisionCount + 1, snapshot: revision.snapshot as any, mutationId: mutation.id, deviceId: (mutation as any).deviceId } });
+        const tagIds = Array.isArray(snapshot.tagIds)
+          ? snapshot.tagIds.filter((id: unknown): id is string => typeof id === 'string')
+          : Array.isArray(snapshot.tags)
+            ? snapshot.tags.map((tag: any) => tag.id).filter((id: unknown): id is string => typeof id === 'string')
+            : [];
+        if (tagIds.length) {
+          const owned = await tx.journalTag.count({ where: { userId, id: { in: tagIds } } });
+          if (owned !== tagIds.length) return notFound(mutation, 'journaltag');
+        }
+        const entry = await tx.journalEntry.update({ where: { id: revision.entryId }, data: { title: snapshot.title, contentMarkdown: snapshot.contentMarkdown ?? '', entryDate: new Date(snapshot.entryDate), timezone: snapshot.timezone ?? 'UTC', templateId: snapshot.templateId ?? null, version: { increment: 1 } } });
+        await tx.journalTagAssignment.deleteMany({ where: { entryId: entry.id } });
+        if (tagIds.length) await tx.journalTagAssignment.createMany({ data: tagIds.map((tagId: string) => ({ entryId: entry.id, tagId })) });
+        if (snapshot.weeklyReview) {
+          const wr = snapshot.weeklyReview;
+          await tx.journalWeeklyReview.upsert({ where: { entryId: entry.id }, create: { entryId: entry.id, periodStart: new Date(wr.periodStart), periodEnd: new Date(wr.periodEnd), summarySnapshot: wr.summarySnapshot ?? {}, wentWellMarkdown: wr.wentWellMarkdown ?? null, frictionMarkdown: wr.frictionMarkdown ?? null, nextWeekMarkdown: wr.nextWeekMarkdown ?? null, experimentSnapshot: wr.experimentSnapshot ?? null }, update: { periodStart: new Date(wr.periodStart), periodEnd: new Date(wr.periodEnd), summarySnapshot: wr.summarySnapshot ?? {}, wentWellMarkdown: wr.wentWellMarkdown ?? null, frictionMarkdown: wr.frictionMarkdown ?? null, nextWeekMarkdown: wr.nextWeekMarkdown ?? null, experimentSnapshot: wr.experimentSnapshot ?? null } });
+        }
+        const restored = await tx.journalEntry.findUniqueOrThrow({ where: { id: entry.id }, include: JOURNAL_SYNC_INCLUDE });
+        await recordSyncChange(tx, userId, 'journalentry', entry.id, 'UPSERT', restored);
+        return null;
+      }
+      case 'journal_tag.create': {
+        assertClientId(mutation.entityId);
+        const name = requiredString(payload, 'name').trim().toLowerCase();
+        if (!name) throw new Error('Tag name is required');
+        const color = optionalString(payload, 'color')?.toUpperCase() ?? 'SLATE';
+        const existing = await tx.journalTag.findFirst({ where: { userId, name } });
+        const tag = existing ?? await tx.journalTag.upsert({
+          where: { id: mutation.entityId },
+          create: { id: mutation.entityId, userId, name, color },
+          update: {},
+        });
+        await recordSyncChange(tx, userId, 'journaltag', tag.id, 'UPSERT', tag);
+        return null;
+      }
       case 'journal.create': {
         assertClientId(mutation.entityId);
         const kind = enumValue(JournalEntryKind, payload.kind ?? 'NOTE', 'kind');
@@ -92,69 +132,13 @@ export class PrismaSyncJournal {
               periodStart: new Date(wr.periodStart as string),
               periodEnd: new Date(wr.periodEnd as string),
               summarySnapshot: (wr.summarySnapshot as any) ?? {},
+              wentWellMarkdown: optionalString(wr, 'wentWellMarkdown'),
+              frictionMarkdown: optionalString(wr, 'frictionMarkdown'),
+              nextWeekMarkdown: optionalString(wr, 'nextWeekMarkdown'),
+              experimentSnapshot: (wr.experimentSnapshot as any) ?? undefined,
             },
             update: {},
           });
-        }
-
-        if (payload.expense && typeof payload.expense === 'object') {
-          const exp = payload.expense as Record<string, unknown>;
-          await tx.journalExpense.upsert({
-            where: { entryId: entry.id },
-            create: {
-              entryId: entry.id,
-              amount: (exp.amount as number) ?? 0,
-              currency: (exp.currency as string) ?? 'VND',
-              category: exp.category ? enumValue(ExpenseCategory, exp.category, 'category') : ExpenseCategory.OTHER,
-              merchant: optionalString(exp, 'merchant'),
-              paymentMethod: exp.paymentMethod ? enumValue(PaymentMethod, exp.paymentMethod, 'paymentMethod') : PaymentMethod.CASH,
-              transactionAt: exp.transactionAt ? new Date(exp.transactionAt as string) : new Date(),
-            },
-            update: {},
-          });
-        }
-
-        if (payload.workout && typeof payload.workout === 'object') {
-          const wo = payload.workout as Record<string, unknown>;
-          await tx.journalWorkout.upsert({
-            where: { entryId: entry.id },
-            create: {
-              entryId: entry.id,
-              startedAt: wo.startedAt ? new Date(wo.startedAt as string) : null,
-              durationMinutes: typeof wo.durationMinutes === 'number' ? wo.durationMinutes : null,
-            },
-            update: {},
-          });
-
-          if (Array.isArray(wo.exercises)) {
-            for (const ex of wo.exercises as Record<string, unknown>[]) {
-              const exId = (ex.id as string) || createUlid();
-              const exerciseId = requiredString(ex, 'exerciseId');
-              const createdEx = await tx.journalWorkoutExercise.create({
-                data: {
-                  id: exId,
-                  workoutEntryId: entry.id,
-                  exerciseId,
-                  sortOrder: typeof ex.sortOrder === 'number' ? ex.sortOrder : 0,
-                  note: optionalString(ex, 'note'),
-                },
-              });
-              if (Array.isArray(ex.sets)) {
-                for (const s of ex.sets as Record<string, unknown>[]) {
-                  const setId = (s.id as string) || createUlid();
-                  await tx.journalWorkoutSet.create({
-                    data: {
-                      id: setId,
-                      workoutExerciseId: createdEx.id,
-                      sortOrder: typeof s.sortOrder === 'number' ? s.sortOrder : 0,
-                      reps: typeof s.reps === 'number' ? s.reps : 0,
-                      weight: typeof s.weight === 'number' ? s.weight : 0,
-                    },
-                  });
-                }
-              }
-            }
-          }
         }
 
         const syncedEntry = await tx.journalEntry.findUniqueOrThrow({
@@ -240,84 +224,21 @@ export class PrismaSyncJournal {
               periodStart: new Date(wr.periodStart as string),
               periodEnd: new Date(wr.periodEnd as string),
               summarySnapshot: (wr.summarySnapshot as any) ?? {},
+              wentWellMarkdown: optionalString(wr, 'wentWellMarkdown'),
+              frictionMarkdown: optionalString(wr, 'frictionMarkdown'),
+              nextWeekMarkdown: optionalString(wr, 'nextWeekMarkdown'),
+              experimentSnapshot: (wr.experimentSnapshot as any) ?? undefined,
             },
             update: {
               periodStart: wr.periodStart ? new Date(wr.periodStart as string) : undefined,
               periodEnd: wr.periodEnd ? new Date(wr.periodEnd as string) : undefined,
               summarySnapshot: wr.summarySnapshot ? ((wr.summarySnapshot as unknown) as any) : undefined,
+              wentWellMarkdown: wr.wentWellMarkdown === undefined ? undefined : optionalString(wr, 'wentWellMarkdown'),
+              frictionMarkdown: wr.frictionMarkdown === undefined ? undefined : optionalString(wr, 'frictionMarkdown'),
+              nextWeekMarkdown: wr.nextWeekMarkdown === undefined ? undefined : optionalString(wr, 'nextWeekMarkdown'),
+              experimentSnapshot: wr.experimentSnapshot === undefined ? undefined : (wr.experimentSnapshot as any),
             },
           });
-        }
-
-        if (payload.expense && typeof payload.expense === 'object') {
-          const exp = payload.expense as Record<string, unknown>;
-          await tx.journalExpense.upsert({
-            where: { entryId: entry.id },
-            create: {
-              entryId: entry.id,
-              amount: (exp.amount as number) ?? 0,
-              currency: (exp.currency as string) ?? 'VND',
-              category: exp.category ? enumValue(ExpenseCategory, exp.category, 'category') : ExpenseCategory.OTHER,
-              merchant: optionalString(exp, 'merchant'),
-              paymentMethod: exp.paymentMethod ? enumValue(PaymentMethod, exp.paymentMethod, 'paymentMethod') : PaymentMethod.CASH,
-              transactionAt: exp.transactionAt ? new Date(exp.transactionAt as string) : new Date(),
-            },
-            update: {
-              amount: exp.amount !== undefined ? (exp.amount as number) : undefined,
-              currency: exp.currency !== undefined ? (exp.currency as string) : undefined,
-              category: exp.category ? enumValue(ExpenseCategory, exp.category, 'category') : undefined,
-              merchant: exp.merchant !== undefined ? optionalString(exp, 'merchant') : undefined,
-              paymentMethod: exp.paymentMethod ? enumValue(PaymentMethod, exp.paymentMethod, 'paymentMethod') : undefined,
-              transactionAt: exp.transactionAt ? new Date(exp.transactionAt as string) : undefined,
-            },
-          });
-        }
-
-        if (payload.workout && typeof payload.workout === 'object') {
-          const wo = payload.workout as Record<string, unknown>;
-          await tx.journalWorkout.upsert({
-            where: { entryId: entry.id },
-            create: {
-              entryId: entry.id,
-              startedAt: wo.startedAt ? new Date(wo.startedAt as string) : null,
-              durationMinutes: typeof wo.durationMinutes === 'number' ? wo.durationMinutes : null,
-            },
-            update: {
-              startedAt: wo.startedAt !== undefined ? (wo.startedAt ? new Date(wo.startedAt as string) : null) : undefined,
-              durationMinutes: wo.durationMinutes !== undefined ? (wo.durationMinutes as number) : undefined,
-            },
-          });
-
-          if (Array.isArray(wo.exercises)) {
-            await tx.journalWorkoutExercise.deleteMany({ where: { workoutEntryId: entry.id } });
-            for (const ex of wo.exercises as Record<string, unknown>[]) {
-              const exId = (ex.id as string) || `ex_${Math.random().toString(36).substring(2, 9)}`;
-              const exerciseId = requiredString(ex, 'exerciseId');
-              const createdEx = await tx.journalWorkoutExercise.create({
-                data: {
-                  id: exId,
-                  workoutEntryId: entry.id,
-                  exerciseId,
-                  sortOrder: typeof ex.sortOrder === 'number' ? ex.sortOrder : 0,
-                  note: optionalString(ex, 'note'),
-                },
-              });
-              if (Array.isArray(ex.sets)) {
-                for (const s of ex.sets as Record<string, unknown>[]) {
-                  const setId = (s.id as string) || `set_${Math.random().toString(36).substring(2, 9)}`;
-                  await tx.journalWorkoutSet.create({
-                    data: {
-                      id: setId,
-                      workoutExerciseId: createdEx.id,
-                      sortOrder: typeof s.sortOrder === 'number' ? s.sortOrder : 0,
-                      reps: typeof s.reps === 'number' ? s.reps : 0,
-                      weight: typeof s.weight === 'number' ? s.weight : 0,
-                    },
-                  });
-                }
-              }
-            }
-          }
         }
 
         const syncedEntry = await tx.journalEntry.findUniqueOrThrow({

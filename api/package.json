@@ -17,10 +17,12 @@
     "typecheck": "tsc --noEmit --incremental false",
     "sync:e2e:websocket": "tsx scripts/sync-websocket-e2e.ts",
     "prisma:generate": "dotenv -e .env -- prisma generate",
+    "prisma:validate": "dotenv -e .env -- prisma validate",
     "prisma:migrate": "dotenv -e .env -- prisma migrate dev",
     "prisma:migration:create": "dotenv -e .env -- prisma migrate dev --create-only",
     "prisma:deploy": "dotenv -e .env -- prisma migrate deploy",
     "prisma:seed": "dotenv -e .env -- tsx prisma/seed.ts",
+    "journal:reset-dev": "dotenv -e .env -- tsx scripts/reset-journal-dev.ts",
     "openapi:generate": "nest build && node dist/generate-openapi.js",
     "openapi:check": "yarn openapi:generate && git diff --exit-code openapi/openapi.json"
   },

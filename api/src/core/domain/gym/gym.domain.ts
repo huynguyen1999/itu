@@ -1,7 +1,7 @@
 export type ExerciseMetricType = 'WEIGHT_REPS' | 'REPS' | 'DURATION' | 'DISTANCE_DURATION';
 export type WeightUnit = 'KG' | 'LBS';
 export type WorkoutSetType = 'WARMUP' | 'NORMAL' | 'DROP' | 'FAILURE';
-export type WorkoutStatus = 'ACTIVE' | 'COMPLETED' | 'ABANDONED';
+export type WorkoutStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ACTIVE';
 
 export interface ExerciseDomain {
   id: string;
@@ -38,7 +38,9 @@ export interface WorkoutSetDomain {
 
 export interface WorkoutExerciseDomain {
   id: string;
-  workoutEntryId: string;
+  workoutId: string;
+  /** @deprecated retained for REST compatibility during Journal cutover. */
+  workoutEntryId?: string;
   exerciseId: string;
   sortOrder: number;
   note?: string | null;
@@ -58,6 +60,7 @@ export interface WorkoutDomain {
   createdAt: Date;
   updatedAt: Date;
   version: number;
+  deletedAt?: Date | null;
   exercises: WorkoutExerciseDomain[];
 }
 

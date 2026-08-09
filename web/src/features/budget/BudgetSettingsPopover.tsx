@@ -8,7 +8,7 @@ interface BudgetSettingsPopoverProps {
 }
 
 export function BudgetSettingsPopover({ preferences = {}, onChange }: BudgetSettingsPopoverProps) {
-  const [currency, setCurrency] = useState(preferences.currency || 'VND');
+  const [currency, setCurrency] = useState(preferences.defaultCurrency || preferences.currency || 'VND');
 
   return (
     <div className="max-h-[min(560px,70vh)] w-[360px] max-w-[calc(100vw-2rem)] space-y-5 overflow-y-auto rounded-[var(--itu-radius-l)] border border-border bg-card p-4 text-sm text-card-foreground shadow-[var(--itu-shadow-pop)]">
@@ -20,7 +20,7 @@ export function BudgetSettingsPopover({ preferences = {}, onChange }: BudgetSett
           value={currency}
           onChange={(e) => {
             setCurrency(e.target.value);
-            onChange?.({ ...preferences, currency: e.target.value });
+            onChange?.({ defaultCurrency: e.target.value });
           }}
           placeholder="VND"
           className="h-9 font-mono text-xs"

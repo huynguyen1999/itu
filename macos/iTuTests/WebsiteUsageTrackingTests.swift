@@ -7,12 +7,12 @@ final class WebsiteUsageTrackingTests: XCTestCase {
         FileManager.default.temporaryDirectory.appendingPathComponent("browser-activity-\(UUID().uuidString).json")
     }
 
-    private func writeState(_ url: URL, at date: Date, hostname: String? = "Example.COM", state: String = "active", connected: Bool = true, incognito: Bool = false) throws {
+    private func writeState(_ url: URL, at date: Date, hostname: String? = "Example.COM", state: String = "active", connected: Bool = true, incognito: Bool = false, browserBundleId: String = BrowserActivityState.edgeBundleID) throws {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let state = BrowserActivityState(
             protocolVersion: BrowserActivityState.protocolVersion,
-            browserBundleId: BrowserActivityState.edgeBundleID,
+            browserBundleId: browserBundleId,
             sequence: 1,
             state: state,
             hostname: hostname,
@@ -38,6 +38,60 @@ final class WebsiteUsageTrackingTests: XCTestCase {
         XCTAssertEqual(summaries.first?.hostname, "example.com")
         XCTAssertEqual(summaries.first?.activeSeconds, 30)
         tracker.stop(at: start.addingTimeInterval(30))
+    }
+
+    func testChromeAndOtherSupportedBrowsersCredit() throws {
+        let url = stateURL()
+        let start = Date(timeIntervalSince1970: 1_754_764_800)
+        try writeState(url, at: start, browserBundleId: "com.google.Chrome")
+        let tracker = WebsiteUsageTracker(calendar: utcCalendar(), stateURL: url, frontmostBundleID: { "com.google.Chrome" })
+        var summaries: [WebsiteUsageSummary] = []
+        tracker.onSummaryChanged = { summaries.append($0) }
+        tracker.start(at: start)
+        tracker.tick(at: start)
+        tracker.tick(at: start.addingTimeInterval(30))
+
+        XCTAssertEqual(summaries.count, 1)
+        XCTAssertEqual(summaries.first?.browserBundleId, "com.google.Chrome")
+        XCTAssertEqual(summaries.first?.browserDisplayName, "Google Chrome")
+        XCTAssertEqual(summaries.first?.hostname, "example.com")
+        XCTAssertEqual(summaries.first?.activeSeconds, 30)
+        tracker.stop(at: start.addingTimeInterval(30))
+    }
+
+    func testStalePersistedBrowserStateDoesNotCreditDifferentFrontmostBrowser() throws {
+        let url = stateURL()
+        let start = Date(timeIntervalSince1970: 1_754_764_800)
+        try writeState(url, at: start, browserBundleId: BrowserActivityState.edgeBundleID)
+        let tracker = WebsiteUsageTracker(calendar: utcCalendar(), stateURL: url, frontmostBundleID: { "com.google.Chrome" })
+        var summaries: [WebsiteUsageSummary] = []
+        tracker.onSummaryChanged = { summaries.append($0) }
+        tracker.start(at: start)
+        tracker.tick(at: start)
+        tracker.tick(at: start.addingTimeInterval(30))
+
+        XCTAssertTrue(summaries.isEmpty)
+        tracker.stop(at: start.addingTimeInterval(30))
+    }
+
+    func testBrowserSwitchFinalizesUnderOriginalBrowserBundle() throws {
+        let url = stateURL()
+        let start = Date(timeIntervalSince1970: 1_754_764_800)
+        var frontmost = BrowserActivityState.edgeBundleID
+        try writeState(url, at: start, browserBundleId: frontmost)
+        let tracker = WebsiteUsageTracker(calendar: utcCalendar(), stateURL: url, frontmostBundleID: { frontmost })
+        var summaries: [WebsiteUsageSummary] = []
+        tracker.onSummaryChanged = { summaries.append($0) }
+        tracker.start(at: start)
+        tracker.tick(at: start)
+        tracker.tick(at: start.addingTimeInterval(30))
+
+        frontmost = "com.google.Chrome"
+        tracker.tick(at: start.addingTimeInterval(60))
+
+        XCTAssertEqual(summaries.map(\.browserBundleId), [BrowserActivityState.edgeBundleID, BrowserActivityState.edgeBundleID])
+        XCTAssertEqual(summaries.map(\.activeSeconds), [30, 30])
+        tracker.stop(at: start.addingTimeInterval(60))
     }
 
     func testStaleDisconnectedIncognitoAndNonEdgeStateDoNotCredit() throws {
@@ -156,6 +210,34 @@ final class WebsiteUsageTrackingTests: XCTestCase {
         _ = try await store.upsertWebsiteUsage(added)
         let pending = await store.pendingWebsiteUsageDeltas(from: nil, to: nil)
         XCTAssertEqual(pending.first?.activeSeconds, 10)
+    }
+
+    func testWebsiteStatisticsAddsOnlyPendingLocalDeltaToServerSummary() {
+        let server = WebsiteUsageStatistics(
+            totalActiveSeconds: 30,
+            hostnames: [WebsiteUsageHostnameTotal(hostname: "example.com", activeSeconds: 30)],
+            daily: [WebsiteUsageDailyTotal(localDate: "2026-08-09", activeSeconds: 30)],
+            browsers: [WebsiteUsageBrowserTotal(
+                browserBundleId: BrowserActivityState.edgeBundleID,
+                browserDisplayName: "Microsoft Edge",
+                activeSeconds: 30
+            )]
+        )
+        let pending = WebsiteUsageSummary(
+            localDate: "2026-08-09",
+            browserBundleId: BrowserActivityState.edgeBundleID,
+            browserDisplayName: "Microsoft Edge",
+            hostname: "example.com",
+            timezone: "UTC",
+            activeSeconds: 10
+        )
+
+        let merged = server.adding([pending])
+
+        XCTAssertEqual(merged.totalActiveSeconds, 40)
+        XCTAssertEqual(merged.hostnames.first?.activeSeconds, 40)
+        XCTAssertEqual(merged.daily.first?.activeSeconds, 40)
+        XCTAssertEqual(merged.browsers.first?.activeSeconds, 40)
     }
 
     func testRangeDeletionRemovesMatchingWebsiteSummariesAndWatermarks() async throws {

@@ -325,6 +325,21 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
     var usageUploadWatermarks: [String: Int] = [:]
     var websiteUsageSummaries: [WebsiteUsageSummary] = []
     var websiteUsageUploadWatermarks: [String: Int] = [:]
+    var budgetCategories: [BudgetCategoryModel] = []
+    var budgetPeriods: [BudgetPeriodModel] = []
+    var budgetTransactions: [BudgetTransactionModel] = []
+    var gymExercises: [ExerciseModel] = []
+    var gymWorkouts: [WorkoutModel] = []
+    var budgetPreferences: BudgetPreferencesModel = BudgetPreferencesModel()
+    var gymPreferences: GymPreferencesModel = GymPreferencesModel()
+    var pendingGymExerciseImages: [String: Data] = [:]
+    var journalNotes: [JournalNoteModel] = []
+    var journalTags: [JournalTagModel] = []
+    var journalTemplates: [JournalTemplateModel] = []
+    var journalRevisionsByEntryID: [String: [JournalEntryRevisionModel]] = [:]
+    var journalPreferences: JournalPreferencesModel = JournalPreferencesModel()
+    var pendingJournalAttachments: [String: Data] = [:]
+    var pendingJournalAttachmentMetadata: [String: JournalPendingAttachment] = [:]
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion
@@ -365,6 +380,9 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         case usageUploadWatermarks
         case websiteUsageSummaries
         case websiteUsageUploadWatermarks
+        case budgetCategories, budgetPeriods, budgetTransactions, gymExercises, gymWorkouts, budgetPreferences, gymPreferences
+        case pendingGymExerciseImages
+        case journalNotes, journalTags, journalTemplates, journalRevisionsByEntryID, journalPreferences, pendingJournalAttachments, pendingJournalAttachmentMetadata
     }
 
     init() {}
@@ -409,5 +427,20 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         usageUploadWatermarks = try values.decodeIfPresent([String: Int].self, forKey: .usageUploadWatermarks) ?? [:]
         websiteUsageSummaries = try values.decodeIfPresent([WebsiteUsageSummary].self, forKey: .websiteUsageSummaries) ?? []
         websiteUsageUploadWatermarks = try values.decodeIfPresent([String: Int].self, forKey: .websiteUsageUploadWatermarks) ?? [:]
+        budgetCategories = try values.decodeIfPresent([BudgetCategoryModel].self, forKey: .budgetCategories) ?? []
+        budgetPeriods = try values.decodeIfPresent([BudgetPeriodModel].self, forKey: .budgetPeriods) ?? []
+        budgetTransactions = try values.decodeIfPresent([BudgetTransactionModel].self, forKey: .budgetTransactions) ?? []
+        gymExercises = try values.decodeIfPresent([ExerciseModel].self, forKey: .gymExercises) ?? []
+        gymWorkouts = try values.decodeIfPresent([WorkoutModel].self, forKey: .gymWorkouts) ?? []
+        budgetPreferences = try values.decodeIfPresent(BudgetPreferencesModel.self, forKey: .budgetPreferences) ?? BudgetPreferencesModel()
+        gymPreferences = try values.decodeIfPresent(GymPreferencesModel.self, forKey: .gymPreferences) ?? GymPreferencesModel()
+        pendingGymExerciseImages = try values.decodeIfPresent([String: Data].self, forKey: .pendingGymExerciseImages) ?? [:]
+        journalNotes = try values.decodeIfPresent([JournalNoteModel].self, forKey: .journalNotes) ?? []
+        journalTags = try values.decodeIfPresent([JournalTagModel].self, forKey: .journalTags) ?? []
+        journalTemplates = try values.decodeIfPresent([JournalTemplateModel].self, forKey: .journalTemplates) ?? []
+        journalRevisionsByEntryID = try values.decodeIfPresent([String: [JournalEntryRevisionModel]].self, forKey: .journalRevisionsByEntryID) ?? [:]
+        journalPreferences = try values.decodeIfPresent(JournalPreferencesModel.self, forKey: .journalPreferences) ?? JournalPreferencesModel()
+        pendingJournalAttachments = try values.decodeIfPresent([String: Data].self, forKey: .pendingJournalAttachments) ?? [:]
+        pendingJournalAttachmentMetadata = try values.decodeIfPresent([String: JournalPendingAttachment].self, forKey: .pendingJournalAttachmentMetadata) ?? [:]
     }
 }

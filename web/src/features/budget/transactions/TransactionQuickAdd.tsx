@@ -5,6 +5,7 @@ import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Plus, X } from 'lucide-react';
+import { budgetDateTimeInputToIso, currentBudgetDateTimeInput } from '../budgetPeriod';
 
 interface TransactionQuickAddProps {
   onClose?: () => void;
@@ -16,7 +17,7 @@ export function TransactionQuickAdd({ onClose }: TransactionQuickAddProps) {
   const [categoryId, setCategoryId] = useState('');
   const [merchant, setMerchant] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
-  const [transactionAt, setTransactionAt] = useState(() => new Date().toISOString().substring(0, 16));
+  const [transactionAt, setTransactionAt] = useState(currentBudgetDateTimeInput);
   const [note, setNote] = useState('');
 
   const { data: categories = [] } = useBudgetCategories();
@@ -38,7 +39,7 @@ export function TransactionQuickAdd({ onClose }: TransactionQuickAddProps) {
         categoryId: categoryId || (categories[0]?.id ?? ''),
         merchant: merchant.trim() || undefined,
         paymentMethod,
-        transactionAt: new Date(transactionAt).toISOString(),
+        transactionAt: budgetDateTimeInputToIso(transactionAt),
         note: note.trim() || undefined,
       },
       {

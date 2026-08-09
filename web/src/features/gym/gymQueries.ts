@@ -40,7 +40,7 @@ export interface GymWorkoutExercise {
 export interface GymWorkout {
   id: string;
   title?: string | null;
-  status: 'ACTIVE' | 'COMPLETED' | 'ABANDONED';
+  status: 'IN_PROGRESS' | 'ACTIVE' | 'COMPLETED' | 'ABANDONED';
   startedAt?: string | null;
   endedAt?: string | null;
   durationMinutes?: number | null;

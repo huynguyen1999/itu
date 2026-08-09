@@ -23,7 +23,6 @@ import {
   CreateJournalEntryDto,
   CreateJournalTagDto,
   CreateJournalTemplateDto,
-  CreateExerciseDefinitionDto,
   SearchJournalQueryDto,
   UpdateJournalEntryDto,
   UpdateJournalTemplateDto,
@@ -32,6 +31,7 @@ import {
 import type { AuthenticatedMultipartRequest, AuthenticatedRequest } from '../types/authenticated-request';
 import { createUlid } from '@infrastructure/persistence/prisma/ulid';
 import type { FastifyReply } from 'fastify';
+import { hcmcDateOnly } from '@core/application/utils/calendar';
 
 @UseGuards(AuthGuard)
 @Controller(REST_ROUTES.journal)
@@ -48,9 +48,8 @@ export class JournalController {
       tagId: query.tagId,
       startDate: query.startDate ? new Date(query.startDate) : undefined,
       endDate: query.endDate ? new Date(query.endDate) : undefined,
-      currency: query.currency,
-      category: query.category,
       query: query.query,
+      includeDeleted: query.includeDeleted === 'true',
     });
   }
 
@@ -71,18 +70,6 @@ export class JournalController {
             periodEnd: new Date(dto.weeklyReview.periodEnd),
           }
         : undefined,
-      expense: dto.expense
-        ? {
-            ...dto.expense,
-            transactionAt: dto.expense.transactionAt ? new Date(dto.expense.transactionAt) : undefined,
-          }
-        : undefined,
-      workout: dto.workout
-        ? {
-            ...dto.workout,
-            startedAt: dto.workout.startedAt ? new Date(dto.workout.startedAt) : undefined,
-          }
-        : undefined,
     });
   }
 
@@ -100,18 +87,6 @@ export class JournalController {
             ...dto.weeklyReview,
             periodStart: dto.weeklyReview.periodStart ? new Date(dto.weeklyReview.periodStart) : undefined,
             periodEnd: dto.weeklyReview.periodEnd ? new Date(dto.weeklyReview.periodEnd) : undefined,
-          }
-        : undefined,
-      expense: dto.expense
-        ? {
-            ...dto.expense,
-            transactionAt: dto.expense.transactionAt ? new Date(dto.expense.transactionAt) : undefined,
-          }
-        : undefined,
-      workout: dto.workout
-        ? {
-            ...dto.workout,
-            startedAt: dto.workout.startedAt ? new Date(dto.workout.startedAt) : undefined,
           }
         : undefined,
     });
@@ -175,22 +150,12 @@ export class JournalController {
     return this.journalService.findOrCreateTag(req.user.sub, dto.name, dto.color);
   }
 
-  @Get('exercises')
-  listExercises(@Req() req: AuthenticatedRequest) {
-    return this.journalService.listExercises(req.user.sub);
-  }
-
-  @Post('exercises')
-  createExercise(@Req() req: AuthenticatedRequest, @Body() dto: CreateExerciseDefinitionDto) {
-    return this.journalService.findOrCreateExercise(req.user.sub, dto.name);
-  }
-
   @Get('weekly-summary')
   weeklySummary(@Req() req: AuthenticatedRequest, @Query() query: WeeklySummaryQueryDto) {
     return this.journalService.buildWeeklyReviewSnapshot(
       req.user.sub,
-      new Date(query.periodStart),
-      new Date(query.periodEnd),
+      hcmcDateOnly(query.periodStart),
+      new Date(hcmcDateOnly(query.periodEnd).getTime() + 24 * 60 * 60 * 1000 - 1),
     );
   }
 
@@ -201,7 +166,8 @@ export class JournalController {
     const entryIdField = upload.fields.entryId as { value?: string } | undefined;
     const entryId = entryIdField?.value;
     if (!entryId) throw new BadRequestException('entryId is required');
-    const attachmentId = createUlid();
+    const clientIdField = upload.fields.attachmentId as { value?: string } | undefined;
+    const attachmentId = clientIdField?.value || createUlid();
     const storageKey = `journal/${req.user.sub}/${attachmentId}_${upload.filename || 'file'}`;
     const buffer = await upload.toBuffer();
     await this.mediaStorage.storeRawBuffer(storageKey, buffer);

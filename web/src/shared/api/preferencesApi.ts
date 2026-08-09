@@ -1,4 +1,5 @@
 import type { ApiClientContext } from './apiContext';
+import { SYNC_KINDS } from '../sync/syncKinds';
 
 export interface TaskPreferences {
   defaultDate: 'NONE' | 'TODAY' | 'TOMORROW';
@@ -360,28 +361,38 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       const local = getLocalPreferences();
       const updated = { ...(local.budget || local.money), ...patch };
       saveLocalPreferences({ ...local, budget: updated, money: updated });
-      try {
-        return (await context.request('/preferences/budget', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(patch),
-        })) as unknown as BudgetPreferences;
-      } catch {
-        return updated;
-      }
+      return context.offlineMutation(
+        { kind: SYNC_KINDS.budgetPreferences.update, entityId: 'budget', payload: patch, optimistic: { id: 'budget', ...updated } as unknown as BudgetPreferences },
+        async () => {
+          try {
+            return (await context.request('/preferences/budget', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(patch),
+            })) as unknown as BudgetPreferences;
+          } catch {
+            return updated;
+          }
+        },
+      );
     },
     async updateGymPreferences(patch: Partial<GymPreferences>) {
       const local = getLocalPreferences();
       const updated = { ...local.gym, ...patch };
       saveLocalPreferences({ ...local, gym: updated });
-      try {
-        return await context.request<GymPreferences>('/preferences/gym', {
-          method: 'PATCH',
-          body: JSON.stringify(patch),
-        });
-      } catch {
-        return updated;
-      }
+      return context.offlineMutation(
+        { kind: SYNC_KINDS.gymPreferences.update, entityId: 'gym', payload: patch, optimistic: { id: 'gym', ...updated } as unknown as GymPreferences },
+        async () => {
+          try {
+            return await context.request<GymPreferences>('/preferences/gym', {
+              method: 'PATCH',
+              body: JSON.stringify(patch),
+            });
+          } catch {
+            return updated;
+          }
+        },
+      );
     },
     async updateUsagePreferences(patch: Partial<UsagePreferences>) {
       const local = getLocalPreferences();

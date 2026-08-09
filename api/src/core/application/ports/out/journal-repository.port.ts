@@ -1,16 +1,11 @@
-import { ExpenseCategory, JournalEntryKind, PaymentMethod, WeightUnit } from '@core/domain/enums';
+import { JournalEntryKind } from '@core/domain/enums';
 import {
-  ExerciseDefinitionModel,
   JournalAttachmentModel,
   JournalEntryModel,
   JournalEntryRevisionModel,
-  JournalExpenseModel,
   JournalTagModel,
   JournalTemplateModel,
   JournalWeeklyReviewModel,
-  JournalWorkoutExerciseModel,
-  JournalWorkoutModel,
-  JournalWorkoutSetModel,
 } from '@core/domain/journal/journal.types';
 
 export interface CreateJournalEntryData {
@@ -26,30 +21,10 @@ export interface CreateJournalEntryData {
     periodStart: Date;
     periodEnd: Date;
     summarySnapshot: Record<string, unknown>;
-  };
-  expense?: {
-    amount: number | string;
-    currency?: string;
-    category?: ExpenseCategory;
-    merchant?: string | null;
-    paymentMethod?: PaymentMethod;
-    transactionAt?: Date;
-  };
-  workout?: {
-    startedAt?: Date | null;
-    durationMinutes?: number | null;
-    exercises: {
-      id?: string;
-      exerciseId: string;
-      sortOrder?: number;
-      note?: string | null;
-      sets: {
-        id?: string;
-        sortOrder?: number;
-        reps: number;
-        weight: number;
-      }[];
-    }[];
+    wentWellMarkdown?: string | null;
+    frictionMarkdown?: string | null;
+    nextWeekMarkdown?: string | null;
+    experimentSnapshot?: Record<string, unknown> | null;
   };
 }
 
@@ -64,30 +39,10 @@ export interface UpdateJournalEntryData {
     periodStart?: Date;
     periodEnd?: Date;
     summarySnapshot?: Record<string, unknown>;
-  };
-  expense?: {
-    amount?: number | string;
-    currency?: string;
-    category?: ExpenseCategory;
-    merchant?: string | null;
-    paymentMethod?: PaymentMethod;
-    transactionAt?: Date;
-  };
-  workout?: {
-    startedAt?: Date | null;
-    durationMinutes?: number | null;
-    exercises?: {
-      id?: string;
-      exerciseId: string;
-      sortOrder?: number;
-      note?: string | null;
-      sets: {
-        id?: string;
-        sortOrder?: number;
-        reps: number;
-        weight: number;
-      }[];
-    }[];
+    wentWellMarkdown?: string | null;
+    frictionMarkdown?: string | null;
+    nextWeekMarkdown?: string | null;
+    experimentSnapshot?: Record<string, unknown> | null;
   };
 }
 
@@ -96,9 +51,8 @@ export interface JournalSearchFilter {
   tagId?: string;
   startDate?: Date;
   endDate?: Date;
-  currency?: string;
-  category?: ExpenseCategory;
   query?: string;
+  includeDeleted?: boolean;
 }
 
 export interface IJournalRepository {
@@ -145,10 +99,6 @@ export interface IJournalTagRepository {
   findOrCreateByName(userId: string, name: string, color?: string): Promise<JournalTagModel>;
 }
 
-export interface IExerciseDefinitionRepository {
-  list(userId: string): Promise<ExerciseDefinitionModel[]>;
-  findOrCreateByName(userId: string, name: string, defaultWeightUnit?: WeightUnit): Promise<ExerciseDefinitionModel>;
-}
 
 export interface IJournalAttachmentRepository {
   findById(userId: string, id: string): Promise<JournalAttachmentModel | null>;

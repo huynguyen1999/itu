@@ -36,6 +36,10 @@ export interface UpdateExerciseDto {
 export interface CreateWorkoutDto {
   title?: string;
   startedAt?: Date;
+  endedAt?: Date;
+  durationMinutes?: number;
+  status?: WorkoutStatus;
+  exercises?: UpdateWorkoutExerciseDto[];
 }
 
 export interface UpdateWorkoutSetDto {

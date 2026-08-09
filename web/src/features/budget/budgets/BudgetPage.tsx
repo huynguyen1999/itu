@@ -5,9 +5,10 @@ import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Save, Edit3 } from 'lucide-react';
+import { currentBudgetPeriod } from '../budgetPeriod';
 
 export function BudgetPage() {
-  const [period] = useState(() => new Date().toISOString().substring(0, 7));
+  const [period] = useState(currentBudgetPeriod);
   const { data: overview, isLoading } = useBudgetOverview(period);
   const { data: categories = [] } = useBudgetCategories();
 

@@ -55,6 +55,9 @@ struct StatisticsView: View {
     }
 
     private var websiteDomains: [WebsiteDomainItem] {
+        if let stats = model.websiteUsageStatistics, !stats.hostnames.isEmpty {
+            return stats.hostnames.map { WebsiteDomainItem(hostname: $0.hostname, activeSeconds: $0.activeSeconds) }
+        }
         let totals = model.localWebsiteUsageSummaries
             .filter { $0.localDate >= usageFromKey && $0.localDate <= usageToKey }
             .reduce(into: [String: Int]()) { $0[$1.hostname, default: 0] += $1.activeSeconds }
@@ -308,17 +311,13 @@ struct StatisticsView: View {
                 Text("Website activity")
                     .font(.system(size: 16, weight: .semibold))
             }
-            Text("Domain totals from website activity tracked locally on this Mac.")
+            Text("Domain totals from website activity.")
                 .font(.system(size: 11))
                 .foregroundStyle(iTuTheme.inkDim)
-            if websiteDomains.isEmpty {
-                Text(model.settingsStore.usagePreferences.websiteTrackingEnabled
-                     ? "No local website activity recorded in this period."
-                     : "Enable website tracking in Settings to see this report.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(iTuTheme.inkDim)
+            if model.usageLoading && model.websiteUsageStatistics == nil {
+                ProgressView("Loading website activity…")
                     .frame(maxWidth: .infinity, minHeight: 100)
-            } else {
+            } else if !websiteDomains.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(websiteDomains) { domain in
                         HStack(spacing: 12) {
@@ -340,6 +339,21 @@ struct StatisticsView: View {
                         .overlay(alignment: .bottom) { Divider() }
                     }
                 }
+                if let error = model.websiteUsageError {
+                    Label("Server website activity unavailable: \(error)", systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(iTuTheme.coral)
+                }
+            } else if let error = model.websiteUsageError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(iTuTheme.coral)
+                    .frame(maxWidth: .infinity, minHeight: 100)
+            } else {
+                Text("No website activity recorded in this period.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(iTuTheme.inkDim)
+                    .frame(maxWidth: .infinity, minHeight: 100)
             }
         }
         .padding(20)
@@ -678,8 +692,9 @@ struct StatisticsView: View {
             usageTo = customToKey
         } else {
             let fromDate = Calendar.current.date(byAdding: .day, value: -(days - 1), to: Date()) ?? Date()
+            let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
             from = "\(Self.dateKey(fromDate))T00:00:00.000Z"
-            to = "\(Self.dateKey(Date()))T00:00:00.000Z"
+            to = "\(Self.dateKey(nextDay))T00:00:00.000Z"
             usageFrom = Self.dateKey(fromDate)
             usageTo = Self.dateKey(Date())
         }

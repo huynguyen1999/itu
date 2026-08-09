@@ -28,8 +28,9 @@ export function JournalOverviewPage() {
   const { data: entries = [], isLoading } = useJournalEntries();
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const dailyNote = entries.find((e) => e.kind === 'NOTE' && e.entryDate === todayStr);
-  const notes = entries.filter((entry) => entry.kind === 'NOTE' || entry.kind === 'WEEKLY_REVIEW');
+  const activeEntries = entries.filter((entry) => !entry.deletedAt);
+  const dailyNote = activeEntries.find((e) => e.kind === 'NOTE' && e.entryDate === todayStr);
+  const notes = activeEntries.filter((entry) => entry.kind === 'NOTE' || entry.kind === 'WEEKLY_REVIEW');
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16">

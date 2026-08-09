@@ -9,7 +9,7 @@ export function GymOverviewPage() {
   const navigate = useNavigate();
   const { data: overview, isLoading } = useGymOverview();
   const startWorkout = useCreateGymWorkout();
-  const activeWorkout = overview?.recentWorkouts?.find((workout: any) => workout.status === 'ACTIVE');
+  const activeWorkout = overview?.recentWorkouts?.find((workout: any) => workout.status === 'ACTIVE' || workout.status === 'IN_PROGRESS');
 
   const recordWorkout = () => {
     if (activeWorkout) {
@@ -24,6 +24,12 @@ export function GymOverviewPage() {
     });
   };
 
+  const logCompletedWorkout = () => {
+    startWorkout.mutate({ title: 'Workout', status: 'COMPLETED', endedAt: new Date().toISOString() }, {
+      onSuccess: () => navigate('/gym/history'),
+    });
+  };
+
   if (isLoading) {
     return <div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Loading gym overview...</div>;
   }
@@ -35,9 +41,16 @@ export function GymOverviewPage() {
           <h2 className="text-base font-semibold text-foreground">Ready to train?</h2>
           <p className="mt-1 text-xs text-muted-foreground">Start a session and record your exercises, sets, and progress.</p>
         </div>
-        <Button type="button" onClick={recordWorkout} disabled={startWorkout.isPending} className="shrink-0">
-          {startWorkout.isPending ? 'Starting...' : activeWorkout ? 'Continue workout' : 'Start workout'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" onClick={recordWorkout} disabled={startWorkout.isPending} className="shrink-0">
+            {startWorkout.isPending ? 'Starting...' : activeWorkout ? 'Continue workout' : 'Start workout'}
+          </Button>
+          {!activeWorkout && (
+            <Button type="button" variant="outline" onClick={logCompletedWorkout} disabled={startWorkout.isPending} className="shrink-0">
+              Log completed
+            </Button>
+          )}
+        </div>
       </div>
       {startWorkout.isError && (
         <p role="alert" className="text-xs text-destructive">Couldn’t start a workout. Please try again.</p>
@@ -103,7 +116,7 @@ export function GymOverviewPage() {
                         className={`text-xs font-mono px-1.5 py-0.5 rounded ${
                         w.status === 'COMPLETED'
                           ? 'bg-emerald-500/10 text-emerald-500'
-                          : w.status === 'ACTIVE'
+                          : w.status === 'ACTIVE' || w.status === 'IN_PROGRESS'
                           ? 'bg-blue-500/10 text-blue-500'
                           : 'bg-muted text-muted-foreground'
                       }`}

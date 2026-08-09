@@ -13,6 +13,7 @@ import { mapUser } from './prisma.mappers';
 import { createUlid } from './ulid';
 import { ensureStarterSkills } from '@core/application/use-cases/ensure-starter-skills';
 import { ONBOARDING_STATE } from '@core/application/constants/productivity.constants';
+import { BUDGET_CATEGORY_CATALOG } from './prisma-budget.repository';
 
 const DEFAULT_DECK = {
   title: 'Inbox',
@@ -78,6 +79,7 @@ export class PrismaUserRepository implements IUserRepository {
         },
       });
       await this.createInitialUserContent(tx, createdUser.id);
+      await tx.budgetCategory?.createMany?.({ data: BUDGET_CATEGORY_CATALOG.map((category, sortOrder) => ({ id: createUlid(), userId: createdUser.id, name: category.name, type: 'EXPENSE' as const, icon: category.icon, color: category.color, sortOrder })), skipDuplicates: true });
       return createdUser;
     });
     return mapUser(user);
@@ -276,6 +278,7 @@ export class PrismaUserRepository implements IUserRepository {
         }));
       if (!existingUser) {
         await this.createInitialUserContent(tx, linkedUser.id);
+        await tx.budgetCategory?.createMany?.({ data: BUDGET_CATEGORY_CATALOG.map((category, sortOrder) => ({ id: createUlid(), userId: linkedUser.id, name: category.name, type: 'EXPENSE' as const, icon: category.icon, color: category.color, sortOrder })), skipDuplicates: true });
       }
       await tx.oAuthIdentity.create({
         data: {

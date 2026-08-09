@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
 import type { GymWorkoutUpdate } from './gymQueries';
+import { enqueueGymExerciseImage } from './exerciseImageQueue';
 
 export function useCreateGymExercise() {
   const queryClient = useQueryClient();
@@ -35,7 +36,7 @@ export function useArchiveGymExercise() {
 export function useUploadGymExerciseImage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, file }: { id: string; file: File }) => api.uploadGymExerciseImage(id, file),
+    mutationFn: ({ id, file }: { id: string; file: File }) => enqueueGymExerciseImage(id, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['gym', 'exercises'] });
     },

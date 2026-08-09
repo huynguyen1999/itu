@@ -70,6 +70,15 @@ extension OfflineStore {
             }
             if let defaults = resources.rewardDefaults { try updateGrowthTaskRewardDefaults(defaults) }
             if let mappings = resources.mappings { try updateGrowthAttributeMappings(mappings) }
+            if let categories = resources.budgetCategories { state.budgetCategories = categories }
+            if let transactions = resources.budgetTransactions { state.budgetTransactions = transactions }
+            if let exercises = resources.gymExercises { state.gymExercises = exercises }
+            if let workouts = resources.gymWorkouts { state.gymWorkouts = workouts }
+            if let notes = resources.journalNotes { state.journalNotes = notes }
+            if let tags = resources.journalTags { state.journalTags = tags }
+            if let templates = resources.journalTemplates { state.journalTemplates = templates }
+            try reapplyPendingBudgetGymMutations()
+            reapplyPendingJournalMutations()
             suppressPersistence = false
             try persist()
             return state
@@ -77,6 +86,18 @@ extension OfflineStore {
             state = originalState
             suppressPersistence = false
             throw error
+        }
+    }
+
+    private func reapplyPendingBudgetGymMutations() throws {
+        for mutation in state.mutations {
+            switch mutation.kind {
+            case "moneycategory.delete": state.budgetCategories.removeAll { $0.id == mutation.entityId }
+            case "budgettransaction.delete": state.budgetTransactions.removeAll { $0.id == mutation.entityId }
+            case "exercisedefinition.delete": state.gymExercises.removeAll { $0.id == mutation.entityId }
+            case "gymworkout.delete": state.gymWorkouts.removeAll { $0.id == mutation.entityId }
+            default: break
+            }
         }
     }
 

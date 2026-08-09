@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowDown,
   ArrowUp,
+  AlertTriangle,
   Ban,
   Check,
   Dumbbell,
@@ -18,6 +19,8 @@ import { Input } from '@/shared/ui/input';
 import { Textarea } from '@/shared/ui/textarea';
 import { useGymExercises, useGymWorkout, type ExerciseMetricType, type GymWorkoutExercise, type GymWorkoutSet, type GymWorkoutUpdate } from '../gymQueries';
 import { useAbandonGymWorkout, useCompleteGymWorkout, useUpdateGymWorkout } from '../gymMutations';
+import { useSync } from '@/shared/sync/SyncProvider';
+import { RestTimer } from '../RestTimer';
 
 type NumericSetField = 'weight' | 'reps' | 'durationSeconds' | 'distanceMeters' | 'rpe';
 type SaveFeedback = 'idle' | 'saved' | 'error';
@@ -76,12 +79,14 @@ export function ActiveWorkoutPage() {
   const updateWorkout = useUpdateGymWorkout();
   const completeWorkout = useCompleteGymWorkout();
   const abandonWorkout = useAbandonGymWorkout();
+  const { conflicts, keepServer, keepMine } = useSync();
 
   const [title, setTitle] = useState('Workout');
   const [exercises, setExercises] = useState<GymWorkoutExercise[]>([]);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<SaveFeedback>('idle');
   const [saveQueued, setSaveQueued] = useState(false);
+  const [restTimerSeconds, setRestTimerSeconds] = useState<number | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPayloadRef = useRef<GymWorkoutUpdate | null>(null);
 
@@ -203,12 +208,17 @@ export function ActiveWorkoutPage() {
   };
 
   const toggleSet = (exerciseIndex: number, setIndex: number) => {
+    const currentSet = exercises[exerciseIndex]?.sets[setIndex];
     updateSet(
       exerciseIndex,
       setIndex,
       (set) => ({ ...set, completedAt: set.completedAt ? null : new Date().toISOString() }),
       true,
     );
+    if (currentSet && !currentSet.completedAt) {
+      const exercise = exercises[exerciseIndex];
+      setRestTimerSeconds(exercise?.restSeconds ?? exercise?.exercise?.defaultRestSeconds ?? 60);
+    }
   };
 
   const removeExercise = (exerciseIndex: number) => {
@@ -274,6 +284,9 @@ export function ActiveWorkoutPage() {
 
   const offline = typeof navigator !== 'undefined' && !navigator.onLine;
   const availableExercises = exercisesQuery.data ?? [];
+  const workoutConflicts = conflicts.filter(
+    (conflict) => conflict.entityId === id && (conflict.entityType === 'gymworkout' || conflict.entityType === 'journalworkout'),
+  );
   const saveStatus = offline
     ? 'Offline — changes may not sync until you reconnect'
     : updateWorkout.isPending || saveQueued
@@ -286,6 +299,13 @@ export function ActiveWorkoutPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 pb-20">
+      {restTimerSeconds !== null && (
+        <RestTimer
+          key={restTimerSeconds}
+          initialSeconds={restTimerSeconds}
+          onClose={() => setRestTimerSeconds(null)}
+        />
+      )}
       <div className="flex flex-col gap-4 border-b border-border/60 pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -325,6 +345,21 @@ export function ActiveWorkoutPage() {
             </Button>
           </div>
         )}
+        {workoutConflicts.map((conflict) => (
+          <div key={conflict.mutationId} className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-xs" role="alert">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+              <div>
+                <p className="font-semibold text-foreground">Workout changed on another device</p>
+                <p className="mt-1 text-muted-foreground">This whole workout aggregate has competing edits. Choose which version to keep.</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 pl-6">
+              <Button type="button" variant="outline" size="sm" onClick={() => void keepServer(conflict.mutationId)}>Keep server</Button>
+              <Button type="button" size="sm" onClick={() => void keepMine(conflict.mutationId)}>Keep my workout</Button>
+            </div>
+          </div>
+        ))}
         {completeWorkout.isError && <p className="text-xs text-destructive" role="alert">{errorMessage(completeWorkout.error, 'Workout could not be completed.')}</p>}
         {abandonWorkout.isError && <p className="text-xs text-destructive" role="alert">{errorMessage(abandonWorkout.error, 'Workout could not be abandoned.')}</p>}
       </div>

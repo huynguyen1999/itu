@@ -220,11 +220,20 @@ actor APIClient {
                 ])
             })
         ]
-        let _: EmptyResponse = try await request(path: "/usage/websites/summaries", method: "POST", body: body)
+        let _: EmptyResponse = try await request(path: "/usage/websites/summaries/batch", method: "POST", body: body)
     }
 
     func fetchUsage(from: String? = nil, to: String? = nil) async throws -> UsageStatistics {
         var path = "/usage/summaries"
+        var query: [String] = []
+        if let from { query.append("from=\(from)") }
+        if let to { query.append("to=\(to)") }
+        if !query.isEmpty { path += "?\(query.joined(separator: "&"))" }
+        return try await request(path: path)
+    }
+
+    func fetchWebsiteUsage(from: String? = nil, to: String? = nil) async throws -> WebsiteUsageStatistics {
+        var path = "/usage/websites/summaries"
         var query: [String] = []
         if let from { query.append("from=\(from)") }
         if let to { query.append("to=\(to)") }
@@ -257,6 +266,55 @@ actor APIClient {
             "retentionDays": .number(Double(preferences.retentionDays))
         ] as [String: JSONValue])
     }
+
+    func getBudgetPeriod(period: String) async throws -> BudgetPeriodModel {
+        try await request(path: "/budget/periods/\(escapedPath(period))")
+    }
+
+    func updateBudgetPeriod(period: String, overallLimit: String) async throws -> BudgetPeriodModel {
+        try await request(path: "/budget/periods/\(escapedPath(period))", method: "PUT", body: ["overallLimit": .string(Self.decimalString(overallLimit))] as [String: JSONValue])
+    }
+
+    func updateBudgetCategoryLimit(period: String, categoryID: String, limit: String) async throws -> BudgetPeriodModel {
+        try await request(path: "/budget/periods/\(escapedPath(period))/categories/\(escapedPath(categoryID))", method: "PUT", body: ["limit": .string(Self.decimalString(limit))] as [String: JSONValue])
+    }
+
+    func deleteBudgetCategoryLimit(period: String, categoryID: String) async throws -> BudgetPeriodModel {
+        try await request(path: "/budget/periods/\(escapedPath(period))/categories/\(escapedPath(categoryID))", method: "DELETE")
+    }
+
+    func getBudgetTransaction(id: String) async throws -> BudgetTransactionModel {
+        try await request(path: "/budget/transactions/\(escapedPath(id))")
+    }
+
+    func createBudgetTransaction(amount: String, currency: String = "VND", type: String = "EXPENSE", categoryID: String, merchant: String?, paymentMethod: String = "CASH", transactionAt: String, note: String?) async throws -> BudgetTransactionModel {
+        var body: [String: JSONValue] = ["amount": .string(Self.decimalString(amount)), "currency": .string(currency), "type": .string(type), "categoryId": .string(categoryID), "paymentMethod": .string(paymentMethod), "transactionAt": .string(transactionAt)]
+        body["merchant"] = merchant.map(JSONValue.string) ?? .null
+        body["note"] = note.map(JSONValue.string) ?? .null
+        return try await request(path: "/budget/transactions", method: "POST", body: body)
+    }
+
+    func updateBudgetTransaction(id: String, patch: [String: JSONValue]) async throws -> BudgetTransactionModel {
+        try await request(path: "/budget/transactions/\(escapedPath(id))", method: "PATCH", body: patch)
+    }
+
+    func deleteBudgetTransaction(id: String) async throws {
+        let _: EmptyResponse = try await request(path: "/budget/transactions/\(escapedPath(id))", method: "DELETE")
+    }
+
+    func getBudgetPreferences() async throws -> BudgetPreferencesModel { try await request(path: "/preferences/budget") }
+    func updateBudgetPreferences(_ patch: [String: JSONValue]) async throws -> BudgetPreferencesModel { try await request(path: "/preferences/budget", method: "PATCH", body: patch) }
+
+    func getGymExercise(id: String) async throws -> ExerciseModel { try await request(path: "/gym/exercises/\(escapedPath(id))") }
+    func updateGymExercise(id: String, patch: [String: JSONValue]) async throws -> ExerciseModel { try await request(path: "/gym/exercises/\(escapedPath(id))", method: "PATCH", body: patch) }
+    func getGymExerciseStats(id: String) async throws -> ExerciseStatsModel { try await request(path: "/gym/exercises/\(escapedPath(id))/stats") }
+    func getGymWorkout(id: String) async throws -> WorkoutModel { try await request(path: "/gym/workouts/\(escapedPath(id))") }
+    func updateGymWorkout(id: String, patch: [String: JSONValue]) async throws -> WorkoutModel { try await request(path: "/gym/workouts/\(escapedPath(id))", method: "PATCH", body: patch) }
+    func deleteGymWorkout(id: String) async throws { let _: EmptyResponse = try await request(path: "/gym/workouts/\(escapedPath(id))", method: "DELETE") }
+    func completeGymWorkout(id: String) async throws -> WorkoutModel { try await request(path: "/gym/workouts/\(escapedPath(id))/complete", method: "POST") }
+    func abandonGymWorkout(id: String) async throws -> WorkoutModel { try await request(path: "/gym/workouts/\(escapedPath(id))/abandon", method: "POST") }
+    func getGymPreferences() async throws -> GymPreferencesModel { try await request(path: "/preferences/gym") }
+    func updateGymPreferences(_ patch: [String: JSONValue]) async throws -> GymPreferencesModel { try await request(path: "/preferences/gym", method: "PATCH", body: patch) }
 
     func fetchTasks() async throws -> [ProductivityTask] {
         var tasks: [ProductivityTask] = []
@@ -847,7 +905,14 @@ actor APIClient {
     // MARK: - Journal
 
     func getJournalNotes() async throws -> [JournalNoteModel] {
-        try await request(path: "/journal/entries?kind=NOTE")
+        try await request(path: "/journal/entries?includeDeleted=true")
+    }
+
+    func getJournalEntries(kind: String? = nil, query: String? = nil) async throws -> [JournalNoteModel] {
+        var items: [String] = []
+        if let kind { items.append("kind=\(kind.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? kind)") }
+        if let query { items.append("query=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)") }
+        return try await request(path: "/journal/entries" + (items.isEmpty ? "" : "?" + items.joined(separator: "&")))
     }
 
     func createJournalNote(id: String, title: String, contentMarkdown: String, entryDate: String) async throws -> JournalNoteModel {
@@ -866,6 +931,89 @@ actor APIClient {
             "contentMarkdown": JSONValue.string(contentMarkdown),
             "entryDate": JSONValue.string(entryDate)
         ] as [String: JSONValue])
+    }
+
+    func createJournalEntry(_ payload: [String: JSONValue]) async throws -> JournalNoteModel {
+        try await request(path: "/journal/entries", method: "POST", body: payload)
+    }
+
+    func updateJournalEntry(id: String, payload: [String: JSONValue]) async throws -> JournalNoteModel {
+        try await request(path: "/journal/entries/\(escapedPath(id))", method: "PATCH", body: payload)
+    }
+
+    func deleteJournalEntry(id: String) async throws {
+        let _: EmptyResponse = try await request(path: "/journal/entries/\(escapedPath(id))", method: "DELETE")
+    }
+
+    func restoreJournalEntry(id: String) async throws -> JournalNoteModel {
+        try await request(path: "/journal/entries/\(escapedPath(id))/restore", method: "POST")
+    }
+
+    func getJournalRevisions(entryID: String) async throws -> [JournalEntryRevisionModel] {
+        try await request(path: "/journal/entries/\(escapedPath(entryID))/revisions")
+    }
+
+    func restoreJournalRevision(entryID: String, revisionID: String) async throws -> JournalNoteModel {
+        try await request(path: "/journal/entries/\(escapedPath(entryID))/revisions/\(escapedPath(revisionID))/restore", method: "POST")
+    }
+
+    func getJournalTemplates() async throws -> [JournalTemplateModel] {
+        try await request(path: "/journal/templates")
+    }
+
+    func createJournalTemplate(_ payload: [String: JSONValue]) async throws -> JournalTemplateModel {
+        try await request(path: "/journal/templates", method: "POST", body: payload)
+    }
+
+    func updateJournalTemplate(id: String, payload: [String: JSONValue]) async throws -> JournalTemplateModel {
+        try await request(path: "/journal/templates/\(escapedPath(id))", method: "PATCH", body: payload)
+    }
+
+    func deleteJournalTemplate(id: String) async throws {
+        let _: EmptyResponse = try await request(path: "/journal/templates/\(escapedPath(id))", method: "DELETE")
+    }
+
+    func getJournalTags() async throws -> [JournalTagModel] {
+        try await request(path: "/journal/tags")
+    }
+
+    func createJournalTag(name: String, color: String? = nil) async throws -> JournalTagModel {
+        var body: [String: JSONValue] = ["name": .string(name)]
+        if let color { body["color"] = .string(color) }
+        return try await request(path: "/journal/tags", method: "POST", body: body)
+    }
+
+    func uploadJournalAttachment(entryID: String, fileData: Data, fileName: String, mimeType: String, attachmentID: String? = nil) async throws -> JournalAttachmentModel {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"entryId\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(entryID)\r\n".data(using: .utf8)!)
+        if let attachmentID {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"attachmentId\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(attachmentID)\r\n".data(using: .utf8)!)
+        }
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        return try await requestRawBody(path: "/journal/attachments/upload", method: "POST", contentType: "multipart/form-data; boundary=\(boundary)", bodyData: body)
+    }
+
+    func deleteJournalAttachment(id: String) async throws {
+        let _: EmptyResponse = try await request(path: "/journal/attachments/\(escapedPath(id))", method: "DELETE")
+    }
+
+    func getJournalWeeklySummary(periodStart: String, periodEnd: String) async throws -> [String: JSONValue] {
+        let start = periodStart.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? periodStart
+        let end = periodEnd.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? periodEnd
+        return try await request(path: "/journal/weekly-summary?periodStart=\(start)&periodEnd=\(end)")
+    }
+
+    func updateJournalPreferences(_ patch: [String: JSONValue]) async throws -> JournalPreferencesModel {
+        try await request(path: "/preferences/journal", method: "PATCH", body: patch)
     }
 
     // MARK: - Budget & Gym
@@ -899,7 +1047,7 @@ actor APIClient {
 
     func updateBudgetCategory(id: String, name: String, type: String, icon: String, color: String) async throws -> BudgetCategoryModel {
         return try await request(
-            path: "/budget/categories/(id)",
+            path: "/budget/categories/\(escapedPath(id))",
             method: "PATCH",
             body: [
                 "name": .string(name),
@@ -911,16 +1059,15 @@ actor APIClient {
     }
 
     func archiveBudgetCategory(id: String) async throws -> BudgetCategoryModel {
-        return try await request(path: "/budget/categories/(id)", method: "DELETE")
+        return try await request(path: "/budget/categories/\(escapedPath(id))", method: "DELETE")
     }
 
-    func getBudgetTransactions(period: String? = nil) async throws -> [BudgetTransactionModel] {
-        let path: String
-        if let period, let encoded = period.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            path = "/budget/transactions?period=\(encoded)"
-        } else {
-            path = "/budget/transactions"
-        }
+    func getBudgetTransactions(period: String? = nil, categoryID: String? = nil, type: String? = nil) async throws -> [BudgetTransactionModel] {
+        var items: [String] = []
+        if let period, let encoded = period.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) { items.append("period=\(encoded)") }
+        if let categoryID, let encoded = categoryID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) { items.append("categoryId=\(encoded)") }
+        if let type, let encoded = type.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) { items.append("type=\(encoded)") }
+        let path = items.isEmpty ? "/budget/transactions" : "/budget/transactions?\(items.joined(separator: "&"))"
         return try await request(path: path)
     }
 
@@ -966,19 +1113,33 @@ actor APIClient {
     }
 
     func archiveGymExercise(id: String) async throws {
-        let _: EmptyResponse = try await request(path: "/gym/exercises/(id)", method: "DELETE")
+        let _: EmptyResponse = try await request(path: "/gym/exercises/\(escapedPath(id))", method: "DELETE")
     }
 
     func getGymWorkouts() async throws -> [WorkoutModel] {
         return try await request(path: "/gym/workouts")
     }
 
-    func createGymWorkout(title: String? = nil) async throws -> WorkoutModel {
+    func createGymWorkout(title: String? = nil, status: String? = nil, startedAt: String? = nil, endedAt: String? = nil, exercises: [[String: JSONValue]]? = nil) async throws -> WorkoutModel {
         var body: [String: JSONValue] = [:]
         if let title {
             body["title"] = .string(title)
         }
+        if let status { body["status"] = .string(status) }
+        if let startedAt { body["startedAt"] = .string(startedAt) }
+        if let endedAt { body["endedAt"] = .string(endedAt) }
+        if let exercises { body["exercises"] = .array(exercises.map(JSONValue.object)) }
         return try await request(path: "/gym/workouts", method: "POST", body: body)
+    }
+
+    private func escapedPath(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
+    }
+
+    private static func decimalString(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let number = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")) else { return "0.00" }
+        return NSDecimalNumber(decimal: number).rounding(accordingToBehavior: nil).stringValue
     }
 
     private static func retryAfter(from response: HTTPURLResponse) -> TimeInterval? {

@@ -3,9 +3,10 @@ import { useBudgetTransactions } from '../budgetQueries';
 import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { budgetDay, currentBudgetPeriod, shiftBudgetPeriod } from '../budgetPeriod';
 
 export function BudgetCalendarPage() {
-  const [period, setPeriod] = useState(() => new Date().toISOString().substring(0, 7));
+  const [period, setPeriod] = useState(currentBudgetPeriod);
   const { data: transactions = [], isLoading } = useBudgetTransactions({ period });
 
   const [year, month] = period.split('-').map(Number);
@@ -14,26 +15,23 @@ export function BudgetCalendarPage() {
   const firstDayOfWeek = new Date(year, month - 1, 1).getDay();
 
   const handlePrevMonth = () => {
-    const date = new Date(year, month - 2, 1);
-    setPeriod(date.toISOString().substring(0, 7));
+    setPeriod(shiftBudgetPeriod(period, -1));
   };
 
   const handleNextMonth = () => {
-    const date = new Date(year, month, 1);
-    setPeriod(date.toISOString().substring(0, 7));
+    setPeriod(shiftBudgetPeriod(period, 1));
   };
 
   // Group transactions by day of month
   const txByDay: Record<number, { spent: number; income: number; count: number }> = {};
   for (const tx of transactions) {
-    const txDate = new Date(tx.transactionAt);
-    const day = txDate.getDate();
+    const day = budgetDay(tx.transactionAt);
     if (!txByDay[day]) txByDay[day] = { spent: 0, income: 0, count: 0 };
     txByDay[day].count++;
     if (tx.type === 'INCOME') {
-      txByDay[day].income += tx.amount;
+      txByDay[day].income += Number(tx.amount || 0);
     } else {
-      txByDay[day].spent += tx.amount;
+      txByDay[day].spent += Number(tx.amount || 0);
     }
   }
 

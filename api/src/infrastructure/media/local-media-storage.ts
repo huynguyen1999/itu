@@ -98,11 +98,13 @@ export class LocalMediaStorage implements IMediaStorage {
   }
 
   async delete(storageKey: string): Promise<void> {
-    await fs.rm(path.join(this.root, storageKey), { force: true });
+    const absolutePath = resolveMediaStoragePath(this.root, storageKey);
+    if (!absolutePath) return;
+    await fs.rm(absolutePath, { force: true });
   }
 
   async read(storageKey: string) {
-    const absolutePath = this.resolveStoragePath(storageKey);
+    const absolutePath = resolveMediaStoragePath(this.root, storageKey);
     if (!absolutePath) return null;
 
     try {
@@ -115,12 +117,13 @@ export class LocalMediaStorage implements IMediaStorage {
     }
   }
 
-  private resolveStoragePath(storageKey: string): string | null {
-    const absolutePath = path.resolve(this.root, storageKey);
-    const relative = path.relative(this.root, absolutePath);
-    if (relative.startsWith('..') || path.isAbsolute(relative)) return null;
-    return absolutePath;
-  }
+}
+
+export function resolveMediaStoragePath(root: string, storageKey: string): string | null {
+  const absolutePath = path.resolve(root, storageKey);
+  const relative = path.relative(path.resolve(root), absolutePath);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return null;
+  return absolutePath;
 }
 
 function slug(name: string): string {

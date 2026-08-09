@@ -16,7 +16,6 @@ describe('JournalController Routes', () => {
       listEntries: jest.fn().mockResolvedValue([]),
       listTemplates: jest.fn().mockResolvedValue([]),
       listTags: jest.fn().mockResolvedValue([]),
-      listExercises: jest.fn().mockResolvedValue([]),
       getEntry: jest.fn(),
       restoreRevision: jest.fn(),
     };
@@ -68,11 +67,6 @@ describe('JournalController Routes', () => {
 
   it('GET /journal/tags returns 401 when unauthenticated', async () => {
     const res = await app.inject({ method: 'GET', url: '/journal/tags' });
-    expect(res.statusCode).toBe(401);
-  });
-
-  it('GET /journal/exercises returns 401 when unauthenticated', async () => {
-    const res = await app.inject({ method: 'GET', url: '/journal/exercises' });
     expect(res.statusCode).toBe(401);
   });
 

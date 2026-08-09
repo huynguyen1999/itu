@@ -6,7 +6,7 @@ interface GymSettingsPopoverProps {
 }
 
 export function GymSettingsPopover({ preferences = {}, onChange }: GymSettingsPopoverProps) {
-  const [weightUnit, setWeightUnit] = useState(preferences.defaultWeightUnit || 'KG');
+  const [weightUnit, setWeightUnit] = useState(preferences.weightUnit || preferences.defaultWeightUnit || 'KG');
 
   return (
     <div className="space-y-4 p-4 w-72 text-sm">
@@ -18,7 +18,7 @@ export function GymSettingsPopover({ preferences = {}, onChange }: GymSettingsPo
           value={weightUnit}
           onChange={(e) => {
             setWeightUnit(e.target.value);
-            onChange?.({ ...preferences, defaultWeightUnit: e.target.value });
+            onChange?.({ weightUnit: e.target.value });
           }}
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs"
         >

@@ -1,5 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsIn, IsNumber, IsOptional, IsString, Matches } from 'class-validator';
+
+const CATEGORY_ICONS = ['food', 'transport', 'shopping', 'bills', 'health', 'education', 'entertainment', 'fitness', 'travel', 'other'];
+const CATEGORY_COLORS = ['EMERALD', 'BLUE', 'VIOLET', 'AMBER', 'ROSE', 'INDIGO', 'TEAL', 'SLATE', 'emerald', 'blue', 'violet', 'amber', 'rose', 'indigo', 'teal', 'slate'];
+const MONEY_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
 
 export class CreateBudgetCategoryDto {
   @ApiProperty({ description: 'Category name' })
@@ -13,12 +17,12 @@ export class CreateBudgetCategoryDto {
 
   @ApiPropertyOptional({ description: 'Icon identifier' })
   @IsOptional()
-  @IsString()
+  @IsIn(CATEGORY_ICONS)
   icon?: string;
 
   @ApiPropertyOptional({ description: 'Color token' })
   @IsOptional()
-  @IsString()
+  @IsIn(CATEGORY_COLORS)
   color?: string;
 
   @ApiPropertyOptional({ description: 'Sort order' })
@@ -40,12 +44,12 @@ export class UpdateBudgetCategoryDto {
 
   @ApiPropertyOptional({ description: 'Icon identifier' })
   @IsOptional()
-  @IsString()
+  @IsIn(CATEGORY_ICONS)
   icon?: string;
 
   @ApiPropertyOptional({ description: 'Color token' })
   @IsOptional()
-  @IsString()
+  @IsIn(CATEGORY_COLORS)
   color?: string;
 
   @ApiPropertyOptional({ description: 'Sort order' })
@@ -66,9 +70,9 @@ export class CreateBudgetTransactionDto {
   type!: 'EXPENSE' | 'INCOME';
 
   @ApiProperty({ description: 'Transaction amount' })
-  @IsNumber()
-  @Min(0)
-  amount!: number;
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  amount!: string;
 
   @ApiPropertyOptional({ description: 'Currency code', default: 'VND' })
   @IsOptional()
@@ -107,9 +111,9 @@ export class UpdateBudgetTransactionDto {
 
   @ApiPropertyOptional({ description: 'Transaction amount' })
   @IsOptional()
-  @IsNumber()
-  @Min(0)
-  amount?: number;
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  amount?: string;
 
   @ApiPropertyOptional({ description: 'Currency code' })
   @IsOptional()
@@ -144,16 +148,16 @@ export class UpdateBudgetTransactionDto {
 
 export class UpdatePeriodBudgetDto {
   @ApiProperty({ description: 'Overall period limit' })
-  @IsNumber()
-  @Min(0)
-  overallLimit!: number;
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  overallLimit!: string;
 }
 
 export class UpdateCategoryLimitDto {
   @ApiProperty({ description: 'Category budget limit' })
-  @IsNumber()
-  @Min(0)
-  limit!: number;
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  limit!: string;
 }
 
 export class BudgetTransactionQueryDto {

@@ -35,7 +35,9 @@ The Xcode project uses synchronized root groups, so source files placed under `i
 - **Home and planning:** Home, Today, Inbox, Upcoming, Completed, Projects, task details, and the Eisenhower Matrix.
 - **Focus and Habits:** Focus controls/history and Habit occurrence/progress surfaces.
 - **Learning and Growth:** Learn, Flashcard Decks/review, Growth, Shop/Inventory, ledger, and Growth settings.
-- **Journal, Budget, and Gym:** dedicated native feature surfaces for each area.
+- **Journal, Budget, and Gym:** dedicated native feature surfaces for each area;
+  Journal retains Notes and Weekly Reviews while Budget Transactions and Gym
+  Workouts remain separate synchronized entities.
 - **Account and operations:** Statistics, notifications, profile, settings, sync conflicts, and recoverable Trash.
 
 Native-only integration surfaces include the menu-bar controller, notification plumbing, Focus policy enforcement, foreground-application tracking, Launch at Login, and the desktop Companion window. Feature directory presence documents a current surface, not guaranteed web parity; use the [native roadmap](../../macos/ROADMAP.md) for verified limitations.
@@ -116,6 +118,11 @@ sequenceDiagram
 
 As on web, the socket is only an invalidation channel. The coordinator retrieves data through `POST /sync`.
 
+The native outbox uses the same entity boundaries as Web: `budgettransaction.*`
+and `gymworkout.*` mutations do not pass through Journal, and Journal mutations
+are limited to retained Notes, Weekly Reviews, tags, templates, Trash, and
+revisions. Optional Gym exercise images are queued independently of `/sync`.
+
 ## Native usage tracking
 
 [`ForegroundUsageTracker.swift`](../../macos/iTu/Shared/Tracking/ForegroundUsageTracker.swift) observes the frontmost application, excludes inactive system states, and emits local app/day/hour summaries. [`OfflineStore+Usage.swift`](../../macos/iTu/Shared/Persistence/OfflineStore+Usage.swift) persists cumulative summaries; `AppModel` uploads them through authenticated usage endpoints tied to the registered macOS Sync Device.
@@ -134,12 +141,17 @@ flowchart LR
 
 Tracking is opt-in and controlled by server-backed preferences. Platform collection pauses around locked, sleeping, or inactive states according to the tracker implementation.
 
+Statistics reads server Website Usage Summaries and combines them with pending
+local deltas before rendering the native usage views.
+
 ## Current-state boundaries
 
 - Native feature parity is not implied by shared models or routes; use the [macOS roadmap](../../macos/ROADMAP.md) for verified coverage.
 - The active packaged browser extension uploads URL summaries directly to the API. `macos/NativeHost` and [`WebsiteUsageTracker.swift`](../../macos/iTu/Shared/Tracking/WebsiteUsageTracker.swift) remain compatibility-era code, not the authoritative extension ingestion path.
 - Direct REST is still used for operations outside the synchronized entity set.
 - `AppModel` and `OfflineStore` extensions split responsibility but remain the same types; do not treat them as independent stores.
+- Product date boundaries use the `Asia/Ho_Chi_Minh` Product Calendar while
+  instants remain UTC; money values stay decimal rather than floating-point.
 
 ## Reading a feature
 

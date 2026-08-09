@@ -194,6 +194,8 @@ extension AppModel {
             let reconciledReceiptIDs = Set(result.outcomes.map(\.mutationId)).union(result.conflicts.map(\.mutationId))
             growthReceiptQueue.removeAll { reconciledReceiptIDs.contains($0.id) }
             apply(snapshot)
+            await uploadPendingGymImages()
+            await uploadPendingJournalAttachments()
             for presented in authoritativeReceipts {
                 enqueueGrowthReceipt(presented.receipt, mutationId: presented.id)
             }
@@ -263,6 +265,7 @@ extension AppModel {
                 let result = try await AccountHydrator(apiClient: apiClient, offlineStore: store).hydrate()
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == userID else { return }
                 apply(result.snapshot)
+                await uploadPendingJournalAttachments()
                 if let value = result.habitTimeBlocks { habitTimeBlocks = value }
                 if let value = result.studySessionHistory { studySessionHistory = value }
                 if let value = result.notifications { notifications = value }

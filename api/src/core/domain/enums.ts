@@ -89,21 +89,6 @@ export enum SyncDevicePlatform {
 export enum JournalEntryKind {
   NOTE = 'NOTE',
   WEEKLY_REVIEW = 'WEEKLY_REVIEW',
-  EXPENSE = 'EXPENSE',
-  WORKOUT = 'WORKOUT',
-}
-
-export enum ExpenseCategory {
-  FOOD = 'FOOD',
-  TRANSPORT = 'TRANSPORT',
-  SHOPPING = 'SHOPPING',
-  BILLS = 'BILLS',
-  HEALTH = 'HEALTH',
-  EDUCATION = 'EDUCATION',
-  ENTERTAINMENT = 'ENTERTAINMENT',
-  FITNESS = 'FITNESS',
-  TRAVEL = 'TRAVEL',
-  OTHER = 'OTHER',
 }
 
 export enum PaymentMethod {

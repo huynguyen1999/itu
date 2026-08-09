@@ -18,7 +18,8 @@ import {
   WeightUnit,
 } from '@core/domain/gym/gym.domain';
 import { createUlid } from './ulid';
-import { JournalEntryKind } from '@prisma/client';
+import { GymWorkoutStatus as PrismaGymWorkoutStatus } from '@prisma/client';
+import { recordSyncChange } from './prisma-sync-mutation.shared';
 
 @Injectable()
 export class PrismaGymRepository implements IGymRepositoryPort {
@@ -47,22 +48,26 @@ export class PrismaGymRepository implements IGymRepositoryPort {
   }
 
   private mapWorkout(w: any): WorkoutDomain {
-    const entry = w.entry || {};
     return {
-      id: w.entryId || entry.id,
-      userId: entry.userId,
-      title: w.title || entry.title || 'Workout',
-      status: (w.status as WorkoutStatus) || 'COMPLETED',
-      startedAt: w.startedAt || entry.entryDate,
+      id: w.id,
+      userId: w.userId,
+      title: w.title || 'Workout',
+      status: (w.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'COMPLETED') as WorkoutStatus,
+      startedAt: w.startedAt || w.createdAt,
       endedAt: w.endedAt || null,
       durationMinutes: w.durationMinutes || null,
-      createdAt: entry.createdAt,
-      updatedAt: entry.updatedAt,
-      version: entry.version ?? 1,
+      createdAt: w.createdAt,
+      updatedAt: w.updatedAt,
+      version: w.version ?? 1,
+      deletedAt: w.deletedAt || null,
       exercises: (w.exercises || []).map((ex: any) => ({
         id: ex.id,
-        workoutEntryId: ex.workoutEntryId,
+        workoutId: ex.workoutId,
+        workoutEntryId: ex.workoutId,
         exerciseId: ex.exerciseId,
+        exerciseName: ex.exerciseName,
+        metricType: ex.metricType,
+        weightUnit: ex.weightUnit,
         sortOrder: ex.sortOrder,
         note: ex.note || null,
         restSeconds: ex.restSeconds || null,
@@ -155,7 +160,7 @@ export class PrismaGymRepository implements IGymRepositoryPort {
 
     const ex = await this.prisma.exerciseDefinition.update({
       where: { id },
-      data: { archivedAt: new Date() },
+      data: { archivedAt: new Date(), version: { increment: 1 } },
     });
     return this.mapExercise(ex);
   }
@@ -168,7 +173,7 @@ export class PrismaGymRepository implements IGymRepositoryPort {
 
     const ex = await this.prisma.exerciseDefinition.update({
       where: { id },
-      data: { imageStorageKey: storageKey, imageUrl: url },
+      data: { imageStorageKey: storageKey, imageUrl: url, version: { increment: 1 } },
     });
     return this.mapExercise(ex);
   }
@@ -181,22 +186,22 @@ export class PrismaGymRepository implements IGymRepositoryPort {
 
     const ex = await this.prisma.exerciseDefinition.update({
       where: { id },
-      data: { imageStorageKey: null, imageUrl: null },
+      data: { imageStorageKey: null, imageUrl: null, version: { increment: 1 } },
     });
     return this.mapExercise(ex);
   }
 
   async getExerciseStats(userId: string, id: string): Promise<ExerciseStatsDomain> {
-    const exerciseSets = await this.prisma.journalWorkoutSet.findMany({
+    const exerciseSets = await this.prisma.gymWorkoutSet.findMany({
       where: {
         workoutExercise: {
           exerciseId: id,
-          workout: { entry: { userId, deletedAt: null } },
+          workout: { userId, deletedAt: null },
         },
       },
       include: {
         workoutExercise: {
-          include: { workout: { include: { entry: true } } },
+          include: { workout: true },
         },
       },
       orderBy: { workoutExercise: { workout: { startedAt: 'desc' } } },
@@ -210,7 +215,7 @@ export class PrismaGymRepository implements IGymRepositoryPort {
     for (const s of exerciseSets) {
       const weight = s.weight ? Number(s.weight) : null;
       const reps = s.reps ?? null;
-      const startedAt = s.workoutExercise?.workout?.startedAt || s.workoutExercise?.workout?.entry?.entryDate;
+      const startedAt = s.workoutExercise?.workout?.startedAt;
 
       if (startedAt && (!lastPerformedAt || startedAt > lastPerformedAt)) {
         lastPerformedAt = startedAt;
@@ -258,85 +263,74 @@ export class PrismaGymRepository implements IGymRepositoryPort {
   }
 
   async getWorkouts(userId: string, options?: { status?: WorkoutStatus; limit?: number }): Promise<WorkoutDomain[]> {
-    const where: any = {
-      userId,
-      kind: JournalEntryKind.WORKOUT,
-      deletedAt: null,
-    };
+    const where: any = { userId, deletedAt: null };
 
     if (options?.status) {
-      where.workout = { status: options.status };
+      where.status = options.status === 'ACTIVE' || options.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : options.status;
     }
 
-    const entries = await this.prisma.journalEntry.findMany({
+    const entries = await this.prisma.gymWorkout.findMany({
       where,
       include: {
-        workout: {
-          include: {
-            exercises: {
-              include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' } } },
-              orderBy: { sortOrder: 'asc' },
-            },
-          },
+        exercises: {
+          include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' } } },
+          orderBy: { sortOrder: 'asc' },
         },
       },
-      orderBy: { entryDate: 'desc' },
+      orderBy: { startedAt: 'desc' },
       take: options?.limit,
     });
 
-    return entries.map((e) => this.mapWorkout(e.workout ? { ...e.workout, entry: e } : { entryId: e.id, entry: e, exercises: [] }));
+    return entries.map((e) => this.mapWorkout(e));
   }
 
   async getWorkoutById(userId: string, id: string): Promise<WorkoutDomain | null> {
-    const entry = await this.prisma.journalEntry.findFirst({
-      where: { id, userId, kind: JournalEntryKind.WORKOUT, deletedAt: null },
+    const entry = await this.prisma.gymWorkout.findFirst({
+      where: { id, userId, deletedAt: null },
       include: {
-        workout: {
-          include: {
-            exercises: {
-              include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' } } },
-              orderBy: { sortOrder: 'asc' },
-            },
-          },
+        exercises: {
+          include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' } } },
+          orderBy: { sortOrder: 'asc' },
         },
       },
     });
 
     if (!entry) return null;
-    return this.mapWorkout(entry.workout ? { ...entry.workout, entry } : { entryId: entry.id, entry, exercises: [] });
+    return this.mapWorkout(entry);
   }
 
   async createWorkout(userId: string, dto: CreateWorkoutDto): Promise<WorkoutDomain> {
-    const entryId = createUlid();
+    const workoutId = createUlid();
     const startedAt = dto.startedAt ? new Date(dto.startedAt) : new Date();
+    const status = dto.status === 'COMPLETED' ? PrismaGymWorkoutStatus.COMPLETED : PrismaGymWorkoutStatus.IN_PROGRESS;
+    if (status === PrismaGymWorkoutStatus.IN_PROGRESS) {
+      const active = await this.prisma.gymWorkout.findFirst({ where: { userId, status, deletedAt: null } });
+      if (active) throw new Error('An active workout already exists');
+    }
 
-    const entry = await this.prisma.journalEntry.create({
+    const workout = await this.prisma.gymWorkout.create({
       data: {
-        id: entryId,
+        id: workoutId,
         userId,
-        kind: JournalEntryKind.WORKOUT,
         title: dto.title || 'Workout',
-        entryDate: startedAt,
-        workout: {
-          create: {
-            title: dto.title || 'Workout',
-            status: 'ACTIVE',
-            startedAt,
-          },
-        },
+        status,
+        startedAt,
+        endedAt: dto.endedAt ? new Date(dto.endedAt) : null,
+        durationMinutes: dto.durationMinutes ?? null,
       },
       include: {
-        workout: {
-          include: {
-            exercises: {
-              include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' } } },
-            },
-          },
+        exercises: {
+          include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' } } },
         },
       },
     });
-
-    return this.mapWorkout({ ...entry.workout, entry });
+    if (dto.exercises) {
+      await this.updateWorkout(userId, workout.id, { exercises: dto.exercises });
+      const refreshed = await this.getWorkoutById(userId, workout.id);
+      if (refreshed) return refreshed;
+    }
+    await this.prisma.$transaction(async (tx) => recordSyncChange(tx, userId, 'gymworkout', workout.id, 'UPSERT', workout));
+    return this.mapWorkout(workout);
   }
 
   async updateWorkout(userId: string, id: string, dto: UpdateWorkoutDto): Promise<WorkoutDomain> {
@@ -345,38 +339,29 @@ export class PrismaGymRepository implements IGymRepositoryPort {
       throw new Error(`Workout ${id} not found`);
     }
 
-    const updateEntryData: any = {};
     const updateWorkoutData: any = {};
 
     if (dto.title !== undefined) {
-      updateEntryData.title = dto.title;
       updateWorkoutData.title = dto.title;
     }
     if (dto.startedAt !== undefined) {
-      updateEntryData.entryDate = new Date(dto.startedAt);
       updateWorkoutData.startedAt = new Date(dto.startedAt);
     }
     if (dto.endedAt !== undefined) updateWorkoutData.endedAt = new Date(dto.endedAt);
     if (dto.durationMinutes !== undefined) updateWorkoutData.durationMinutes = dto.durationMinutes;
-    if (dto.status !== undefined) updateWorkoutData.status = dto.status;
+    if (dto.status !== undefined) updateWorkoutData.status = dto.status === 'COMPLETED' ? PrismaGymWorkoutStatus.COMPLETED : PrismaGymWorkoutStatus.IN_PROGRESS;
 
     // Execute update inside a transaction to support exercises/sets replacement/upsert
     await this.prisma.$transaction(async (tx) => {
-      await tx.journalEntry.update({
+      await tx.gymWorkout.update({
         where: { id },
-        data: {
-          ...updateEntryData,
-          version: { increment: 1 },
-          workout: {
-            update: updateWorkoutData,
-          },
-        },
+        data: { ...updateWorkoutData, version: { increment: 1 } },
       });
 
       if (dto.exercises !== undefined) {
         // Simple replace/upsert exercise definitions
-        const existingWorkout = await tx.journalWorkout.findUnique({
-          where: { entryId: id },
+        const existingWorkout = await tx.gymWorkout.findUnique({
+          where: { id },
           include: { exercises: true },
         });
 
@@ -387,25 +372,33 @@ export class PrismaGymRepository implements IGymRepositoryPort {
           // Delete removed exercises
           const toDelete = currentExIds.filter((exId) => !incomingExIds.includes(exId));
           if (toDelete.length > 0) {
-            await tx.journalWorkoutExercise.deleteMany({ where: { id: { in: toDelete } } });
+            await tx.gymWorkoutExercise.deleteMany({ where: { id: { in: toDelete } } });
           }
 
           for (let i = 0; i < dto.exercises.length; i++) {
             const exDto = dto.exercises[i];
             const exId = exDto.id || createUlid();
+            const definition = await tx.exerciseDefinition.findUnique({ where: { id: exDto.exerciseId } });
+            if (!definition) throw new Error(`Exercise ${exDto.exerciseId} not found`);
 
-            await tx.journalWorkoutExercise.upsert({
+            await tx.gymWorkoutExercise.upsert({
               where: { id: exId },
               create: {
                 id: exId,
-                workoutEntryId: id,
+                workoutId: id,
                 exerciseId: exDto.exerciseId,
+                exerciseName: definition.name,
+                metricType: definition.metricType,
+                weightUnit: definition.defaultWeightUnit,
                 sortOrder: exDto.sortOrder ?? i,
                 note: exDto.note || null,
                 restSeconds: exDto.restSeconds || null,
               },
               update: {
                 exerciseId: exDto.exerciseId,
+                exerciseName: definition.name,
+                metricType: definition.metricType,
+                weightUnit: definition.defaultWeightUnit,
                 sortOrder: exDto.sortOrder ?? i,
                 note: exDto.note || null,
                 restSeconds: exDto.restSeconds || null,
@@ -413,7 +406,7 @@ export class PrismaGymRepository implements IGymRepositoryPort {
             });
 
             if (exDto.sets !== undefined) {
-              const existingSets = await tx.journalWorkoutSet.findMany({
+              const existingSets = await tx.gymWorkoutSet.findMany({
                 where: { workoutExerciseId: exId },
               });
               const currentSetIds = existingSets.map((s) => s.id);
@@ -421,14 +414,14 @@ export class PrismaGymRepository implements IGymRepositoryPort {
 
               const setsToDelete = currentSetIds.filter((sId) => !incomingSetIds.includes(sId));
               if (setsToDelete.length > 0) {
-                await tx.journalWorkoutSet.deleteMany({ where: { id: { in: setsToDelete } } });
+                await tx.gymWorkoutSet.deleteMany({ where: { id: { in: setsToDelete } } });
               }
 
               for (let sIdx = 0; sIdx < exDto.sets.length; sIdx++) {
                 const setDto = exDto.sets[sIdx];
                 const setUlid = setDto.id || createUlid();
 
-                await tx.journalWorkoutSet.upsert({
+                await tx.gymWorkoutSet.upsert({
                   where: { id: setUlid },
                   create: {
                     id: setUlid,
@@ -461,14 +454,16 @@ export class PrismaGymRepository implements IGymRepositoryPort {
     });
 
     const updated = await this.getWorkoutById(userId, id);
+    await this.prisma.$transaction(async (tx) => recordSyncChange(tx, userId, 'gymworkout', id, 'UPSERT', updated ?? { id }));
     return updated!;
   }
 
   async deleteWorkout(userId: string, id: string): Promise<void> {
-    await this.prisma.journalEntry.update({
+    await this.prisma.gymWorkout.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      data: { deletedAt: new Date(), version: { increment: 1 } },
     });
+    await this.prisma.$transaction(async (tx) => recordSyncChange(tx, userId, 'gymworkout', id, 'DELETE', { id }));
   }
 
   async completeWorkout(userId: string, id: string): Promise<WorkoutDomain> {
@@ -487,10 +482,10 @@ export class PrismaGymRepository implements IGymRepositoryPort {
   }
 
   async abandonWorkout(userId: string, id: string): Promise<WorkoutDomain> {
-    return this.updateWorkout(userId, id, {
-      status: 'ABANDONED',
-      endedAt: new Date(),
-    });
+    const workout = await this.getWorkoutById(userId, id);
+    if (!workout) throw new Error(`Workout ${id} not found`);
+    await this.deleteWorkout(userId, id);
+    return { ...workout, deletedAt: new Date() };
   }
 
   async getOverview(userId: string): Promise<GymOverviewDomain> {
@@ -498,21 +493,16 @@ export class PrismaGymRepository implements IGymRepositoryPort {
     const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
     startOfWeek.setHours(0, 0, 0, 0);
 
-    const weeklyWorkouts = await this.prisma.journalEntry.findMany({
+    const weeklyWorkouts = await this.prisma.gymWorkout.findMany({
       where: {
         userId,
-        kind: JournalEntryKind.WORKOUT,
         deletedAt: null,
-        entryDate: { gte: startOfWeek },
-        workout: { status: 'COMPLETED' },
+        startedAt: { gte: startOfWeek },
+        status: 'COMPLETED',
       },
       include: {
-        workout: {
-          include: {
-            exercises: {
-              include: { sets: true },
-            },
-          },
+        exercises: {
+          include: { sets: true },
         },
       },
     });
@@ -521,9 +511,7 @@ export class PrismaGymRepository implements IGymRepositoryPort {
     let totalVolumeKg = 0;
 
     for (const entry of weeklyWorkouts) {
-      const workout = entry.workout;
-      if (!workout) continue;
-      for (const ex of workout.exercises) {
+      for (const ex of entry.exercises) {
         for (const s of ex.sets) {
           totalSets++;
           if (s.weight && s.reps) {

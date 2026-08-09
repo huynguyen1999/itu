@@ -42,6 +42,13 @@ final class AccountHydrator: @unchecked Sendable {
         async let habitRules = fetch { try await self.apiClient.fetchGrowthEarningRules(sourceType: .habit) }
         async let rewardDefaults = fetch { try await self.apiClient.fetchGrowthTaskRewardDefaults() }
         async let mappings = fetch { try await self.apiClient.fetchGrowthAttributeMappings() }
+        async let budgetCategories = fetch { try await self.apiClient.getBudgetCategories() }
+        async let budgetTransactions = fetch { try await self.apiClient.getBudgetTransactions() }
+        async let gymExercises = fetch { try await self.apiClient.getGymExercises() }
+        async let gymWorkouts = fetch { try await self.apiClient.getGymWorkouts() }
+        async let journalNotes = fetch { try await self.apiClient.getJournalNotes() }
+        async let journalTags = fetch { try await self.apiClient.getJournalTags() }
+        async let journalTemplates = fetch { try await self.apiClient.getJournalTemplates() }
 
         let fetchedDecks = await decks
         var cardsByDeck: [String: [CardModel]?] = [:]
@@ -54,7 +61,7 @@ final class AccountHydrator: @unchecked Sendable {
             }
         }
 
-        let resource = AccountHydrationResources(
+        var resource = AccountHydrationResources(
             tasks: await tasks, lists: await lists, sections: await sections, tags: await tags,
             metadata: await metadata, habits: await habits, growth: await growth, skills: await skills,
             attributes: await attributes, rewards: await rewards, inventory: await inventory,
@@ -62,6 +69,13 @@ final class AccountHydrator: @unchecked Sendable {
             presets: await presets, taskRules: await taskRules, habitRules: await habitRules,
             rewardDefaults: await rewardDefaults, mappings: await mappings
         )
+        resource.budgetCategories = await budgetCategories
+        resource.budgetTransactions = await budgetTransactions
+        resource.gymExercises = await gymExercises
+        resource.gymWorkouts = await gymWorkouts
+        resource.journalNotes = await journalNotes
+        resource.journalTags = await journalTags
+        resource.journalTemplates = await journalTemplates
         let snapshot = try await offlineStore.applyHydration(resource)
         return AccountHydrationResult(
             snapshot: snapshot,
@@ -99,4 +113,11 @@ struct AccountHydrationResources: Sendable {
     let habitRules: [GrowthEarningRuleDTO]?
     let rewardDefaults: [GrowthTaskRewardDefaultDTO]?
     let mappings: [GrowthAttributeMappingDTO]?
+    var budgetCategories: [BudgetCategoryModel]? = nil
+    var budgetTransactions: [BudgetTransactionModel]? = nil
+    var gymExercises: [ExerciseModel]? = nil
+    var gymWorkouts: [WorkoutModel]? = nil
+    var journalNotes: [JournalNoteModel]? = nil
+    var journalTags: [JournalTagModel]? = nil
+    var journalTemplates: [JournalTemplateModel]? = nil
 }

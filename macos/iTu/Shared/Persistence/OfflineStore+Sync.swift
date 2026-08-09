@@ -248,6 +248,9 @@ extension OfflineStore {
             guard let mappings = Self.decodeGrowthAttributeMappings(change.data) else { continue }
             state.growthAttributeMappings[change.entityId] = mappings
         }
+        try applyBudgetGymChanges(changes)
+        try applyJournalChanges(changes)
+        reapplyPendingJournalMutations()
         try reapplyPendingTaskMutations(optimisticTasksByID: optimisticTasksByID)
         try reapplyPendingTaskListMutations(optimisticByID: optimisticTaskListsByID)
         for mutation in state.mutations where mutation.kind.hasPrefix("focussession.") {

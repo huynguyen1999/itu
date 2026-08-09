@@ -15,6 +15,33 @@ struct BrowserActivityState: Codable, Equatable, Sendable {
     static let appGroupID = "group.com.itu.browser-activity"
     static let fileName = "browser-activity.json"
 
+    static let supportedBrowserBundleIDs: Set<String> = [
+        "com.microsoft.edgemac",
+        "com.google.Chrome",
+        "com.google.Chrome.canary",
+        "com.brave.Browser",
+        "company.thebrowser.Browser",
+        "com.vivaldi.Vivaldi",
+        "com.operasoftware.Opera",
+        "org.chromium.Chromium",
+        "com.kagi.orion",
+        "com.apple.Safari"
+    ]
+
+    static func displayName(for bundleID: String) -> String {
+        switch bundleID {
+        case "com.microsoft.edgemac": "Microsoft Edge"
+        case "com.google.Chrome", "com.google.Chrome.canary": "Google Chrome"
+        case "com.brave.Browser": "Brave"
+        case "company.thebrowser.Browser": "Arc"
+        case "com.vivaldi.Vivaldi": "Vivaldi"
+        case "com.operasoftware.Opera": "Opera"
+        case "org.chromium.Chromium": "Chromium"
+        case "com.apple.Safari": "Safari"
+        default: "Browser"
+        }
+    }
+
     var updatedDate: Date? {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

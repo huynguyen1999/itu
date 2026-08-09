@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import { ExpenseCategory, JournalEntryKind, PaymentMethod, WeightUnit } from '@core/domain/enums';
+import { JournalEntryKind } from '@core/domain/enums';
 import {
-  ExerciseDefinitionModel,
   JournalAttachmentModel,
   JournalEntryModel,
   JournalEntryRevisionModel,
@@ -12,7 +11,6 @@ import {
 import {
   CreateJournalEntryData,
   CreateJournalTemplateData,
-  IExerciseDefinitionRepository,
   IJournalAttachmentRepository,
   IJournalRepository,
   IJournalTagRepository,
@@ -23,6 +21,7 @@ import {
 } from '@core/application/ports/out/journal-repository.port';
 import { createUlid } from './ulid';
 import { Prisma } from '@prisma/client';
+import { formatDateOnly } from '@core/application/utils/calendar';
 
 export function mapEntryToModel(entry: any): JournalEntryModel {
   return {
@@ -41,42 +40,13 @@ export function mapEntryToModel(entry: any): JournalEntryModel {
     weeklyReview: entry.weeklyReview
       ? {
           entryId: entry.weeklyReview.entryId,
-          periodStart: entry.weeklyReview.periodStart,
-          periodEnd: entry.weeklyReview.periodEnd,
+          periodStart: formatDateOnly(entry.weeklyReview.periodStart),
+          periodEnd: formatDateOnly(entry.weeklyReview.periodEnd),
           summarySnapshot: entry.weeklyReview.summarySnapshot as Record<string, unknown>,
-        }
-      : null,
-    expense: entry.expense
-      ? {
-          entryId: entry.expense.entryId,
-          amount: Number(entry.expense.amount),
-          currency: entry.expense.currency,
-          category: entry.expense.category as ExpenseCategory,
-          merchant: entry.expense.merchant,
-          paymentMethod: entry.expense.paymentMethod as PaymentMethod,
-          transactionAt: entry.expense.transactionAt,
-        }
-      : null,
-    workout: entry.workout
-      ? {
-          entryId: entry.workout.entryId,
-          startedAt: entry.workout.startedAt,
-          durationMinutes: entry.workout.durationMinutes,
-          exercises: (entry.workout.exercises || []).map((ex: any) => ({
-            id: ex.id,
-            workoutEntryId: ex.workoutEntryId,
-            exerciseId: ex.exerciseId,
-            exerciseName: ex.exercise?.name,
-            sortOrder: ex.sortOrder,
-            note: ex.note,
-            sets: (ex.sets || []).map((s: any) => ({
-              id: s.id,
-              workoutExerciseId: s.workoutExerciseId,
-              sortOrder: s.sortOrder,
-              reps: s.reps,
-              weight: Number(s.weight),
-            })),
-          })),
+          wentWellMarkdown: entry.weeklyReview.wentWellMarkdown,
+          frictionMarkdown: entry.weeklyReview.frictionMarkdown,
+          nextWeekMarkdown: entry.weeklyReview.nextWeekMarkdown,
+          experimentSnapshot: entry.weeklyReview.experimentSnapshot as Record<string, unknown> | null,
         }
       : null,
     tags: (entry.tags || []).map((assignment: any) => ({
@@ -111,15 +81,6 @@ export class PrismaJournalRepository implements IJournalRepository {
       where: { id, userId },
       include: {
         weeklyReview: true,
-        expense: true,
-        workout: {
-          include: {
-            exercises: {
-              include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' as const } } },
-              orderBy: { sortOrder: 'asc' as const },
-            },
-          },
-        },
         tags: { include: { tag: true } },
         attachments: { where: { deletedAt: null } },
       },
@@ -128,7 +89,7 @@ export class PrismaJournalRepository implements IJournalRepository {
   }
 
   async list(userId: string, filter?: JournalSearchFilter): Promise<JournalEntryModel[]> {
-    const where: any = { userId, deletedAt: null };
+    const where: any = { userId, ...(filter?.includeDeleted ? {} : { deletedAt: null }) };
     if (filter?.kind) where.kind = filter.kind;
     if (filter?.tagId) where.tags = { some: { tagId: filter.tagId } };
     if (filter?.startDate || filter?.endDate) {
@@ -136,15 +97,10 @@ export class PrismaJournalRepository implements IJournalRepository {
       if (filter.startDate) where.entryDate.gte = filter.startDate;
       if (filter.endDate) where.entryDate.lte = filter.endDate;
     }
-    if (filter?.category) where.expense = { category: filter.category };
-    if (filter?.currency) {
-      where.expense = { ...where.expense, currency: filter.currency };
-    }
     if (filter?.query) {
       where.OR = [
         { title: { contains: filter.query, mode: 'insensitive' } },
         { contentMarkdown: { contains: filter.query, mode: 'insensitive' } },
-        { expense: { merchant: { contains: filter.query, mode: 'insensitive' } } },
         { attachments: { some: { fileName: { contains: filter.query, mode: 'insensitive' } } } },
       ];
     }
@@ -154,15 +110,6 @@ export class PrismaJournalRepository implements IJournalRepository {
       orderBy: { entryDate: 'desc' },
       include: {
         weeklyReview: true,
-        expense: true,
-        workout: {
-          include: {
-            exercises: {
-              include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' as const } } },
-              orderBy: { sortOrder: 'asc' as const },
-            },
-          },
-        },
         tags: { include: { tag: true } },
         attachments: { where: { deletedAt: null } },
       },
@@ -180,7 +127,7 @@ export class PrismaJournalRepository implements IJournalRepository {
         data: {
           id: data.id,
           userId,
-          kind: data.kind,
+          kind: data.kind as any,
           title: data.title,
           contentMarkdown: data.contentMarkdown ?? '',
           entryDate: data.entryDate,
@@ -197,56 +144,12 @@ export class PrismaJournalRepository implements IJournalRepository {
             periodStart: data.weeklyReview.periodStart,
             periodEnd: data.weeklyReview.periodEnd,
             summarySnapshot: (data.weeklyReview.summarySnapshot as unknown) as Prisma.InputJsonValue,
+            wentWellMarkdown: data.weeklyReview.wentWellMarkdown,
+            frictionMarkdown: data.weeklyReview.frictionMarkdown,
+            nextWeekMarkdown: data.weeklyReview.nextWeekMarkdown,
+            experimentSnapshot: data.weeklyReview.experimentSnapshot as Prisma.InputJsonValue,
           },
         });
-      }
-
-      if (data.expense) {
-        await tx.journalExpense.create({
-          data: {
-            entryId: entry.id,
-            amount: data.expense.amount,
-            currency: data.expense.currency ?? 'VND',
-            category: data.expense.category ?? 'OTHER',
-            merchant: data.expense.merchant ?? null,
-            paymentMethod: data.expense.paymentMethod ?? 'CASH',
-            transactionAt: data.expense.transactionAt ?? new Date(),
-          },
-        });
-      }
-
-      if (data.workout) {
-        await tx.journalWorkout.create({
-          data: {
-            entryId: entry.id,
-            startedAt: data.workout.startedAt,
-            durationMinutes: data.workout.durationMinutes,
-          },
-        });
-
-        for (const ex of data.workout.exercises || []) {
-          const createdEx = await (tx as any).journalWorkoutExercise.create({
-            data: {
-              id: ex.id || createUlid(),
-              workoutEntryId: entry.id,
-              exerciseId: ex.exerciseId,
-              sortOrder: ex.sortOrder ?? 0,
-              note: ex.note ?? null,
-            },
-          });
-
-          for (const s of ex.sets || []) {
-            await (tx as any).journalWorkoutSet.create({
-              data: {
-                id: s.id || createUlid(),
-                workoutExerciseId: createdEx.id,
-                sortOrder: s.sortOrder ?? 0,
-                reps: s.reps,
-                weight: s.weight,
-              },
-            });
-          }
-        }
       }
 
       if (data.tagIds && data.tagIds.length > 0) {
@@ -259,14 +162,6 @@ export class PrismaJournalRepository implements IJournalRepository {
         where: { id: entry.id },
         include: {
           weeklyReview: true,
-          expense: true,
-          workout: {
-            include: {
-              exercises: {
-                include: { exercise: true, sets: true },
-              },
-            },
-          },
           tags: { include: { tag: true } },
           attachments: { where: { deletedAt: null } },
         },
@@ -299,15 +194,6 @@ export class PrismaJournalRepository implements IJournalRepository {
         where: { id, userId, deletedAt: null },
         include: {
           weeklyReview: true,
-          expense: true,
-          workout: {
-            include: {
-              exercises: {
-                include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' as const } } },
-                orderBy: { sortOrder: 'asc' as const },
-              },
-            },
-          },
           tags: { include: { tag: true } },
           attachments: { where: { deletedAt: null } },
         },
@@ -347,6 +233,10 @@ export class PrismaJournalRepository implements IJournalRepository {
             periodStart: data.weeklyReview.periodStart!,
             periodEnd: data.weeklyReview.periodEnd!,
             summarySnapshot: data.weeklyReview.summarySnapshot as Prisma.InputJsonValue,
+            wentWellMarkdown: data.weeklyReview.wentWellMarkdown,
+            frictionMarkdown: data.weeklyReview.frictionMarkdown,
+            nextWeekMarkdown: data.weeklyReview.nextWeekMarkdown,
+            experimentSnapshot: data.weeklyReview.experimentSnapshot as Prisma.InputJsonValue,
           },
           update: {
             periodStart: data.weeklyReview.periodStart ?? existing.weeklyReview?.periodStart,
@@ -354,70 +244,12 @@ export class PrismaJournalRepository implements IJournalRepository {
             summarySnapshot: data.weeklyReview.summarySnapshot
               ? ((data.weeklyReview.summarySnapshot as unknown) as Prisma.InputJsonValue)
               : (existing.weeklyReview?.summarySnapshot as any),
+            wentWellMarkdown: data.weeklyReview.wentWellMarkdown === undefined ? existing.weeklyReview?.wentWellMarkdown : data.weeklyReview.wentWellMarkdown,
+            frictionMarkdown: data.weeklyReview.frictionMarkdown === undefined ? existing.weeklyReview?.frictionMarkdown : data.weeklyReview.frictionMarkdown,
+            nextWeekMarkdown: data.weeklyReview.nextWeekMarkdown === undefined ? existing.weeklyReview?.nextWeekMarkdown : data.weeklyReview.nextWeekMarkdown,
+            experimentSnapshot: data.weeklyReview.experimentSnapshot === undefined ? (existing.weeklyReview?.experimentSnapshot as any) : (data.weeklyReview.experimentSnapshot as Prisma.InputJsonValue),
           },
         });
-      }
-
-      if (data.expense) {
-        await tx.journalExpense.upsert({
-          where: { entryId: id },
-          create: {
-            entryId: id,
-            amount: data.expense.amount!,
-            currency: data.expense.currency ?? 'VND',
-            category: data.expense.category ?? 'OTHER',
-            merchant: data.expense.merchant ?? null,
-            paymentMethod: data.expense.paymentMethod ?? 'CASH',
-            transactionAt: data.expense.transactionAt ?? new Date(),
-          },
-          update: {
-            amount: data.expense.amount ?? existing.expense?.amount,
-            currency: data.expense.currency ?? existing.expense?.currency,
-            category: data.expense.category ?? (existing.expense?.category as any),
-            merchant: data.expense.merchant !== undefined ? data.expense.merchant : existing.expense?.merchant,
-            paymentMethod: data.expense.paymentMethod ?? (existing.expense?.paymentMethod as any),
-            transactionAt: data.expense.transactionAt ?? existing.expense?.transactionAt,
-          },
-        });
-      }
-
-      if (data.workout && data.workout.exercises) {
-        await tx.journalWorkout.upsert({
-          where: { entryId: id },
-          create: {
-            entryId: id,
-            startedAt: data.workout.startedAt,
-            durationMinutes: data.workout.durationMinutes,
-          },
-          update: {
-            startedAt: data.workout.startedAt ?? existing.workout?.startedAt,
-            durationMinutes: data.workout.durationMinutes ?? existing.workout?.durationMinutes,
-          },
-        });
-
-        await tx.journalWorkoutExercise.deleteMany({ where: { workoutEntryId: id } });
-        for (const ex of data.workout.exercises) {
-          const createdEx = await tx.journalWorkoutExercise.create({
-            data: {
-              id: ex.id || createUlid(),
-              workoutEntryId: id,
-              exerciseId: ex.exerciseId,
-              sortOrder: ex.sortOrder ?? 0,
-              note: ex.note ?? null,
-            },
-          });
-          for (const s of ex.sets || []) {
-            await tx.journalWorkoutSet.create({
-              data: {
-                id: s.id || createUlid(),
-                workoutExerciseId: createdEx.id,
-                sortOrder: s.sortOrder ?? 0,
-                reps: s.reps,
-                weight: s.weight,
-              },
-            });
-          }
-        }
       }
 
       if (data.tagIds !== undefined) {
@@ -433,15 +265,6 @@ export class PrismaJournalRepository implements IJournalRepository {
         where: { id },
         include: {
           weeklyReview: true,
-          expense: true,
-          workout: {
-            include: {
-              exercises: {
-                include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' as const } } },
-                orderBy: { sortOrder: 'asc' as const },
-              },
-            },
-          },
           tags: { include: { tag: true } },
           attachments: { where: { deletedAt: null } },
         },
@@ -498,8 +321,17 @@ export class PrismaJournalRepository implements IJournalRepository {
       timezone: snap.timezone,
       templateId: snap.templateId,
       tagIds: snap.tags?.map((t: any) => t.id),
-      expense: snap.expense ? { ...snap.expense, transactionAt: new Date(snap.expense.transactionAt) } : undefined,
-      workout: snap.workout ? snap.workout : undefined,
+      weeklyReview: snap.weeklyReview
+        ? {
+            periodStart: new Date(snap.weeklyReview.periodStart),
+            periodEnd: new Date(snap.weeklyReview.periodEnd),
+            summarySnapshot: snap.weeklyReview.summarySnapshot ?? {},
+            wentWellMarkdown: snap.weeklyReview.wentWellMarkdown ?? null,
+            frictionMarkdown: snap.weeklyReview.frictionMarkdown ?? null,
+            nextWeekMarkdown: snap.weeklyReview.nextWeekMarkdown ?? null,
+            experimentSnapshot: snap.weeklyReview.experimentSnapshot ?? null,
+          }
+        : undefined,
     });
   }
 }
@@ -556,7 +388,7 @@ export class PrismaJournalTemplateRepository implements IJournalTemplateReposito
         id: data.id || createUlid(),
         userId,
         name: data.name,
-        entryKind: data.entryKind,
+        entryKind: data.entryKind as any,
         titleTemplate: data.titleTemplate ?? '',
         bodyMarkdown: data.bodyMarkdown ?? '',
         defaults: (data.defaults as Prisma.InputJsonValue) ?? {},
@@ -586,7 +418,7 @@ export class PrismaJournalTemplateRepository implements IJournalTemplateReposito
       where: { id },
       data: {
         name: data.name ?? existing.name,
-        entryKind: data.entryKind ?? existing.entryKind,
+        entryKind: (data.entryKind ?? existing.entryKind) as any,
         titleTemplate: data.titleTemplate ?? existing.titleTemplate,
         bodyMarkdown: data.bodyMarkdown ?? existing.bodyMarkdown,
         defaults: data.defaults ? (data.defaults as Prisma.InputJsonValue) : (existing.defaults as any),
@@ -663,58 +495,6 @@ export class PrismaJournalTagRepository implements IJournalTagRepository {
 }
 
 @Injectable()
-export class PrismaExerciseDefinitionRepository implements IExerciseDefinitionRepository {
-  constructor(private readonly prisma: PrismaService) {}
-
-  async list(userId: string): Promise<ExerciseDefinitionModel[]> {
-    const exList = await this.prisma.exerciseDefinition.findMany({ where: { userId }, orderBy: { name: 'asc' } });
-    return exList.map((e) => ({
-      id: e.id,
-      userId: e.userId,
-      name: e.name,
-      normalizedName: e.normalizedName,
-      defaultWeightUnit: e.defaultWeightUnit as WeightUnit,
-      createdAt: e.createdAt,
-      updatedAt: e.updatedAt,
-    }));
-  }
-
-  async findOrCreateByName(userId: string, name: string, defaultWeightUnit = WeightUnit.KG): Promise<ExerciseDefinitionModel> {
-    const normalizedName = name.trim().toLowerCase();
-    const existing = await this.prisma.exerciseDefinition.findFirst({ where: { userId, normalizedName } });
-    if (existing) {
-      return {
-        id: existing.id,
-        userId: existing.userId,
-        name: existing.name,
-        normalizedName: existing.normalizedName,
-        defaultWeightUnit: existing.defaultWeightUnit as WeightUnit,
-        createdAt: existing.createdAt,
-        updatedAt: existing.updatedAt,
-      };
-    }
-    const created = await this.prisma.exerciseDefinition.create({
-      data: {
-        id: createUlid(),
-        userId,
-        name,
-        normalizedName,
-        defaultWeightUnit,
-      } as any,
-    });
-    return {
-      id: created.id,
-      userId: created.userId,
-      name: created.name,
-      normalizedName: created.normalizedName,
-      defaultWeightUnit: created.defaultWeightUnit as WeightUnit,
-      createdAt: created.createdAt,
-      updatedAt: created.updatedAt,
-    };
-  }
-}
-
-@Injectable()
 export class PrismaJournalAttachmentRepository implements IJournalAttachmentRepository {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -722,8 +502,9 @@ export class PrismaJournalAttachmentRepository implements IJournalAttachmentRepo
     userId: string,
     data: { id: string; entryId: string; fileName: string; mimeType: string; sizeBytes: number; storageKey: string },
   ): Promise<JournalAttachmentModel> {
-    const created = await this.prisma.journalAttachment.create({
-      data: {
+    const created = await this.prisma.journalAttachment.upsert({
+      where: { id: data.id },
+      create: {
         id: data.id,
         userId,
         entryId: data.entryId,
@@ -732,6 +513,7 @@ export class PrismaJournalAttachmentRepository implements IJournalAttachmentRepo
         sizeBytes: data.sizeBytes,
         storageKey: data.storageKey,
       },
+      update: { entryId: data.entryId, fileName: data.fileName, mimeType: data.mimeType, sizeBytes: data.sizeBytes, storageKey: data.storageKey, deletedAt: null },
     });
     return {
       id: created.id,

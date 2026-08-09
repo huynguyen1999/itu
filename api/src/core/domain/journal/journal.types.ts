@@ -1,4 +1,4 @@
-import { ExpenseCategory, JournalEntryKind, PaymentMethod, WeightUnit } from '../enums';
+import { JournalEntryKind } from '../enums';
 import { EntityId } from '../models';
 
 export interface JournalTagModel {
@@ -25,54 +25,13 @@ export interface JournalAttachmentModel {
 
 export interface JournalWeeklyReviewModel {
   entryId: EntityId;
-  periodStart: Date;
-  periodEnd: Date;
+  periodStart: string;
+  periodEnd: string;
   summarySnapshot: Record<string, unknown>;
-}
-
-export interface JournalExpenseModel {
-  entryId: EntityId;
-  amount: number | string;
-  currency: string;
-  category: ExpenseCategory;
-  merchant?: string | null;
-  paymentMethod: PaymentMethod;
-  transactionAt: Date;
-}
-
-export interface ExerciseDefinitionModel {
-  id: EntityId;
-  userId: EntityId;
-  name: string;
-  normalizedName: string;
-  defaultWeightUnit: WeightUnit;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface JournalWorkoutSetModel {
-  id: EntityId;
-  workoutExerciseId: EntityId;
-  sortOrder: number;
-  reps: number;
-  weight: number;
-}
-
-export interface JournalWorkoutExerciseModel {
-  id: EntityId;
-  workoutEntryId: EntityId;
-  exerciseId: EntityId;
-  exerciseName?: string;
-  sortOrder: number;
-  note?: string | null;
-  sets: JournalWorkoutSetModel[];
-}
-
-export interface JournalWorkoutModel {
-  entryId: EntityId;
-  startedAt?: Date | null;
-  durationMinutes?: number | null;
-  exercises: JournalWorkoutExerciseModel[];
+  wentWellMarkdown?: string | null;
+  frictionMarkdown?: string | null;
+  nextWeekMarkdown?: string | null;
+  experimentSnapshot?: Record<string, unknown> | null;
 }
 
 export interface JournalEntryRevisionModel {
@@ -99,8 +58,6 @@ export interface JournalEntryModel {
   updatedAt: Date;
   deletedAt?: Date | null;
   weeklyReview?: JournalWeeklyReviewModel | null;
-  expense?: JournalExpenseModel | null;
-  workout?: JournalWorkoutModel | null;
   tags?: JournalTagModel[];
   attachments?: JournalAttachmentModel[];
 }

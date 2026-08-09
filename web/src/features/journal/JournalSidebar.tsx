@@ -5,6 +5,7 @@ import {
   FileSpreadsheet,
   FileText,
   Search,
+  Trash2,
 } from 'lucide-react';
 import { PointerEvent as ReactPointerEvent, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -22,6 +23,7 @@ const trackNavigation = [
 const libraryNavigation = [
   { to: '/journal/notes', label: 'All Notes', icon: FileText, end: false },
   { to: '/journal/templates', label: 'Templates', icon: FileSpreadsheet, end: false },
+  { to: '/journal/trash', label: 'Trash', icon: Trash2, end: false },
 ] as const;
 
 export function JournalSidebar({ onPointerDownResizer }: JournalSidebarProps) {

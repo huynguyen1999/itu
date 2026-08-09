@@ -4,10 +4,11 @@ This directory is the start-here architecture guide for engineers joining iTu. I
 
 Read this page first, then follow the component involved in your change:
 
-1. [API](api.md) for business rules, persistence, synchronization, and jobs.
-2. [Web](web.md) for React features, browser state, and offline-first synchronization.
-3. [macOS](macos.md) for SwiftUI features, native persistence, synchronization, and platform integrations.
-4. [Browser extension](extension.md) for website-usage collection and DSN-authenticated ingestion.
+1. [Codebase learning walkthrough](WALKTHROUGH.md) if the languages or frameworks are new to you.
+2. [API](api.md) for business rules, persistence, synchronization, and jobs.
+3. [Web](web.md) for React features, browser state, and offline-first synchronization.
+4. [macOS](macos.md) for SwiftUI features, native persistence, synchronization, and platform integrations.
+5. [Browser extension](extension.md) for website-usage collection and DSN-authenticated ingestion.
 
 For product terms, use the [ubiquitous language](../ubiquitous_language.md). For setup and operational commands, use the repository [README](../../README.md). Verified native gaps live in the [macOS roadmap](../../macos/ROADMAP.md), not in these guides.
 

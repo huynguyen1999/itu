@@ -23,7 +23,7 @@ export interface UpdateCategoryDto {
 
 export interface CreateTransactionDto {
   type: 'EXPENSE' | 'INCOME';
-  amount: number;
+  amount: string;
   currency?: string;
   categoryId: string;
   merchant?: string;
@@ -34,7 +34,7 @@ export interface CreateTransactionDto {
 
 export interface UpdateTransactionDto {
   type?: 'EXPENSE' | 'INCOME';
-  amount?: number;
+  amount?: string;
   currency?: string;
   categoryId?: string;
   merchant?: string;
@@ -53,8 +53,8 @@ export interface IBudgetRepositoryPort {
   reorderCategories(userId: string, categoryIds: string[]): Promise<BudgetCategoryDomain[]>;
 
   getPeriod(userId: string, periodStr: string): Promise<BudgetPeriodDomain>;
-  updatePeriod(userId: string, periodStr: string, overallLimit: number): Promise<BudgetPeriodDomain>;
-  updateCategoryLimit(userId: string, periodStr: string, categoryId: string, limit: number): Promise<BudgetPeriodDomain>;
+  updatePeriod(userId: string, periodStr: string, overallLimit: string): Promise<BudgetPeriodDomain>;
+  updateCategoryLimit(userId: string, periodStr: string, categoryId: string, limit: string): Promise<BudgetPeriodDomain>;
   deleteCategoryLimit(userId: string, periodStr: string, categoryId: string): Promise<BudgetPeriodDomain>;
 
   getTransactions(userId: string, options?: { period?: string; categoryId?: string; type?: 'EXPENSE' | 'INCOME' }): Promise<BudgetTransactionDomain[]>;

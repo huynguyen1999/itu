@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Calendar, CheckCircle2, Clock, Dumbbell, Flame, Layers, Receipt, Sparkles, Zap } from 'lucide-react';
+import { Calendar, CheckCircle2, Clock, Dumbbell, Flame, Layers, Sparkles, Zap } from 'lucide-react';
 import { useWeeklySummary } from '../journalQueries';
 import type { JournalWeeklyReview } from '../journal.types';
 import { Card, CardContent } from '@/shared/ui/card';
-import { Button } from '@/shared/ui/button';
 
 interface WeeklyReviewEditorProps {
-  weeklyReview?: JournalWeeklyReview | null;
+  weeklyReview?: Partial<JournalWeeklyReview> | null;
   onChange: (weeklyReview: Partial<JournalWeeklyReview>) => void;
   entryDate?: string;
 }
@@ -94,7 +93,6 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
   const learningReviews = snapshot.learning?.reviews ?? 0;
   const workoutsCount = snapshot.workouts?.sessions ?? 0;
   const growthXp = snapshot.growth?.xpEarned ?? 0;
-  const expensesMap = snapshot.expenses ?? {};
 
   return (
     <div className="space-y-4">

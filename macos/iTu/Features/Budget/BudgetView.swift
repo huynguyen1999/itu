@@ -15,6 +15,16 @@ struct BudgetView: View {
     @State private var editingCategoryColor = "TEAL"
     @State private var isSavingCategory = false
     @State private var categoryError: String?
+    @State private var newTransactionAmount = ""
+    @State private var newTransactionMerchant = ""
+    @State private var newTransactionCategoryID = ""
+    @State private var budgetTarget = ""
+    @State private var transactionTypeFilter = ""
+    @State private var transactionCategoryFilter = ""
+    @State private var categoryLimitDrafts: [String: String] = [:]
+    @State private var editingTransactionID: String?
+    @State private var editingTransactionAmount = ""
+    @State private var editingTransactionMerchant = ""
 
     var body: some View {
         HStack(spacing: 0) {
@@ -47,6 +57,8 @@ struct BudgetView: View {
             await loadBudgetData()
             await model.loadBudgetCategories()
         }
+        .onChange(of: transactionTypeFilter) { _, _ in Task { await loadBudgetData() } }
+        .onChange(of: transactionCategoryFilter) { _, _ in Task { await loadBudgetData() } }
     }
 
     private var secondaryRail: some View {
@@ -94,6 +106,10 @@ struct BudgetView: View {
                 Text("Track expenses, income, assignments, and available balances")
                     .font(.system(size: 13))
                     .foregroundStyle(iTuTheme.inkDim)
+                if model.conflicts.contains(where: { ["moneycategory", "moneybudgetperiod", "budgettransaction"].contains($0.entityType.lowercased()) }) {
+                    Label("Budget change needs conflict resolution", systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .medium)).foregroundStyle(iTuTheme.amber)
+                }
             }
             Spacer()
         }
@@ -145,6 +161,18 @@ struct BudgetView: View {
                     Label("Assignments exceed income", systemImage: "exclamationmark.triangle.fill")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(iTuTheme.coral)
+                }
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Category assignments").font(.system(size: 13, weight: .semibold)).foregroundStyle(iTuTheme.ink)
+                ForEach(model.budgetCategories) { category in
+                    HStack {
+                        Text(category.name).frame(maxWidth: .infinity, alignment: .leading)
+                        TextField("0.00", text: Binding(get: { categoryLimitDrafts[category.id] ?? "" }, set: { categoryLimitDrafts[category.id] = $0 }))
+                            .textFieldStyle(.roundedBorder).frame(width: 120)
+                        Button("Assign") { Task { _ = await model.updateBudgetCategoryLimit(period: selectedPeriod, categoryID: category.id, limit: categoryLimitDrafts[category.id] ?? "0.00") } }
+                            .buttonStyle(.bordered).controlSize(.small)
+                    }
                 }
             }
             Divider().overlay(iTuTheme.border)
@@ -212,15 +240,30 @@ struct BudgetView: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(iTuTheme.ink)
                 Spacer()
-                Button("Add Transaction") {}
+                Button("Add Transaction") { addTransaction() }
                     .buttonStyle(.borderedProminent)
                     .tint(iTuTheme.teal)
-                    .disabled(true)
-                    .help("Adding transactions is not supported on macOS yet")
+                    .disabled(newTransactionAmount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-            Text("Adding transactions is not supported on macOS yet.")
-                .font(.system(size: 12))
-                .foregroundStyle(iTuTheme.inkDim)
+            HStack(spacing: 8) {
+                TextField("Amount", text: $newTransactionAmount)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 120)
+                TextField("Merchant (optional)", text: $newTransactionMerchant)
+                    .textFieldStyle(.roundedBorder)
+                Picker("Category", selection: $newTransactionCategoryID) {
+                    Text("Choose category").tag("")
+                    ForEach(model.budgetCategories) { category in Text(category.name).tag(category.id) }
+                }
+                .frame(width: 180)
+                Picker("Filter type", selection: $transactionTypeFilter) {
+                    Text("All types").tag(""); Text("Expenses").tag("EXPENSE"); Text("Income").tag("INCOME")
+                }.frame(width: 130)
+                Picker("Filter category", selection: $transactionCategoryFilter) {
+                    Text("All categories").tag("")
+                    ForEach(model.budgetCategories) { Text($0.name).tag($0.id) }
+                }.frame(width: 180)
+            }
 
             if model.budgetTransactions.isEmpty {
                 Text("No recent transactions recorded.")
@@ -229,7 +272,8 @@ struct BudgetView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(model.budgetTransactions) { tx in
-                        HStack {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(tx.merchant ?? tx.category)
                                     .font(.system(size: 13, weight: .semibold))
@@ -242,6 +286,20 @@ struct BudgetView: View {
                             Text(formatCurrency(tx.amount, currency: tx.currency))
                                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(tx.type.uppercased() == "INCOME" ? iTuTheme.teal : iTuTheme.coral)
+                            Button("Edit") {
+                                editingTransactionID = tx.id; editingTransactionAmount = String(format: "%.2f", tx.amount); editingTransactionMerchant = tx.merchant ?? ""
+                            }.buttonStyle(.borderless)
+                            Button { Task { _ = await model.deleteBudgetTransaction(id: tx.id) } } label: { Image(systemName: "trash") }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("Delete transaction")
+                            }
+                            if editingTransactionID == tx.id {
+                                HStack {
+                                    TextField("Amount", text: $editingTransactionAmount).textFieldStyle(.roundedBorder).frame(width: 110)
+                                    TextField("Merchant", text: $editingTransactionMerchant).textFieldStyle(.roundedBorder)
+                                    Button("Save") { Task { let ok = await model.updateBudgetTransaction(id: tx.id, patch: ["amount": .string(editingTransactionAmount), "merchant": .string(editingTransactionMerchant)]); if ok { editingTransactionID = nil } } }.buttonStyle(.borderedProminent).tint(iTuTheme.teal)
+                                }
+                            }
                         }
                         .padding(12)
                         .background(iTuTheme.surface)
@@ -277,7 +335,7 @@ struct BudgetView: View {
     @ViewBuilder
     private var calendarSection: some View {
         monthToolbar
-        let calendar = Calendar.current
+        let calendar = iTuCalendarSupport.calendar()
         let components = selectedPeriod.split(separator: "-").compactMap { Int($0) }
         let year = components.first ?? calendar.component(.year, from: Date())
         let month = components.dropFirst().first ?? calendar.component(.month, from: Date())
@@ -350,6 +408,14 @@ struct BudgetView: View {
             Text("Optional target: \(formatCurrency(limit, currency: currency))")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(iTuTheme.ink)
+            HStack {
+                TextField("Overall target", text: $budgetTarget)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 180)
+                Button("Save target") { Task { _ = await model.updateBudgetPeriod(period: selectedPeriod, overallLimit: budgetTarget) } }
+                    .buttonStyle(.borderedProminent)
+                    .tint(iTuTheme.teal)
+            }
         }
     }
 
@@ -568,13 +634,25 @@ struct BudgetView: View {
 
     private func loadBudgetData() async {
         await model.loadBudgetOverview(period: selectedPeriod)
-        await model.loadBudgetTransactions(period: selectedPeriod)
+        await model.loadBudgetTransactions(period: selectedPeriod, categoryID: transactionCategoryFilter.isEmpty ? nil : transactionCategoryFilter, type: transactionTypeFilter.isEmpty ? nil : transactionTypeFilter)
+    }
+
+    private func addTransaction() {
+        guard !newTransactionCategoryID.isEmpty else { return }
+        let amount = newTransactionAmount
+        let merchant = newTransactionMerchant.isEmpty ? nil : newTransactionMerchant
+        Task {
+            if await model.createBudgetTransaction(amount: amount, categoryID: newTransactionCategoryID, merchant: merchant, transactionAt: ISO8601DateFormatter().string(from: Date())) {
+                newTransactionAmount = ""
+                newTransactionMerchant = ""
+            }
+        }
     }
 
     private func moveMonth(by offset: Int) {
         let parts = selectedPeriod.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 2 else { return }
-        let calendar = Calendar.current
+        let calendar = iTuCalendarSupport.calendar()
         let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: 1)) ?? Date()
         guard let next = calendar.date(byAdding: .month, value: offset, to: date) else { return }
         selectedPeriod = String(format: "%04d-%02d", calendar.component(.year, from: next), calendar.component(.month, from: next))
@@ -703,9 +781,9 @@ struct BudgetView: View {
     }
 
     private static var currentPeriod: String {
-        let calendar = Calendar.current
+        let calendar = iTuCalendarSupport.calendar()
         let now = Date()
-        return String(format: "%04d-%02d", calendar.component(.year, from: now), calendar.component(.month, from: now))
+        return iTuCalendarSupport.monthString(now)
     }
 }
 

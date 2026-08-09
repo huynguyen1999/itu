@@ -320,3 +320,38 @@ extension no longer requests or uses native messaging; the native host target
 remains only for compatibility. Extension tests (6/6), API tests (53 suites/216 tests), web tests (35 files/179
 tests), and production builds pass. Migration deployment and live Edge acceptance
 remain.
+
+### Budget, Gym, and Journal parity deployment handoff — 2026-08-10
+
+The implementation slice is complete; deployment verification remains open.
+This is not a production-deployment claim.
+
+- [x] Keep Budget Transactions and Gym Workouts in standalone storage and
+  application boundaries rather than Journal persistence.
+- [x] Support Gym `IN_PROGRESS`/`COMPLETED`, active-to-completed transitions,
+  and direct historical completed creation while another Workout is active.
+- [x] Match Web and macOS offline-first outbox/SYNC behavior for Budget, Gym,
+  and retained Journal Notes/Weekly Reviews, including restart/reconnect
+  reconciliation and visible conflicts.
+- [x] Retain Journal Tags, Templates, Attachments, Revisions, Trash, and
+  read-only Budget/Gym summary snapshots; remove Journal Expense/Workout
+  contracts.
+- [x] Queue optional Gym images without deleting the prior image before a
+  replacement upload succeeds.
+- [x] Render macOS Website Usage Summaries from server data plus pending local
+  deltas.
+- [x] Pass API and Web full typecheck, test, and production-build gates.
+- [x] Pass all touched native Swift source parsing and diff checks; earlier
+  signed native suites also passed. The post-repair signed gate remains open.
+
+Remaining verification and environment work:
+
+- [ ] Rerun the signed macOS focused/full gates after the final repair. The
+  attempted rerun is blocked before compilation by GitHub DNS/package-cache
+  permissions, not a reported source failure.
+- [ ] Apply the separation migration in an approved local environment; the
+  permission request was rejected, so it is not applied here.
+- [ ] Complete manual two-device offline/reconnect and conflict acceptance;
+  this acceptance has not yet been run.
+- [x] Apply the guarded Journal development-data/media reset locally (7 entries,
+  11 revisions, no media); do not run it against production data.

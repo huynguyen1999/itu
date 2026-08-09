@@ -26,6 +26,12 @@ import {
   BudgetTransactionQueryDto,
 } from '../dto/budget.dto';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
+import { hcmcCurrentPeriod } from '@core/application/utils/calendar';
+
+const money = (value: string): string => value || '0.00';
+const mapPeriodMoney = (period: any) => period ? { ...period, overallLimit: money(period.overallLimit), categoryBudgets: (period.categoryBudgets || []).map((budget: any) => ({ ...budget, limit: money(budget.limit) })) } : period;
+const mapTransactionMoney = (transaction: any) => transaction ? { ...transaction, amount: money(transaction.amount) } : transaction;
+const mapOverviewMoney = (overview: any) => ({ ...overview, income: money(overview.income), spent: money(overview.spent), overallBudget: money(overview.overallBudget), remainingBudget: money(overview.remainingBudget), categories: (overview.categories || []).map((item: any) => ({ ...item, budget: money(item.budget), spent: money(item.spent), remaining: money(item.remaining) })) });
 
 @UseGuards(AuthGuard)
 @Controller(REST_ROUTES.budget)
@@ -34,8 +40,8 @@ export class BudgetController {
 
   @Get('overview')
   getOverview(@Req() req: AuthenticatedRequest, @Query('period') period?: string) {
-    const targetPeriod = period || new Date().toISOString().substring(0, 7);
-    return this.budgetService.getOverview(req.user.sub, targetPeriod);
+    const targetPeriod = period || hcmcCurrentPeriod();
+    return this.budgetService.getOverview(req.user.sub, targetPeriod).then(mapOverviewMoney);
   }
 
   @Get('categories')
@@ -65,12 +71,12 @@ export class BudgetController {
 
   @Get('periods/:period')
   getPeriod(@Req() req: AuthenticatedRequest, @Param('period') period: string) {
-    return this.budgetService.getPeriod(req.user.sub, period);
+    return this.budgetService.getPeriod(req.user.sub, period).then(mapPeriodMoney);
   }
 
   @Put('periods/:period')
   updatePeriod(@Req() req: AuthenticatedRequest, @Param('period') period: string, @Body() dto: UpdatePeriodBudgetDto) {
-    return this.budgetService.updatePeriod(req.user.sub, period, dto.overallLimit);
+    return this.budgetService.updatePeriod(req.user.sub, period, dto.overallLimit).then(mapPeriodMoney);
   }
 
   @Put('periods/:period/categories/:categoryId')
@@ -80,7 +86,7 @@ export class BudgetController {
     @Param('categoryId') categoryId: string,
     @Body() dto: UpdateCategoryLimitDto,
   ) {
-    return this.budgetService.updateCategoryLimit(req.user.sub, period, categoryId, dto.limit);
+    return this.budgetService.updateCategoryLimit(req.user.sub, period, categoryId, dto.limit).then(mapPeriodMoney);
   }
 
   @Delete('periods/:period/categories/:categoryId')
@@ -98,30 +104,32 @@ export class BudgetController {
       period: query.period,
       categoryId: query.categoryId,
       type: query.type,
-    });
+    }).then((items) => items.map(mapTransactionMoney));
   }
 
   @Get('transactions/:id')
   async getTransactionById(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const tx = await this.budgetService.getTransactionById(req.user.sub, id);
     if (!tx) throw new NotFoundException(`Transaction ${id} not found`);
-    return tx;
+    return mapTransactionMoney(tx);
   }
 
   @Post('transactions')
   createTransaction(@Req() req: AuthenticatedRequest, @Body() dto: CreateBudgetTransactionDto) {
     return this.budgetService.createTransaction(req.user.sub, {
       ...dto,
+      amount: dto.amount,
       transactionAt: new Date(dto.transactionAt),
-    });
+    }).then(mapTransactionMoney);
   }
 
   @Patch('transactions/:id')
   updateTransaction(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateBudgetTransactionDto) {
     return this.budgetService.updateTransaction(req.user.sub, id, {
       ...dto,
+      amount: dto.amount,
       transactionAt: dto.transactionAt ? new Date(dto.transactionAt) : undefined,
-    });
+    }).then(mapTransactionMoney);
   }
 
   @Delete('transactions/:id')

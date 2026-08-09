@@ -1,4 +1,4 @@
-import { Calendar, Dumbbell, FileText, Receipt } from 'lucide-react';
+import { Calendar, FileText } from 'lucide-react';
 import type { JournalEntry } from '../journal.types';
 import { formatDateStringToLocalDisplay } from '../journalDate';
 import { Link } from 'react-router-dom';
@@ -10,8 +10,6 @@ interface JournalEntryCardProps {
 export function JournalEntryCard({ entry }: JournalEntryCardProps) {
   const kindLabel = formatKind(entry.kind);
   const preview = stripMarkdown(entry.contentMarkdown);
-  const isExpense = entry.kind === 'EXPENSE' && entry.expense;
-  const isWorkout = entry.kind === 'WORKOUT' && entry.workout;
   const isWeeklyReview = entry.kind === 'WEEKLY_REVIEW';
 
   return (
@@ -50,18 +48,6 @@ export function JournalEntryCard({ entry }: JournalEntryCardProps) {
         <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-relaxed text-muted-foreground">{preview}</p>
 
         <div className="mt-4 flex flex-wrap items-center gap-1.5 text-[11px] font-mono text-muted-foreground">
-          {isExpense && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-1">
-              <Receipt className="h-3 w-3 text-primary" aria-hidden="true" />
-              {Number(entry.expense!.amount).toLocaleString()} {entry.expense!.currency}
-            </span>
-          )}
-          {isWorkout && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-1">
-              <Dumbbell className="h-3 w-3 text-primary" aria-hidden="true" />
-              {entry.workout!.exercises?.length || 0} exercises
-            </span>
-          )}
           {isWeeklyReview && entry.weeklyReview?.summarySnapshot?.tasks && (
             <span className="rounded-full border border-border bg-muted/50 px-2 py-1">
               {entry.weeklyReview.summarySnapshot.tasks.completed} tasks completed
