@@ -43,6 +43,13 @@ export class UsageSummaryDto {
   @Min(0)
   @Max(86400)
   activeSeconds!: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(86400)
+  engagedSeconds?: number;
 }
 
 export class UsageSummaryBatchDto {
@@ -78,6 +85,32 @@ export class UsageDateQueryDto {
   @IsString()
   @Length(10, 10)
   endDate?: string;
+}
+
+export class WebsiteUsageQueryDto extends UsageDateQueryDto {
+  @IsOptional()
+  @IsString()
+  includeUrlDetails?: string;
+}
+
+export class WebsiteUrlQueryDto extends UsageDateQueryDto {
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, 253)
+  hostname!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  limit?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
 }
 
 export class WebsiteUsageSummaryDto {

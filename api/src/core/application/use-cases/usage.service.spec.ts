@@ -314,4 +314,63 @@ describe('UsageService', () => {
 
     expect(repo.replaceWebsiteBatch).toHaveBeenCalledWith('user-1', 'browser-installation', expect.any(Array));
   });
+
+  it('validates engagedSeconds in replaceBatch', async () => {
+    repo.findDevice.mockResolvedValue({ platform: 'MACOS' });
+    repo.getTrackingPreferences.mockResolvedValue({ trackingEnabled: true, retentionDays: 90 });
+    const service = new UsageService(repo);
+
+    await expect(
+      service.replaceBatch('user-1', {
+        deviceId: 'device-1',
+        summaries: [
+          { localDate: '2026-08-01', hour: 9, bundleId: 'a', displayName: 'A', timezone: 'UTC', activeSeconds: 10, engagedSeconds: -1 },
+        ],
+      }),
+    ).rejects.toThrow('engagedSeconds must be an integer between 0 and activeSeconds');
+
+    await expect(
+      service.replaceBatch('user-1', {
+        deviceId: 'device-1',
+        summaries: [
+          { localDate: '2026-08-01', hour: 9, bundleId: 'a', displayName: 'A', timezone: 'UTC', activeSeconds: 10, engagedSeconds: 15 },
+        ],
+      }),
+    ).rejects.toThrow('engagedSeconds must be an integer between 0 and activeSeconds');
+  });
+
+  it('calculates totalEngagedSeconds and engagementCoverage in getSummaries', async () => {
+    repo.findSummaries.mockResolvedValue([
+      { localDate: new Date('2026-08-01T00:00:00Z'), hour: 9, bundleId: 'a', displayName: 'A', activeSeconds: 100, engagedSeconds: 80 },
+      { localDate: new Date('2026-08-01T00:00:00Z'), hour: 10, bundleId: 'b', displayName: 'B', activeSeconds: 50, engagedSeconds: 50 },
+    ]);
+    const result = await new UsageService(repo).getSummaries('user-1', '2026-08-01', '2026-08-01');
+    expect(result.totalActiveSeconds).toBe(150);
+    expect(result.totalEngagedSeconds).toBe(130);
+    expect(result.engagementCoverage).toEqual({
+      observedActiveSeconds: 150,
+      totalActiveSeconds: 150,
+      complete: true,
+    });
+    expect(result.topApps[0]).toMatchObject({ bundleId: 'a', activeSeconds: 100, engagedSeconds: 80 });
+  });
+
+  it('fetches paginated website URL details for a hostname', async () => {
+    repo.getTrackingPreferences.mockResolvedValue({
+      trackingEnabled: true,
+      websiteTrackingEnabled: true,
+      retentionDays: 90,
+    });
+    repo.findWebsiteUrls = jest.fn().mockResolvedValue({
+      total: 1,
+      items: [{ url: 'https://github.com/huynguyen1999/itu', activeSeconds: 120 }],
+    });
+
+    const result = await new UsageService(repo).getWebsiteUrls('user-1', 'github.com', '2026-08-01', '2026-08-01', 50, 0);
+    expect(result).toEqual({
+      total: 1,
+      items: [{ url: 'https://github.com/huynguyen1999/itu', activeSeconds: 120 }],
+    });
+    expect(repo.findWebsiteUrls).toHaveBeenCalledWith('user-1', expect.any(Date), expect.any(Date), 'github.com', 50, 0);
+  });
 });

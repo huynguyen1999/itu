@@ -322,7 +322,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
     var conflicts: [SyncConflict] = []
     var lastSyncTime: String?
     var usageSummaries: [UsageSummary] = []
-    var usageUploadWatermarks: [String: Int] = [:]
+    var usageUploadWatermarks: [String: UsageUploadWatermark] = [:]
     var websiteUsageSummaries: [WebsiteUsageSummary] = []
     var websiteUsageUploadWatermarks: [String: Int] = [:]
     var budgetCategories: [BudgetCategoryModel] = []
@@ -424,7 +424,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         conflicts = try values.decodeIfPresent([SyncConflict].self, forKey: .conflicts) ?? []
         lastSyncTime = try values.decodeIfPresent(String.self, forKey: .lastSyncTime)
         usageSummaries = try values.decodeIfPresent([UsageSummary].self, forKey: .usageSummaries) ?? []
-        usageUploadWatermarks = try values.decodeIfPresent([String: Int].self, forKey: .usageUploadWatermarks) ?? [:]
+        usageUploadWatermarks = try values.decodeIfPresent([String: UsageUploadWatermark].self, forKey: .usageUploadWatermarks) ?? [:]
         websiteUsageSummaries = try values.decodeIfPresent([WebsiteUsageSummary].self, forKey: .websiteUsageSummaries) ?? []
         websiteUsageUploadWatermarks = try values.decodeIfPresent([String: Int].self, forKey: .websiteUsageUploadWatermarks) ?? [:]
         budgetCategories = try values.decodeIfPresent([BudgetCategoryModel].self, forKey: .budgetCategories) ?? []

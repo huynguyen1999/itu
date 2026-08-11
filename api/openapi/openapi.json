@@ -3936,42 +3936,6 @@
         ]
       }
     },
-    "/journal/exercises": {
-      "get": {
-        "operationId": "JournalController_listExercises",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Journal"
-        ]
-      },
-      "post": {
-        "operationId": "JournalController_createExercise",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateExerciseDefinitionDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Journal"
-        ]
-      }
-    },
     "/journal/weekly-summary": {
       "get": {
         "operationId": "JournalController_weeklySummary",
@@ -5117,6 +5081,21 @@
         ]
       }
     },
+    "/usage/websites/urls": {
+      "get": {
+        "operationId": "getWebsiteUrls",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
     "/usage/websites/summaries/batch": {
       "post": {
         "operationId": "replaceWebsiteUsageSummaries",
@@ -5464,10 +5443,6 @@
         "type": "object",
         "properties": {}
       },
-      "CreateExerciseDefinitionDto": {
-        "type": "object",
-        "properties": {}
-      },
       "UpdateUsagePreferencesDto": {
         "type": "object",
         "properties": {}
@@ -5551,7 +5526,7 @@
         "type": "object",
         "properties": {
           "overallLimit": {
-            "type": "number",
+            "type": "string",
             "description": "Overall period limit"
           }
         },
@@ -5563,7 +5538,7 @@
         "type": "object",
         "properties": {
           "limit": {
-            "type": "number",
+            "type": "string",
             "description": "Category budget limit"
           }
         },
@@ -5582,7 +5557,7 @@
             ]
           },
           "amount": {
-            "type": "number",
+            "type": "string",
             "description": "Transaction amount"
           },
           "currency": {
@@ -5629,7 +5604,7 @@
             ]
           },
           "amount": {
-            "type": "number",
+            "type": "string",
             "description": "Transaction amount"
           },
           "currency": {
@@ -5769,6 +5744,30 @@
           "startedAt": {
             "type": "string",
             "description": "ISO date string of start time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "IN_PROGRESS",
+              "ACTIVE",
+              "COMPLETED"
+            ],
+            "default": "IN_PROGRESS"
+          },
+          "endedAt": {
+            "type": "string",
+            "description": "ISO date string of end time"
+          },
+          "durationMinutes": {
+            "type": "number",
+            "description": "Duration in minutes"
+          },
+          "exercises": {
+            "description": "Workout exercises",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           }
         }
       },
@@ -5871,9 +5870,9 @@
           "status": {
             "type": "string",
             "enum": [
+              "IN_PROGRESS",
               "ACTIVE",
-              "COMPLETED",
-              "ABANDONED"
+              "COMPLETED"
             ]
           },
           "exercises": {

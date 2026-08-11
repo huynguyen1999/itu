@@ -308,6 +308,68 @@ function UsageDataSettings({
       </div>
       <label className="flex min-h-12 items-center justify-between gap-4 border-t pt-3">
         <span>
+          <span className="block text-sm font-semibold">Idle threshold</span>
+          <span className="mt-1 block text-xs text-muted-foreground">Inactivity threshold after which Screen Time continues but Engaged Time stops (1–30 min).</span>
+        </span>
+        <select
+          value={preferences?.idleThresholdSeconds ?? 300}
+          disabled={isLoading || isPending || !preferences}
+          onChange={(event) => onChange({ idleThresholdSeconds: Number(event.target.value) })}
+          className="h-9 rounded-md border bg-background px-3 text-xs"
+        >
+          <option value={60}>1 minute</option>
+          <option value={180}>3 minutes</option>
+          <option value={300}>5 minutes (default)</option>
+          <option value={600}>10 minutes</option>
+          <option value={900}>15 minutes</option>
+          <option value={1800}>30 minutes</option>
+        </select>
+      </label>
+
+      <div className="grid gap-2 border-t pt-3">
+        <div>
+          <span className="block text-sm font-semibold">Excluded app bundle IDs</span>
+          <span className="mt-1 block text-xs text-muted-foreground">Applications excluded from activity tracking.</span>
+        </div>
+        <div className="space-y-2">
+          {(preferences?.excludedBundleIds ?? []).map((bundleId, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <Input readOnly value={bundleId} className="h-8 text-xs" />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 text-destructive"
+                onClick={() => {
+                  const updated = (preferences?.excludedBundleIds ?? []).filter((_, i) => i !== idx);
+                  onChange({ excludedBundleIds: updated });
+                }}
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const input = form.elements.namedItem('newBundleId') as HTMLInputElement;
+              const val = input?.value.trim();
+              if (val && !preferences?.excludedBundleIds?.includes(val)) {
+                onChange({ excludedBundleIds: [...(preferences?.excludedBundleIds ?? []), val] });
+                input.value = '';
+              }
+            }}
+            className="flex items-center gap-2"
+          >
+            <Input name="newBundleId" placeholder="e.g. com.example.app" className="h-8 text-xs" />
+            <Button type="submit" variant="outline" size="sm" className="h-8">Add</Button>
+          </form>
+        </div>
+      </div>
+
+      <label className="flex min-h-12 items-center justify-between gap-4 border-t pt-3">
+        <span>
           <span className="block text-sm font-semibold">Retention period</span>
           <span className="mt-1 block text-xs text-muted-foreground">Keep synced usage summaries for 7–365 days.</span>
         </span>

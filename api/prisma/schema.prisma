@@ -434,6 +434,7 @@ model UsageSummary {
   displayName   String
   timezone      String
   activeSeconds Int
+  engagedSeconds Int?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)

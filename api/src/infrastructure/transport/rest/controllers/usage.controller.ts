@@ -9,7 +9,9 @@ import {
   BrowserExtensionUsageBatchDto,
   UsageDateQueryDto,
   UsageSummaryBatchDto,
+  WebsiteUsageQueryDto,
   WebsiteUsageSummaryBatchDto,
+  WebsiteUrlQueryDto,
 } from '../dto/usage.dto';
 import { REST_ROUTES } from '@core/application/constants/app.constants';
 
@@ -40,24 +42,43 @@ export class UsageController {
 
 @ApiTags('Usage')
 @UseGuards(AuthGuard)
-@Controller(`${REST_ROUTES.usage}/${REST_ROUTES.usageWebsites}/${REST_ROUTES.usageSummaries}`)
+@Controller(`${REST_ROUTES.usage}/${REST_ROUTES.usageWebsites}`)
 export class WebsiteUsageController {
   constructor(private readonly usage: UsageService) {}
 
   @ApiOperation({ operationId: 'getWebsiteUsageSummaries' })
-  @Get()
-  get(@Req() req: AuthenticatedRequest, @Query() query: UsageDateQueryDto) {
-    return this.usage.getWebsiteSummaries(req.user.sub, query.from ?? query.startDate, query.to ?? query.endDate);
+  @Get(REST_ROUTES.usageSummaries)
+  get(@Req() req: AuthenticatedRequest, @Query() query: WebsiteUsageQueryDto) {
+    const includeUrlDetails = query.includeUrlDetails !== 'false';
+    return this.usage.getWebsiteSummaries(
+      req.user.sub,
+      query.from ?? query.startDate,
+      query.to ?? query.endDate,
+      includeUrlDetails,
+    );
+  }
+
+  @ApiOperation({ operationId: 'getWebsiteUrls' })
+  @Get('urls')
+  getUrls(@Req() req: AuthenticatedRequest, @Query() query: WebsiteUrlQueryDto) {
+    return this.usage.getWebsiteUrls(
+      req.user.sub,
+      query.hostname,
+      query.from ?? query.startDate,
+      query.to ?? query.endDate,
+      query.limit,
+      query.offset,
+    );
   }
 
   @ApiOperation({ operationId: 'replaceWebsiteUsageSummaries' })
-  @Post(REST_ROUTES.usageBatch)
+  @Post(`${REST_ROUTES.usageSummaries}/${REST_ROUTES.usageBatch}`)
   replace(@Req() req: AuthenticatedRequest, @Body() body: WebsiteUsageSummaryBatchDto) {
     return this.usage.replaceWebsiteBatch(req.user.sub, body);
   }
 
   @ApiOperation({ operationId: 'deleteWebsiteUsageSummaries' })
-  @Delete()
+  @Delete(REST_ROUTES.usageSummaries)
   delete(@Req() req: AuthenticatedRequest, @Query() query: UsageDateQueryDto, @Query('all') all?: string) {
     return this.usage.deleteWebsite(
       req.user.sub,

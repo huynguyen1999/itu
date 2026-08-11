@@ -194,6 +194,7 @@ export interface UsageSummaryRecord {
   bundleId: string;
   displayName: string;
   activeSeconds: number;
+  engagedSeconds?: number | null;
 }
 
 export interface UsageSummaryWrite {
@@ -203,6 +204,7 @@ export interface UsageSummaryWrite {
   displayName: string;
   timezone: string;
   activeSeconds: number;
+  engagedSeconds?: number | null;
 }
 
 export interface WebsiteUsageSummaryRecord {
@@ -230,11 +232,25 @@ export interface IUsageRepository {
   findSummaries(userId: string, from: Date, toExclusive: Date): Promise<UsageSummaryRecord[]>;
   getTrackingPreferences(
     userId: string,
-  ): Promise<{ trackingEnabled: boolean; websiteTrackingEnabled: boolean; retentionDays: number }>;
+  ): Promise<{
+    trackingEnabled: boolean;
+    websiteTrackingEnabled: boolean;
+    retentionDays: number;
+    idleThresholdSeconds: number;
+    excludedBundleIds: string[];
+  }>;
   replaceBatch(userId: string, deviceId: string, summaries: UsageSummaryWrite[]): Promise<number>;
   delete(userId: string, from?: Date, toExclusive?: Date): Promise<number>;
   deleteExpired(now?: Date): Promise<number>;
   findWebsiteSummaries(userId: string, from: Date, toExclusive: Date): Promise<WebsiteUsageSummaryRecord[]>;
+  findWebsiteUrls(
+    userId: string,
+    from: Date,
+    toExclusive: Date,
+    hostname: string,
+    limit: number,
+    offset: number,
+  ): Promise<{ items: Array<{ url: string; activeSeconds: number }>; total: number }>;
   replaceWebsiteBatch(userId: string, deviceId: string, summaries: WebsiteUsageSummaryWrite[]): Promise<number>;
   replaceBrowserExtensionCredential(userId: string, id: string, keyHash: string): Promise<void>;
   findBrowserExtensionCredential(keyHash: string): Promise<{ userId: string } | null>;

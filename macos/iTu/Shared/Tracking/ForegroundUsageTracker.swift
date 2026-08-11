@@ -1,44 +1,101 @@
 import AppKit
 import Foundation
 
-/// Records only the frontmost application after the user explicitly opts in.
+enum UsageSuspensionReason: Hashable, Sendable {
+    case userPaused
+    case sessionInactive
+    case screenSleeping
+    case systemSleeping
+}
+
+/// Records foreground application Screen Time and Engaged Time after the user explicitly opts in.
 @MainActor
 final class ForegroundUsageTracker {
+    static let fixedExcludedBundleIDs: Set<String> = [
+        "com.huynguyen.itu",
+        Bundle.main.bundleIdentifier ?? "",
+        "com.apple.loginwindow",
+        "com.apple.ScreenSaver.Engine",
+        "com.apple.systemuiserver",
+        "com.apple.dock"
+    ]
+
     private let workspace: NSWorkspace
     private let defaults: UserDefaults
     private let calendar: Calendar
+    private let idleMonitor: any IdleTimeProviding
     private var observers: [NSObjectProtocol] = []
-    private var timer: Timer?
-    private var currentBundleID: String?
-    private var currentDisplayName = ""
-    private var lastObservedAt: Date?
-    private var paused = true
-    private(set) var isRunning = false
-    var onSummaryChanged: ((UsageSummary) -> Void)?
+    private var idleTimer: Timer?
 
-    init(workspace: NSWorkspace = .shared, defaults: UserDefaults = .standard, calendar: Calendar = .current) {
+    private(set) var currentBundleID: String?
+    private(set) var currentDisplayName = ""
+    private var lastObservedAt: Date?
+    private(set) var isRunning = false
+    private(set) var suspensionReasons: Set<UsageSuspensionReason> = []
+    private(set) var isEngaged = true
+
+    var idleThresholdSeconds: TimeInterval = 300
+    var userExcludedBundleIDs: Set<String> = []
+
+    var onSummaryChanged: ((UsageSummary) -> Void)?
+    var onSegmentCreated: ((UsageTimelineSegment) -> Void)?
+
+    var isTrackingAllowed: Bool {
+        isRunning && suspensionReasons.isEmpty
+    }
+
+    init(
+        workspace: NSWorkspace = .shared,
+        defaults: UserDefaults = .standard,
+        calendar: Calendar = .current,
+        idleMonitor: any IdleTimeProviding = CoreGraphicsIdleMonitor()
+    ) {
         self.workspace = workspace
         self.defaults = defaults
         self.calendar = calendar
+        self.idleMonitor = idleMonitor
+    }
+
+    func setIdleThreshold(_ seconds: TimeInterval) {
+        self.idleThresholdSeconds = max(60, min(1800, seconds))
+    }
+
+    func setExcludedBundleIDs(_ bundleIDs: [String]) {
+        self.userExcludedBundleIDs = Set(bundleIDs)
+    }
+
+    func isBundleExcluded(_ bundleID: String) -> Bool {
+        Self.fixedExcludedBundleIDs.contains(bundleID) || userExcludedBundleIDs.contains(bundleID)
     }
 
     func start() {
         guard !isRunning else { return }
         isRunning = true
-        paused = false
+        suspensionReasons.remove(.userPaused)
         installObservers()
+
         let now = Date()
         let frontmost = workspace.frontmostApplication
         let savedBundle = defaults.string(forKey: "itu_usage_current_bundle")
-        currentBundleID = frontmost?.bundleIdentifier ?? savedBundle
-        currentDisplayName = frontmost?.localizedName ?? defaults.string(forKey: "itu_usage_current_name") ?? "Unknown Application"
-        // A restart is a hard boundary: never infer foreground time while the
-        // process was not running.
+        let rawBundle = frontmost?.bundleIdentifier ?? savedBundle
+        let rawName = frontmost?.localizedName ?? defaults.string(forKey: "itu_usage_current_name") ?? "Unknown Application"
+
+        if let b = rawBundle, !isBundleExcluded(b) {
+            currentBundleID = b
+            currentDisplayName = rawName
+        } else {
+            currentBundleID = nil
+            currentDisplayName = ""
+        }
+
         lastObservedAt = now
+        isEngaged = true
         tick(at: now)
         persistRuntimeState()
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.tick() }
+
+        idleTimer?.invalidate()
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.evaluateIdleStateAndTick() }
         }
     }
 
@@ -46,11 +103,10 @@ final class ForegroundUsageTracker {
         guard isRunning else { return }
         tick()
         isRunning = false
-        paused = true
-        timer?.invalidate()
-        timer = nil
-        observers.forEach(NotificationCenter.default.removeObserver)
-        observers.removeAll()
+        suspensionReasons.insert(.userPaused)
+        idleTimer?.invalidate()
+        idleTimer = nil
+        removeObservers()
         defaults.removeObject(forKey: "itu_usage_current_bundle")
         defaults.removeObject(forKey: "itu_usage_current_name")
     }
@@ -60,37 +116,91 @@ final class ForegroundUsageTracker {
     }
 
     func setPaused(_ value: Bool) {
-        guard isRunning, paused != value else { return }
-        if value { tick() }
-        paused = value
-        lastObservedAt = Date()
+        guard isRunning else { return }
+        if value {
+            if !suspensionReasons.contains(.userPaused) {
+                tick()
+                suspensionReasons.insert(.userPaused)
+                lastObservedAt = Date()
+            }
+        } else {
+            if suspensionReasons.contains(.userPaused) {
+                suspensionReasons.remove(.userPaused)
+                lastObservedAt = Date()
+                tick()
+            }
+        }
     }
 
     func applicationActivated(bundleID: String, displayName: String, at date: Date = Date()) {
         guard isRunning else { return }
         tick(at: date)
-        currentBundleID = bundleID
-        currentDisplayName = displayName
+        if isBundleExcluded(bundleID) {
+            currentBundleID = nil
+            currentDisplayName = ""
+        } else {
+            currentBundleID = bundleID
+            currentDisplayName = displayName
+        }
         lastObservedAt = date
         persistRuntimeState()
     }
 
+    func evaluateIdleStateAndTick(at date: Date = Date()) {
+        guard isTrackingAllowed else { return }
+
+        let idleSec = idleMonitor.secondsSinceLastInput()
+        if isEngaged {
+            if idleSec > idleThresholdSeconds {
+                let transitionTime = max(lastObservedAt ?? date, date.addingTimeInterval(-idleSec + idleThresholdSeconds))
+                tick(at: transitionTime)
+                isEngaged = false
+                tick(at: date)
+            } else {
+                tick(at: date)
+            }
+        } else {
+            if idleSec <= idleThresholdSeconds {
+                let resumeTime = max(lastObservedAt ?? date, date.addingTimeInterval(-idleSec))
+                tick(at: resumeTime)
+                isEngaged = true
+                tick(at: date)
+            } else {
+                tick(at: date)
+            }
+        }
+    }
+
     func tick(at date: Date = Date()) {
-        guard isRunning, !paused else {
+        guard isTrackingAllowed else {
             lastObservedAt = date
             return
         }
-        guard currentBundleID != nil else {
+        guard let bundleID = currentBundleID, !isBundleExcluded(bundleID) else {
             lastObservedAt = date
             return
         }
+
         let previous = lastObservedAt ?? date
-        accrue(from: previous, to: date)
+        if date > previous {
+            accrue(from: previous, to: date, engaged: isEngaged)
+        }
         lastObservedAt = date
     }
 
-    private func accrue(from start: Date, to end: Date) {
-        guard end > start, let bundleID = currentBundleID else { return }
+    private func accrue(from start: Date, to end: Date, engaged: Bool) {
+        guard end > start, let bundleID = currentBundleID, !isBundleExcluded(bundleID) else { return }
+
+        let segment = UsageTimelineSegment(
+            bundleId: bundleID,
+            displayName: currentDisplayName,
+            startedAt: start,
+            endedAt: end,
+            state: engaged ? .engaged : .idle,
+            timezone: calendar.timeZone.identifier
+        )
+        onSegmentCreated?(segment)
+
         var cursor = start
         while cursor < end {
             let dayStart = calendar.startOfDay(for: cursor)
@@ -99,14 +209,19 @@ final class ForegroundUsageTracker {
             let segmentEnd = min(end, min(nextDay, nextHour))
             let segmentSeconds = Int(max(0, segmentEnd.timeIntervalSince(cursor).rounded(.down)))
             if segmentSeconds > 0 {
-                let date = UsageDateFormatter.string(from: cursor, calendar: calendar)
+                let dateStr = UsageDateFormatter.string(from: cursor, calendar: calendar)
+                let hourVal = calendar.component(.hour, from: cursor)
+                let activeSec = segmentSeconds
+                let engagedSec = engaged ? segmentSeconds : 0
+
                 onSummaryChanged?(UsageSummary(
-                    localDate: date,
-                    hour: calendar.component(.hour, from: cursor),
+                    localDate: dateStr,
+                    hour: hourVal,
                     bundleId: bundleID,
                     displayName: currentDisplayName,
                     timezone: calendar.timeZone.identifier,
-                    activeSeconds: segmentSeconds
+                    activeSeconds: activeSec,
+                    engagedSeconds: engagedSec
                 ))
             }
             cursor = segmentEnd
@@ -114,7 +229,9 @@ final class ForegroundUsageTracker {
     }
 
     private func installObservers() {
+        removeObservers()
         let center = workspace.notificationCenter
+
         observers.append(center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
             guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                   let bundleID = app.bundleIdentifier else { return }
@@ -123,26 +240,54 @@ final class ForegroundUsageTracker {
                 self?.applicationActivated(bundleID: bundleID, displayName: displayName)
             }
         })
-        let excluded: [Notification.Name] = [
-            NSWorkspace.sessionDidResignActiveNotification,
-            NSWorkspace.screensDidSleepNotification,
-            NSWorkspace.willSleepNotification
-        ]
-        for name in excluded {
-            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor [weak self] in self?.setPaused(true) }
-            })
+
+        let resignActiveObs = center.addObserver(forName: NSWorkspace.sessionDidResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.addSuspensionReason(.sessionInactive) }
         }
-        let resumed: [Notification.Name] = [
-            NSWorkspace.sessionDidBecomeActiveNotification,
-            NSWorkspace.screensDidWakeNotification,
-            NSWorkspace.didWakeNotification
-        ]
-        for name in resumed {
-            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor [weak self] in self?.setPaused(false) }
-            })
+        let screenSleepObs = center.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.addSuspensionReason(.screenSleeping) }
         }
+        let systemSleepObs = center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.addSuspensionReason(.systemSleeping) }
+        }
+
+        let becomeActiveObs = center.addObserver(forName: NSWorkspace.sessionDidBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.removeSuspensionReason(.sessionInactive) }
+        }
+        let screenWakeObs = center.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.removeSuspensionReason(.screenSleeping) }
+        }
+        let systemWakeObs = center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.removeSuspensionReason(.systemSleeping) }
+        }
+
+        observers.append(contentsOf: [resignActiveObs, screenSleepObs, systemSleepObs, becomeActiveObs, screenWakeObs, systemWakeObs])
+    }
+
+    private func addSuspensionReason(_ reason: UsageSuspensionReason) {
+        guard isRunning else { return }
+        if suspensionReasons.isEmpty {
+            tick()
+        }
+        suspensionReasons.insert(reason)
+        lastObservedAt = Date()
+    }
+
+    private func removeSuspensionReason(_ reason: UsageSuspensionReason) {
+        guard isRunning else { return }
+        suspensionReasons.remove(reason)
+        lastObservedAt = Date()
+        if suspensionReasons.isEmpty {
+            tick()
+        }
+    }
+
+    private func removeObservers() {
+        let center = workspace.notificationCenter
+        for observer in observers {
+            center.removeObserver(observer)
+        }
+        observers.removeAll()
     }
 
     private func persistRuntimeState() {

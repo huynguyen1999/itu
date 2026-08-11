@@ -152,22 +152,33 @@ export interface StudyCalendarDay {
   cardsCreated: number;
 }
 
+export interface EngagementCoverage {
+  observedActiveSeconds: number;
+  totalActiveSeconds: number;
+  complete: boolean;
+}
+
 export interface UsageSummary {
   totalActiveSeconds: number;
+  totalEngagedSeconds?: number;
+  engagementCoverage?: EngagementCoverage;
   topApps: Array<{
     bundleId: string;
     displayName: string;
     activeSeconds: number;
+    engagedSeconds?: number;
   }>;
   daily: Array<{
     localDate: string;
     activeSeconds: number;
+    engagedSeconds?: number;
   }>;
   dailyApps?: Array<{
     localDate: string;
     bundleId: string;
     displayName: string;
     activeSeconds: number;
+    engagedSeconds?: number;
   }>;
   hourlyApps?: Array<{
     localDate: string;
@@ -175,7 +186,18 @@ export interface UsageSummary {
     bundleId: string;
     displayName: string;
     activeSeconds: number;
+    engagedSeconds?: number;
   }>;
+}
+
+export interface WebsiteUrlDetail {
+  url: string;
+  activeSeconds: number;
+}
+
+export interface WebsiteUrlDetailsResponse {
+  total: number;
+  items: WebsiteUrlDetail[];
 }
 
 export interface DeckStats {

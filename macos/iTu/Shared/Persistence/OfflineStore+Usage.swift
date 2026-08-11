@@ -21,6 +21,10 @@ extension OfflineStore {
         if let index = state.usageSummaries.firstIndex(where: { $0.id == summary.id }) {
             state.usageSummaries[index].activeSeconds += summary.activeSeconds
             state.usageSummaries[index].displayName = summary.displayName
+            if let addEngaged = summary.engagedSeconds {
+                let currentEngaged = state.usageSummaries[index].engagedSeconds ?? 0
+                state.usageSummaries[index].engagedSeconds = currentEngaged + addEngaged
+            }
         } else {
             state.usageSummaries.append(summary)
         }
@@ -29,7 +33,13 @@ extension OfflineStore {
     }
 
     func usageSummariesToUpload() -> [UsageSummary] {
-        state.usageSummaries.filter { state.usageUploadWatermarks[$0.id] != $0.activeSeconds }
+        state.usageSummaries.compactMap { summary in
+            let watermark = state.usageUploadWatermarks[summary.id]
+            let activeChanged = watermark?.activeSeconds != summary.activeSeconds
+            let engagedChanged = summary.engagedSeconds != nil && watermark?.engagedSeconds != summary.engagedSeconds
+            guard activeChanged || engagedChanged else { return nil }
+            return summary
+        }
     }
 
     func websiteUsageSummariesToUpload() -> [WebsiteUsageSummary] {
@@ -38,10 +48,19 @@ extension OfflineStore {
 
     func pendingUsageDeltas(from: String?, to: String?) -> [UsageSummary] {
         usageSummaries(from: from, to: to).compactMap { summary in
-            let pendingSeconds = summary.activeSeconds - (state.usageUploadWatermarks[summary.id] ?? 0)
-            guard pendingSeconds > 0 else { return nil }
+            let watermark = state.usageUploadWatermarks[summary.id]
+            let pendingActive = summary.activeSeconds - (watermark?.activeSeconds ?? 0)
+
+            var pendingEngaged: Int? = nil
+            if let currentEngaged = summary.engagedSeconds {
+                let watermarkEngaged = watermark?.engagedSeconds ?? 0
+                pendingEngaged = max(0, currentEngaged - watermarkEngaged)
+            }
+
+            guard pendingActive > 0 || (pendingEngaged ?? 0) > 0 else { return nil }
             var pending = summary
-            pending.activeSeconds = pendingSeconds
+            pending.activeSeconds = max(0, pendingActive)
+            pending.engagedSeconds = pendingEngaged
             return pending
         }
     }
@@ -57,7 +76,12 @@ extension OfflineStore {
     }
 
     func markUsageUploaded(_ summaries: [UsageSummary]) throws -> OfflineSnapshot {
-        for summary in summaries { state.usageUploadWatermarks[summary.id] = summary.activeSeconds }
+        for summary in summaries {
+            state.usageUploadWatermarks[summary.id] = UsageUploadWatermark(
+                activeSeconds: summary.activeSeconds,
+                engagedSeconds: summary.engagedSeconds
+            )
+        }
         try persist()
         return state
     }

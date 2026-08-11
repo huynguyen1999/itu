@@ -7,6 +7,7 @@ struct UsageSummary: Codable, Equatable, Identifiable, Sendable {
     var displayName: String
     let timezone: String
     var activeSeconds: Int
+    var engagedSeconds: Int? = nil
 
     var id: String { "\(localDate)|\(hour.map(String.init) ?? "legacy")|\(bundleId)" }
 }
@@ -21,10 +22,38 @@ struct WebsiteUsageSummary: Codable, Equatable, Identifiable, Sendable {
     var id: String { "\(localDate)|\(browserBundleId)|\(hostname)" }
 }
 
+struct UsageUploadWatermark: Codable, Equatable, Sendable {
+    var activeSeconds: Int
+    var engagedSeconds: Int? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case activeSeconds
+        case engagedSeconds
+    }
+
+    init(activeSeconds: Int, engagedSeconds: Int? = nil) {
+        self.activeSeconds = activeSeconds
+        self.engagedSeconds = engagedSeconds
+    }
+
+    init(from decoder: Decoder) throws {
+        if let single = try? decoder.singleValueContainer(), let val = try? single.decode(Int.self) {
+            self.activeSeconds = val
+            self.engagedSeconds = nil
+            return
+        }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.activeSeconds = try container.decode(Int.self, forKey: .activeSeconds)
+        self.engagedSeconds = try container.decodeIfPresent(Int.self, forKey: .engagedSeconds)
+    }
+}
+
 struct UsagePreferences: Codable, Equatable, Sendable {
     var enabled = false
     var websiteTrackingEnabled = false
     var retentionDays = 90
+    var idleThresholdSeconds = 300
+    var excludedBundleIds: [String] = []
     var launchAtLogin = false
     var paused = false
 }
@@ -33,12 +62,14 @@ struct UsageTopApp: Codable, Equatable, Sendable, Identifiable {
     let bundleId: String
     let displayName: String
     let activeSeconds: Int
+    var engagedSeconds: Int? = nil
     var id: String { bundleId }
 }
 
 struct UsageDailyTotal: Codable, Equatable, Sendable, Identifiable {
     let localDate: String
     let activeSeconds: Int
+    var engagedSeconds: Int? = nil
     var id: String { localDate }
 }
 
@@ -47,6 +78,7 @@ struct UsageDailyApp: Codable, Equatable, Sendable, Identifiable {
     let bundleId: String
     let displayName: String
     let activeSeconds: Int
+    var engagedSeconds: Int? = nil
     var id: String { "\(localDate)|\(bundleId)" }
 }
 
@@ -56,11 +88,20 @@ struct UsageHourlyApp: Codable, Equatable, Sendable, Identifiable {
     let bundleId: String
     let displayName: String
     let activeSeconds: Int
+    var engagedSeconds: Int? = nil
     var id: String { "\(localDate)|\(hour)|\(bundleId)" }
+}
+
+struct EngagementCoverage: Codable, Equatable, Sendable {
+    let observedActiveSeconds: Int
+    let totalActiveSeconds: Int
+    let complete: Bool
 }
 
 struct UsageStatistics: Codable, Equatable, Sendable {
     let totalActiveSeconds: Int
+    let totalEngagedSeconds: Int?
+    let engagementCoverage: EngagementCoverage?
     let topApps: [UsageTopApp]
     let daily: [UsageDailyTotal]
     let dailyApps: [UsageDailyApp]
@@ -68,12 +109,16 @@ struct UsageStatistics: Codable, Equatable, Sendable {
 
     init(
         totalActiveSeconds: Int,
+        totalEngagedSeconds: Int? = nil,
+        engagementCoverage: EngagementCoverage? = nil,
         topApps: [UsageTopApp],
         daily: [UsageDailyTotal],
         dailyApps: [UsageDailyApp],
         hourlyApps: [UsageHourlyApp]? = nil
     ) {
         self.totalActiveSeconds = totalActiveSeconds
+        self.totalEngagedSeconds = totalEngagedSeconds
+        self.engagementCoverage = engagementCoverage
         self.topApps = topApps
         self.daily = daily
         self.dailyApps = dailyApps
@@ -81,81 +126,170 @@ struct UsageStatistics: Codable, Equatable, Sendable {
     }
 
     static func aggregating(_ summaries: [UsageSummary]) -> UsageStatistics {
-        var apps: [String: (name: String, seconds: Int)] = [:]
-        var days: [String: Int] = [:]
-        var dailyApps: [String: UsageDailyApp] = [:]
-        var hourlyApps: [String: UsageHourlyApp] = [:]
+        var apps: [String: (name: String, active: Int, engaged: Int, hasEngaged: Bool)] = [:]
+        var days: [String: (active: Int, engaged: Int, hasEngaged: Bool)] = [:]
+        var dailyApps: [String: (localDate: String, bundleId: String, displayName: String, active: Int, engaged: Int, hasEngaged: Bool)] = [:]
+        var hourlyApps: [String: (localDate: String, hour: Int, bundleId: String, displayName: String, active: Int, engaged: Int, hasEngaged: Bool)] = [:]
+
+        var totalActive = 0
+        var totalEngaged = 0
+        var observedActive = 0
+
         for summary in summaries {
-            let existing = apps[summary.bundleId]
-            apps[summary.bundleId] = (summary.displayName, (existing?.seconds ?? 0) + summary.activeSeconds)
-            days[summary.localDate, default: 0] += summary.activeSeconds
-            let dailyAppKey = "\(summary.localDate)|\(summary.bundleId)"
-            dailyApps[dailyAppKey] = UsageDailyApp(
-                localDate: summary.localDate,
-                bundleId: summary.bundleId,
-                displayName: summary.displayName,
-                activeSeconds: (dailyApps[dailyAppKey]?.activeSeconds ?? 0) + summary.activeSeconds
+            let hasEngaged = summary.engagedSeconds != nil
+            let engaged = summary.engagedSeconds ?? 0
+
+            totalActive += summary.activeSeconds
+            if hasEngaged {
+                totalEngaged += engaged
+                observedActive += summary.activeSeconds
+            }
+
+            let existingApp = apps[summary.bundleId]
+            apps[summary.bundleId] = (
+                summary.displayName,
+                (existingApp?.active ?? 0) + summary.activeSeconds,
+                (existingApp?.engaged ?? 0) + engaged,
+                (existingApp?.hasEngaged ?? false) || hasEngaged
             )
+
+            let existingDay = days[summary.localDate] ?? (0, 0, false)
+            days[summary.localDate] = (
+                existingDay.active + summary.activeSeconds,
+                existingDay.engaged + engaged,
+                existingDay.hasEngaged || hasEngaged
+            )
+
+            let dailyAppKey = "\(summary.localDate)|\(summary.bundleId)"
+            let existingDailyApp = dailyApps[dailyAppKey] ?? (summary.localDate, summary.bundleId, summary.displayName, 0, 0, false)
+            dailyApps[dailyAppKey] = (
+                summary.localDate,
+                summary.bundleId,
+                summary.displayName,
+                existingDailyApp.active + summary.activeSeconds,
+                existingDailyApp.engaged + engaged,
+                existingDailyApp.hasEngaged || hasEngaged
+            )
+
             if let hour = summary.hour {
                 let hourlyAppKey = "\(summary.localDate)|\(hour)|\(summary.bundleId)"
-                hourlyApps[hourlyAppKey] = UsageHourlyApp(
-                    localDate: summary.localDate,
-                    hour: hour,
-                    bundleId: summary.bundleId,
-                    displayName: summary.displayName,
-                    activeSeconds: (hourlyApps[hourlyAppKey]?.activeSeconds ?? 0) + summary.activeSeconds
+                let existingHourlyApp = hourlyApps[hourlyAppKey] ?? (summary.localDate, hour, summary.bundleId, summary.displayName, 0, 0, false)
+                hourlyApps[hourlyAppKey] = (
+                    summary.localDate,
+                    hour,
+                    summary.bundleId,
+                    summary.displayName,
+                    existingHourlyApp.active + summary.activeSeconds,
+                    existingHourlyApp.engaged + engaged,
+                    existingHourlyApp.hasEngaged || hasEngaged
                 )
             }
         }
+
+        let hasObserved = observedActive > 0
+        let coverage = EngagementCoverage(
+            observedActiveSeconds: observedActive,
+            totalActiveSeconds: totalActive,
+            complete: totalActive > 0 && observedActive == totalActive
+        )
+
         return UsageStatistics(
-            totalActiveSeconds: summaries.reduce(0) { $0 + $1.activeSeconds },
-            topApps: apps.map { UsageTopApp(bundleId: $0.key, displayName: $0.value.name, activeSeconds: $0.value.seconds) }
+            totalActiveSeconds: totalActive,
+            totalEngagedSeconds: hasObserved ? totalEngaged : nil,
+            engagementCoverage: hasObserved ? coverage : nil,
+            topApps: apps.map { UsageTopApp(bundleId: $0.key, displayName: $0.value.name, activeSeconds: $0.value.active, engagedSeconds: $0.value.hasEngaged ? $0.value.engaged : nil) }
                 .sorted { $0.activeSeconds == $1.activeSeconds ? $0.displayName < $1.displayName : $0.activeSeconds > $1.activeSeconds },
-            daily: days.map { UsageDailyTotal(localDate: $0.key, activeSeconds: $0.value) }
+            daily: days.map { UsageDailyTotal(localDate: $0.key, activeSeconds: $0.value.active, engagedSeconds: $0.value.hasEngaged ? $0.value.engaged : nil) }
                 .sorted { $0.localDate < $1.localDate },
-            dailyApps: dailyApps.values.sorted { $0.localDate == $1.localDate ? $0.activeSeconds > $1.activeSeconds : $0.localDate < $1.localDate },
-            hourlyApps: hourlyApps.values.sorted { $0.hour == $1.hour ? $0.activeSeconds > $1.activeSeconds : $0.hour < $1.hour }
+            dailyApps: dailyApps.values.map { UsageDailyApp(localDate: $0.localDate, bundleId: $0.bundleId, displayName: $0.displayName, activeSeconds: $0.active, engagedSeconds: $0.hasEngaged ? $0.engaged : nil) }
+                .sorted { $0.localDate == $1.localDate ? $0.activeSeconds > $1.activeSeconds : $0.localDate < $1.localDate },
+            hourlyApps: hourlyApps.values.map { UsageHourlyApp(localDate: $0.localDate, hour: $0.hour, bundleId: $0.bundleId, displayName: $0.displayName, activeSeconds: $0.active, engagedSeconds: $0.hasEngaged ? $0.engaged : nil) }
+                .sorted { $0.hour == $1.hour ? $0.activeSeconds > $1.activeSeconds : $0.hour < $1.hour }
         )
     }
 
     func adding(_ summaries: [UsageSummary]) -> UsageStatistics {
         let added = Self.aggregating(summaries)
-        var apps = Dictionary(uniqueKeysWithValues: topApps.map { ($0.bundleId, $0) })
+        var appMap = Dictionary(uniqueKeysWithValues: topApps.map { ($0.bundleId, $0) })
         for app in added.topApps {
-            apps[app.bundleId] = UsageTopApp(
+            let prev = appMap[app.bundleId]
+            let prevEngaged = prev?.engagedSeconds
+            let addEngaged = app.engagedSeconds
+            let newEngaged: Int? = (prevEngaged != nil || addEngaged != nil) ? ((prevEngaged ?? 0) + (addEngaged ?? 0)) : nil
+            appMap[app.bundleId] = UsageTopApp(
                 bundleId: app.bundleId,
                 displayName: app.displayName,
-                activeSeconds: (apps[app.bundleId]?.activeSeconds ?? 0) + app.activeSeconds
+                activeSeconds: (prev?.activeSeconds ?? 0) + app.activeSeconds,
+                engagedSeconds: newEngaged
             )
         }
-        var days = Dictionary(uniqueKeysWithValues: daily.map { ($0.localDate, $0.activeSeconds) })
-        for day in added.daily { days[day.localDate, default: 0] += day.activeSeconds }
-        var dailyApps = Dictionary(uniqueKeysWithValues: self.dailyApps.map { ($0.id, $0) })
+
+        var dayMap = Dictionary(uniqueKeysWithValues: daily.map { ($0.localDate, $0) })
+        for day in added.daily {
+            let prev = dayMap[day.localDate]
+            let prevEngaged = prev?.engagedSeconds
+            let addEngaged = day.engagedSeconds
+            let newEngaged: Int? = (prevEngaged != nil || addEngaged != nil) ? ((prevEngaged ?? 0) + (addEngaged ?? 0)) : nil
+            dayMap[day.localDate] = UsageDailyTotal(
+                localDate: day.localDate,
+                activeSeconds: (prev?.activeSeconds ?? 0) + day.activeSeconds,
+                engagedSeconds: newEngaged
+            )
+        }
+
+        var dailyAppMap = Dictionary(uniqueKeysWithValues: self.dailyApps.map { ($0.id, $0) })
         for app in added.dailyApps {
-            dailyApps[app.id] = UsageDailyApp(
+            let prev = dailyAppMap[app.id]
+            let prevEngaged = prev?.engagedSeconds
+            let addEngaged = app.engagedSeconds
+            let newEngaged: Int? = (prevEngaged != nil || addEngaged != nil) ? ((prevEngaged ?? 0) + (addEngaged ?? 0)) : nil
+            dailyAppMap[app.id] = UsageDailyApp(
                 localDate: app.localDate,
                 bundleId: app.bundleId,
                 displayName: app.displayName,
-                activeSeconds: (dailyApps[app.id]?.activeSeconds ?? 0) + app.activeSeconds
+                activeSeconds: (prev?.activeSeconds ?? 0) + app.activeSeconds,
+                engagedSeconds: newEngaged
             )
         }
-        var hourlyApps = Dictionary(uniqueKeysWithValues: (self.hourlyApps ?? []).map { ($0.id, $0) })
+
+        var hourlyAppMap = Dictionary(uniqueKeysWithValues: (self.hourlyApps ?? []).map { ($0.id, $0) })
         for app in added.hourlyApps ?? [] {
-            hourlyApps[app.id] = UsageHourlyApp(
+            let prev = hourlyAppMap[app.id]
+            let prevEngaged = prev?.engagedSeconds
+            let addEngaged = app.engagedSeconds
+            let newEngaged: Int? = (prevEngaged != nil || addEngaged != nil) ? ((prevEngaged ?? 0) + (addEngaged ?? 0)) : nil
+            hourlyAppMap[app.id] = UsageHourlyApp(
                 localDate: app.localDate,
                 hour: app.hour,
                 bundleId: app.bundleId,
                 displayName: app.displayName,
-                activeSeconds: (hourlyApps[app.id]?.activeSeconds ?? 0) + app.activeSeconds
+                activeSeconds: (prev?.activeSeconds ?? 0) + app.activeSeconds,
+                engagedSeconds: newEngaged
             )
         }
+
+        let newTotalActive = totalActiveSeconds + added.totalActiveSeconds
+        let newTotalEngaged: Int? = (totalEngagedSeconds != nil || added.totalEngagedSeconds != nil)
+            ? ((totalEngagedSeconds ?? 0) + (added.totalEngagedSeconds ?? 0))
+            : nil
+
+        let prevObserved = engagementCoverage?.observedActiveSeconds ?? (totalEngagedSeconds != nil ? totalActiveSeconds : 0)
+        let addObserved = added.engagementCoverage?.observedActiveSeconds ?? (added.totalEngagedSeconds != nil ? added.totalActiveSeconds : 0)
+        let newObserved = prevObserved + addObserved
+        let newCoverage: EngagementCoverage? = newObserved > 0 ? EngagementCoverage(
+            observedActiveSeconds: newObserved,
+            totalActiveSeconds: newTotalActive,
+            complete: newTotalActive > 0 && newObserved == newTotalActive
+        ) : nil
+
         return UsageStatistics(
-            totalActiveSeconds: totalActiveSeconds + added.totalActiveSeconds,
-            topApps: apps.values.sorted { $0.activeSeconds == $1.activeSeconds ? $0.displayName < $1.displayName : $0.activeSeconds > $1.activeSeconds },
-            daily: days.map { UsageDailyTotal(localDate: $0.key, activeSeconds: $0.value) }
-                .sorted { $0.localDate < $1.localDate },
-            dailyApps: dailyApps.values.sorted { $0.localDate == $1.localDate ? $0.activeSeconds > $1.activeSeconds : $0.localDate < $1.localDate },
-            hourlyApps: hourlyApps.values.sorted { $0.hour == $1.hour ? $0.activeSeconds > $1.activeSeconds : $0.hour < $1.hour }
+            totalActiveSeconds: newTotalActive,
+            totalEngagedSeconds: newTotalEngaged,
+            engagementCoverage: newCoverage,
+            topApps: appMap.values.sorted { $0.activeSeconds == $1.activeSeconds ? $0.displayName < $1.displayName : $0.activeSeconds > $1.activeSeconds },
+            daily: dayMap.values.sorted { $0.localDate < $1.localDate },
+            dailyApps: dailyAppMap.values.sorted { $0.localDate == $1.localDate ? $0.activeSeconds > $1.activeSeconds : $0.localDate < $1.localDate },
+            hourlyApps: hourlyAppMap.values.sorted { $0.hour == $1.hour ? $0.activeSeconds > $1.activeSeconds : $0.hour < $1.hour }
         )
     }
 }

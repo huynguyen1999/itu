@@ -20,7 +20,7 @@ export class PrismaUsageRepository implements IUsageRepository {
   async findSummaries(userId: string, from: Date, toExclusive: Date): Promise<UsageSummaryRecord[]> {
     return this.prisma.usageSummary.findMany({
       where: { userId, localDate: { gte: from, lt: toExclusive } },
-      select: { localDate: true, hour: true, bundleId: true, displayName: true, activeSeconds: true },
+      select: { localDate: true, hour: true, bundleId: true, displayName: true, activeSeconds: true, engagedSeconds: true },
       orderBy: [{ localDate: 'asc' }, { hour: 'asc' }, { activeSeconds: 'desc' }],
     });
   }
@@ -53,6 +53,7 @@ export class PrismaUsageRepository implements IUsageRepository {
             displayName: summary.displayName,
             timezone: summary.timezone,
             activeSeconds: summary.activeSeconds,
+            engagedSeconds: summary.engagedSeconds,
           },
         });
       }
@@ -73,6 +74,39 @@ export class PrismaUsageRepository implements IUsageRepository {
       },
       orderBy: [{ localDate: 'asc' }, { activeSeconds: 'desc' }],
     });
+  }
+
+  async findWebsiteUrls(
+    userId: string,
+    from: Date,
+    toExclusive: Date,
+    hostname: string,
+    limit: number,
+    offset: number,
+  ) {
+    const rows = await this.prisma.websiteUsageSummary.groupBy({
+      by: ['url'],
+      where: {
+        userId,
+        hostname,
+        url: { not: null },
+        localDate: { gte: from, lt: toExclusive },
+      },
+      _sum: { activeSeconds: true },
+      orderBy: { _sum: { activeSeconds: 'desc' } },
+    });
+
+    const validRows = rows.filter((r): r is typeof r & { url: string } => r.url !== null);
+    const total = validRows.length;
+    const paged = validRows.slice(offset, offset + limit);
+
+    return {
+      total,
+      items: paged.map((row) => ({
+        url: row.url,
+        activeSeconds: row._sum.activeSeconds ?? 0,
+      })),
+    };
   }
 
   async replaceWebsiteBatch(userId: string, deviceId: string, summaries: WebsiteUsageSummaryWrite[]) {

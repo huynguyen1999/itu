@@ -76,6 +76,8 @@ export interface UsagePreferences {
   trackingEnabled: boolean;
   websiteTrackingEnabled: boolean;
   retentionDays: number;
+  idleThresholdSeconds: number;
+  excludedBundleIds: string[];
 }
 
 export interface AllUserPreferences {
@@ -167,6 +169,8 @@ export const DEFAULT_USAGE_PREFERENCES: UsagePreferences = {
   trackingEnabled: false,
   websiteTrackingEnabled: false,
   retentionDays: 90,
+  idleThresholdSeconds: 300,
+  excludedBundleIds: [],
 };
 
 @Injectable()
@@ -311,6 +315,15 @@ export class PreferencesService {
     if (!Number.isInteger(updated.retentionDays) || updated.retentionDays < 7 || updated.retentionDays > 365) {
       throw new BadRequestException('retentionDays must be an integer between 7 and 365');
     }
+    if (!Number.isInteger(updated.idleThresholdSeconds) || updated.idleThresholdSeconds < 60 || updated.idleThresholdSeconds > 1800) {
+      throw new BadRequestException('idleThresholdSeconds must be an integer between 60 and 1800');
+    }
+    if (!Array.isArray(updated.excludedBundleIds) || updated.excludedBundleIds.some((id) => typeof id !== 'string')) {
+      throw new BadRequestException('excludedBundleIds must be an array of strings');
+    }
+    updated.excludedBundleIds = Array.from(
+      new Set(updated.excludedBundleIds.map((id) => id.trim()).filter((id) => id.length > 0 && id.length <= 255)),
+    );
     await this.prisma.userPreferences.upsert({
       where: { userId },
       create: { userId, usagePreferences: updated as any },

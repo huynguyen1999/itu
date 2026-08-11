@@ -615,14 +615,22 @@ function UsageSection({
   topApps: UsageSummary['topApps'];
 }) {
   const hasHourlyBuckets = stack.length === 24;
+  const coveragePercent = summary?.engagementCoverage
+    ? Math.round((summary.engagementCoverage.observedActiveSeconds / (summary.engagementCoverage.totalActiveSeconds || 1)) * 100)
+    : null;
 
   return (
     <section aria-labelledby="usage-heading" aria-busy={isLoading}>
-      <div className="mb-3">
-        <h2 id="usage-heading" className="text-lg font-semibold">
-          Foreground app activity
-        </h2>
-        <p className="mt-1 text-xs text-muted-foreground">Synced from your tracked devices for the selected period.</p>
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 id="usage-heading" className="text-lg font-semibold">
+            Foreground app activity
+          </h2>
+          <p className="text-xs text-muted-foreground">Synced from your tracked devices for the selected period.</p>
+        </div>
+        <p className="text-xs text-muted-foreground bg-muted/30 px-2.5 py-1 rounded-md border border-border/50">
+          💻 Raw session timeline stored locally on Mac
+        </p>
       </div>
       {isLoading ? (
         <div className="grid gap-4 lg:grid-cols-2" role="status" aria-live="polite">
@@ -647,18 +655,36 @@ function UsageSection({
         <ChartEmptyState message="No synced foreground activity in this period." />
       ) : (
         <Card className="overflow-hidden shadow-[var(--shadow-soft)]">
-          <CardHeader className="flex-row items-end justify-between gap-4 border-b bg-muted/20 p-5">
-            <div>
-              <CardTitle className="text-base">Application usage</CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {hasHourlyBuckets ? 'Hourly foreground time' : 'Daily foreground time'}, stacked by application.
-              </p>
+          <CardHeader className="flex-col gap-3 border-b bg-muted/20 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Screen Time</p>
+                <p className="font-mono text-2xl font-bold tracking-[-0.03em]">
+                  {formatActiveDuration(summary.totalActiveSeconds)}
+                </p>
+              </div>
+              <div className="h-8 w-px bg-border" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">Engaged Time</p>
+                  {coveragePercent !== null && (
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                      {coveragePercent}% coverage
+                    </span>
+                  )}
+                </div>
+                <p className="font-mono text-2xl font-bold tracking-[-0.03em] text-primary">
+                  {summary.totalEngagedSeconds != null
+                    ? formatActiveDuration(summary.totalEngagedSeconds)
+                    : 'Unavailable'}
+                </p>
+              </div>
             </div>
-            <p className="shrink-0 font-mono text-2xl font-bold tracking-[-0.03em]">
-              {formatActiveDuration(summary.totalActiveSeconds)}
+            <p className="text-xs text-muted-foreground">
+              {hasHourlyBuckets ? 'Hourly foreground time' : 'Daily foreground time'}, stacked by application.
             </p>
           </CardHeader>
-          <CardContent className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-stretch">
+          <CardContent className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-stretch">
             <div
               className="h-64 min-w-0"
               aria-label={`${hasHourlyBuckets ? 'Hourly' : 'Daily'} foreground time stacked by application`}
@@ -712,19 +738,28 @@ function UsageSection({
               {topApps.length === 0 ? (
                 <ChartEmptyState message="No app ranking is available in this period." />
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Top Applications</p>
                   {topApps.map((app, index) => (
                     <div
                       key={app.bundleId}
-                      className="flex min-h-11 items-center gap-3 rounded-[var(--itu-radius-s)] px-1.5 py-1.5"
+                      className="flex items-center gap-3 rounded-[var(--itu-radius-s)] px-1.5 py-1.5 hover:bg-muted/30"
                     >
                       <AppUsageIcon name={app.displayName} color={usageColors[index % usageColors.length]} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{app.displayName}</p>
+                        {app.engagedSeconds != null && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Engaged: {formatActiveDuration(app.engagedSeconds)}
+                          </p>
+                        )}
                       </div>
-                      <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-muted-foreground">
-                        {formatActiveDuration(app.activeSeconds)}
-                      </p>
+                      <div className="text-right">
+                        <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-foreground">
+                          {formatActiveDuration(app.activeSeconds)}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground uppercase">Screen</p>
+                      </div>
                     </div>
                   ))}
                 </div>

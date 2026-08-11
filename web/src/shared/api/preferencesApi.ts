@@ -76,6 +76,8 @@ export interface UsagePreferences {
   trackingEnabled: boolean;
   websiteTrackingEnabled: boolean;
   retentionDays: number;
+  idleThresholdSeconds: number;
+  excludedBundleIds: string[];
 }
 
 export interface UserPreferencesResponse {
@@ -165,6 +167,8 @@ export const DEFAULT_USAGE_PREFERENCES: UsagePreferences = {
   trackingEnabled: false,
   websiteTrackingEnabled: false,
   retentionDays: 90,
+  idleThresholdSeconds: 300,
+  excludedBundleIds: [],
 };
 
 const STORAGE_KEY = 'itu_user_preferences_v2';

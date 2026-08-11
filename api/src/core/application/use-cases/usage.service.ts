@@ -12,6 +12,7 @@ export interface UsageSummaryInput {
   displayName: string;
   timezone: string;
   activeSeconds: number;
+  engagedSeconds?: number;
 }
 
 export interface UsageSummaryBatchInput {
@@ -95,28 +96,59 @@ export class UsageService {
     }
 
     const rows = await this.usage.findSummaries(userId, start, nextDay(end));
-    const daily = new Map<string, number>();
+    const daily = new Map<string, { activeSeconds: number; engagedSeconds: number; hasEngaged: boolean }>();
     const dailyApps = new Map<
       string,
-      { localDate: string; bundleId: string; displayName: string; activeSeconds: number }
+      { localDate: string; bundleId: string; displayName: string; activeSeconds: number; engagedSeconds: number; hasEngaged: boolean }
     >();
-    const apps = new Map<string, { bundleId: string; displayName: string; activeSeconds: number }>();
+    const apps = new Map<
+      string,
+      { bundleId: string; displayName: string; activeSeconds: number; engagedSeconds: number; hasEngaged: boolean }
+    >();
     const hourlyApps = new Map<
       string,
-      { localDate: string; hour: number; bundleId: string; displayName: string; activeSeconds: number }
+      { localDate: string; hour: number; bundleId: string; displayName: string; activeSeconds: number; engagedSeconds: number; hasEngaged: boolean }
     >();
+
+    let totalActiveSeconds = 0;
+    let totalEngagedSeconds = 0;
+    let observedActiveSeconds = 0;
+
     for (const row of rows) {
       const day = dateKey(row.localDate);
-      daily.set(day, (daily.get(day) ?? 0) + row.activeSeconds);
+      const hasEngaged = row.engagedSeconds !== null && row.engagedSeconds !== undefined;
+      const engaged = row.engagedSeconds ?? 0;
+
+      totalActiveSeconds += row.activeSeconds;
+      if (hasEngaged) {
+        totalEngagedSeconds += engaged;
+        observedActiveSeconds += row.activeSeconds;
+      }
+
+      const d = daily.get(day) ?? { activeSeconds: 0, engagedSeconds: 0, hasEngaged: false };
+      d.activeSeconds += row.activeSeconds;
+      if (hasEngaged) {
+        d.engagedSeconds += engaged;
+        d.hasEngaged = true;
+      }
+      daily.set(day, d);
+
       const dailyAppKey = `${day}\u0000${row.bundleId}`;
       const dailyApp = dailyApps.get(dailyAppKey) ?? {
         localDate: day,
         bundleId: row.bundleId,
         displayName: row.displayName,
         activeSeconds: 0,
+        engagedSeconds: 0,
+        hasEngaged: false,
       };
       dailyApp.activeSeconds += row.activeSeconds;
+      if (hasEngaged) {
+        dailyApp.engagedSeconds += engaged;
+        dailyApp.hasEngaged = true;
+      }
       dailyApps.set(dailyAppKey, dailyApp);
+
       if (row.hour >= 0 && row.hour <= 23) {
         const hourlyAppKey = `${day}\u0000${row.hour}\u0000${row.bundleId}`;
         const hourlyApp = hourlyApps.get(hourlyAppKey) ?? {
@@ -125,24 +157,75 @@ export class UsageService {
           bundleId: row.bundleId,
           displayName: row.displayName,
           activeSeconds: 0,
+          engagedSeconds: 0,
+          hasEngaged: false,
         };
         hourlyApp.activeSeconds += row.activeSeconds;
+        if (hasEngaged) {
+          hourlyApp.engagedSeconds += engaged;
+          hourlyApp.hasEngaged = true;
+        }
         hourlyApps.set(hourlyAppKey, hourlyApp);
       }
-      const app = apps.get(row.bundleId) ?? { bundleId: row.bundleId, displayName: row.displayName, activeSeconds: 0 };
+
+      const app = apps.get(row.bundleId) ?? {
+        bundleId: row.bundleId,
+        displayName: row.displayName,
+        activeSeconds: 0,
+        engagedSeconds: 0,
+        hasEngaged: false,
+      };
       app.activeSeconds += row.activeSeconds;
+      if (hasEngaged) {
+        app.engagedSeconds += engaged;
+        app.hasEngaged = true;
+      }
       if (!app.displayName && row.displayName) app.displayName = row.displayName;
       apps.set(row.bundleId, app);
     }
-    const totalActiveSeconds = rows.reduce((total, row) => total + row.activeSeconds, 0);
+
+    const hasAnyObserved = observedActiveSeconds > 0;
+    const isComplete = totalActiveSeconds > 0 && observedActiveSeconds === totalActiveSeconds;
+
     return {
       from: dateKey(start),
       to: dateKey(end),
       totalActiveSeconds,
-      topApps: [...apps.values()].sort((a, b) => b.activeSeconds - a.activeSeconds).slice(0, 10),
-      daily: [...daily.entries()].map(([localDate, activeSeconds]) => ({ localDate, activeSeconds })),
-      dailyApps: [...dailyApps.values()],
-      hourlyApps: [...hourlyApps.values()],
+      totalEngagedSeconds: hasAnyObserved ? totalEngagedSeconds : undefined,
+      engagementCoverage: {
+        observedActiveSeconds,
+        totalActiveSeconds,
+        complete: isComplete,
+      },
+      topApps: [...apps.values()]
+        .sort((a, b) => b.activeSeconds - a.activeSeconds)
+        .slice(0, 10)
+        .map((a) => ({
+          bundleId: a.bundleId,
+          displayName: a.displayName,
+          activeSeconds: a.activeSeconds,
+          engagedSeconds: a.hasEngaged ? a.engagedSeconds : undefined,
+        })),
+      daily: [...daily.entries()].map(([localDate, val]) => ({
+        localDate,
+        activeSeconds: val.activeSeconds,
+        engagedSeconds: val.hasEngaged ? val.engagedSeconds : undefined,
+      })),
+      dailyApps: [...dailyApps.values()].map((a) => ({
+        localDate: a.localDate,
+        bundleId: a.bundleId,
+        displayName: a.displayName,
+        activeSeconds: a.activeSeconds,
+        engagedSeconds: a.hasEngaged ? a.engagedSeconds : undefined,
+      })),
+      hourlyApps: [...hourlyApps.values()].map((a) => ({
+        localDate: a.localDate,
+        hour: a.hour,
+        bundleId: a.bundleId,
+        displayName: a.displayName,
+        activeSeconds: a.activeSeconds,
+        engagedSeconds: a.hasEngaged ? a.engagedSeconds : undefined,
+      })),
     };
   }
 
@@ -177,6 +260,15 @@ export class UsageService {
         summary.activeSeconds > MAX_ACTIVE_SECONDS
       )
         throw new BadRequestException('activeSeconds must be an integer between 0 and 86400');
+      if (summary.engagedSeconds !== undefined && summary.engagedSeconds !== null) {
+        if (
+          !Number.isInteger(summary.engagedSeconds) ||
+          summary.engagedSeconds < 0 ||
+          summary.engagedSeconds > summary.activeSeconds
+        ) {
+          throw new BadRequestException('engagedSeconds must be an integer between 0 and activeSeconds');
+        }
+      }
       if (summary.hour !== undefined && (!Number.isInteger(summary.hour) || summary.hour < 0 || summary.hour > 23))
         throw new BadRequestException('hour must be an integer between 0 and 23');
       unique.set(`${dateKey(localDate)}\u0000${summary.hour ?? -1}\u0000${summary.bundleId}`, {
@@ -196,7 +288,7 @@ export class UsageService {
     return { accepted: true, replaced };
   }
 
-  async getWebsiteSummaries(userId: string, from?: string, to?: string) {
+  async getWebsiteSummaries(userId: string, from?: string, to?: string, includeUrlDetails = true) {
     const preferences = await this.usage.getTrackingPreferences(userId);
     const today = new Date();
     const defaultTo = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
@@ -214,7 +306,7 @@ export class UsageService {
       const day = dateKey(row.localDate);
       daily.set(day, (daily.get(day) ?? 0) + row.activeSeconds);
       hostnames.set(row.hostname, (hostnames.get(row.hostname) ?? 0) + row.activeSeconds);
-      if (row.url) {
+      if (includeUrlDetails && row.url) {
         const detail = urls.get(row.url) ?? { url: row.url, hostname: row.hostname, activeSeconds: 0 };
         detail.activeSeconds += row.activeSeconds;
         urls.set(row.url, detail);
@@ -237,10 +329,36 @@ export class UsageService {
       totalActiveSeconds: rows.reduce((total, row) => total + row.activeSeconds, 0),
       hostnames: hostnameSummaries,
       topHostnames: hostnameSummaries.slice(0, 10),
-      urlDetails: [...urls.values()].sort((a, b) => b.activeSeconds - a.activeSeconds),
+      urlDetails: includeUrlDetails ? [...urls.values()].sort((a, b) => b.activeSeconds - a.activeSeconds) : [],
       daily: [...daily.entries()].map(([localDate, activeSeconds]) => ({ localDate, activeSeconds })),
       browsers: [...browsers.values()].sort((a, b) => b.activeSeconds - a.activeSeconds),
     };
+  }
+
+  async getWebsiteUrls(
+    userId: string,
+    hostname: string,
+    from?: string,
+    to?: string,
+    limit = 100,
+    offset = 0,
+  ) {
+    const preferences = await this.usage.getTrackingPreferences(userId);
+    if (!preferences.trackingEnabled || !preferences.websiteTrackingEnabled) {
+      throw new ForbiddenException('Website tracking authorization is required');
+    }
+    const normalizedHost = normalizeHostname(hostname);
+    const today = new Date();
+    const defaultTo = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    const defaultFrom = new Date(defaultTo.getTime() - (preferences.retentionDays - 1) * 86_400_000);
+    const start = from ? parseDate(from, 'from') : defaultFrom;
+    const end = to ? parseDate(to, 'to') : defaultTo;
+    validateWebsiteRange(start, end);
+
+    const parsedLimit = Math.min(1000, Math.max(1, limit));
+    const parsedOffset = Math.max(0, offset);
+
+    return this.usage.findWebsiteUrls(userId, start, nextDay(end), normalizedHost, parsedLimit, parsedOffset);
   }
 
   async replaceWebsiteBatch(userId: string, input: WebsiteUsageSummaryBatchInput) {
