@@ -121,4 +121,48 @@ export class TrashController {
     await this.trash.deleteTask(req.user.sub, taskId);
     return { ok: true };
   }
+
+  @Post(REST_ROUTES.trashJournalEntryRestore)
+  restoreJournalEntry(@Req() req: AuthenticatedRequest, @Param('entryId') entryId: string) {
+    return this.trash.restoreJournalEntry(req.user.sub, entryId);
+  }
+
+  @Post(REST_ROUTES.trashBudgetTransactionRestore)
+  restoreBudgetTransaction(@Req() req: AuthenticatedRequest, @Param('transactionId') transactionId: string) {
+    return this.trash.restoreBudgetTransaction(req.user.sub, transactionId);
+  }
+
+  @Post(REST_ROUTES.trashGymWorkoutRestore)
+  restoreGymWorkout(@Req() req: AuthenticatedRequest, @Param('workoutId') workoutId: string) {
+    return this.trash.restoreGymWorkout(req.user.sub, workoutId);
+  }
+
+  @Post(REST_ROUTES.trashGymExerciseRestore)
+  restoreGymExercise(@Req() req: AuthenticatedRequest, @Param('exerciseId') exerciseId: string) {
+    return this.trash.restoreGymExercise(req.user.sub, exerciseId);
+  }
+
+  @Delete(REST_ROUTES.trashJournalEntryDelete)
+  async deleteJournalEntry(@Req() req: AuthenticatedRequest, @Param('entryId') entryId: string) {
+    await this.trash.deleteJournalEntry(req.user.sub, entryId);
+    return { ok: true };
+  }
+
+  @Delete(REST_ROUTES.trashBudgetTransactionDelete)
+  async deleteBudgetTransaction(@Req() req: AuthenticatedRequest, @Param('transactionId') transactionId: string) {
+    await this.trash.deleteBudgetTransaction(req.user.sub, transactionId);
+    return { ok: true };
+  }
+
+  @Delete(REST_ROUTES.trashGymWorkoutDelete)
+  async deleteGymWorkout(@Req() req: AuthenticatedRequest, @Param('workoutId') workoutId: string) {
+    await this.trash.deleteGymWorkout(req.user.sub, workoutId);
+    return { ok: true };
+  }
+
+  @Delete(REST_ROUTES.trashGymExerciseDelete)
+  async deleteGymExercise(@Req() req: AuthenticatedRequest, @Param('exerciseId') exerciseId: string) {
+    await this.trash.deleteGymExercise(req.user.sub, exerciseId);
+    return { ok: true };
+  }
 }

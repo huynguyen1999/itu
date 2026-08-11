@@ -177,6 +177,11 @@ actor OfflineStore {
         } else if let latestBaseValues = mutation.baseValues {
             state.mutations[index].baseValues = previous.baseValues!.merging(latestBaseValues) { original, _ in original }
         }
+        if previous.fieldEditedAt == nil {
+            state.mutations[index].fieldEditedAt = mutation.fieldEditedAt
+        } else if let latestFieldEditedAt = mutation.fieldEditedAt {
+            state.mutations[index].fieldEditedAt = previous.fieldEditedAt!.merging(latestFieldEditedAt) { _, latest in latest }
+        }
         state.mutations[index].occurredAt = mutation.occurredAt
     }
 

@@ -35,6 +35,7 @@ const QUERY_PREFIXES: Record<string, string[]> = {
   growthtaskrewarddefault: ['growth'],
   growthattributemapping: ['growth'],
   journalentry: ['journal-entries', 'journal-dashboard', 'journal'],
+  journal: ['journal-entries', 'journal-dashboard', 'journal', 'trash'],
   journaltemplate: ['journal-templates', 'journal'],
   journal_tag: ['journal-tags', 'journal'],
   journaltag: ['journal-tags', 'journal'],
@@ -42,7 +43,10 @@ const QUERY_PREFIXES: Record<string, string[]> = {
   journalattachment: ['journal-entries', 'journal'],
   journal_revision: ['journal-entries', 'journal'],
   exercisedefinition: ['exercise-definitions', 'gym'],
-  gymworkout: ['gym', 'gym-workouts'],
+  gymworkout: ['gym', 'workouts', 'gym-workouts'],
+  workout: ['gym', 'workouts', 'gym-workouts'],
+  'workout-exercise': ['gym', 'workouts', 'gym-workouts'],
+  'workout-set': ['gym', 'workouts', 'gym-workouts'],
   moneycategory: ['budget'],
   moneybudgetperiod: ['budget'],
   moneycategorybudget: ['budget'],
@@ -63,6 +67,7 @@ const OPTIMISTIC_INSERT_PREFIXES: Record<string, string[]> = {
   journaltag: ['journal-tags'],
   exercisedefinition: ['exercise-definitions', 'gym'],
   gymworkout: ['gym'],
+  workout: ['gym'],
   moneycategory: ['budget'],
   budgettransaction: ['budget'],
 };
@@ -85,12 +90,14 @@ function applyOptimisticChange(queryClient: QueryClient, change: SyncResponse['c
     return;
   }
   if (change.entityType === 'budgettransaction') {
+    updateTrashCache(queryClient, 'budgetTransactions', change);
     queryClient.setQueriesData({ queryKey: ['budget', 'transactions'] }, (current) =>
       updateCollection(current, change.entityId, change.data, change.deleted),
     );
     return;
   }
   if (change.entityType === 'exercisedefinition') {
+    updateTrashCache(queryClient, 'gymExercises', change);
     queryClient.setQueriesData({ queryKey: ['exercise-definitions'] }, (current) =>
       updateCachedValue(current, change.entityId, change.data, change.deleted),
     );
@@ -100,17 +107,16 @@ function applyOptimisticChange(queryClient: QueryClient, change: SyncResponse['c
     return;
   }
   if (change.entityType === 'gymworkout') {
-    queryClient.setQueriesData({ queryKey: ['gym', 'workouts'] }, (current) =>
-      updateCollection(current, change.entityId, change.data, change.deleted),
-    );
-    if (change.entityId) queryClient.setQueryData(['gym', 'workout', change.entityId], change.deleted ? undefined : change.data);
-    queryClient.setQueryData(['gym', 'overview'], (current) => {
-      if (!isRecord(current) || !Array.isArray(current.recentWorkouts)) return current;
-      return {
-        ...current,
-        recentWorkouts: updateCollection(current.recentWorkouts, change.entityId, change.data, change.deleted),
-      };
-    });
+    updateTrashCache(queryClient, 'gymWorkouts', change);
+    updateWorkoutCaches(queryClient, change);
+    return;
+  }
+  if (change.entityType === 'workout') {
+    updateWorkoutCaches(queryClient, change);
+    return;
+  }
+  if (change.entityType === 'workout-exercise' || change.entityType === 'workout-set') {
+    updateWorkoutChildCaches(queryClient, change);
     return;
   }
   if (change.entityType === 'journal_revision') {
@@ -119,6 +125,13 @@ function applyOptimisticChange(queryClient: QueryClient, change: SyncResponse['c
     queryClient.setQueriesData({ queryKey: ['journal-entries'] }, (current) =>
       updateCachedEntity(current, entryId, { ...restored, id: entryId }, false, false, false),
     );
+    return;
+  }
+  if (change.entityType === 'journalentry') {
+    updateTrashCache(queryClient, 'journalEntries', change);
+  }
+  if (change.entityType === 'journal') {
+    updateTrashCache(queryClient, 'journalEntries', change);
     return;
   }
   if (change.entityType === 'growthattributemapping') {
@@ -143,6 +156,92 @@ function applyOptimisticChange(queryClient: QueryClient, change: SyncResponse['c
       updateCachedEntity(current, change.entityId, change.data, change.deleted, false, false),
     );
   }
+}
+
+function updateWorkoutCaches(queryClient: QueryClient, change: SyncResponse['changes'][number]): void {
+  queryClient.setQueriesData({ queryKey: ['gym', 'workouts'] }, (current) =>
+    updateCollection(current, change.entityId, change.data, change.deleted),
+  );
+  if (change.entityId) {
+    queryClient.setQueryData(['gym', 'workout', change.entityId], (current: unknown) =>
+      change.deleted
+        ? undefined
+        : isRecord(current)
+          ? mergeForCache(current, change.data as Record<string, unknown>)
+          : change.data,
+    );
+  }
+  queryClient.setQueryData(['gym', 'overview'], (current) => {
+    if (!isRecord(current) || !Array.isArray(current.recentWorkouts)) return current;
+    return {
+      ...current,
+      recentWorkouts: updateCollection(current.recentWorkouts, change.entityId, change.data, change.deleted),
+    };
+  });
+}
+
+function updateWorkoutChildCaches(queryClient: QueryClient, change: SyncResponse['changes'][number]): void {
+  for (const query of queryClient.getQueryCache().findAll({ queryKey: ['gym', 'workout'] })) {
+    queryClient.setQueryData(query.queryKey, (current: unknown) =>
+      updateWorkoutTree(current, change.entityType, change.entityId, change.data, change.deleted),
+    );
+  }
+}
+
+function updateWorkoutTree(
+  current: unknown,
+  entityType: string,
+  entityId: string,
+  data: unknown,
+  deleted: boolean,
+): unknown {
+  if (!isRecord(current)) return current;
+  const exercises = Array.isArray(current.exercises) ? current.exercises : [];
+  if (entityType === 'workout-exercise') {
+    const normalizedData = isRecord(data) && !Array.isArray(data.sets) ? { ...data, sets: [] } : data;
+    const nextExercises = updateCollection(exercises, entityId, normalizedData, deleted);
+    return nextExercises === exercises ? current : { ...current, exercises: nextExercises };
+  }
+  let changed = false;
+  const nextExercises = exercises.map((exercise) => {
+    if (!isRecord(exercise)) return exercise;
+    const sets = Array.isArray(exercise.sets) ? exercise.sets : [];
+    const nextSets = updateCollection(sets, entityId, data, deleted);
+    if (nextSets === sets) return exercise;
+    changed = true;
+    return { ...exercise, sets: nextSets };
+  });
+  return changed ? { ...current, exercises: nextExercises } : current;
+}
+
+function updateTrashCache(
+  queryClient: QueryClient,
+  key: 'journalEntries' | 'budgetTransactions' | 'gymWorkouts' | 'gymExercises',
+  change: SyncResponse['changes'][number],
+): void {
+  const snapshot = queryClient.getQueryData<Record<string, unknown>>(['trash']);
+  if (!snapshot || !Array.isArray(snapshot[key])) return;
+
+  if (!change.deleted) {
+    queryClient.setQueryData(['trash'], {
+      ...snapshot,
+      [key]: snapshot[key].filter((item) => !isEntity(item, change.entityId)),
+    });
+    return;
+  }
+
+  if (
+    !isRecord(change.data) ||
+    !change.data.deletedAt ||
+    !('title' in change.data || 'name' in change.data || 'amount' in change.data)
+  ) {
+    void queryClient.invalidateQueries({ queryKey: ['trash'], refetchType: 'active' });
+    return;
+  }
+  queryClient.setQueryData(['trash'], {
+    ...snapshot,
+    [key]: updateCollection(snapshot[key], change.entityId, change.data, false),
+  });
 }
 
 function applyGrowthAttributeMappingChange(queryClient: QueryClient, change: SyncResponse['changes'][number]): void {

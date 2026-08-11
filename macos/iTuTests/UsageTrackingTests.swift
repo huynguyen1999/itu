@@ -479,4 +479,46 @@ final class UsageTrackingTests: XCTestCase {
         XCTAssertEqual(deltas.first?.activeSeconds, 50)
         XCTAssertEqual(deltas.first?.engagedSeconds, 40)
     }
+
+    // 24. Legacy application rows are removed once without touching websites.
+    func testCleanupLegacyUsageRemovesRowsAndDependentWatermarks() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let store = OfflineStore(accountID: "legacy-cleanup-test", baseURL: directory)
+        let legacy = UsageSummary(localDate: "2026-08-08", bundleId: "app.legacy", displayName: "Legacy", timezone: "UTC", activeSeconds: 20)
+        let current = UsageSummary(localDate: "2026-08-09", bundleId: "app.current", displayName: "Current", timezone: "UTC", activeSeconds: 30, engagedSeconds: 25)
+        let website = WebsiteUsageSummary(localDate: "2026-08-09", browserBundleId: "com.browser", browserDisplayName: "Browser", hostname: "example.com", timezone: "UTC", activeSeconds: 12)
+        _ = try await store.upsertUsage(legacy)
+        _ = try await store.upsertUsage(current)
+        _ = try await store.markUsageUploaded([legacy, current])
+        _ = try await store.upsertWebsiteUsage(website)
+        _ = try await store.markWebsiteUsageUploaded([website])
+
+        _ = try await store.cleanupLegacyUsage()
+        let usage = await store.usageSummaries()
+        let pendingUsage = await store.usageSummariesToUpload()
+        let websites = await store.websiteUsageSummaries()
+        let pendingWebsites = await store.websiteUsageSummariesToUpload()
+        XCTAssertEqual(usage.map(\.id), [current.id])
+        XCTAssertTrue(pendingUsage.isEmpty)
+        XCTAssertEqual(websites.map(\.id), [website.id])
+        XCTAssertTrue(pendingWebsites.isEmpty)
+        _ = try await store.cleanupLegacyUsage()
+        let repeatCleanup = await store.usageSummaries()
+        XCTAssertEqual(repeatCleanup.count, 1)
+    }
+
+    func testStoppingUsageTrackingCancelsInFlightUploadGeneration() async {
+        let model = AppModel()
+        model.usageUploadGeneration = 7
+        model.usageUploadInFlight = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(10))
+            return true
+        }
+
+        model.stopUsageTracking()
+
+        XCTAssertNil(model.usageUploadInFlight)
+        XCTAssertEqual(model.usageUploadGeneration, 8)
+    }
 }

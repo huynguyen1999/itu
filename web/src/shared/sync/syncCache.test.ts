@@ -9,6 +9,63 @@ import {
 } from './syncCache';
 
 describe('applySyncChanges', () => {
+  it('normalizes a remotely-created workout exercise with an empty set list', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['gym', 'workout', 'workout-1'], { id: 'workout-1', exercises: [] });
+
+    applySyncChanges(queryClient, {
+      acknowledgedMutationIds: [],
+      cursor: '',
+      conflicts: [],
+      changes: [
+        {
+          entityType: 'workout-exercise',
+          entityId: 'entry-1',
+          deleted: false,
+          data: { id: 'entry-1', exerciseId: 'squat-1' },
+        },
+      ],
+    });
+
+    expect(queryClient.getQueryData(['gym', 'workout', 'workout-1'])).toEqual({
+      id: 'workout-1',
+      exercises: [{ id: 'entry-1', exerciseId: 'squat-1', sets: [] }],
+    });
+  });
+
+  it('removes restored Budget and Gym records from the cached Trash snapshot', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['trash'], {
+      decks: [],
+      cards: [],
+      cardImages: [],
+      tasks: [],
+      budgetTransactions: [{ id: 'transaction-1', amount: '1.00' }],
+      gymWorkouts: [{ id: 'workout-1', title: 'Workout' }],
+      journalEntries: [{ id: 'entry-1', title: 'Note' }],
+      gymExercises: [{ id: 'exercise-1', name: 'Squat' }],
+    });
+
+    applySyncChanges(queryClient, {
+      acknowledgedMutationIds: [],
+      cursor: '',
+      conflicts: [],
+      changes: [
+        { entityType: 'budgettransaction', entityId: 'transaction-1', deleted: false, data: { id: 'transaction-1' } },
+        { entityType: 'gymworkout', entityId: 'workout-1', deleted: false, data: { id: 'workout-1' } },
+        { entityType: 'journal', entityId: 'entry-1', deleted: false, data: { id: 'entry-1' } },
+        { entityType: 'exercisedefinition', entityId: 'exercise-1', deleted: false, data: { id: 'exercise-1' } },
+      ],
+    });
+
+    expect(queryClient.getQueryData(['trash'])).toMatchObject({
+      budgetTransactions: [],
+      gymWorkouts: [],
+      journalEntries: [],
+      gymExercises: [],
+    });
+  });
+
   it('projects an optimistic Journal tag into the Journal tags cache', () => {
     const queryClient = new QueryClient();
     const existing = [{ id: 'tag-1', name: 'work' }];
@@ -21,21 +78,23 @@ describe('applySyncChanges', () => {
       changes: [{ entityType: 'journal_tag', entityId: 'tag-2', deleted: false, data: { id: 'tag-2', name: 'study' } }],
     });
 
-    expect(queryClient.getQueryData(['journal-tags'])).toEqual([
-      existing[0],
-      { id: 'tag-2', name: 'study' },
-    ]);
+    expect(queryClient.getQueryData(['journal-tags'])).toEqual([existing[0], { id: 'tag-2', name: 'study' }]);
   });
 
   it('removes an optimistic Journal attachment from entry caches', () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(['journal-entries'], [
-      { id: 'entry-1', attachments: [{ id: 'attachment-1' }, { id: 'attachment-2' }] },
-    ]);
+    queryClient.setQueryData(
+      ['journal-entries'],
+      [{ id: 'entry-1', attachments: [{ id: 'attachment-1' }, { id: 'attachment-2' }] }],
+    );
 
     applySyncChanges(queryClient, {
-      acknowledgedMutationIds: [], cursor: '', conflicts: [],
-      changes: [{ entityType: 'journal_attachment', entityId: 'attachment-1', deleted: true, data: { id: 'attachment-1' } }],
+      acknowledgedMutationIds: [],
+      cursor: '',
+      conflicts: [],
+      changes: [
+        { entityType: 'journal_attachment', entityId: 'attachment-1', deleted: true, data: { id: 'attachment-1' } },
+      ],
     });
 
     expect(queryClient.getQueryData(['journal-entries'])).toEqual([
@@ -48,13 +107,17 @@ describe('applySyncChanges', () => {
     queryClient.setQueryData(['journal-entries'], [{ id: 'entry-1', title: 'Current', contentMarkdown: 'Current' }]);
 
     applySyncChanges(queryClient, {
-      acknowledgedMutationIds: [], cursor: '', conflicts: [],
-      changes: [{
-        entityType: 'journal_revision',
-        entityId: 'revision-1',
-        deleted: false,
-        data: { entryId: 'entry-1', title: 'Restored', contentMarkdown: 'Older body' },
-      }],
+      acknowledgedMutationIds: [],
+      cursor: '',
+      conflicts: [],
+      changes: [
+        {
+          entityType: 'journal_revision',
+          entityId: 'revision-1',
+          deleted: false,
+          data: { entryId: 'entry-1', title: 'Restored', contentMarkdown: 'Older body' },
+        },
+      ],
     });
 
     expect(queryClient.getQueryData(['journal-entries'])).toEqual([

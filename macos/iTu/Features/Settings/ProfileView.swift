@@ -20,17 +20,6 @@ struct ProfileView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header
-                VStack(alignment: .leading, spacing: 6) {
-                    iTuSectionLabel(title: "ACCOUNT", color: iTuTheme.teal)
-                    Text("User Profile")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(iTuTheme.ink)
-                    Text("Manage account settings, credentials, and data.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(iTuTheme.inkDim)
-                }
-
                 if let user = model.user {
                     // Profile Card
                     HStack(spacing: 20) {
@@ -166,6 +155,7 @@ struct ProfileView: View {
             .frame(maxWidth: 980)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .iTuPinnedHeader { headerBar }
         .background(iTuTheme.canvas)
         .onAppear {
             if let user = model.user {
@@ -228,6 +218,20 @@ struct ProfileView: View {
         } message: {
             Text("This permanently deletes your iTu account and study data. This action cannot be undone.")
         }
+    }
+
+    private var headerBar: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            iTuSectionLabel(title: "ACCOUNT", color: iTuTheme.teal)
+            Text("User Profile")
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundStyle(iTuTheme.ink)
+            Text("Manage account settings, credentials, and data.")
+                .font(.system(size: 13))
+                .foregroundStyle(iTuTheme.inkDim)
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 18)
     }
 
     private func exportAccountData() {

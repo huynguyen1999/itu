@@ -191,9 +191,13 @@ struct TrashSnapshotModel: Decodable, Sendable {
     var decks: [DeckModel]
     var cards: [CardModel]
     var tasks: [ProductivityTask]
+    var journalEntries: [JournalNoteModel]
+    var budgetTransactions: [BudgetTransactionModel]
+    var gymWorkouts: [WorkoutModel]
+    var gymExercises: [ExerciseModel]
 
     private enum CodingKeys: String, CodingKey {
-        case decks, cards, tasks
+        case decks, cards, tasks, journalEntries, budgetTransactions, gymWorkouts, gymExercises
     }
 
     init(from decoder: Decoder) throws {
@@ -201,6 +205,10 @@ struct TrashSnapshotModel: Decodable, Sendable {
         decks = try values.decodeIfPresent([DeckModel].self, forKey: .decks) ?? []
         cards = try values.decodeIfPresent([CardModel].self, forKey: .cards) ?? []
         tasks = try values.decodeIfPresent([ProductivityTask].self, forKey: .tasks) ?? []
+        journalEntries = try values.decodeIfPresent([JournalNoteModel].self, forKey: .journalEntries) ?? []
+        budgetTransactions = try values.decodeIfPresent([BudgetTransactionModel].self, forKey: .budgetTransactions) ?? []
+        gymWorkouts = try values.decodeIfPresent([WorkoutModel].self, forKey: .gymWorkouts) ?? []
+        gymExercises = try values.decodeIfPresent([ExerciseModel].self, forKey: .gymExercises) ?? []
     }
 }
 

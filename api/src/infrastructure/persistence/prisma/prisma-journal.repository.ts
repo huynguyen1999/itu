@@ -22,6 +22,7 @@ import {
 import { createUlid } from './ulid';
 import { Prisma } from '@prisma/client';
 import { formatDateOnly } from '@core/application/utils/calendar';
+import { recordSyncChange } from './prisma-sync-mutation.shared';
 
 export function mapEntryToModel(entry: any): JournalEntryModel {
   return {
@@ -37,6 +38,7 @@ export function mapEntryToModel(entry: any): JournalEntryModel {
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
     deletedAt: entry.deletedAt,
+    deletedByDeviceId: entry.deletedByDeviceId,
     weeklyReview: entry.weeklyReview
       ? {
           entryId: entry.weeklyReview.entryId,
@@ -78,7 +80,7 @@ export class PrismaJournalRepository implements IJournalRepository {
 
   async findById(userId: string, id: string): Promise<JournalEntryModel | null> {
     const raw = await this.prisma.journalEntry.findFirst({
-      where: { id, userId },
+      where: { id, userId, deletedAt: null },
       include: {
         weeklyReview: true,
         tags: { include: { tag: true } },
@@ -273,21 +275,57 @@ export class PrismaJournalRepository implements IJournalRepository {
     });
   }
 
-  async delete(userId: string, id: string): Promise<boolean> {
-    const res = await this.prisma.journalEntry.updateMany({
-      where: { id, userId, deletedAt: null },
-      data: { deletedAt: new Date() },
+  async softDelete(userId: string, id: string): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const res = await tx.journalEntry.updateMany({
+        where: { id, userId, deletedAt: null },
+        data: { deletedAt: new Date(), version: { increment: 1 } },
+      });
+      if (!res.count) return false;
+      await recordSyncChange(tx, userId, 'journalentry', id, 'DELETE', { id });
+      return true;
     });
-    return res.count > 0;
+  }
+
+  async delete(userId: string, id: string): Promise<boolean> {
+    return this.softDelete(userId, id);
   }
 
   async restore(userId: string, id: string): Promise<JournalEntryModel | null> {
-    const res = await this.prisma.journalEntry.updateMany({
-      where: { id, userId, deletedAt: { not: null } },
-      data: { deletedAt: null },
+    return this.prisma.$transaction(async (tx) => {
+      const res = await tx.journalEntry.updateMany({
+        where: { id, userId, deletedAt: { not: null } },
+        data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } },
+      });
+      if (!res.count) return null;
+      const restored = await tx.journalEntry.findUniqueOrThrow({ where: { id }, include: { weeklyReview: true, tags: { include: { tag: true } }, attachments: { where: { deletedAt: null } } } });
+      await recordSyncChange(tx, userId, 'journalentry', id, 'UPSERT', restored);
+      return mapEntryToModel(restored);
     });
-    if (res.count === 0) return null;
-    return this.findById(userId, id);
+  }
+
+  async hardDelete(userId: string, id: string): Promise<JournalAttachmentModel[] | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const entry = await tx.journalEntry.findFirst({
+        where: { id, userId, deletedAt: { not: null } },
+        include: { attachments: true },
+      });
+      if (!entry) return null;
+      const attachments = entry.attachments.map((attachment) => ({
+        id: attachment.id,
+        userId: attachment.userId,
+        entryId: attachment.entryId,
+        fileName: attachment.fileName,
+        mimeType: attachment.mimeType,
+        sizeBytes: attachment.sizeBytes,
+        storageKey: attachment.storageKey,
+        url: `/journal/attachments/${attachment.id}/file`,
+        createdAt: attachment.createdAt,
+        deletedAt: attachment.deletedAt,
+      }));
+      await tx.journalEntry.delete({ where: { id } });
+      return attachments;
+    });
   }
 
   async listRevisions(userId: string, entryId: string): Promise<JournalEntryRevisionModel[]> {

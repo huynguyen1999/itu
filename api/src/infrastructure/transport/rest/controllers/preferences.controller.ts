@@ -14,23 +14,55 @@ import {
 } from '@core/application/use-cases/preferences.service';
 import { AuthGuard } from '../guards/auth.guard';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { ApiOperation, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
+import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
+import {
+  MAX_EXCLUDED_BUNDLE_IDS,
+  MAX_EXCLUDED_BUNDLE_ID_LENGTH,
+} from '@core/application/use-cases/preferences.service';
 
-class UpdateUsagePreferencesDto implements Partial<UsagePreferences> {
+export class UpdateUsagePreferencesDto implements Partial<UsagePreferences> {
+  @ApiPropertyOptional({ description: 'Enable foreground application tracking' })
   @IsOptional()
   @IsBoolean()
   trackingEnabled?: boolean;
 
+  @ApiPropertyOptional({ description: 'Enable browser website tracking' })
   @IsOptional()
   @IsBoolean()
   websiteTrackingEnabled?: boolean;
 
+  @ApiPropertyOptional({ description: 'Number of days to retain usage summaries', type: 'integer', minimum: 7, maximum: 365 })
   @IsOptional()
   @IsInt()
   @Min(7)
   @Max(365)
   retentionDays?: number;
+
+  @ApiPropertyOptional({
+    description: 'Idle threshold in seconds before an app is no longer engaged',
+    type: 'integer',
+    minimum: 60,
+    maximum: 1800,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(60)
+  @Max(1800)
+  idleThresholdSeconds?: number;
+
+  @ApiPropertyOptional({
+    description: 'Bundle identifiers excluded from foreground usage tracking',
+    type: 'array',
+    maxItems: MAX_EXCLUDED_BUNDLE_IDS,
+    items: { type: 'string', minLength: 1, maxLength: MAX_EXCLUDED_BUNDLE_ID_LENGTH },
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_EXCLUDED_BUNDLE_IDS)
+  @IsString({ each: true })
+  @Length(1, MAX_EXCLUDED_BUNDLE_ID_LENGTH, { each: true })
+  excludedBundleIds?: string[];
 }
 
 @ApiTags('Preferences')

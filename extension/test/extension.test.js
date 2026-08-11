@@ -3,167 +3,157 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { addElapsed, normalizeApiBaseUrl, normalizeHostname, normalizeTrackedUrl, pruneTotals, stateForTab } from "../activity.js";
+import { createSession, mergeAdjacentSession, normalizeApiBaseUrl, normalizeTrackedUrl, projectAggregates, stateForTab } from "../activity.js";
 import { createController } from "../service-worker.js";
 
 const extensionDirectory = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
-test("keeps only eligible normalized hostnames", () => {
-  assert.equal(normalizeHostname("HTTPS://Docs.Swift.org:443/path?q=1#x"), "docs.swift.org");
-  assert.equal(normalizeHostname("file:///tmp/note"), null);
-  assert.deepEqual(normalizeTrackedUrl("https://user:secret@Example.com/path?q=1#section"), {
-    hostname: "example.com",
-    url: "https://example.com/path?q=1"
-  });
-  assert.deepEqual(stateForTab({ url: "https://example.com/private", incognito: true }), {
-    hostname: "example.com",
-    url: "https://example.com/private"
-  });
+test("normalizes credentials, query and fragments while retaining the path", () => {
+  assert.deepEqual(normalizeTrackedUrl("https://user:secret@Example.com/path?q=1#section"), { hostname: "example.com", url: "https://example.com/path" });
+  assert.equal(normalizeTrackedUrl("file:///tmp/note"), null);
+  assert.deepEqual(stateForTab({ url: "https://example.com/private", title: "Private", incognito: true }), { hostname: "example.com", url: "https://example.com/private", title: "Private", incognito: true });
 });
 
-test("accepts only HTTP(S) backend URLs", () => {
-  assert.equal(normalizeApiBaseUrl("https://api.example.com/"), "https://api.example.com");
-  assert.equal(normalizeApiBaseUrl("http://localhost:3000/api/"), "http://localhost:3000/api");
-  assert.equal(normalizeApiBaseUrl("file:///tmp/api"), "");
+test("creates stable sessions and merges only adjacent matching privacy/browser rows", () => {
+  const state = { hostname: "example.com", url: "https://example.com/path", title: "Page", incognito: false };
+  const first = createSession(state, 0, 4_000, "stable");
+  assert.equal(first.id, "stable");
+  const merged = mergeAdjacentSession(first, createSession({ ...state, title: "Updated" }, 4_000, 9_000, "other"));
+  assert.equal(merged.activeSeconds, 9);
+  assert.equal(merged.title, "Updated");
+  assert.equal(mergeAdjacentSession(createSession(state, 0, 60_000, "long"), createSession(state, 60_000, 120_000, "long-2")).activeSeconds, 120);
+  assert.equal(mergeAdjacentSession(first, createSession({ ...state, incognito: true }, 4_000, 9_000, "other")), null);
+  assert.equal(createSession(state, 0, 2_999, "short"), null);
 });
 
-test("aggregates elapsed active seconds and caps suspended time", () => {
-  const totals = {};
-  addElapsed(totals, { hostname: "example.com", url: "https://example.com/" }, 0, 31_000);
-  addElapsed(totals, { hostname: "example.com", url: "https://example.com/" }, 31_000, 151_000);
-  assert.equal(Object.values(totals)[0].activeSeconds, 91);
+test("projects daily URL and domain totals from raw sessions without retention pruning", () => {
+  const rows = [
+    createSession({ hostname: "example.com", url: "https://example.com/a", title: "A", incognito: false }, 0, 4_000, "a"),
+    createSession({ hostname: "example.com", url: "https://example.com/b", title: "B", incognito: false }, 4_000, 10_000, "b")
+  ];
+  const projection = projectAggregates(rows);
+  assert.equal(projection.urls.length, 2);
+  assert.equal(projection.domains[0].activeSeconds, 10);
+  assert.equal(projectAggregates([...rows, createSession({ hostname: "example.com", url: "https://example.com/a", title: "Private", incognito: true }, 10_000, 14_000, "private")]).urls.length, 3);
 });
 
-test("keeps failed website uploads in browser storage until retry", async () => {
-  let clock = Date.parse("2026-08-09T12:00:00Z");
-  const api = fakeApi({
-    websiteTrackingEnabled: true,
-    apiBaseUrl: "https://api.example.com",
-    dsnKey: `itu_dsn_${"a".repeat(43)}`,
-    installationId: "123e4567-e89b-42d3-a456-426614174000"
-  });
-  const controller = createController(api, { now: () => clock, fetch: async () => { throw new Error("offline"); } });
-  await controller.ready;
-  clock += 31_000;
-  await controller.reconcile();
-
-  assert.equal(api.state.totals[Object.keys(api.state.totals)[0]].url, "https://example.com/path");
-
-  const requests = [];
-  const restarted = createController(api, {
-    now: () => clock,
-    fetch: async (_url, init) => {
-      requests.push(JSON.parse(init.body));
-      return { ok: true, json: async () => ({ accepted: true }) };
-    }
-  });
-  await restarted.ready;
-  assert.equal(requests.at(-1).summaries[0].url, "https://example.com/path");
-  assert.equal(requests.at(-1).summaries[0].activeSeconds, 31);
-});
-
-test("prunes website summaries older than the local retention window", () => {
-  const now = Date.parse("2026-08-09T12:00:00Z");
-  const totals = {
-    old: { localDate: "2026-08-02" },
-    current: { localDate: "2026-08-03" }
-  };
-  pruneTotals(totals, now);
-  assert.deepEqual(Object.keys(totals), ["current"]);
-});
-
-test("keeps URL paths separate while retaining their hostname", () => {
-  const totals = {};
-  addElapsed(totals, stateForTab({ url: "https://example.com/one" }), 0, 10_000);
-  addElapsed(totals, stateForTab({ url: "https://example.com/two?q=1" }), 10_000, 30_000);
-  addElapsed(totals, stateForTab({ url: "https://docs.example.com/one" }), 30_000, 40_000);
-
-  const summaries = Object.values(totals).sort((left, right) => left.url.localeCompare(right.url));
-  assert.deepEqual(summaries.map(({ hostname, url, activeSeconds }) => ({ hostname, url, activeSeconds })), [
-    { hostname: "docs.example.com", url: "https://docs.example.com/one", activeSeconds: 10 },
-    { hostname: "example.com", url: "https://example.com/one", activeSeconds: 10 },
-    { hostname: "example.com", url: "https://example.com/two?q=1", activeSeconds: 20 }
-  ]);
-});
-
-function event() {
-  return { listeners: [], addListener(listener) { this.listeners.push(listener); } };
-}
-
+function event() { return { listeners: [], addListener(listener) { this.listeners.push(listener); } }; }
 function fakeApi(stored = {}) {
   const state = { ...stored };
   return {
     tabs: { onActivated: event(), onUpdated: event() },
-    windows: {
-      WINDOW_ID_NONE: -1,
-      onFocusChanged: event(),
-      getLastFocused: async () => ({ focused: true, tabs: [{ active: true, url: "https://example.com/path" }] })
-    },
-    alarms: { onAlarm: event(), create: async () => {} },
-    runtime: { onMessage: event(), sendMessage: async () => {} },
-    storage: {
-      local: {
-        get: async (defaults) => ({ ...defaults, ...state }),
-        set: async (changes) => Object.assign(state, changes)
-      }
-    },
-    state
+    windows: { onFocusChanged: event(), getLastFocused: async () => ({ focused: true, tabs: [{ active: true, url: "https://example.com/path?q=1", title: "Page", incognito: true }] }) },
+    alarms: { onAlarm: event(), create: async () => {} }, runtime: { onMessage: event(), sendMessage: async () => {} },
+    storage: { local: { get: async (defaults) => ({ ...defaults, ...state }), set: async (changes) => Object.assign(state, changes) } }, state
   };
 }
 
-test("uploads cumulative summaries directly with DSN authentication", async () => {
-  let clock = 1_700_000_000_000;
-  const api = fakeApi({
-    websiteTrackingEnabled: true,
-    apiBaseUrl: "https://api.example.com",
-    dsnKey: `itu_dsn_${"a".repeat(43)}`,
-    installationId: "123e4567-e89b-42d3-a456-426614174000"
-  });
-  const requests = [];
-  const controller = createController(api, {
-    now: () => clock,
-    fetch: async (url, init) => {
-      requests.push({ url, init });
-      return { ok: true, json: async () => ({ accepted: true, replaced: 1 }) };
-    }
-  });
-  await controller.ready;
-  clock += 31_000;
-  await controller.reconcile();
-
-  const request = requests.at(-1);
-  const body = JSON.parse(request.init.body);
-  assert.equal(request.url, "https://api.example.com/usage/websites/ingest");
-  assert.equal(request.init.headers.Authorization, `DSN itu_dsn_${"a".repeat(43)}`);
-  assert.equal(body.installationId, "123e4567-e89b-42d3-a456-426614174000");
-  assert.equal(body.summaries[0].hostname, "example.com");
-  assert.equal(body.summaries[0].url, "https://example.com/path");
-  assert.equal(body.summaries[0].activeSeconds, 31);
-  assert.equal(controller.getStatus().status, "connected");
-});
-
-test("exposes persisted summaries to the popup after initialization", async () => {
-  const api = fakeApi({
-    websiteTrackingEnabled: true,
-    apiBaseUrl: "https://api.example.com",
-    dsnKey: `itu_dsn_${"a".repeat(43)}`,
-    installationId: "123e4567-e89b-42d3-a456-426614174000"
-  });
-  const controller = createController(api, {
-    fetch: async () => ({ ok: true, json: async () => ({ accepted: true }) })
-  });
+test("migrates legacy aggregates without fabricating upload sessions", async () => {
+  const api = fakeApi({ totals: { old: { localDate: "2026-08-01", hostname: "old.example", url: "https://old.example/path", activeSeconds: 12 } } });
+  const controller = createController(api, { now: () => Date.parse("2026-08-09T12:00:00Z"), fetch: async () => ({ ok: true, json: async () => ({ accepted: [] }) }) });
   await controller.ready;
   const listener = api.runtime.onMessage.listeners.at(-1);
-  let summaries;
-  assert.equal(listener({ type: "getUsage" }, {}, (value) => { summaries = value; }), true);
-  await Promise.resolve();
-  assert.deepEqual(summaries, Object.values(controller.getTotals()));
+  const usage = await new Promise((resolve) => listener({ type: "getUsage" }, {}, resolve));
+  const sessions = await new Promise((resolve) => listener({ type: "getSessions" }, {}, resolve));
+  assert.equal(usage.find((row) => row.hostname === "old.example").activeSeconds, 12);
+  assert.equal(sessions.length, 0);
+  assert.equal(api.state.migrationVersion, 2);
+  assert.equal("totals" in api.state, false);
 });
 
-test("packaged manifest drops native messaging and requests backend access only when configured", async () => {
+test("uploads at most session batches and keeps rejected records failed", async () => {
+  let clock = Date.parse("2026-08-09T12:00:00Z");
+  const api = fakeApi({ websiteTrackingEnabled: true, apiBaseUrl: "https://api.example.com", dsnKey: "dsn", installationId: "123e4567-e89b-42d3-a456-426614174000" });
+  const requests = [];
+  const controller = createController(api, { now: () => clock, fetch: async (url, init) => { requests.push([url, JSON.parse(init.body)]); return { ok: true, json: async () => ({ accepted: [], rejected: [{ id: JSON.parse(init.body).sessions[0].id, reason: "invalid" }] }) }; } });
+  await controller.ready; clock += 5_000; await controller.reconcile();
+  assert.equal(requests.at(-1)[0], "https://api.example.com/usage/websites/sessions/ingest");
+  assert.equal(requests.at(-1)[1].installationId, "123e4567-e89b-42d3-a456-426614174000");
+  assert.equal(requests.at(-1)[1].sessions[0].isPrivate, true);
+  const firstSessionId = requests.at(-1)[1].sessions[0].id;
+  const outbox = await new Promise((resolve) => api.runtime.onMessage.listeners.at(-1)({ type: "getOutbox" }, {}, resolve));
+  assert.equal(firstSessionId, outbox[0].sessionId);
+  assert.equal(outbox[0].state, "FAILED");
+  assert.equal(outbox[0].retryable, false);
+  await new Promise((resolve) => api.runtime.onMessage.listeners.at(-1)({ type: "getUsage" }, {}, resolve));
+  const afterWake = await new Promise((resolve) => api.runtime.onMessage.listeners.at(-1)({ type: "getOutbox" }, {}, resolve));
+  assert.equal(afterWake[0].state, "FAILED");
+});
+
+test("settlement updates URL/domain projections incrementally without drift", async () => {
+  let clock = Date.parse("2026-08-09T12:00:00Z");
+  const api = fakeApi({ websiteTrackingEnabled: true, apiBaseUrl: "https://api.example.com", dsnKey: "dsn", installationId: "123e4567-e89b-42d3-a456-426614174000" });
+  const controller = createController(api, { now: () => clock, fetch: async () => ({ ok: true, json: async () => ({ accepted: [] }) }) });
+  await controller.ready; clock += 5_000; await controller.reconcile(false); clock += 5_000; await controller.reconcile(false);
+  const usage = Object.values(controller.getTotals());
+  assert.equal(usage.length, 1);
+  assert.equal(usage[0].activeSeconds, 10);
+});
+
+test("clear removes selected activity but reset also removes connection settings", async () => {
+  let clock = Date.parse("2026-08-09T12:00:00Z");
+  const api = fakeApi({ websiteTrackingEnabled: true, apiBaseUrl: "https://api.example.com", dsnKey: "dsn", installationId: "123e4567-e89b-42d3-a456-426614174000" });
+  const controller = createController(api, { now: () => clock, fetch: async () => ({ ok: true, json: async () => ({ accepted: [] }) }) });
+  await controller.ready; clock += 5_000; await controller.reconcile();
+  const listener = api.runtime.onMessage.listeners.at(-1);
+  await new Promise((resolve) => listener({ type: "clearUsage", from: "2026-08-09", to: "2026-08-09" }, {}, resolve));
+  assert.equal(api.state.apiBaseUrl, "https://api.example.com");
+  assert.equal((await new Promise((resolve) => listener({ type: "getOutbox" }, {}, resolve))).length, 0);
+  await new Promise((resolve) => listener({ type: "resetUsage" }, {}, resolve));
+  assert.equal(api.state.apiBaseUrl, "http://localhost:3000");
+  assert.equal(api.state.dsnKey, "");
+  assert.equal(api.state.websiteTrackingEnabled, false);
+  assert.notEqual(api.state.installationId, "123e4567-e89b-42d3-a456-426614174000");
+});
+
+test("failed retry waits for the manual connectivity signal", async () => {
+  let clock = Date.parse("2026-08-09T12:00:00Z"); let calls = 0;
+  const api = fakeApi({ websiteTrackingEnabled: true, apiBaseUrl: "https://api.example.com", dsnKey: "dsn", installationId: "123e4567-e89b-42d3-a456-426614174000" });
+  const controller = createController(api, { now: () => clock, fetch: async () => { calls += 1; throw new Error("offline"); } });
+  await controller.ready; clock += 5_000; await controller.reconcile();
+  await controller.upload(); assert.equal(calls, 1);
+  const listener = api.runtime.onMessage.listeners.at(-1);
+  await new Promise((resolve) => listener({ type: "retrySync" }, {}, resolve));
+  assert.equal(calls, 2);
+});
+
+test("a connectivity signal on popup wake requeues FAILED records once", async () => {
+  let clock = Date.parse("2026-08-09T12:00:00Z"); let calls = 0;
+  const api = fakeApi({ websiteTrackingEnabled: true, apiBaseUrl: "https://api.example.com", dsnKey: "dsn", installationId: "123e4567-e89b-42d3-a456-426614174000" });
+  const controller = createController(api, { now: () => clock, fetch: async () => { calls += 1; throw new Error("offline"); } });
+  await controller.ready; clock += 5_000; await controller.reconcile();
+  for (let attempt = 0; attempt < 3; attempt += 1) { clock += 10_000; await controller.upload(); }
+  assert.equal(calls, 4);
+  const listener = api.runtime.onMessage.listeners.at(-1);
+  await new Promise((resolve) => listener({ type: "getUsage" }, {}, resolve));
+  assert.equal(calls, 5);
+});
+
+test("caps automatic retries at the initial attempt plus three retries", async () => {
+  let clock = Date.parse("2026-08-09T12:00:00Z");
+  let calls = 0;
+  const api = fakeApi({ websiteTrackingEnabled: true, apiBaseUrl: "https://api.example.com", dsnKey: "dsn", installationId: "123e4567-e89b-42d3-a456-426614174000" });
+  const controller = createController(api, { now: () => clock, fetch: async () => { calls += 1; throw new Error("offline"); } });
+  await controller.ready;
+  clock += 5_000;
+  await controller.reconcile();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    clock += 10_000;
+    await controller.upload();
+  }
+  assert.equal(calls, 4);
+  const outbox = await new Promise((resolve) => api.runtime.onMessage.listeners.at(-1)({ type: "getOutbox" }, {}, resolve));
+  assert.equal(outbox[0].state, "FAILED");
+  clock += 10_000;
+  await controller.upload();
+  assert.equal(calls, 4);
+  await controller.reconcile();
+  assert.equal(calls, 4);
+});
+
+test("manifest requests unlimited local storage and no native messaging", async () => {
   const manifest = JSON.parse(await fs.readFile(path.join(extensionDirectory, "manifest.json"), "utf8"));
-  assert.deepEqual(manifest.permissions, ["tabs", "storage", "alarms"]);
-  assert.deepEqual(manifest.optional_host_permissions, ["http://*/*", "https://*/*"]);
-  assert.equal(manifest.incognito, "spanning");
+  assert.equal(manifest.permissions.includes("unlimitedStorage"), true);
   assert.equal(manifest.permissions.includes("nativeMessaging"), false);
+  assert.equal(manifest.incognito, "spanning");
 });

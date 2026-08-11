@@ -2,12 +2,102 @@ import { Injectable } from '@nestjs/common';
 import { CardStatus } from '@core/domain/enums';
 import { ITrashRepository } from '@core/application/ports/out/repositories.port';
 import { Prisma } from '@prisma/client';
+import { InvalidTrashOperationException } from '@core/domain/exceptions';
 import { PrismaService } from './prisma.service';
 import { mapCard, mapCardImage, mapDeck } from './prisma.mappers';
 import { createUlid } from './ulid';
+import { mapEntryToModel } from './prisma-journal.repository';
+import { recordSyncChange } from './prisma-sync-mutation.shared';
 
 const RECOVERED_CARDS_DECK_TITLE = 'Recovered Cards';
 const RECOVERED_CARDS_DECK_DESCRIPTION = 'Cards preserved after their original deck was permanently deleted.';
+
+function mapBudgetTransaction(transaction: any) {
+  return {
+    id: transaction.id,
+    userId: transaction.userId,
+    type: transaction.type,
+    amount: new Prisma.Decimal(transaction.amount).toFixed(2),
+    currency: transaction.currency,
+    category: transaction.categoryRel?.name || 'OTHER',
+    categoryId: transaction.categoryId,
+    merchant: transaction.merchant,
+    paymentMethod: transaction.paymentMethod,
+    transactionAt: transaction.transactionAt,
+    note: transaction.note,
+    version: transaction.version,
+    createdAt: transaction.createdAt,
+    updatedAt: transaction.updatedAt,
+    deletedAt: transaction.deletedAt,
+    deletedByDeviceId: transaction.deletedByDeviceId,
+  };
+}
+
+function mapExercise(exercise: any) {
+  return {
+    id: exercise.id,
+    userId: exercise.userId,
+    name: exercise.name,
+    normalizedName: exercise.normalizedName,
+    description: exercise.description,
+    imageStorageKey: exercise.imageStorageKey,
+    imageUrl: exercise.imageUrl,
+    metricType: exercise.metricType,
+    equipment: exercise.equipment,
+    primaryMuscleGroup: exercise.primaryMuscleGroup,
+    secondaryMuscleGroups: exercise.secondaryMuscleGroups || [],
+    defaultWeightUnit: exercise.defaultWeightUnit,
+    defaultRestSeconds: exercise.defaultRestSeconds,
+    archivedAt: exercise.archivedAt,
+    deletedAt: exercise.deletedAt,
+    deletedByDeviceId: exercise.deletedByDeviceId,
+    createdAt: exercise.createdAt,
+    updatedAt: exercise.updatedAt,
+    version: exercise.version,
+  };
+}
+
+function mapWorkout(workout: any) {
+  return {
+    id: workout.id,
+    userId: workout.userId,
+    title: workout.title || 'Workout',
+    status: workout.status,
+    startedAt: workout.startedAt || workout.createdAt,
+    endedAt: workout.endedAt,
+    durationMinutes: workout.durationMinutes,
+    createdAt: workout.createdAt,
+    updatedAt: workout.updatedAt,
+    version: workout.version,
+    deletedAt: workout.deletedAt,
+    deletedByDeviceId: workout.deletedByDeviceId,
+    exercises: (workout.exercises || []).map((exercise: any) => ({
+      id: exercise.id,
+      workoutId: exercise.workoutId,
+      workoutEntryId: exercise.workoutId,
+      exerciseId: exercise.exerciseId,
+      exerciseName: exercise.exerciseName,
+      metricType: exercise.metricType,
+      weightUnit: exercise.weightUnit,
+      sortOrder: exercise.sortOrder,
+      note: exercise.note,
+      restSeconds: exercise.restSeconds,
+      exercise: exercise.exercise ? mapExercise(exercise.exercise) : undefined,
+      sets: (exercise.sets || []).map((set: any) => ({
+        id: set.id,
+        workoutExerciseId: set.workoutExerciseId,
+        sortOrder: set.sortOrder,
+        type: set.type,
+        reps: set.reps,
+        weight: set.weight == null ? null : Number(set.weight),
+        durationSeconds: set.durationSeconds,
+        distanceMeters: set.distanceMeters,
+        rpe: set.rpe == null ? null : Number(set.rpe),
+        completedAt: set.completedAt,
+      })),
+    })),
+  };
+}
 
 async function findOrCreateRecoveredCardsDeck(tx: Prisma.TransactionClient, userId: string): Promise<{ id: string }> {
   const existing = await tx.deck.findFirst({
@@ -32,7 +122,7 @@ export class PrismaTrashRepository implements ITrashRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(userId: string) {
-    const [decks, cards, cardImages, tasks] = await Promise.all([
+    const [decks, cards, cardImages, tasks, journalEntries, budgetTransactions, gymWorkouts, gymExercises] = await Promise.all([
       this.prisma.deck.findMany({
         where: { userId, archived: true },
         orderBy: { updatedAt: 'desc' },
@@ -50,12 +140,35 @@ export class PrismaTrashRepository implements ITrashRepository {
         where: { userId, deletedAt: { not: null } },
         orderBy: { deletedAt: 'desc' },
       }),
+      this.prisma.journalEntry.findMany({
+        where: { userId, deletedAt: { not: null } },
+        include: { weeklyReview: true, tags: { include: { tag: true } }, attachments: true },
+        orderBy: { deletedAt: 'desc' },
+      }),
+      this.prisma.budgetTransaction.findMany({
+        where: { userId, deletedAt: { not: null } },
+        include: { categoryRel: true },
+        orderBy: { deletedAt: 'desc' },
+      }),
+      this.prisma.gymWorkout.findMany({
+        where: { userId, deletedAt: { not: null } },
+        include: { exercises: { include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } } },
+        orderBy: { deletedAt: 'desc' },
+      }),
+      this.prisma.exerciseDefinition.findMany({
+        where: { userId, deletedAt: { not: null } },
+        orderBy: { deletedAt: 'desc' },
+      }),
     ]);
     return {
       decks: decks.map(mapDeck),
       cards: cards.map(mapCard),
       cardImages: cardImages.map(mapCardImage),
       tasks,
+      journalEntries: journalEntries.map(mapEntryToModel),
+      budgetTransactions: budgetTransactions.map(mapBudgetTransaction),
+      gymWorkouts: gymWorkouts.map(mapWorkout),
+      gymExercises: gymExercises.map(mapExercise),
     };
   }
 
@@ -129,6 +242,76 @@ export class PrismaTrashRepository implements ITrashRepository {
     if (!task) return false;
     await this.prisma.task.update({ where: { id: taskId }, data: { deletedAt: null } });
     return true;
+  }
+
+  async restoreJournalEntry(userId: string, entryId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.journalEntry.updateMany({ where: { id: entryId, userId, deletedAt: { not: null } }, data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } } });
+      if (!updated.count) return null;
+      const restored = await tx.journalEntry.findUniqueOrThrow({ where: { id: entryId }, include: { weeklyReview: true, tags: { include: { tag: true } }, attachments: { where: { deletedAt: null } } } });
+      await recordSyncChange(tx, userId, 'journalentry', entryId, 'UPSERT', restored);
+      return mapEntryToModel(restored);
+    });
+  }
+
+  async restoreBudgetTransaction(userId: string, transactionId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.budgetTransaction.updateMany({ where: { id: transactionId, userId, deletedAt: { not: null } }, data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } } });
+      if (!updated.count) return null;
+      const restored = await tx.budgetTransaction.findUniqueOrThrow({ where: { id: transactionId }, include: { categoryRel: true } });
+      await recordSyncChange(tx, userId, 'budgettransaction', transactionId, 'UPSERT', restored);
+      return mapBudgetTransaction(restored);
+    });
+  }
+
+  async restoreGymWorkout(userId: string, workoutId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.gymWorkout.updateMany({ where: { id: workoutId, userId, deletedAt: { not: null } }, data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } } });
+      if (!updated.count) return null;
+      const restored = await tx.gymWorkout.findUniqueOrThrow({ where: { id: workoutId }, include: { exercises: { include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } } } });
+      await recordSyncChange(tx, userId, 'gymworkout', workoutId, 'UPSERT', restored);
+      return mapWorkout(restored);
+    });
+  }
+
+  async restoreGymExercise(userId: string, exerciseId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.exerciseDefinition.updateMany({ where: { id: exerciseId, userId, deletedAt: { not: null } }, data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } } });
+      if (!updated.count) return null;
+      const restored = await tx.exerciseDefinition.findUniqueOrThrow({ where: { id: exerciseId } });
+      await recordSyncChange(tx, userId, 'exercisedefinition', exerciseId, 'UPSERT', restored);
+      return mapExercise(restored);
+    });
+  }
+
+  async deleteJournalEntry(userId: string, entryId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const entry = await tx.journalEntry.findFirst({ where: { id: entryId, userId, deletedAt: { not: null } }, include: { attachments: true } });
+      if (!entry) return null;
+      await tx.journalEntry.delete({ where: { id: entryId } });
+      return entry.attachments.map((attachment) => ({ ...attachment, url: `/journal/attachments/${attachment.id}/file` }));
+    });
+  }
+
+  async deleteBudgetTransaction(userId: string, transactionId: string): Promise<boolean> {
+    const deleted = await this.prisma.budgetTransaction.deleteMany({ where: { id: transactionId, userId, deletedAt: { not: null } } });
+    return deleted.count > 0;
+  }
+
+  async deleteGymWorkout(userId: string, workoutId: string): Promise<boolean> {
+    const deleted = await this.prisma.gymWorkout.deleteMany({ where: { id: workoutId, userId, deletedAt: { not: null } } });
+    return deleted.count > 0;
+  }
+
+  async deleteGymExercise(userId: string, exerciseId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const exercise = await tx.exerciseDefinition.findFirst({ where: { id: exerciseId, userId, deletedAt: { not: null } } });
+      if (!exercise) return null;
+      const references = await tx.gymWorkoutExercise.count({ where: { exerciseId } });
+      if (references > 0) throw new InvalidTrashOperationException('Exercise definition is referenced by a workout');
+      await tx.exerciseDefinition.delete({ where: { id: exerciseId } });
+      return exercise;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   async deleteTask(userId: string, taskId: string): Promise<boolean> {

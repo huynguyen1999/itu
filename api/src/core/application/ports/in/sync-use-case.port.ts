@@ -7,6 +7,8 @@ export interface SyncMutation {
   payload: Record<string, unknown>;
   occurredAt: string;
   fieldEditedAt?: Record<string, string>;
+  /** Set by the server while applying a mutation; never accepted from transport. */
+  serverDeviceId?: string;
 }
 
 export interface SyncMergeOutcome {

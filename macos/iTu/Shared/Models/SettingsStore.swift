@@ -280,6 +280,67 @@ struct MatrixSettings: Codable, Equatable {
     var sortOption: MatrixSortOption = .manual
 }
 
+enum StatisticsChartDensity: String, Codable, CaseIterable, Identifiable {
+    case compact
+    case comfortable
+    case spacious
+
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+}
+
+struct StatisticsDisplaySettings: Codable, Equatable {
+    var defaultRange = "30 Days"
+    var showAppUsage = true
+    var showWebsiteUsage = true
+    var showEngagement = true
+    var topAppsCount = 5
+    var websiteSliceCount = 7
+    var chartDensity: StatisticsChartDensity = .comfortable
+
+    var clamped: StatisticsDisplaySettings {
+        var copy = self
+        copy.topAppsCount = min(10, max(1, topAppsCount))
+        copy.websiteSliceCount = min(10, max(1, websiteSliceCount))
+        return copy
+    }
+
+    init(
+        defaultRange: String = "30 Days",
+        showAppUsage: Bool = true,
+        showWebsiteUsage: Bool = true,
+        showEngagement: Bool = true,
+        topAppsCount: Int = 5,
+        websiteSliceCount: Int = 7,
+        chartDensity: StatisticsChartDensity = .comfortable
+    ) {
+        self.defaultRange = ["Today", "7 Days", "30 Days", "90 Days", "365 Days"].contains(defaultRange) ? defaultRange : "30 Days"
+        self.showAppUsage = showAppUsage
+        self.showWebsiteUsage = showWebsiteUsage
+        self.showEngagement = showEngagement
+        self.topAppsCount = min(10, max(1, topAppsCount))
+        self.websiteSliceCount = min(10, max(1, websiteSliceCount))
+        self.chartDensity = chartDensity
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            defaultRange: try values.decodeIfPresent(String.self, forKey: .defaultRange) ?? "30 Days",
+            showAppUsage: try values.decodeIfPresent(Bool.self, forKey: .showAppUsage) ?? true,
+            showWebsiteUsage: try values.decodeIfPresent(Bool.self, forKey: .showWebsiteUsage) ?? true,
+            showEngagement: try values.decodeIfPresent(Bool.self, forKey: .showEngagement) ?? true,
+            topAppsCount: try values.decodeIfPresent(Int.self, forKey: .topAppsCount) ?? 5,
+            websiteSliceCount: try values.decodeIfPresent(Int.self, forKey: .websiteSliceCount) ?? 7,
+            chartDensity: try values.decodeIfPresent(StatisticsChartDensity.self, forKey: .chartDensity) ?? .comfortable
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case defaultRange, showAppUsage, showWebsiteUsage, showEngagement, topAppsCount, websiteSliceCount, chartDensity
+    }
+}
+
 @MainActor
 @Observable
 final class SettingsStore {
@@ -333,6 +394,9 @@ final class SettingsStore {
     var matrixSettings: MatrixSettings {
         didSet { save() }
     }
+    var statisticsDisplaySettings: StatisticsDisplaySettings {
+        didSet { save() }
+    }
     var accountBaseXp: Int {
         didSet { save() }
     }
@@ -356,6 +420,23 @@ final class SettingsStore {
 
     @ObservationIgnored
     var onUsagePreferencesChanged: ((UsagePreferences) -> Void)?
+
+    func mergeUsagePreferencesFromServer(_ server: UsagePreferences) {
+        let pause = usagePreferences.paused
+        let launchAtLogin = usagePreferences.launchAtLogin
+        let callback = onUsagePreferencesChanged
+        onUsagePreferencesChanged = nil
+        usagePreferences = UsagePreferences(
+            enabled: server.enabled,
+            websiteTrackingEnabled: server.websiteTrackingEnabled,
+            retentionDays: server.retentionDays,
+            idleThresholdSeconds: server.idleThresholdSeconds,
+            excludedBundleIds: server.excludedBundleIds,
+            launchAtLogin: launchAtLogin,
+            paused: pause
+        )
+        onUsagePreferencesChanged = callback
+    }
 
     public var journalDefaultEditorMode: String {
         get { UserDefaults.standard.string(forKey: "itu_journal_default_editor_mode") ?? "LIVE" }
@@ -427,6 +508,7 @@ final class SettingsStore {
             self.taskDefaults = saved.taskDefaults
             self.focusSettings = saved.focusSettings
             self.matrixSettings = saved.matrixSettings
+            self.statisticsDisplaySettings = saved.statisticsDisplaySettings ?? StatisticsDisplaySettings()
             self.accountBaseXp = saved.accountBaseXp
             self.showCompanionShortcut = saved.showCompanionShortcut ?? true
             self.companionKeepAbove = saved.companionKeepAbove ?? true
@@ -437,6 +519,7 @@ final class SettingsStore {
             self.taskDefaults = TaskDefaultsSettings()
             self.focusSettings = FocusSettings()
             self.matrixSettings = MatrixSettings()
+            self.statisticsDisplaySettings = StatisticsDisplaySettings()
             self.accountBaseXp = 0
             self.showCompanionShortcut = true
             self.companionKeepAbove = true
@@ -460,6 +543,7 @@ final class SettingsStore {
             taskDefaults: taskDefaults,
             focusSettings: focusSettings,
             matrixSettings: matrixSettings,
+            statisticsDisplaySettings: statisticsDisplaySettings,
             accountBaseXp: accountBaseXp,
             showCompanionShortcut: showCompanionShortcut,
             companionKeepAbove: companionKeepAbove,
@@ -476,6 +560,7 @@ final class SettingsStore {
         let taskDefaults: TaskDefaultsSettings
         let focusSettings: FocusSettings
         let matrixSettings: MatrixSettings
+        let statisticsDisplaySettings: StatisticsDisplaySettings?
         let accountBaseXp: Int
         let showCompanionShortcut: Bool?
         let companionKeepAbove: Bool?

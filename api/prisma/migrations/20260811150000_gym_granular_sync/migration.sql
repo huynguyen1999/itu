@@ -1,0 +1,21 @@
+-- Additive Gym sync metadata and the canonical WARM_UP set type.
+ALTER TYPE "WorkoutSetType" ADD VALUE IF NOT EXISTS 'WARM_UP';
+
+ALTER TABLE "GymWorkoutExercise"
+  ADD COLUMN IF NOT EXISTS "version" INTEGER NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "deletedByDeviceId" TEXT;
+
+ALTER TABLE "GymWorkoutSet"
+  ADD COLUMN IF NOT EXISTS "version" INTEGER NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "deletedByDeviceId" TEXT;
+
+CREATE INDEX IF NOT EXISTS "GymWorkoutExercise_workoutId_deletedAt_idx"
+  ON "GymWorkoutExercise"("workoutId", "deletedAt");
+CREATE INDEX IF NOT EXISTS "GymWorkoutSet_workoutExerciseId_deletedAt_idx"
+  ON "GymWorkoutSet"("workoutExerciseId", "deletedAt");

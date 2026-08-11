@@ -69,7 +69,7 @@ export class JournalService {
   }
 
   async softDeleteEntry(userId: string, id: string): Promise<void> {
-    const deleted = await this.journalRepository.softDelete(userId, id);
+    const deleted = await (this.journalRepository.softDelete ?? this.journalRepository.delete)(userId, id);
     if (!deleted) throw new NotFoundException('Journal entry not found');
   }
 

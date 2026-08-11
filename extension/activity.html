@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>iTu Activity History</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="activity-page">
+      <header class="topbar"><div class="brand-mark" aria-hidden="true">i</div><div><p class="eyebrow">Browser Activity</p><h1>Activity history</h1></div><p id="sync-status" class="status-pill">Local</p></header>
+      <section class="usage-card" aria-labelledby="range-heading">
+        <div class="section-heading"><div><p class="eyebrow">Usage history</p><h2 id="range-heading">Your browsing pattern</h2></div><div class="history-actions"><button id="clear-range" type="button">Clear range</button><button id="clear-all" type="button">Clear all</button><button id="reset-all" type="button">Reset all</button></div></div>
+        <div class="filters">
+          <label>Range<select id="range"><option value="today">Today</option><option value="7d">7D</option><option value="30d">30D</option><option value="90d">90D</option><option value="1y">1Y</option><option value="custom">Custom</option></select></label>
+          <label>Search<input id="search" type="search" placeholder="Title, domain, or URL"></label>
+          <label>Privacy<select id="private"><option value="all">All</option><option value="normal">Normal</option><option value="private">Private</option></select></label>
+          <label>Sync<select id="sync"><option value="all">All</option><option value="pending">Pending</option><option value="failed">Failed</option><option value="blocked">Blocked</option></select></label>
+          <label id="from-wrap" hidden>From<input id="from" type="date"></label><label id="to-wrap" hidden>To<input id="to" type="date"></label>
+        </div>
+        <p id="summary" class="usage-subtitle"></p><p id="sync-diagnostic" class="detail-summary"></p>
+        <div id="trend" class="trend" aria-label="Daily activity trend"></div><div id="domain-donut" class="pie-chart" role="img" aria-label="Domain composition"><div class="pie-center"><strong>Domains</strong></div></div>
+        <div class="history-grid"><section><h3>Domains</h3><ul id="domains" class="domain-list"></ul></section><section><h3>Sessions</h3><ul id="sessions" class="detail-list"></ul></section></div>
+      </section>
+      <p id="data-management" class="privacy">Local data: estimating…</p>
+      <p class="privacy">Raw activity remains in this browser until you clear it. “Clear range” preserves connection settings; “Reset all” removes local history and connection settings. Remote history is not deleted by either action.</p>
+    </main>
+    <script type="module" src="activity-page.js"></script>
+  </body>
+</html>

@@ -14,5 +14,11 @@ struct GymRestTimer: Equatable, Sendable {
         duration = TimeInterval(max(0, seconds)); startedAt = Date()
     }
 
+    mutating func adjust(by seconds: Int) {
+        guard startedAt != nil else { return }
+        duration = max(0, duration + TimeInterval(seconds))
+        if remaining <= 0 { stop() }
+    }
+
     mutating func stop() { startedAt = nil; duration = 0 }
 }

@@ -632,6 +632,42 @@ describe('sync retry policy', () => {
   });
 });
 
+describe('gym set coalescing', () => {
+  const setCreate: ClientSyncMutation = {
+    id: 'set-create',
+    kind: 'workout-set.create',
+    entityId: 'set-1',
+    payload: { workoutExerciseId: 'entry-1', sortOrder: 0, type: 'NORMAL' },
+    occurredAt: '2026-07-25T00:00:00.000Z',
+  };
+
+  it('folds ordinary field edits into an unsent set create', () => {
+    const result = coalesceMutation([setCreate], {
+      ...setCreate,
+      id: 'set-update',
+      kind: 'workout-set.update',
+      payload: { weight: 80, reps: 5 },
+      baseValues: { weight: null, reps: null },
+      fieldEditedAt: { weight: '2026-07-25T00:00:01.000Z', reps: '2026-07-25T00:00:01.000Z' },
+    });
+
+    expect(result.replacedId).toBe('set-create');
+    expect(result.mutation.kind).toBe('workout-set.create');
+    expect(result.mutation.payload).toMatchObject({ type: 'NORMAL', weight: 80, reps: 5 });
+  });
+
+  it('keeps semantic completion transitions separate from set creation', () => {
+    const result = coalesceMutation([setCreate], {
+      ...setCreate,
+      id: 'set-complete',
+      kind: 'workout-set.complete',
+      payload: { completedAt: '2026-07-25T00:00:01.000Z' },
+    });
+
+    expect(result).toEqual({ mutation: expect.objectContaining({ id: 'set-complete', kind: 'workout-set.complete' }) });
+  });
+});
+
 describe('sync conflict policy', () => {
   it('automatically rebases routine task status conflicts', () => {
     expect(

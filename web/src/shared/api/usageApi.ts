@@ -6,19 +6,45 @@ export interface UsageSummariesRange {
   to?: string;
 }
 
+export interface WebsiteUrlDetail {
+  url: string;
+  hostname: string;
+  activeSeconds: number;
+  latestTitle: string | null;
+  isPrivate: boolean;
+}
+
+export interface WebsiteActivitySession {
+  id: string;
+  installationId: string;
+  browserBundleId: string;
+  browserDisplayName: string;
+  startedAt: string;
+  endedAt: string;
+  activeSeconds: number;
+  hostname: string;
+  url: string | null;
+  pageTitle: string | null;
+  isPrivate: boolean;
+  timezone: string;
+  createdAt: string;
+}
+
 export interface WebsiteUsageSummary {
+  from: string;
+  to: string;
   totalActiveSeconds: number;
   hostnames?: Array<{ hostname: string; activeSeconds: number }>;
   topHostnames: Array<{ hostname: string; activeSeconds: number }>;
-  urlDetails: Array<{ url: string; hostname: string; activeSeconds: number }>;
+  urlDetails: WebsiteUrlDetail[];
   daily: Array<{ localDate: string; activeSeconds: number }>;
-  browsers: Array<{ browserBundleId: string; browserDisplayName: string; activeSeconds: number }>;
+  sessions: WebsiteActivitySession[];
 }
 
 export interface UsageApi {
   usageSummaries(from: string, to: string): Promise<UsageSummary>;
-  websiteUsageSummaries(from: string, to: string): Promise<WebsiteUsageSummary>;
-  getWebsiteUrls(hostname: string, from?: string, to?: string, limit?: number, offset?: number): Promise<{ total: number; items: Array<{ url: string; activeSeconds: number }> }>;
+  websiteUsageStatistics(from: string, to: string): Promise<WebsiteUsageSummary>;
+  websiteUsageSummaries(from: string, to: string, includeUrlDetails?: boolean): Promise<WebsiteUsageSummary>;
   deleteUsageSummaries(range?: UsageSummariesRange): Promise<void>;
   generateBrowserExtensionDsn(): Promise<{ dsnKey: string }>;
 }
@@ -29,15 +55,13 @@ export function createUsageApi(context: ApiClientContext): UsageApi {
       const query = new URLSearchParams({ from, to });
       return context.request<UsageSummary>(`/usage/summaries?${query}`);
     },
+    websiteUsageStatistics(from, to) {
+      const query = new URLSearchParams({ from, to });
+      return context.request<WebsiteUsageSummary>(`/usage/websites/statistics?${query}`);
+    },
     websiteUsageSummaries(from, to) {
       const query = new URLSearchParams({ from, to });
-      return context.request<WebsiteUsageSummary>(`/usage/websites/summaries?${query}`);
-    },
-    getWebsiteUrls(hostname, from, to, limit = 50, offset = 0) {
-      const query = new URLSearchParams({ hostname, limit: String(limit), offset: String(offset) });
-      if (from) query.set('from', from);
-      if (to) query.set('to', to);
-      return context.request<{ total: number; items: Array<{ url: string; activeSeconds: number }> }>(`/usage/websites/urls?${query}`);
+      return context.request<WebsiteUsageSummary>(`/usage/websites/statistics?${query}`);
     },
     deleteUsageSummaries(range = {}) {
       const query = new URLSearchParams();

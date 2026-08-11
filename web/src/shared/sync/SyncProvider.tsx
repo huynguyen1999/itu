@@ -196,6 +196,7 @@ export class Sync {
         entityId: input.entityId,
         baseVersion,
         baseValues,
+        fieldEditedAt: input.fieldEditedAt,
         payload: input.payload,
         occurredAt: new Date().toISOString(),
       },

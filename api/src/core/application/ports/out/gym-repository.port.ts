@@ -34,11 +34,8 @@ export interface UpdateExerciseDto {
 }
 
 export interface CreateWorkoutDto {
+  id?: string;
   title?: string;
-  startedAt?: Date;
-  endedAt?: Date;
-  durationMinutes?: number;
-  status?: WorkoutStatus;
   exercises?: UpdateWorkoutExerciseDto[];
 }
 
@@ -68,7 +65,6 @@ export interface UpdateWorkoutDto {
   startedAt?: Date;
   endedAt?: Date;
   durationMinutes?: number;
-  status?: WorkoutStatus;
   exercises?: UpdateWorkoutExerciseDto[];
 }
 

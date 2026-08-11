@@ -31,6 +31,7 @@ struct JournalView: View {
     @State private var templateNameDraft = ""
     @State private var templateTitleDraft = ""
     @State private var templateBodyDraft = ""
+    @State private var deleteNoteID: String?
 
     private static var today: String {
         iTuCalendarSupport.dayString()
@@ -57,10 +58,20 @@ struct JournalView: View {
                 .padding(.vertical, 28)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
+            .iTuPinnedHeader { journalPinnedHeader }
             .background(iTuTheme.canvas)
         }
         .background(iTuTheme.canvas)
         .task { await loadNotes() }
+        .alert("Move note to Trash?", isPresented: Binding(get: { deleteNoteID != nil }, set: { if !$0 { deleteNoteID = nil } })) {
+            Button("Move to Trash", role: .destructive) {
+                if let id = deleteNoteID { Task { await model.deleteJournalNote(id: id) } }
+                deleteNoteID = nil
+            }
+            Button("Cancel", role: .cancel) { deleteNoteID = nil }
+        } message: {
+            Text("You can restore this note from Trash.")
+        }
         .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             guard let entryID = selectedNoteID else { return }
             guard case let .success(urls) = result else { return }
@@ -75,6 +86,95 @@ struct JournalView: View {
         }
     }
 
+    @ViewBuilder
+    private var journalPinnedHeader: some View {
+        switch destination {
+        case .overview:
+            overviewHeader
+        case .notes:
+            notesHeader
+        case .weekly:
+            weeklyHeader
+        case .templates:
+            templatesHeader
+        case .daily:
+            EmptyView()
+        }
+    }
+
+    private var overviewHeader: some View {
+        HStack(alignment: .top, spacing: 20) {
+            VStack(alignment: .leading, spacing: 7) {
+                Label("DAILY WRITING", systemImage: "book.closed")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.4)
+                    .foregroundStyle(iTuTheme.mint)
+                Text("Make a little room.")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                Text("A quiet place for the day as it is. Write freely first; organize it when you are ready.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(iTuTheme.inkDim)
+                    .frame(maxWidth: 520, alignment: .leading)
+            }
+            Spacer()
+            HStack(spacing: 8) {
+                Button { destination = .notes } label: { Label("Search", systemImage: "magnifyingglass") }
+                    .buttonStyle(iTuSecondaryButtonStyle(height: 34))
+                Button { newNote() } label: { Label("New note", systemImage: "plus") }
+                    .buttonStyle(iTuPrimaryButtonStyle(height: 34))
+            }
+        }
+        .padding(.horizontal, 34)
+        .padding(.vertical, 18)
+    }
+
+    private var notesHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("ALL NOTES").font(.system(size: 10, weight: .bold)).tracking(1.3).foregroundStyle(iTuTheme.mint)
+                Text("Your pages")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(iTuTheme.ink)
+            }
+            Spacer()
+            Button { newNote() } label: { Label("New note", systemImage: "plus") }
+                .buttonStyle(iTuPrimaryButtonStyle(height: 34))
+        }
+        .padding(.horizontal, 34)
+        .padding(.vertical, 18)
+    }
+
+    private var weeklyHeader: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("WEEKLY WRITING")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.3)
+                    .foregroundStyle(iTuTheme.mint)
+                Text("Weekly reviews")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(iTuTheme.ink)
+            }
+            Spacer()
+            Button("New review") { newReview() }
+                .buttonStyle(iTuPrimaryButtonStyle(height: 34))
+        }
+        .padding(.horizontal, 34)
+        .padding(.vertical, 18)
+    }
+
+    private var templatesHeader: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("TEMPLATES").font(.system(size: 10, weight: .bold)).tracking(1.3).foregroundStyle(iTuTheme.mint)
+            Text("Reusable starting points")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(iTuTheme.ink)
+            Button("Create template") { Task { await model.createJournalTemplate(name: "New template") } }
+                .buttonStyle(iTuSecondaryButtonStyle(height: 30))
+        }
+        .padding(.horizontal, 34)
+        .padding(.vertical, 18)
+    }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
@@ -97,7 +197,6 @@ struct JournalView: View {
                 navigationButton("Weekly Reviews", icon: "calendar.badge.clock", destination: .weekly)
                 navigationButton("All Notes", icon: "doc.text", destination: .notes)
                 navigationButton("Templates", icon: "doc.on.doc", destination: .templates)
-                navigationButton("Trash", icon: "trash", destination: .trash)
             }
             .padding(12)
 
@@ -123,7 +222,7 @@ struct JournalView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
                     .background(selectedNoteID == note.id ? iTuTheme.mintTint : .clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
             .padding(12)
@@ -151,7 +250,7 @@ struct JournalView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(self.destination == destination ? iTuTheme.mintTint : .clear)
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     @ViewBuilder
@@ -167,35 +266,11 @@ struct JournalView: View {
             weeklyReviews
         case .templates:
             templatesView
-        case .trash:
-            trashView
         }
     }
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: 24) {
-            HStack(alignment: .top, spacing: 20) {
-                VStack(alignment: .leading, spacing: 7) {
-                    Label("DAILY WRITING", systemImage: "book.closed")
-                        .font(.system(size: 10, weight: .bold))
-                        .tracking(1.4)
-                        .foregroundStyle(iTuTheme.mint)
-                    Text("Make a little room.")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                    Text("A quiet place for the day as it is. Write freely first; organize it when you are ready.")
-                        .font(.system(size: 14))
-                        .foregroundStyle(iTuTheme.inkDim)
-                        .frame(maxWidth: 520, alignment: .leading)
-                }
-                Spacer()
-                HStack(spacing: 8) {
-                    Button { destination = .notes } label: { Label("Search", systemImage: "magnifyingglass") }
-                        .buttonStyle(iTuSecondaryButtonStyle(height: 34))
-                    Button { newNote() } label: { Label("New note", systemImage: "plus") }
-                        .buttonStyle(iTuPrimaryButtonStyle(height: 34))
-                }
-            }
-
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(Self.today)
@@ -265,7 +340,7 @@ struct JournalView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(iTuTheme.inkDim)
                     if selectedNoteID != nil {
-                        Button { Task { await model.deleteJournalNote(id: selectedNoteID!); destination = .trash } } label: { Label("Delete", systemImage: "trash") }
+                        Button { deleteNoteID = selectedNoteID } label: { Label("Delete", systemImage: "trash") }
                             .buttonStyle(iTuGhostButtonStyle())
                     }
                     Button { save() } label: { Label("Save", systemImage: "checkmark") }
@@ -286,6 +361,10 @@ struct JournalView: View {
                         Text("Preview").tag("PREVIEW")
                     }
                     .pickerStyle(.menu)
+                    .tint(iTuTheme.teal)
+                    .padding(.horizontal, 8)
+                    .background(iTuTheme.surfaceMuted)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     Text(isWeeklyReview ? "Weekly review" : "Freeform note")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(iTuTheme.inkDim)
@@ -293,6 +372,7 @@ struct JournalView: View {
                 TextField("Add a title if you need one", text: $title)
                     .textFieldStyle(.plain)
                     .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(iTuTheme.ink)
                 if editorMode == "PREVIEW" {
                     Group {
                         if let markdown = try? AttributedString(markdown: content), !content.isEmpty {
@@ -301,9 +381,11 @@ struct JournalView: View {
                             Text("Nothing to preview yet.")
                         }
                     }
-                        .font(.system(size: 15)).frame(maxWidth: .infinity, minHeight: 430, alignment: .topLeading)
+                        .font(.system(size: 15)).foregroundStyle(iTuTheme.ink)
+                        .frame(maxWidth: .infinity, minHeight: 430, alignment: .topLeading)
                         .padding(14).background(iTuTheme.surface)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(iTuTheme.border, lineWidth: 1))
                 } else {
                     TextEditor(text: $content)
                         .font(.system(size: 15)).scrollContentBackground(.hidden).padding(14).frame(minHeight: 430)
@@ -316,7 +398,7 @@ struct JournalView: View {
                 if selectedNoteID != nil { attachmentsAndRevisions }
             }
             .padding(22)
-            .iTuPanel(radius: 16)
+            .iTuPanel(radius: 14)
         }
     }
 
@@ -352,9 +434,21 @@ struct JournalView: View {
                 Text(reviewSummary.keys.sorted().map { "\($0): \(reviewSummary[$0]!.stringValue ?? String(describing: reviewSummary[$0]!))" }.joined(separator: " · "))
                     .font(.system(size: 11)).foregroundStyle(iTuTheme.inkDim).lineLimit(3)
             }
-            TextField("What went well?", text: $reviewWentWell, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(2...5)
-            TextField("Where was there friction?", text: $reviewFriction, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(2...5)
-            TextField("What is next week’s focus?", text: $reviewNextWeek, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(2...5)
+            TextField("What went well?", text: $reviewWentWell, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .foregroundStyle(iTuTheme.ink)
+                .tint(iTuTheme.teal)
+                .lineLimit(2...5)
+            TextField("Where was there friction?", text: $reviewFriction, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .foregroundStyle(iTuTheme.ink)
+                .tint(iTuTheme.teal)
+                .lineLimit(2...5)
+            TextField("What is next week’s focus?", text: $reviewNextWeek, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .foregroundStyle(iTuTheme.ink)
+                .tint(iTuTheme.teal)
+                .lineLimit(2...5)
         }
     }
 
@@ -393,42 +487,63 @@ struct JournalView: View {
 
     private var notesLibrary: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("ALL NOTES").font(.system(size: 10, weight: .bold)).tracking(1.3).foregroundStyle(iTuTheme.mint)
-                    Text("Your pages").font(.system(size: 28, weight: .bold, design: .rounded))
+            VStack(alignment: .leading, spacing: 12) {
+                TextField("Search journal…", text: $searchQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .foregroundStyle(iTuTheme.ink)
+                    .tint(iTuTheme.teal)
+                    .frame(maxWidth: 420)
+                HStack(spacing: 8) {
+                    Picker("Kind", selection: $filterKind) {
+                        Text("All kinds").tag("ALL")
+                        Text("Notes").tag("NOTE")
+                        Text("Weekly reviews").tag("WEEKLY_REVIEW")
+                    }
+                    .pickerStyle(.menu)
+                    .tint(iTuTheme.teal)
+                    .padding(.horizontal, 8)
+                    .background(iTuTheme.surfaceMuted)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    Picker("Tag", selection: $filterTagID) {
+                        Text("All tags").tag("")
+                        ForEach(model.journalTags) { tag in Text(tag.name).tag(tag.id) }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(iTuTheme.teal)
+                    .padding(.horizontal, 8)
+                    .background(iTuTheme.surfaceMuted)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    TextField("Date YYYY-MM-DD", text: $filterDate)
+                        .textFieldStyle(.roundedBorder)
+                        .foregroundStyle(iTuTheme.ink)
+                        .tint(iTuTheme.teal)
+                        .frame(width: 150)
                 }
-                Spacer()
-                Button { newNote() } label: { Label("New note", systemImage: "plus") }
-                    .buttonStyle(iTuPrimaryButtonStyle(height: 34))
-            }
-            TextField("Search journal…", text: $searchQuery)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 420)
-            HStack(spacing: 8) {
-                Picker("Kind", selection: $filterKind) {
-                    Text("All kinds").tag("ALL")
-                    Text("Notes").tag("NOTE")
-                    Text("Weekly reviews").tag("WEEKLY_REVIEW")
-                }.pickerStyle(.menu)
-                Picker("Tag", selection: $filterTagID) {
-                    Text("All tags").tag("")
-                    ForEach(model.journalTags) { tag in Text(tag.name).tag(tag.id) }
-                }.pickerStyle(.menu)
-                TextField("Date YYYY-MM-DD", text: $filterDate).textFieldStyle(.roundedBorder).frame(width: 150)
-            }
-            HStack(spacing: 8) {
-                Text("Tags").font(.system(size: 12, weight: .semibold)).foregroundStyle(iTuTheme.inkDim)
-                ForEach(model.journalTags.prefix(8)) { tag in
-                    Text(tag.name).font(.system(size: 11)).padding(.horizontal, 8).padding(.vertical, 4).background(iTuTheme.mintTint).clipShape(Capsule())
+                HStack(spacing: 8) {
+                    Text("Tags").font(.system(size: 12, weight: .semibold)).foregroundStyle(iTuTheme.inkDim)
+                    ForEach(model.journalTags.prefix(8)) { tag in
+                        Text(tag.name)
+                            .font(.system(size: 11))
+                            .foregroundStyle(iTuTheme.teal)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(iTuTheme.mintTint)
+                            .clipShape(Capsule())
+                    }
+                    TextField("New tag name", text: $newTagName)
+                        .textFieldStyle(.roundedBorder)
+                        .foregroundStyle(iTuTheme.ink)
+                        .tint(iTuTheme.teal)
+                        .frame(width: 150)
+                    Button("Create tag") {
+                        let name = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !name.isEmpty else { return }
+                        Task { await model.createJournalTag(name: name); newTagName = "" }
+                    }.buttonStyle(iTuGhostButtonStyle())
                 }
-                TextField("New tag name", text: $newTagName).textFieldStyle(.roundedBorder).frame(width: 150)
-                Button("Create tag") {
-                    let name = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !name.isEmpty else { return }
-                    Task { await model.createJournalTag(name: name); newTagName = "" }
-                }.buttonStyle(iTuGhostButtonStyle())
             }
+            .padding(16)
+            .iTuPanel(radius: 14)
             if filteredNotes.isEmpty {
                 Text(searchQuery.isEmpty ? "No notes yet." : "No notes match your search.")
                     .font(.system(size: 14)).foregroundStyle(iTuTheme.inkDim)
@@ -441,7 +556,6 @@ struct JournalView: View {
 
     private var weeklyReviews: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sectionHeader("WEEKLY REVIEWS", actionTitle: "New review") { newReview() }
             let reviews = model.journalNotes.filter { $0.kind == "WEEKLY_REVIEW" }
             if reviews.isEmpty { Text("No weekly reviews yet.").foregroundStyle(iTuTheme.inkDim) }
             else { LazyVStack(spacing: 10) { ForEach(reviews) { note in noteCard(note) } } }
@@ -450,10 +564,6 @@ struct JournalView: View {
 
     private var templatesView: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("TEMPLATES").font(.system(size: 10, weight: .bold)).tracking(1.3).foregroundStyle(iTuTheme.mint)
-            Text("Reusable starting points").font(.system(size: 28, weight: .bold, design: .rounded))
-            Button("Create template") { Task { await model.createJournalTemplate(name: "New template") } }
-                .buttonStyle(iTuSecondaryButtonStyle(height: 30))
             if model.journalTemplates.isEmpty { Text("No templates yet.").foregroundStyle(iTuTheme.inkDim) }
             else {
                 ForEach(model.journalTemplates) { template in
@@ -471,35 +581,35 @@ struct JournalView: View {
                             templateBodyDraft = template.bodyMarkdown
                         }.buttonStyle(iTuGhostButtonStyle())
                         Button("Delete") { Task { await model.deleteJournalTemplate(id: template.id) } }.buttonStyle(iTuGhostButtonStyle())
-                    }.iTuPanel(radius: 10)
+                    }.iTuPanel(radius: 14)
                     if editingTemplateID == template.id {
                         VStack(alignment: .leading, spacing: 8) {
-                            TextField("Template name", text: $templateNameDraft).textFieldStyle(.roundedBorder)
-                            TextField("Title template", text: $templateTitleDraft).textFieldStyle(.roundedBorder)
-                            TextEditor(text: $templateBodyDraft).frame(minHeight: 90).scrollContentBackground(.hidden).padding(6).background(iTuTheme.surface).clipShape(RoundedRectangle(cornerRadius: 8))
+                            TextField("Template name", text: $templateNameDraft)
+                                .textFieldStyle(.roundedBorder)
+                                .foregroundStyle(iTuTheme.ink)
+                                .tint(iTuTheme.teal)
+                            TextField("Title template", text: $templateTitleDraft)
+                                .textFieldStyle(.roundedBorder)
+                                .foregroundStyle(iTuTheme.ink)
+                                .tint(iTuTheme.teal)
+                            TextEditor(text: $templateBodyDraft)
+                                .font(.system(size: 14))
+                                .foregroundStyle(iTuTheme.ink)
+                                .frame(minHeight: 90)
+                                .scrollContentBackground(.hidden)
+                                .padding(8)
+                                .background(iTuTheme.surface)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(iTuTheme.border, lineWidth: 1))
                             HStack {
                                 Button("Save template") {
                                     Task { await model.updateJournalTemplate(id: template.id, name: templateNameDraft, titleTemplate: templateTitleDraft, bodyMarkdown: templateBodyDraft); editingTemplateID = nil }
                                 }.buttonStyle(iTuPrimaryButtonStyle(height: 30))
                                 Button("Cancel") { editingTemplateID = nil }.buttonStyle(iTuGhostButtonStyle())
                             }
-                        }.padding(12).iTuPanel(radius: 10)
+                        }.padding(12).iTuPanel(radius: 14)
                     }
                 }
-            }
-        }
-    }
-
-    private var trashView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("TRASH").font(.system(size: 10, weight: .bold)).tracking(1.3).foregroundStyle(iTuTheme.mint)
-            let deleted = model.currentSnapshot.journalNotes.filter { $0.deletedAt != nil }
-            if deleted.isEmpty { Text("Trash is empty.").foregroundStyle(iTuTheme.inkDim) }
-            ForEach(deleted) { note in
-                HStack {
-                    Text(note.title.isEmpty ? "Untitled note" : note.title); Spacer()
-                    Button("Restore") { Task { await model.restoreJournalNote(id: note.id) } }.buttonStyle(iTuSecondaryButtonStyle(height: 28))
-                }.padding(12).iTuPanel(radius: 10)
             }
         }
     }
@@ -507,12 +617,12 @@ struct JournalView: View {
     private func unsupported(_ title: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title.uppercased()).font(.system(size: 10, weight: .bold)).tracking(1.3).foregroundStyle(iTuTheme.mint)
-            Text("Not available on macOS yet").font(.system(size: 27, weight: .bold, design: .rounded))
+            Text("Not available on macOS yet").font(.system(size: 28, weight: .bold, design: .rounded))
             Text(detail).font(.system(size: 14)).foregroundStyle(iTuTheme.inkDim).frame(maxWidth: 560, alignment: .leading)
             Button("Back to overview") { destination = .overview }.buttonStyle(iTuPrimaryButtonStyle(height: 34))
         }
         .padding(26)
-        .iTuPanel(radius: 16)
+        .iTuPanel(radius: 14)
     }
 
     private func sectionHeader(_ title: String, actionTitle: String, action: @escaping () -> Void) -> some View {
@@ -538,7 +648,7 @@ struct JournalView: View {
             .padding(16)
         }
         .buttonStyle(.plain)
-        .iTuPanel(radius: 12)
+        .iTuPanel(radius: 14)
         .modifier(iTuHoverCardModifier())
     }
 
@@ -555,6 +665,7 @@ struct JournalView: View {
         .padding(12)
         .background(iTuTheme.coralTint)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(iTuTheme.coral.opacity(0.28), lineWidth: 1))
     }
 
     private var todayNote: JournalNoteModel? {
@@ -677,5 +788,4 @@ private enum JournalDestination: Hashable {
     case weekly
     case notes
     case templates
-    case trash
 }

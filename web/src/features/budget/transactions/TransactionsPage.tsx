@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { TransactionQuickAdd } from './TransactionQuickAdd';
 import { Plus, Trash2, Edit2, ArrowUpRight, ArrowDownRight, Tag } from 'lucide-react';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
 export function TransactionsPage() {
   const [searchParams] = useSearchParams();
@@ -14,6 +15,7 @@ export function TransactionsPage() {
   const [selectedCatId, setSelectedCatId] = useState<string>('');
   const [selectedType, setSelectedType] = useState<'EXPENSE' | 'INCOME' | ''>('');
   const [editingTx, setEditingTx] = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
   const { data: categories = [] } = useBudgetCategories();
   const { data: transactions = [], isLoading } = useBudgetTransactions({
@@ -196,7 +198,7 @@ export function TransactionsPage() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => deleteTx.mutate(tx.id)}
+                    onClick={() => setDeleteTarget(tx)}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
@@ -206,6 +208,23 @@ export function TransactionsPage() {
           ))
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && !deleteTx.isPending && setDeleteTarget(null)}
+        title="Move transaction to Trash?"
+        description={
+          deleteTarget
+            ? `“${deleteTarget.merchant || deleteTarget.category || 'This transaction'}” can be restored from Trash.`
+            : ''
+        }
+        confirmLabel="Move to Trash"
+        isPending={deleteTx.isPending}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteTx.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+        }}
+      />
     </div>
   );
 }

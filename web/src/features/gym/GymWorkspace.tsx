@@ -12,8 +12,8 @@ export function GymWorkspace() {
         <Route index element={<GymOverviewPage />} />
         <Route path="history" element={<WorkoutHistoryPage />} />
         <Route path="exercises" element={<ExerciseLibraryPage />} />
+        <Route path="workouts/:id" element={<ActiveWorkoutPage />} />
       </Route>
-      <Route path="workouts/:id" element={<ActiveWorkoutPage />} />
       <Route path="*" element={<Navigate to="/gym" replace />} />
     </Routes>
   );

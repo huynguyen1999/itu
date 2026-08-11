@@ -69,45 +69,6 @@ struct GrowthView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                // Header
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        iTuSectionLabel(title: "GROWTH & GAMIFICATION", color: iTuTheme.amber)
-                        Text("Growth Engine")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(iTuTheme.ink)
-                        Text("Earn XP, level up attributes, unlock skills, and redeem rewards.")
-                            .font(.system(size: 13))
-                            .foregroundStyle(iTuTheme.inkDim)
-                    }
-
-                    Spacer()
-
-                    // Coins Display
-                    HStack(spacing: 6) {
-                        Image(systemName: "circle.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundStyle(iTuTheme.gold)
-                        Text("\(userCoins) Coins")
-                            .font(.system(size: 14, weight: .bold, design: .monospaced))
-                            .foregroundStyle(iTuTheme.ink)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(iTuTheme.goldSoft)
-                    .clipShape(Capsule())
-
-                    Button {
-                        showGrowthSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 14, weight: .semibold))
-                            .accessibilityLabel("Growth settings")
-                    }
-                    .buttonStyle(iTuGhostButtonStyle())
-                    .pointingHandCursor()
-                }
-
                 accountProgressCard
 
                 // Active Sub-tab View
@@ -126,6 +87,11 @@ struct GrowthView: View {
                     .frame(maxWidth: 1080)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
+            .iTuPinnedHeader {
+                growthHeader
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 18)
+            }
                 .background(
                     LinearGradient(
                         colors: [iTuTheme.canvas, iTuTheme.goldSoft.opacity(0.15)],
@@ -141,6 +107,40 @@ struct GrowthView: View {
                     await model.updateGrowthProfile(accountBaseXp: accountBaseXp, rewardPreset: rewardPreset)
                 }
             }
+        }
+    }
+
+    private var growthHeader: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                iTuSectionLabel(title: "GROWTH & GAMIFICATION", color: iTuTheme.amber)
+                Text("Growth Engine")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(iTuTheme.ink)
+                Text("Earn XP, level up attributes, unlock skills, and redeem rewards.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+            Spacer()
+            HStack(spacing: 6) {
+                Image(systemName: "circle.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(iTuTheme.gold)
+                Text("\(userCoins) Coins")
+                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                    .foregroundStyle(iTuTheme.ink)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(iTuTheme.goldSoft)
+            .clipShape(Capsule())
+            Button { showGrowthSettings = true } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 14, weight: .semibold))
+                    .accessibilityLabel("Growth settings")
+            }
+            .buttonStyle(iTuGhostButtonStyle())
+            .pointingHandCursor()
         }
     }
 

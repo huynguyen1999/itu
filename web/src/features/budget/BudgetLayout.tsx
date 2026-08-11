@@ -31,6 +31,7 @@ export function BudgetLayout() {
           kicker="Tracking"
           title="Budget & Finances"
           description="Track expenses, income, monthly category limits, and financial overview"
+          stickyControls={<div className="md:hidden"><BudgetLocalNav mobile /></div>}
         >
           <FeatureSettingsButton title="Budget settings">
             <BudgetSettingsPopover
@@ -39,7 +40,6 @@ export function BudgetLayout() {
             />
           </FeatureSettingsButton>
         </PageHeader>
-        <div className="md:hidden"><BudgetLocalNav mobile /></div>
         <Outlet />
       </main>
     </div>

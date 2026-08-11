@@ -10,6 +10,8 @@ export interface OfflineMutationInput<T> {
   payload: Record<string, unknown>;
   baseVersion?: number;
   baseValues?: Record<string, unknown>;
+  /** Per-field edit instants used by granular last-write-wins merges. */
+  fieldEditedAt?: Record<string, string>;
   immediate?: boolean;
   optimistic: T;
 }

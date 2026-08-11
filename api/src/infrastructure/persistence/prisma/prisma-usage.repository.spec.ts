@@ -86,4 +86,22 @@ describe('PrismaUsageRepository', () => {
       select: { userId: true },
     });
   });
+
+  it('bulk joins app identities without one query per summary row', async () => {
+    const findSummaries = jest.fn().mockResolvedValue([
+      { localDate: new Date('2026-08-09T00:00:00Z'), hour: 9, bundleId: 'a', displayName: 'A', activeSeconds: 1 },
+      { localDate: new Date('2026-08-09T00:00:00Z'), hour: 10, bundleId: 'a', displayName: 'A', activeSeconds: 2 },
+    ]);
+    const findIdentities = jest
+      .fn()
+      .mockResolvedValue([{ bundleId: 'a', iconHash: 'hash', iconStorageKey: 'u/usage-app-icons/a.webp' }]);
+    const prisma = { usageSummary: { findMany: findSummaries }, usageAppIdentity: { findMany: findIdentities } } as any;
+    const result = await new PrismaUsageRepository(prisma).findSummaries('user-1', new Date(0), new Date());
+    expect(findIdentities).toHaveBeenCalledTimes(1);
+    expect(findIdentities).toHaveBeenCalledWith({
+      where: { userId: 'user-1', bundleId: { in: ['a'] } },
+      select: { bundleId: true, iconHash: true, iconStorageKey: true },
+    });
+    expect(result[0]).toMatchObject({ iconHash: 'hash', iconStorageKey: 'u/usage-app-icons/a.webp' });
+  });
 });

@@ -51,7 +51,7 @@ export class PrismaSyncJournal {
         if (!revision) return notFound(mutation, 'journalrevision');
         const snapshot = revision.snapshot as any;
         const revisionCount = await tx.journalEntryRevision.count({ where: { entryId: revision.entryId } });
-        await tx.journalEntryRevision.create({ data: { id: `${revision.entryId}_rev_${revisionCount + 1}`, entryId: revision.entryId, revisionNumber: revisionCount + 1, snapshot: revision.snapshot as any, mutationId: mutation.id, deviceId: (mutation as any).deviceId } });
+        await tx.journalEntryRevision.create({ data: { id: `${revision.entryId}_rev_${revisionCount + 1}`, entryId: revision.entryId, revisionNumber: revisionCount + 1, snapshot: revision.snapshot as any, mutationId: mutation.id, deviceId: (mutation as any).serverDeviceId } });
         const tagIds = Array.isArray(snapshot.tagIds)
           ? snapshot.tagIds.filter((id: unknown): id is string => typeof id === 'string')
           : Array.isArray(snapshot.tags)
@@ -155,7 +155,7 @@ export class PrismaSyncJournal {
               entryId: entry.id,
               revisionNumber: 1,
               snapshot: JSON.parse(JSON.stringify(syncedEntry)),
-              deviceId: (mutation as any).deviceId,
+              deviceId: (mutation as any).serverDeviceId,
               mutationId: mutation.id,
             },
           });
@@ -181,7 +181,7 @@ export class PrismaSyncJournal {
             entryId: entry.id,
             revisionNumber: revCount + 1,
             snapshot: JSON.parse(JSON.stringify(entry)),
-            deviceId: (mutation as any).deviceId,
+            deviceId: (mutation as any).serverDeviceId,
             mutationId: mutation.id,
           },
         });
@@ -257,7 +257,7 @@ export class PrismaSyncJournal {
         }
         await tx.journalEntry.update({
           where: { id: entry.id },
-          data: { deletedAt: new Date(), version: { increment: 1 } },
+          data: { deletedAt: new Date(), deletedByDeviceId: (mutation as any).serverDeviceId, version: { increment: 1 } },
         });
         await tx.syncChange.create({
           data: {
@@ -273,9 +273,12 @@ export class PrismaSyncJournal {
       case 'journal.restore': {
         const entry = await tx.journalEntry.findFirst({ where: { id: mutation.entityId, userId } });
         if (!entry) return notFound(mutation, 'journalentry');
+        if (mutation.baseVersion !== undefined && mutation.baseVersion !== entry.version) {
+          return stale(mutation, 'journalentry', entry);
+        }
         const updated = await tx.journalEntry.update({
           where: { id: entry.id },
-          data: { deletedAt: null, version: { increment: 1 } },
+          data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } },
         });
         const syncedEntry = await tx.journalEntry.findUniqueOrThrow({
           where: { id: updated.id },

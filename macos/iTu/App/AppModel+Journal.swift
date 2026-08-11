@@ -61,6 +61,7 @@ extension AppModel {
         do {
             if var note = currentSnapshot.journalNotes.first(where: { $0.id == id }) {
                 note.deletedAt = nil
+                note.deletedByDeviceId = nil
                 apply(try await offlineStore.saveJournalNote(note, mutation: mutation))
             }
         } catch { errorMessage = error.localizedDescription }

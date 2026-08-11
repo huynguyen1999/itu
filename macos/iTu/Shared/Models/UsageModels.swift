@@ -1,5 +1,14 @@
 import Foundation
 
+struct UsageAppIdentity: Codable, Equatable, Sendable, Identifiable {
+    let bundleId: String
+    let displayName: String
+    let iconHash: String?
+    let iconUrl: String?
+
+    var id: String { bundleId }
+}
+
 struct UsageSummary: Codable, Equatable, Identifiable, Sendable {
     let localDate: String
     var hour: Int? = nil
@@ -366,19 +375,71 @@ struct WebsiteUsageBrowserTotal: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
+struct WebsiteUsageURLDetail: Codable, Equatable, Sendable, Identifiable {
+    let url: String
+    let hostname: String
+    let activeSeconds: Int
+    let latestTitle: String?
+    let isPrivate: Bool
+
+    var id: String { "\(isPrivate ? "private" : "normal")|\(url)" }
+    var displayTitle: String { latestTitle?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? latestTitle! : url }
+}
+
+struct WebsiteUsageSession: Codable, Equatable, Sendable, Identifiable {
+    let id: String
+    let installationId: String
+    let browserBundleId: String
+    let browserDisplayName: String
+    let startedAt: String
+    let endedAt: String
+    let activeSeconds: Int
+    let hostname: String
+    let url: String?
+    let pageTitle: String?
+    let isPrivate: Bool
+    let timezone: String
+    let createdAt: String?
+}
+
+enum WebsiteActivityPrivacyFilter: String, CaseIterable, Identifiable, Sendable {
+    case all
+    case normal
+    case `private`
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+
+    func matches(isPrivate: Bool) -> Bool {
+        switch self {
+        case .all: true
+        case .normal: !isPrivate
+        case .private: isPrivate
+        }
+    }
+}
+
 struct WebsiteUsageStatistics: Codable, Equatable, Sendable {
+    let from: String?
+    let to: String?
     let totalActiveSeconds: Int
     let hostnames: [WebsiteUsageHostnameTotal]
     let topHostnames: [WebsiteUsageHostnameTotal]
+    let urlDetails: [WebsiteUsageURLDetail]
     let daily: [WebsiteUsageDailyTotal]
     let browsers: [WebsiteUsageBrowserTotal]
+    let sessions: [WebsiteUsageSession]
 
     enum CodingKeys: String, CodingKey {
+        case from
+        case to
         case totalActiveSeconds
         case hostnames
         case topHostnames
+        case urlDetails
         case daily
         case browsers
+        case sessions
     }
 
     init(
@@ -386,24 +447,36 @@ struct WebsiteUsageStatistics: Codable, Equatable, Sendable {
         hostnames: [WebsiteUsageHostnameTotal],
         topHostnames: [WebsiteUsageHostnameTotal] = [],
         daily: [WebsiteUsageDailyTotal] = [],
-        browsers: [WebsiteUsageBrowserTotal] = []
+        browsers: [WebsiteUsageBrowserTotal] = [],
+        from: String? = nil,
+        to: String? = nil,
+        urlDetails: [WebsiteUsageURLDetail] = [],
+        sessions: [WebsiteUsageSession] = []
     ) {
+        self.from = from
+        self.to = to
         self.totalActiveSeconds = totalActiveSeconds
         self.hostnames = hostnames
         self.topHostnames = topHostnames.isEmpty ? Array(hostnames.prefix(10)) : topHostnames
+        self.urlDetails = urlDetails
         self.daily = daily
         self.browsers = browsers
+        self.sessions = sessions
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.from = try container.decodeIfPresent(String.self, forKey: .from)
+        self.to = try container.decodeIfPresent(String.self, forKey: .to)
         self.totalActiveSeconds = try container.decodeIfPresent(Int.self, forKey: .totalActiveSeconds) ?? 0
         let decodedHostnames = try container.decodeIfPresent([WebsiteUsageHostnameTotal].self, forKey: .hostnames) ?? []
         self.hostnames = decodedHostnames
         let decodedTop = try container.decodeIfPresent([WebsiteUsageHostnameTotal].self, forKey: .topHostnames) ?? []
         self.topHostnames = decodedTop.isEmpty ? Array(decodedHostnames.prefix(10)) : decodedTop
+        self.urlDetails = try container.decodeIfPresent([WebsiteUsageURLDetail].self, forKey: .urlDetails) ?? []
         self.daily = try container.decodeIfPresent([WebsiteUsageDailyTotal].self, forKey: .daily) ?? []
         self.browsers = try container.decodeIfPresent([WebsiteUsageBrowserTotal].self, forKey: .browsers) ?? []
+        self.sessions = try container.decodeIfPresent([WebsiteUsageSession].self, forKey: .sessions) ?? []
     }
 
     static func aggregating(_ summaries: [WebsiteUsageSummary]) -> WebsiteUsageStatistics {
@@ -465,7 +538,11 @@ struct WebsiteUsageStatistics: Codable, Equatable, Sendable {
             hostnames: hostnameItems,
             topHostnames: Array(hostnameItems.prefix(10)),
             daily: dailyItems,
-            browsers: browserItems
+            browsers: browserItems,
+            from: from,
+            to: to,
+            urlDetails: urlDetails,
+            sessions: sessions
         )
     }
 }

@@ -310,7 +310,9 @@ model User {
   journalAttachments         JournalAttachment[]
   preferences                 UserPreferences?
   usageSummaries              UsageSummary[]
+  usageAppIdentities          UsageAppIdentity[]
   websiteUsageSummaries       WebsiteUsageSummary[]
+  websiteActivitySessions     WebsiteActivitySession[]
   browserExtensionCredential  BrowserExtensionCredential?
 }
 
@@ -445,6 +447,19 @@ model UsageSummary {
   @@index([syncDeviceId, localDate])
 }
 
+model UsageAppIdentity {
+  userId         String
+  bundleId       String
+  displayName    String
+  iconHash       String?
+  iconStorageKey String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bundleId])
+}
+
 model WebsiteUsageSummary {
   userId             String
   syncDeviceId       String
@@ -465,6 +480,32 @@ model WebsiteUsageSummary {
   @@index([userId, localDate])
   @@index([userId, localDate, hostname])
   @@index([syncDeviceId, localDate])
+}
+
+model WebsiteActivitySession {
+  id                String
+  userId            String
+  installationId    String
+  browserBundleId   String
+  browserDisplayName String
+  startedAt         DateTime
+  endedAt           DateTime
+  activeSeconds     Int
+  hostname          String
+  url               String    @db.Text
+  pageTitle         String?   @db.Text
+  isPrivate         Boolean   @default(false)
+  timezone          String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([installationId, id])
+  @@unique([userId, installationId, id])
+  @@index([userId, startedAt])
+  @@index([userId, hostname, startedAt])
+  @@index([userId, url, startedAt])
+  @@index([userId, installationId, startedAt])
 }
 
 model BrowserExtensionCredential {
@@ -1605,6 +1646,7 @@ enum WeightUnit {
 
 enum WorkoutSetType {
   WARMUP
+  WARM_UP
   NORMAL
   DROP
   FAILURE
@@ -1630,6 +1672,7 @@ model JournalEntry {
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
   deletedAt       DateTime?
+  deletedByDeviceId String?
   user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   template        JournalTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
   weeklyReview    JournalWeeklyReview?
@@ -1729,6 +1772,7 @@ model BudgetTransaction {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   deletedAt      DateTime?
+  deletedByDeviceId String?
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   categoryRel    BudgetCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
@@ -1752,6 +1796,8 @@ model ExerciseDefinition {
   defaultWeightUnit    WeightUnit               @default(KG)
   defaultRestSeconds   Int?
   archivedAt           DateTime?
+  deletedAt            DateTime?
+  deletedByDeviceId    String?
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
   version              Int                      @default(1)
@@ -1761,6 +1807,7 @@ model ExerciseDefinition {
   @@unique([userId, normalizedName])
   @@index([userId, name])
   @@index([userId, archivedAt])
+  @@index([userId, deletedAt])
 }
 
 model GymWorkout {
@@ -1776,6 +1823,7 @@ model GymWorkout {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   deletedAt       DateTime?
+  deletedByDeviceId String?
   user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercises       GymWorkoutExercise[]
 
@@ -1794,11 +1842,17 @@ model GymWorkoutExercise {
   sortOrder      Int             @default(0)
   note           String?
   restSeconds    Int?
+  version        Int              @default(1)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+  deletedByDeviceId String?
   workout        GymWorkout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise       ExerciseDefinition @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
   sets           GymWorkoutSet[]
 
   @@index([workoutId, sortOrder])
+  @@index([workoutId, deletedAt])
   @@index([exerciseId])
 }
 
@@ -1813,9 +1867,15 @@ model GymWorkoutSet {
   distanceMeters    Float?
   rpe               Decimal?          @db.Decimal(3, 1)
   completedAt       DateTime?
+  version           Int               @default(1)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+  deletedByDeviceId String?
   workoutExercise   GymWorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
 
   @@index([workoutExerciseId, sortOrder])
+  @@index([workoutExerciseId, deletedAt])
 }
 
 model JournalTemplate {

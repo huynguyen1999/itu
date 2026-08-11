@@ -42,7 +42,11 @@ export function GymSettingsPanel({
         </label>
       </SettingsCard>
 
-      <SettingsCard icon={Dumbbell} title="Workout Logging" description="Defaults for active workout logging and performance history.">
+      <SettingsCard
+        icon={Dumbbell}
+        title="Workout Logging"
+        description="Defaults for active workout logging and performance history."
+      >
         <label className="flex items-center justify-between border-t py-3 first:border-t-0">
           <div>
             <p className="text-sm font-semibold">Show previous performance</p>
@@ -50,9 +54,12 @@ export function GymSettingsPanel({
           </div>
           <input
             type="checkbox"
-            checked={preferences.previousPerformanceMode !== undefined}
+            checked={preferences.showPrevious ?? preferences.previousPerformanceMode !== undefined}
             onChange={(e) =>
-              onChange({ previousPerformanceMode: e.target.checked ? 'EXERCISE' : ('EXERCISE' as any) })
+              onChange({
+                showPrevious: e.target.checked,
+                previousPerformanceMode: e.target.checked ? 'EXERCISE' : 'ROUTINE',
+              })
             }
             className="h-4 w-4 rounded border-gray-300 text-primary"
           />
@@ -69,9 +76,37 @@ export function GymSettingsPanel({
             className="h-4 w-4 rounded border-gray-300 text-primary"
           />
         </label>
+        <label className="flex items-center justify-between border-t py-3">
+          <div>
+            <p className="text-sm font-semibold">Rest timer sound</p>
+            <p className="text-xs text-muted-foreground">Play a tone when rest ends.</p>
+          </div>
+          <input
+            type="checkbox"
+            checked={(preferences as any).restSoundEnabled ?? preferences.soundsEnabled ?? true}
+            onChange={(e) => onChange({ restSoundEnabled: e.target.checked } as any)}
+            className="h-4 w-4 rounded border-gray-300 text-primary"
+          />
+        </label>
+        <label className="flex items-center justify-between border-t py-3">
+          <div>
+            <p className="text-sm font-semibold">Set completion sound</p>
+            <p className="text-xs text-muted-foreground">Play a tone after checking a set.</p>
+          </div>
+          <input
+            type="checkbox"
+            checked={(preferences as any).completionSoundEnabled ?? preferences.soundsEnabled ?? true}
+            onChange={(e) => onChange({ completionSoundEnabled: e.target.checked } as any)}
+            className="h-4 w-4 rounded border-gray-300 text-primary"
+          />
+        </label>
       </SettingsCard>
 
-      <SettingsCard icon={Dumbbell} title="Rest Timer" description="Automatic rest timer defaults and duration overrides.">
+      <SettingsCard
+        icon={Dumbbell}
+        title="Rest Timer"
+        description="Automatic rest timer defaults and duration overrides."
+      >
         <label className="flex items-center justify-between border-t py-3 first:border-t-0">
           <div>
             <p className="text-sm font-semibold">Auto-start rest timer</p>

@@ -269,8 +269,11 @@ final class AppModel {
     @ObservationIgnored var usageTracker: ForegroundUsageTracker?
     @ObservationIgnored var websiteUsageTracker: WebsiteUsageTracker?
     @ObservationIgnored var usageUploadTask: Task<Void, Never>?
+    @ObservationIgnored var usageUploadInFlight: Task<Bool, Never>?
+    @ObservationIgnored var usageUploadGeneration = 0
     @ObservationIgnored var usageSessionStore: UsageSessionStore?
     @ObservationIgnored var usageCheckpointTimer: Timer?
+    @ObservationIgnored var usageWakeObserver: NSObjectProtocol?
 
     func enqueueNotice(_ notice: AppNotice) {
         noticeQueue.append(notice)
@@ -373,7 +376,8 @@ final class AppModel {
     }
 
     func switchAccountIfNeeded(to profile: UserProfile) async throws {
-        if user?.id != profile.id {
+        let accountChanged = user?.id != profile.id
+        if accountChanged {
             stopUsageTracking()
             invalidateSession()
             TaskUndoCoordinator.shared.clearHistory()
@@ -383,6 +387,7 @@ final class AppModel {
         }
         user = profile
         SessionCache.saveUser(profile)
+        if accountChanged { setupUsageTracking() }
     }
 
     func loadLocalState() async {
@@ -438,11 +443,11 @@ final class AppModel {
         growthAttributeMappings = snapshot.growthAttributeMappings
         localUsageSummaries = snapshot.usageSummaries
         localWebsiteUsageSummaries = snapshot.websiteUsageSummaries
-        budgetCategories = snapshot.budgetCategories
+        budgetCategories = snapshot.budgetCategories.filter { $0.archivedAt == nil }
         budgetPeriods = snapshot.budgetPeriods
-        budgetTransactions = snapshot.budgetTransactions
-        gymExercises = snapshot.gymExercises
-        gymWorkouts = snapshot.gymWorkouts
+        budgetTransactions = snapshot.budgetTransactions.filter { $0.deletedAt == nil }
+        gymExercises = snapshot.gymExercises.filter { $0.deletedAt == nil }
+        gymWorkouts = snapshot.gymWorkouts.filter { $0.deletedAt == nil }
         budgetPreferences = snapshot.budgetPreferences
         gymPreferences = snapshot.gymPreferences
         journalNotes = snapshot.journalNotes.filter { $0.deletedAt == nil }

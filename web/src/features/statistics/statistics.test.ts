@@ -1,15 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import type { GrowthSkill, GrowthStatistics, StudyCalendarDay } from '@/shared/api/types';
+import type { WebsiteActivitySession, WebsiteUsageSummary } from '@/shared/api/usageApi';
+import {
+  getStoredStatisticsSettings,
+  saveStoredStatisticsSettings,
+  DEFAULT_STATISTICS_DISPLAY_SETTINGS,
+} from './StatisticsSettingsPopover';
 import {
   buildTrendData,
   buildUsageStackData,
   buildUsageTrendData,
   dateRangeForDays,
+  engagementPercent,
   filterActivityRange,
   inclusiveDayCount,
   selectTopAttributes,
   selectTopUsageApps,
+  selectWebsiteUsageSlices,
   summarizeActivity,
+  filterWebsiteSessions,
+  websiteDomains,
+  websiteUrls,
 } from './statistics';
 
 function skill(overrides: Partial<GrowthSkill>): GrowthSkill {
@@ -37,6 +48,114 @@ function skill(overrides: Partial<GrowthSkill>): GrowthSkill {
 }
 
 describe('statistics helpers', () => {
+  const websiteSummary: WebsiteUsageSummary = {
+    from: '2026-08-01',
+    to: '2026-08-01',
+    totalActiveSeconds: 180,
+    hostnames: [{ hostname: 'docs.example.com', activeSeconds: 180 }],
+    topHostnames: [{ hostname: 'docs.example.com', activeSeconds: 180 }],
+    urlDetails: [
+      {
+        url: 'https://docs.example.com/guide',
+        hostname: 'docs.example.com',
+        activeSeconds: 120,
+        latestTitle: 'Guide',
+        isPrivate: false,
+      },
+      {
+        url: 'https://docs.example.com/private',
+        hostname: 'docs.example.com',
+        activeSeconds: 60,
+        latestTitle: null,
+        isPrivate: true,
+      },
+    ],
+    daily: [{ localDate: '2026-08-01', activeSeconds: 180 }],
+    sessions: [],
+  };
+
+  const websiteSessions: WebsiteActivitySession[] = [
+    {
+      id: 'normal-1',
+      installationId: 'installation-1',
+      browserBundleId: 'browser',
+      browserDisplayName: 'Browser',
+      startedAt: '2026-08-01T09:00:00.000Z',
+      endedAt: '2026-08-01T09:02:00.000Z',
+      activeSeconds: 120,
+      hostname: 'docs.example.com',
+      url: 'https://docs.example.com/guide',
+      pageTitle: 'Guide',
+      isPrivate: false,
+      timezone: 'Asia/Ho_Chi_Minh',
+      createdAt: '2026-08-01T09:02:00.000Z',
+    },
+    {
+      id: 'private-1',
+      installationId: 'installation-1',
+      browserBundleId: 'browser',
+      browserDisplayName: 'Browser',
+      startedAt: '2026-08-01T10:00:00.000Z',
+      endedAt: '2026-08-01T10:01:00.000Z',
+      activeSeconds: 60,
+      hostname: 'docs.example.com',
+      url: 'https://docs.example.com/private',
+      pageTitle: null,
+      isPrivate: true,
+      timezone: 'Asia/Ho_Chi_Minh',
+      createdAt: '2026-08-01T10:01:00.000Z',
+    },
+  ];
+
+  it('filters website sessions and resolves title fallback with visit totals', () => {
+    expect(filterWebsiteSessions(websiteSessions, 'private')).toHaveLength(1);
+    expect(websiteUrls(websiteSummary, websiteSessions, 'docs.example.com', 'private')[0]).toMatchObject({
+      url: 'https://docs.example.com/private',
+      latestTitle: null,
+      visitCount: 1,
+      activeSeconds: 60,
+      isPrivate: true,
+    });
+    expect(websiteUrls(websiteSummary, websiteSessions, 'docs.example.com', 'Guide')[0]).toMatchObject({
+      latestTitle: 'Guide',
+      visitCount: 1,
+    });
+  });
+
+  it('searches website title, URL, and domain while retaining exact domain totals', () => {
+    expect(websiteDomains(websiteSummary, websiteSessions, 'guide')).toEqual([
+      { hostname: 'docs.example.com', activeSeconds: 180 },
+    ]);
+    expect(websiteUrls(websiteSummary, websiteSessions, 'docs.example.com', 'docs.example.com')).toHaveLength(2);
+  });
+
+  it('groups website domains into top slices and Other', () => {
+    const slices = selectWebsiteUsageSlices(
+      {
+        topHostnames: [
+          { hostname: 'z.example', activeSeconds: 5 },
+          { hostname: 'a.example', activeSeconds: 20 },
+          { hostname: 'b.example', activeSeconds: 10 },
+        ],
+      },
+      2,
+    );
+
+    expect(slices).toEqual([
+      { hostname: 'a.example', activeSeconds: 20 },
+      { hostname: 'b.example', activeSeconds: 10 },
+      { hostname: 'Other', activeSeconds: 5 },
+    ]);
+  });
+
+  it('formats compatible engagement as a screen-time percentage', () => {
+    expect(engagementPercent(200, 51)).toBe(26);
+    expect(engagementPercent(200, 300)).toBe(100);
+    expect(engagementPercent(200, -10)).toBe(0);
+    expect(engagementPercent(0, 0)).toBeNull();
+    expect(engagementPercent(200, undefined)).toBeNull();
+  });
+
   it('fills missing usage days and ranks foreground apps', () => {
     const summary = {
       totalActiveSeconds: 900,
@@ -59,6 +178,16 @@ describe('statistics helpers', () => {
       { key: '2026-07-28', label: 'Jul 28', app0: 0, app1: 0, other: 0 },
       { key: '2026-07-29', label: 'Jul 29', app0: 120, app1: 300, other: 480 },
     ]);
+  });
+
+  it('preserves app identity metadata', () => {
+    const summary = {
+      totalActiveSeconds: 300,
+      topApps: [{ bundleId: 'a', displayName: 'Alpha', activeSeconds: 300, iconUrl: '/media/a.webp', iconHash: 'hash' }],
+      daily: [],
+    };
+
+    expect(selectTopUsageApps(summary)[0]).toMatchObject({ iconUrl: '/media/a.webp', iconHash: 'hash' });
   });
 
   it('builds 24 truthful hourly usage buckets for a single-day range', () => {
@@ -233,5 +362,67 @@ describe('statistics helpers', () => {
     ]);
 
     expect(result.map(({ id }) => id)).toEqual(['agility', 'strength']);
+  });
+
+  it('supports custom grouping and zero-value series filtering in trend data', () => {
+    const days: StudyCalendarDay[] = [
+      {
+        date: '2026-07-28',
+        sessions: 0,
+        focusSessions: 1,
+        reviews: 0,
+        correct: 0,
+        completedTasks: 2,
+        focusedMinutes: 25,
+        cardsCreated: 0,
+      },
+    ];
+    const growth: GrowthStatistics = {
+      totalXp: 15,
+      trend: [{ date: '2026-07-29', xp: 15 }],
+      attributes: [],
+    };
+
+    const grouped = buildTrendData(days, growth, { from: '2026-07-20', to: '2026-07-29' }, 'WEEK');
+    expect(grouped.length).toBeGreaterThan(0);
+
+    const nonZeroOnly = buildTrendData(
+      days,
+      growth,
+      { from: '2026-07-27', to: '2026-07-29' },
+      'DAY',
+      false,
+    );
+    expect(nonZeroOnly).toHaveLength(2);
+    expect(nonZeroOnly.every((point) => point.completedTasks > 0 || point.focusedMinutes > 0 || point.xp > 0)).toBe(true);
+  });
+
+  it('persists and restores Statistics display settings', () => {
+    const storage = new Map<string, string>();
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
+        clear: () => storage.clear(),
+      },
+    });
+
+    expect(getStoredStatisticsSettings()).toEqual(DEFAULT_STATISTICS_DISPLAY_SETTINGS);
+
+    saveStoredStatisticsSettings({
+      defaultDateRange: '90D',
+      grouping: 'WEEK',
+      showTrendComparison: false,
+      showZeroValueSeries: true,
+    });
+
+    expect(getStoredStatisticsSettings()).toEqual({
+      defaultDateRange: '90D',
+      grouping: 'WEEK',
+      showTrendComparison: false,
+      showZeroValueSeries: true,
+    });
   });
 });

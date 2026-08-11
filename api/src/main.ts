@@ -43,7 +43,7 @@ async function bootstrap() {
     app.enableCors({
       origin: corsOrigin,
       credentials: true,
-      methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Authorization', 'Content-Type'],
       maxAge: 86400, // Cache preflight OPTIONS requests for 1 day (in seconds)
     });
@@ -99,4 +99,3 @@ async function bootstrap() {
 }
 
 void bootstrap();
-

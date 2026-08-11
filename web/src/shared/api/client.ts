@@ -10,6 +10,7 @@ import { createPreferencesApi, type PreferencesApi } from './preferencesApi';
 import { createBudgetApi, type BudgetApi } from './budgetApi';
 import { createGymApi, type GymApi } from './gymApi';
 import { createUsageApi, type UsageApi } from './usageApi';
+import { createTrashApi, type TrashApi } from './trashApi';
 import type { ApiClientContext, OfflineMutationHandler, OfflineMutationInput } from './apiContext';
 
 export type { OfflineMutationHandler, OfflineMutationInput } from './apiContext';
@@ -27,7 +28,8 @@ export interface ApiClient
     PreferencesApi,
     BudgetApi,
     GymApi,
-    UsageApi {}
+    UsageApi,
+    TrashApi {}
 
 export class ApiClient extends HttpClient {
   private offlineMutationHandler: OfflineMutationHandler | null = null;
@@ -52,6 +54,7 @@ export class ApiClient extends HttpClient {
       createBudgetApi(context),
       createGymApi(context),
       createUsageApi(context),
+      createTrashApi(context),
     );
   }
 

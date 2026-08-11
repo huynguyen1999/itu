@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsDateString, IsEnum, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateExerciseDto {
@@ -88,30 +88,14 @@ export class UpdateExerciseDto {
 }
 
 export class CreateWorkoutDto {
+  @ApiPropertyOptional({ description: 'Client-generated workout ID (ULID)' })
+  @IsOptional()
+  @IsString()
+  id?: string;
   @ApiPropertyOptional({ description: 'Workout title' })
   @IsOptional()
   @IsString()
   title?: string;
-
-  @ApiPropertyOptional({ description: 'ISO date string of start time' })
-  @IsOptional()
-  @IsString()
-  startedAt?: string;
-
-  @ApiPropertyOptional({ enum: ['IN_PROGRESS', 'ACTIVE', 'COMPLETED'], default: 'IN_PROGRESS' })
-  @IsOptional()
-  @IsEnum(['IN_PROGRESS', 'ACTIVE', 'COMPLETED'])
-  status?: 'IN_PROGRESS' | 'ACTIVE' | 'COMPLETED';
-
-  @ApiPropertyOptional({ description: 'ISO date string of end time' })
-  @IsOptional()
-  @IsString()
-  endedAt?: string;
-
-  @ApiPropertyOptional({ description: 'Duration in minutes' })
-  @IsOptional()
-  @IsNumber()
-  durationMinutes?: number;
 
   @ApiPropertyOptional({ description: 'Workout exercises', type: [Object] })
   @IsOptional()
@@ -132,10 +116,10 @@ export class UpdateWorkoutSetDto {
   @IsNumber()
   sortOrder?: number;
 
-  @ApiPropertyOptional({ enum: ['WARMUP', 'NORMAL', 'DROP', 'FAILURE'] })
+  @ApiPropertyOptional({ enum: ['WARM_UP', 'WARMUP', 'NORMAL', 'DROP', 'FAILURE'] })
   @IsOptional()
-  @IsEnum(['WARMUP', 'NORMAL', 'DROP', 'FAILURE'])
-  type?: 'WARMUP' | 'NORMAL' | 'DROP' | 'FAILURE';
+  @IsEnum(['WARM_UP', 'WARMUP', 'NORMAL', 'DROP', 'FAILURE'])
+  type?: 'WARM_UP' | 'WARMUP' | 'NORMAL' | 'DROP' | 'FAILURE';
 
   @ApiPropertyOptional({ description: 'Reps count' })
   @IsOptional()
@@ -161,6 +145,79 @@ export class UpdateWorkoutSetDto {
   @IsOptional()
   @IsNumber()
   rpe?: number;
+
+  @ApiPropertyOptional({ description: 'ISO date string when this set was completed', type: String, format: 'date-time', nullable: true })
+  @IsOptional()
+  @IsDateString()
+  completedAt?: string | null;
+}
+
+/** Stable response shape for dated exercise history. */
+export class ExerciseStatsSetDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  workoutExerciseId!: string;
+
+  @ApiProperty()
+  sortOrder!: number;
+
+  @ApiProperty({ enum: ['WARM_UP', 'WARMUP', 'NORMAL', 'DROP', 'FAILURE'] })
+  type!: 'WARM_UP' | 'WARMUP' | 'NORMAL' | 'DROP' | 'FAILURE';
+
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  reps?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  weight?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  durationSeconds?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  distanceMeters?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  rpe?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'date-time' })
+  completedAt?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'date-time' })
+  performedAt?: string | null;
+
+  @ApiPropertyOptional()
+  workoutId?: string;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  workoutTitle?: string | null;
+
+  @ApiPropertyOptional()
+  version?: number;
+
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'date-time' })
+  deletedAt?: string | null;
+}
+
+export class ExerciseStatsResponseDto {
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  heaviestWeight!: number | null;
+
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  bestVolumeSet!: number | null;
+
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  estimated1RM!: number | null;
+
+  @ApiProperty()
+  totalSets!: number;
+
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'date-time' })
+  lastPerformedAt!: string | null;
+
+  @ApiProperty({ type: [ExerciseStatsSetDto] })
+  recentSets!: ExerciseStatsSetDto[];
 }
 
 export class UpdateWorkoutExerciseDto {
@@ -216,11 +273,6 @@ export class UpdateWorkoutDto {
   @IsOptional()
   @IsNumber()
   durationMinutes?: number;
-
-  @ApiPropertyOptional({ enum: ['IN_PROGRESS', 'ACTIVE', 'COMPLETED'] })
-  @IsOptional()
-  @IsEnum(['IN_PROGRESS', 'ACTIVE', 'COMPLETED'])
-  status?: 'IN_PROGRESS' | 'ACTIVE' | 'COMPLETED';
 
   @ApiPropertyOptional({ description: 'Workout exercises', type: [UpdateWorkoutExerciseDto] })
   @IsOptional()

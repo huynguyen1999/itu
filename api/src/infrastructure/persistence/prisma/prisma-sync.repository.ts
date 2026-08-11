@@ -90,7 +90,7 @@ export class PrismaSyncRepository implements ISyncRepository {
           return { conflict: null, mutationOutcome: storedOutcome };
         }
 
-        const conflict = await this.applyMutation(tx, userId, mutation, mutationOutcome);
+        const conflict = await this.applyMutation(tx, userId, { ...mutation, serverDeviceId: deviceId } as SyncMutation, mutationOutcome);
         await tx.syncMutation.create({
           data: {
             id: mutation.id,
@@ -176,6 +176,7 @@ export class PrismaSyncRepository implements ISyncRepository {
       changes.filter((change) => change.entityType === type && !change.deleted).map((change) => change.entityId);
 
     const deckIds = ids('deck');
+    const workoutIds = [...ids('gymworkout'), ...ids('workout')];
     const [tasks, taskLists, habits, decks, cards, budgetTransactions, gymWorkouts, deckStats] = await Promise.all([
       this.prisma.task.findMany({
         where: { userId, id: { in: ids('task') }, deletedAt: null },
@@ -208,7 +209,7 @@ export class PrismaSyncRepository implements ISyncRepository {
         },
       }),
       this.prisma.budgetTransaction.findMany({ where: { userId, id: { in: ids('budgettransaction') }, deletedAt: null }, include: { categoryRel: true } }),
-      this.prisma.gymWorkout.findMany({ where: { userId, id: { in: ids('gymworkout') }, deletedAt: null }, include: { exercises: { include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } } } }),
+      this.prisma.gymWorkout.findMany({ where: { userId, id: { in: workoutIds }, deletedAt: null }, include: { exercises: { where: { deletedAt: null }, include: { exercise: true, sets: { where: { deletedAt: null }, orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } } } }),
       this.deckStudyStats(userId, deckIds),
     ]);
 
@@ -233,9 +234,12 @@ export class PrismaSyncRepository implements ISyncRepository {
     }
     for (const card of cards) resources.set(`card:${card.id}`, mapCard(card));
     for (const transaction of budgetTransactions) resources.set(`budgettransaction:${transaction.id}`, transaction);
-    for (const workout of gymWorkouts) resources.set(`gymworkout:${workout.id}`, workout);
+    for (const workout of gymWorkouts) {
+      resources.set(`gymworkout:${workout.id}`, workout);
+      resources.set(`workout:${workout.id}`, workout);
+    }
 
-    const completeTypes = new Set(['task', 'tasklist', 'habit', 'deck', 'card', 'budgettransaction', 'gymworkout']);
+    const completeTypes = new Set(['task', 'tasklist', 'habit', 'deck', 'card', 'budgettransaction', 'gymworkout', 'workout']);
     return changes.map((change) => {
       const key = `${change.entityType}:${change.entityId}`;
       const resource = change.deleted ? null : resources.get(key);
@@ -443,11 +447,11 @@ export class PrismaSyncRepository implements ISyncRepository {
       this.prisma.journalEntry.findMany({ where: { userId, deletedAt: null }, include: JOURNAL_SYNC_INCLUDE }),
       this.prisma.journalTemplate.findMany({ where: { userId, archivedAt: null } }),
       this.prisma.journalTag.findMany({ where: { userId } }),
-      this.prisma.exerciseDefinition.findMany({ where: { userId } }),
+      this.prisma.exerciseDefinition.findMany({ where: { userId, deletedAt: null } }),
       this.prisma.budgetCategory.findMany({ where: { userId } }),
       this.prisma.budgetPeriod.findMany({ where: { userId }, include: { categoryBudgets: true } }),
       this.prisma.budgetTransaction.findMany({ where: { userId, deletedAt: null }, include: { categoryRel: true } }),
-      this.prisma.gymWorkout.findMany({ where: { userId, deletedAt: null }, include: { exercises: { include: { exercise: true, sets: true } } } }),
+      this.prisma.gymWorkout.findMany({ where: { userId, deletedAt: null }, include: { exercises: { where: { deletedAt: null }, include: { exercise: true, sets: { where: { deletedAt: null } } } } } }),
     ]);
     const rows: Array<{ entityType: string; entityId: string; deleted: false; data: Prisma.JsonValue }> = [];
     const add = (entityType: string, values: Array<{ id: string }>) => {

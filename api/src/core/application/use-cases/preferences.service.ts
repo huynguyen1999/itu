@@ -80,6 +80,9 @@ export interface UsagePreferences {
   excludedBundleIds: string[];
 }
 
+export const MAX_EXCLUDED_BUNDLE_IDS = 100;
+export const MAX_EXCLUDED_BUNDLE_ID_LENGTH = 255;
+
 export interface AllUserPreferences {
   tasks: TaskPreferences;
   focus: FocusPreferences;
@@ -161,7 +164,7 @@ export const DEFAULT_GYM_PREFERENCES: GymPreferences = {
   defaultRestSeconds: 120,
   autoStartRestTimer: true,
   previousPerformanceMode: 'EXERCISE',
-  showRpe: true,
+  showRpe: false,
   weeklyWorkoutGoal: 3,
 };
 
@@ -315,15 +318,31 @@ export class PreferencesService {
     if (!Number.isInteger(updated.retentionDays) || updated.retentionDays < 7 || updated.retentionDays > 365) {
       throw new BadRequestException('retentionDays must be an integer between 7 and 365');
     }
-    if (!Number.isInteger(updated.idleThresholdSeconds) || updated.idleThresholdSeconds < 60 || updated.idleThresholdSeconds > 1800) {
+    if (
+      !Number.isInteger(updated.idleThresholdSeconds) ||
+      updated.idleThresholdSeconds < 60 ||
+      updated.idleThresholdSeconds > 1800
+    ) {
       throw new BadRequestException('idleThresholdSeconds must be an integer between 60 and 1800');
     }
-    if (!Array.isArray(updated.excludedBundleIds) || updated.excludedBundleIds.some((id) => typeof id !== 'string')) {
-      throw new BadRequestException('excludedBundleIds must be an array of strings');
+    if (
+      !Array.isArray(updated.excludedBundleIds) ||
+      updated.excludedBundleIds.length > MAX_EXCLUDED_BUNDLE_IDS ||
+      updated.excludedBundleIds.some((id) => typeof id !== 'string')
+    ) {
+      throw new BadRequestException(`excludedBundleIds must be an array of at most ${MAX_EXCLUDED_BUNDLE_IDS} strings`);
     }
-    updated.excludedBundleIds = Array.from(
-      new Set(updated.excludedBundleIds.map((id) => id.trim()).filter((id) => id.length > 0 && id.length <= 255)),
-    );
+    if (
+      updated.excludedBundleIds.some((id) => {
+        const normalized = id.trim();
+        return normalized.length === 0 || normalized.length > MAX_EXCLUDED_BUNDLE_ID_LENGTH;
+      })
+    ) {
+      throw new BadRequestException(
+        `excludedBundleIds entries must be between 1 and ${MAX_EXCLUDED_BUNDLE_ID_LENGTH} characters`,
+      );
+    }
+    updated.excludedBundleIds = Array.from(new Set(updated.excludedBundleIds.map((id) => id.trim())));
     await this.prisma.userPreferences.upsert({
       where: { userId },
       create: { userId, usagePreferences: updated as any },

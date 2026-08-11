@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type {
   IUsageRepository,
+  UsageAppIdentityRecord,
+  UsageAppIdentityWrite,
   UsageSummaryRecord,
   UsageSummaryWrite,
+  WebsiteActivitySessionRecord,
+  WebsiteActivitySessionWrite,
   WebsiteUsageSummaryRecord,
   WebsiteUsageSummaryWrite,
 } from '@core/application/ports/out/repositories.port';
@@ -18,10 +22,48 @@ export class PrismaUsageRepository implements IUsageRepository {
   }
 
   async findSummaries(userId: string, from: Date, toExclusive: Date): Promise<UsageSummaryRecord[]> {
-    return this.prisma.usageSummary.findMany({
+    const rows = await this.prisma.usageSummary.findMany({
       where: { userId, localDate: { gte: from, lt: toExclusive } },
-      select: { localDate: true, hour: true, bundleId: true, displayName: true, activeSeconds: true, engagedSeconds: true },
+      select: {
+        localDate: true,
+        hour: true,
+        bundleId: true,
+        displayName: true,
+        activeSeconds: true,
+        engagedSeconds: true,
+      },
       orderBy: [{ localDate: 'asc' }, { hour: 'asc' }, { activeSeconds: 'desc' }],
+    });
+    if (rows.length === 0) return rows;
+    const identities = await this.prisma.usageAppIdentity.findMany({
+      where: { userId, bundleId: { in: [...new Set(rows.map((row) => row.bundleId))] } },
+      select: { bundleId: true, iconHash: true, iconStorageKey: true },
+    });
+    const byBundle = new Map(identities.map((identity) => [identity.bundleId, identity]));
+    return rows.map((row) => ({ ...row, ...byBundle.get(row.bundleId) }));
+  }
+
+  async listAppIdentities(userId: string): Promise<UsageAppIdentityRecord[]> {
+    return this.prisma.usageAppIdentity.findMany({
+      where: { userId },
+      select: { bundleId: true, displayName: true, iconHash: true, iconStorageKey: true },
+      orderBy: { displayName: 'asc' },
+    });
+  }
+
+  async findAppIdentity(userId: string, bundleId: string): Promise<UsageAppIdentityRecord | null> {
+    return this.prisma.usageAppIdentity.findUnique({
+      where: { userId_bundleId: { userId, bundleId } },
+      select: { bundleId: true, displayName: true, iconHash: true, iconStorageKey: true },
+    });
+  }
+
+  async upsertAppIdentity(userId: string, data: UsageAppIdentityWrite): Promise<UsageAppIdentityRecord> {
+    return this.prisma.usageAppIdentity.upsert({
+      where: { userId_bundleId: { userId, bundleId: data.bundleId } },
+      create: { userId, ...data },
+      update: { displayName: data.displayName, iconHash: data.iconHash, iconStorageKey: data.iconStorageKey },
+      select: { bundleId: true, displayName: true, iconHash: true, iconStorageKey: true },
     });
   }
 
@@ -132,6 +174,61 @@ export class PrismaUsageRepository implements IUsageRepository {
         });
       }
       return summaries.length;
+    });
+  }
+
+  async ingestWebsiteActivitySessions(
+    userId: string,
+    sessions: WebsiteActivitySessionWrite[],
+  ): Promise<string[]> {
+    if (sessions.length === 0) return [];
+    await this.prisma.$transaction(async (tx) => {
+      for (const session of sessions) {
+        await tx.websiteActivitySession.upsert({
+          where: { installationId_id: { installationId: session.installationId, id: session.id } },
+          create: { ...session, userId },
+          update: {
+            browserBundleId: session.browserBundleId,
+            browserDisplayName: session.browserDisplayName,
+            startedAt: session.startedAt,
+            endedAt: session.endedAt,
+            activeSeconds: session.activeSeconds,
+            hostname: session.hostname,
+            url: session.url,
+            pageTitle: session.pageTitle,
+            isPrivate: session.isPrivate,
+            timezone: session.timezone,
+          },
+        });
+      }
+    });
+    return sessions.map(({ id }) => id);
+  }
+
+  async findWebsiteActivitySessions(
+    userId: string,
+    from: Date,
+    toExclusive: Date,
+  ): Promise<WebsiteActivitySessionRecord[]> {
+    return this.prisma.websiteActivitySession.findMany({
+      where: { userId, startedAt: { gte: from, lt: toExclusive } },
+      select: {
+        id: true,
+        userId: true,
+        installationId: true,
+        browserBundleId: true,
+        browserDisplayName: true,
+        startedAt: true,
+        endedAt: true,
+        activeSeconds: true,
+        hostname: true,
+        url: true,
+        pageTitle: true,
+        isPrivate: true,
+        timezone: true,
+        createdAt: true,
+      },
+      orderBy: { startedAt: 'asc' },
     });
   }
 

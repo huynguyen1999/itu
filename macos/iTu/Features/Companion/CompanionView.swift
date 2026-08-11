@@ -62,10 +62,20 @@ struct CompanionView: View {
             }
             return viewModel.handleReturn() ? .handled : .ignored
         }
-        .onAppear { searchFocused = true }
+        .onAppear {
+            if viewModel.selectedTab == .note {
+                focusNoteBody()
+            } else {
+                searchFocused = true
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
             guard notification.object as? NSWindow == NSApp.keyWindow else { return }
-            searchFocused = true
+            if viewModel.selectedTab == .note {
+                focusNoteBody()
+            } else {
+                searchFocused = true
+            }
         }
         .onChange(of: viewModel.isTaskCapturing) { _, active in
             if active { taskCaptureFocused = true }
@@ -75,12 +85,23 @@ struct CompanionView: View {
         }
         .onChange(of: viewModel.selectedTab) { _, tab in
             if tab == .note {
+                focusNoteBody()
+                DispatchQueue.main.async {
+                    guard viewModel.selectedTab == .note else { return }
+                    focusNoteBody()
+                }
+            } else if tab == .focus {
                 searchFocused = false
-                noteBodyFocused = true
+                noteBodyFocused = false
             } else {
                 noteBodyFocused = false
             }
         }
+    }
+
+    private func focusNoteBody() {
+        searchFocused = false
+        noteBodyFocused = true
     }
 
     private var searchBar: some View {
@@ -315,10 +336,7 @@ struct CompanionView: View {
                     .scrollContentBackground(.hidden)
                     .padding(4)
                     .focused($noteBodyFocused)
-                    .onAppear {
-                        searchFocused = false
-                        noteBodyFocused = true
-                    }
+                    .onAppear { focusNoteBody() }
             }
             .background(iTuTheme.surface.opacity(0.72))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -414,6 +432,7 @@ struct CompanionView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .keyboardShortcut(.defaultAction)
                 .padding(12)
             }
         }
@@ -491,6 +510,7 @@ struct CompanionView: View {
                     focusAction(session.status == .paused ? "Resume" : "Pause", icon: session.status == .paused ? "play.fill" : "pause.fill") {
                         Task { await viewModel.model.performFocusAction(session.status == .paused ? "resume" : "pause") }
                     }
+                    .keyboardShortcut(.defaultAction)
                     focusAction("+5 min", icon: "plus") { Task { await viewModel.model.performFocusAction("extend", extendSeconds: 300) } }
                     focusAction("Complete", icon: "checkmark", emphasized: true) { Task { await viewModel.model.performFocusAction("complete") } }
                     focusAction("Abandon", icon: "xmark", destructive: true) { Task { await viewModel.model.performFocusAction("abandon") } }

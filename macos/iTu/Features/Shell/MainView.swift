@@ -242,137 +242,43 @@ private struct PrimaryRail: View {
         }
     }
 
+    private func navigateTo(_ entry: NavigationEntry) {
+        guard entry.id != "plan" || !model.selectedSection.isPlanningSection else { return }
+        navigateTo(entry.destination)
+    }
+
+    private func isSelected(_ entry: NavigationEntry) -> Bool {
+        entry.id == "plan"
+            ? model.selectedSection.isPlanningSection
+            : model.selectedSection == entry.destination
+    }
+
+    private func badge(for entry: NavigationEntry) -> Int {
+        switch entry.id {
+        case "conflicts": model.conflicts.count
+        case "notifications": model.notifications.filter { $0.readAt == nil }.count
+        default: 0
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             brand
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    railGroup("Productivity") {
-                        PrimaryRailButton(
-                            title: "Home",
-                            systemImage: "house",
-                            isSelected: model.selectedSection == .home
-                        ) {
-                            navigateTo(.home)
-                        }
-                        PrimaryRailButton(
-                            title: "Plan",
-                            systemImage: "checkmark.square",
-                            isSelected: model.selectedSection.isPlanningSection
-                        ) {
-                            if !model.selectedSection.isPlanningSection {
-                                navigateTo(.inbox)
+                    ForEach(NavigationSchema.primaryGroups) { group in
+                        railGroup(group.title) {
+                            ForEach(group.entries) { entry in
+                                PrimaryRailButton(
+                                    title: entry.title,
+                                    systemImage: entry.systemImage,
+                                    badge: badge(for: entry),
+                                    isSelected: isSelected(entry)
+                                ) {
+                                    navigateTo(entry)
+                                }
                             }
-                        }
-                        PrimaryRailButton(
-                            title: "Matrix",
-                            systemImage: "square.grid.2x2",
-                            isSelected: model.selectedSection == .matrix
-                        ) {
-                            navigateTo(.matrix)
-                        }
-                        PrimaryRailButton(
-                            title: "Focus",
-                            systemImage: "scope",
-                            isSelected: model.selectedSection == .focus
-                        ) {
-                            navigateTo(.focus)
-                        }
-                    }
-
-                    railGroup("Tracking") {
-                        PrimaryRailButton(
-                            title: "Habits",
-                            systemImage: "repeat",
-                            isSelected: model.selectedSection == .habits
-                        ) {
-                            navigateTo(.habits)
-                        }
-                        PrimaryRailButton(
-                            title: "Statistics",
-                            systemImage: "chart.bar",
-                            isSelected: model.selectedSection == .statistics
-                        ) {
-                            navigateTo(.statistics)
-                        }
-                        PrimaryRailButton(
-                            title: "Journal",
-                            systemImage: "book.closed",
-                            isSelected: model.selectedSection == .journal
-                        ) {
-                            navigateTo(.journal)
-                        }
-                        PrimaryRailButton(
-                            title: "Budget",
-                            systemImage: "creditcard",
-                            isSelected: model.selectedSection == .budget
-                        ) {
-                            navigateTo(.budget)
-                        }
-                        PrimaryRailButton(
-                            title: "Gym",
-                            systemImage: "dumbbell",
-                            isSelected: model.selectedSection == .gym
-                        ) {
-                            navigateTo(.gym)
-                        }
-                    }
-
-                    railGroup("Learning & Growth") {
-                        PrimaryRailButton(
-                            title: "Learn",
-                            systemImage: "book.closed",
-                            isSelected: model.selectedSection == .learn
-                        ) {
-                            navigateTo(.learn)
-                        }
-                        PrimaryRailButton(
-                            title: "Growth",
-                            systemImage: "sparkles",
-                            isSelected: model.selectedSection == .growth
-                        ) {
-                            navigateTo(.growth)
-                        }
-                    }
-
-                    railGroup("System") {
-                        PrimaryRailButton(
-                            title: "Conflicts",
-                            systemImage: "arrow.triangle.2.circlepath",
-                            badge: model.conflicts.count,
-                            isSelected: model.selectedSection == .conflicts
-                        ) {
-                            navigateTo(.conflicts)
-                        }
-                        PrimaryRailButton(
-                            title: "Notifications",
-                            systemImage: "bell",
-                            badge: model.notifications.filter { $0.readAt == nil }.count,
-                            isSelected: model.selectedSection == .notifications
-                        ) {
-                            navigateTo(.notifications)
-                        }
-                        PrimaryRailButton(
-                            title: "Trash",
-                            systemImage: "trash",
-                            isSelected: model.selectedSection == .trash
-                        ) {
-                            navigateTo(.trash)
-                        }
-                        PrimaryRailButton(
-                            title: "Profile",
-                            systemImage: "person.crop.circle",
-                            isSelected: model.selectedSection == .profile
-                        ) {
-                            navigateTo(.profile)
-                        }
-                        PrimaryRailButton(
-                            title: "Settings",
-                            systemImage: "gearshape",
-                            isSelected: model.selectedSection == .settings
-                        ) {
-                            navigateTo(.settings)
                         }
                     }
                 }
@@ -611,6 +517,7 @@ private struct PrimaryRailButton: View {
         .buttonStyle(PrimaryRailButtonStyle(isSelected: isSelected))
         .help(title)
         .accessibilityLabel(title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

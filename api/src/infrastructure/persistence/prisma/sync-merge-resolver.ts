@@ -73,7 +73,10 @@ export class SyncMergeResolver {
           hasServerWins = true;
         } else {
           // Equal timestamps -> tie breaker: deviceId -> mutationId
-          if (deviceId >= serverClock.deviceId) {
+          const clientWins =
+            deviceId > serverClock.deviceId ||
+            (deviceId === serverClock.deviceId && mutation.id >= serverClock.mutationId);
+          if (clientWins) {
             resolvedPayload[field] = clientVal;
             appliedFields.push(field);
             updatedClocks.push({ fieldName: field, editedAt: validClientTime });

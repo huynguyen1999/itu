@@ -18,7 +18,7 @@ struct PlanningView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
                 .padding(.bottom, 16)
-                .background(iTuTheme.surface.opacity(0.88))
+                .background(iTuTheme.surface)
                 .overlay(alignment: .bottom) {
                     Rectangle()
                         .fill(iTuTheme.border)

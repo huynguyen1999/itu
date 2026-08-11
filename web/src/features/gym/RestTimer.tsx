@@ -6,9 +6,30 @@ import { Timer, X } from 'lucide-react';
 interface RestTimerProps {
   initialSeconds: number;
   onClose: () => void;
+  soundEnabled?: boolean;
 }
 
-export function RestTimer({ initialSeconds, onClose }: RestTimerProps) {
+export function playGymTone(enabled: boolean, frequency = 660) {
+  if (!enabled || typeof window === 'undefined') return;
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.06, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.25);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.25);
+    oscillator.addEventListener('ended', () => void context.close());
+  } catch {
+    // Audio is optional; browser autoplay/device restrictions should not affect logging.
+  }
+}
+
+export function RestTimer({ initialSeconds, onClose, soundEnabled = true }: RestTimerProps) {
   const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
 
   useEffect(() => {
@@ -18,6 +39,10 @@ export function RestTimer({ initialSeconds, onClose }: RestTimerProps) {
     }, 1000);
     return () => clearInterval(interval);
   }, [secondsLeft]);
+
+  useEffect(() => {
+    if (secondsLeft === 0) playGymTone(soundEnabled);
+  }, [secondsLeft, soundEnabled]);
 
   return (
     <Card className="p-3 bg-emerald-500/10 border-emerald-500/30 flex items-center justify-between">
@@ -30,8 +55,19 @@ export function RestTimer({ initialSeconds, onClose }: RestTimerProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={() => setSecondsLeft((s) => s + 30)} className="text-xs h-7">
-          +30s
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setSecondsLeft((s) => Math.max(0, s - 15))}
+          className="h-7 text-xs"
+        >
+          -15s
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onClose} className="h-7 text-xs">
+          Skip
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setSecondsLeft((s) => s + 15)} className="h-7 text-xs">
+          +15s
         </Button>
         <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
           <X className="w-3.5 h-3.5" />

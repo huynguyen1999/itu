@@ -1,4 +1,5 @@
 import { BarChart3 } from 'lucide-react';
+import { safeLocalStorage } from '@/shared/browser/safeStorage';
 import {
   FeatureSettingsPopover,
   FeatureSettingsSection,
@@ -7,7 +8,7 @@ import {
 } from '@/shared/ui/feature-settings';
 
 export interface StatisticsDisplaySettings {
-  defaultDateRange: '7D' | '30D' | '90D' | '1Y';
+  defaultDateRange: '1D' | '7D' | '30D' | '90D' | '1Y';
   grouping: 'DAY' | 'WEEK' | 'MONTH';
   showTrendComparison: boolean;
   showZeroValueSeries: boolean;
@@ -19,6 +20,42 @@ export const DEFAULT_STATISTICS_DISPLAY_SETTINGS: StatisticsDisplaySettings = {
   showTrendComparison: true,
   showZeroValueSeries: false,
 };
+
+export const STATISTICS_SETTINGS_STORAGE_KEY = 'itu.statistics-settings';
+
+export function getStoredStatisticsSettings(): StatisticsDisplaySettings {
+  try {
+    const raw = safeLocalStorage.getItem(STATISTICS_SETTINGS_STORAGE_KEY);
+    if (!raw) return DEFAULT_STATISTICS_DISPLAY_SETTINGS;
+    const parsed = JSON.parse(raw);
+    return {
+      defaultDateRange: ['1D', '7D', '30D', '90D', '1Y'].includes(parsed?.defaultDateRange)
+        ? parsed.defaultDateRange
+        : DEFAULT_STATISTICS_DISPLAY_SETTINGS.defaultDateRange,
+      grouping: ['DAY', 'WEEK', 'MONTH'].includes(parsed?.grouping)
+        ? parsed.grouping
+        : DEFAULT_STATISTICS_DISPLAY_SETTINGS.grouping,
+      showTrendComparison:
+        typeof parsed?.showTrendComparison === 'boolean'
+          ? parsed.showTrendComparison
+          : DEFAULT_STATISTICS_DISPLAY_SETTINGS.showTrendComparison,
+      showZeroValueSeries:
+        typeof parsed?.showZeroValueSeries === 'boolean'
+          ? parsed.showZeroValueSeries
+          : DEFAULT_STATISTICS_DISPLAY_SETTINGS.showZeroValueSeries,
+    };
+  } catch {
+    return DEFAULT_STATISTICS_DISPLAY_SETTINGS;
+  }
+}
+
+export function saveStoredStatisticsSettings(settings: StatisticsDisplaySettings): void {
+  try {
+    safeLocalStorage.setItem(STATISTICS_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 export function StatisticsSettingsPopover({
   settings = DEFAULT_STATISTICS_DISPLAY_SETTINGS,
@@ -41,6 +78,7 @@ export function StatisticsSettingsPopover({
               onChange={(e) => onChange({ defaultDateRange: e.target.value as StatisticsDisplaySettings['defaultDateRange'] })}
               className="h-8 rounded-md border bg-background px-2 text-xs"
             >
+              <option value="1D">Today</option>
               <option value="7D">7 Days</option>
               <option value="30D">30 Days</option>
               <option value="90D">90 Days</option>

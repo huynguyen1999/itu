@@ -1,6 +1,60 @@
 import Charts
 import SwiftUI
 import AppKit
+import ServiceManagement
+
+struct StatisticsWebsiteSlice: Identifiable, Equatable {
+    let hostname: String
+    let activeSeconds: Int
+    var id: String { hostname }
+}
+
+enum StatisticsDisplayHelpers {
+    static func topWebsiteSlices(_ domains: [StatisticsWebsiteSlice], limit: Int) -> [StatisticsWebsiteSlice] {
+        let sorted = domains.sorted { $0.activeSeconds == $1.activeSeconds ? $0.hostname < $1.hostname : $0.activeSeconds > $1.activeSeconds }
+        let count = min(10, max(1, limit))
+        guard sorted.count > count else { return sorted }
+        let top = Array(sorted.prefix(count))
+        let otherSeconds = sorted.dropFirst(count).reduce(0) { $0 + $1.activeSeconds }
+        return top + [StatisticsWebsiteSlice(hostname: "Other", activeSeconds: otherSeconds)]
+    }
+
+    static func websiteSlices(
+        filteredDetails: [WebsiteUsageURLDetail],
+        privacyFilter: WebsiteActivityPrivacyFilter,
+        fallback: [StatisticsWebsiteSlice],
+        limit: Int
+    ) -> [StatisticsWebsiteSlice] {
+        if !filteredDetails.isEmpty {
+            let totals = filteredDetails.reduce(into: [String: Int]()) { $0[$1.hostname, default: 0] += $1.activeSeconds }
+            return topWebsiteSlices(totals.map { StatisticsWebsiteSlice(hostname: $0.key, activeSeconds: $0.value) }, limit: limit)
+        }
+        // Aggregate hostnames and local summaries do not carry privacy metadata;
+        // never surface them for a filtered view when no matching URL details exist.
+        if privacyFilter != .all { return [] }
+        return topWebsiteSlices(fallback, limit: limit)
+    }
+
+    static func filteredWebsiteDetails(
+        _ details: [WebsiteUsageURLDetail],
+        filter: WebsiteActivityPrivacyFilter
+    ) -> [WebsiteUsageURLDetail] {
+        details.filter { filter.matches(isPrivate: $0.isPrivate) }
+    }
+
+    static func filteredWebsiteSessions(
+        _ sessions: [WebsiteUsageSession],
+        filter: WebsiteActivityPrivacyFilter
+    ) -> [WebsiteUsageSession] {
+        sessions.filter { filter.matches(isPrivate: $0.isPrivate) }
+    }
+
+    static func websiteTitle(_ detail: WebsiteUsageURLDetail) -> String {
+        detail.latestTitle?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? detail.latestTitle!
+            : detail.url
+    }
+}
 
 struct StatisticsView: View {
     @Environment(AppModel.self) private var model
@@ -8,6 +62,8 @@ struct StatisticsView: View {
     @State private var timeRange: String = "30 Days"
     @State private var customFromDate = Calendar.current.date(byAdding: .day, value: -29, to: Date()) ?? Date()
     @State private var customToDate = Date()
+    @State private var showingSettings = false
+    @State private var websitePrivacyFilter: WebsiteActivityPrivacyFilter = .all
 
     private struct TrendItem: Identifiable {
         let id: String
@@ -21,12 +77,6 @@ struct StatisticsView: View {
         let displayName: String
         let activeSeconds: Int
         var id: String { "\(localDate)|\(bundleId)" }
-    }
-
-    private struct WebsiteDomainItem: Identifiable {
-        let hostname: String
-        let activeSeconds: Int
-        var id: String { hostname }
     }
 
     private var selectedDayCount: Int? {
@@ -54,15 +104,55 @@ struct StatisticsView: View {
         return "\(from.formatted(.dateTime.month(.abbreviated).day())) – \(to.formatted(.dateTime.month(.abbreviated).day().year()))"
     }
 
-    private var websiteDomains: [WebsiteDomainItem] {
-        if let stats = model.websiteUsageStatistics, !stats.hostnames.isEmpty {
-            return stats.hostnames.map { WebsiteDomainItem(hostname: $0.hostname, activeSeconds: $0.activeSeconds) }
+    private var websiteDomains: [StatisticsWebsiteSlice] {
+        let fallback: [StatisticsWebsiteSlice]
+        if websitePrivacyFilter == .all, let stats = model.websiteUsageStatistics, !stats.hostnames.isEmpty {
+            // Hostname totals include local pending summary deltas merged by AppModel.
+            fallback = stats.hostnames.map { StatisticsWebsiteSlice(hostname: $0.hostname, activeSeconds: $0.activeSeconds) }
+        } else if let stats = model.websiteUsageStatistics, !stats.hostnames.isEmpty {
+            fallback = stats.hostnames.map { StatisticsWebsiteSlice(hostname: $0.hostname, activeSeconds: $0.activeSeconds) }
+        } else {
+            let totals = model.localWebsiteUsageSummaries
+                .filter { $0.localDate >= usageFromKey && $0.localDate <= usageToKey }
+                .reduce(into: [String: Int]()) { $0[$1.hostname, default: 0] += $1.activeSeconds }
+            fallback = totals.map { StatisticsWebsiteSlice(hostname: $0.key, activeSeconds: $0.value) }
         }
-        let totals = model.localWebsiteUsageSummaries
-            .filter { $0.localDate >= usageFromKey && $0.localDate <= usageToKey }
-            .reduce(into: [String: Int]()) { $0[$1.hostname, default: 0] += $1.activeSeconds }
-        return totals.map { WebsiteDomainItem(hostname: $0.key, activeSeconds: $0.value) }
-            .sorted { $0.activeSeconds == $1.activeSeconds ? $0.hostname < $1.hostname : $0.activeSeconds > $1.activeSeconds }
+        let details = websitePrivacyFilter == .all && !(model.websiteUsageStatistics?.hostnames.isEmpty ?? true)
+            ? []
+            : websiteURLDetails
+        return StatisticsDisplayHelpers.websiteSlices(
+            filteredDetails: details,
+            privacyFilter: websitePrivacyFilter,
+            fallback: fallback,
+            limit: displaySettings.websiteSliceCount
+        )
+    }
+
+    private var websiteURLDetails: [WebsiteUsageURLDetail] {
+        guard let stats = model.websiteUsageStatistics else { return [] }
+        return StatisticsDisplayHelpers.filteredWebsiteDetails(stats.urlDetails, filter: websitePrivacyFilter)
+    }
+
+    private func websiteSessions(for detail: WebsiteUsageURLDetail) -> [WebsiteUsageSession] {
+        guard let stats = model.websiteUsageStatistics else { return [] }
+        return StatisticsDisplayHelpers.filteredWebsiteSessions(stats.sessions, filter: websitePrivacyFilter)
+            .filter { $0.url == detail.url && $0.hostname == detail.hostname }
+    }
+
+    private var displaySettings: StatisticsDisplaySettings { model.settingsStore.statisticsDisplaySettings.clamped }
+    private var chartHeight: CGFloat {
+        switch displaySettings.chartDensity {
+        case .compact: 120
+        case .comfortable: 150
+        case .spacious: 190
+        }
+    }
+    private var chartTickCount: Int {
+        switch displaySettings.chartDensity {
+        case .compact: 3
+        case .comfortable: 4
+        case .spacious: 6
+        }
     }
 
     private var highestLevelAttributes: [UserAttribute] {
@@ -76,8 +166,6 @@ struct StatisticsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                headerView
-                customRangeControls
                 if model.statisticsError {
                     Label(
                         model.statisticsErrorMessage.map { "Some statistics could not be loaded: \($0)" }
@@ -88,19 +176,39 @@ struct StatisticsView: View {
                         .foregroundStyle(iTuTheme.coral)
                 }
                 summaryStatsGrid
-                usageSection
-                websiteUsageSection
+                if displaySettings.showAppUsage { usageSection }
+                if displaySettings.showWebsiteUsage { websiteUsageSection }
                 trendChartsSection
                 attributeDistributionSection
                 highestLevelAttributesSection
+                if !displaySettings.showAppUsage && !displaySettings.showWebsiteUsage {
+                    Text("Usage detail is hidden in Statistics settings. Other statistics remain available above.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.inkDim)
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .iTuPanel(radius: 12)
+                }
             }
             .padding(24)
             .frame(maxWidth: 1280)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .iTuPinnedHeader {
+            VStack(alignment: .leading, spacing: 14) {
+                headerView
+                customRangeControls
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
+        }
         .background(iTuTheme.canvas)
         .onAppear {
-            refreshForCurrentRange()
+            if timeRange == displaySettings.defaultRange {
+                refreshForCurrentRange()
+            } else {
+                timeRange = displaySettings.defaultRange
+            }
         }
         .onChange(of: timeRange) { _, _ in
             if timeRange != "Custom" { refreshForCurrentRange() }
@@ -115,13 +223,17 @@ struct StatisticsView: View {
                 HStack(spacing: 10) {
                     rangePicker
                     refreshButton
+                    settingsButton
                 }
             }
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top) {
                     statisticsHeading
                     Spacer()
-                    refreshButton
+                    HStack(spacing: 10) {
+                        refreshButton
+                        settingsButton
+                    }
                 }
                 rangePicker
             }
@@ -138,6 +250,14 @@ struct StatisticsView: View {
         .disabled(model.statisticsLoading || model.usageLoading)
         .keyboardShortcut("r", modifiers: .command)
         .help("Refresh statistics for the selected time range")
+    }
+
+    private var settingsButton: some View {
+        FeatureSettingsButton(label: "Statistics settings") { showingSettings = true }
+            .popover(isPresented: $showingSettings, arrowEdge: .top) {
+            StatisticsSettingsPopover()
+                .environment(model)
+        }
     }
 
     private var statisticsHeading: some View {
@@ -219,9 +339,16 @@ struct StatisticsView: View {
                 }
                 Spacer()
                 if let stats = model.usageStatistics {
-                    Text(formatDuration(stats.totalActiveSeconds))
-                        .font(.system(size: 16, weight: .bold, design: .monospaced))
-                        .foregroundStyle(iTuTheme.teal)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(formatDuration(stats.totalActiveSeconds))
+                            .font(.system(size: 16, weight: .bold, design: .monospaced))
+                            .foregroundStyle(iTuTheme.teal)
+                        if displaySettings.showEngagement, let engaged = stats.totalEngagedSeconds {
+                            Text("Engaged \(formatDuration(engaged))")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(iTuTheme.inkDim)
+                        }
+                    }
                 }
             }
             if !model.settingsStore.usagePreferences.enabled {
@@ -282,7 +409,7 @@ struct StatisticsView: View {
                     }
                 }
             } else {
-                AxisMarks(values: .automatic(desiredCount: 6)) { value in
+                AxisMarks(values: .automatic(desiredCount: chartTickCount)) { value in
                     AxisValueLabel {
                         if let bucket = value.as(String.self) {
                             Text(shortDate(bucket))
@@ -299,19 +426,30 @@ struct StatisticsView: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 200)
+        .frame(maxWidth: .infinity, minHeight: max(150, chartHeight + 50))
         .accessibilityLabel(isHourly ? "Foreground usage by hour and application" : "Foreground usage by day and application")
     }
 
     private var websiteUsageSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Image(systemName: "globe")
-                    .foregroundStyle(iTuTheme.teal)
-                Text("Website activity")
-                    .font(.system(size: 16, weight: .semibold))
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "globe")
+                        .foregroundStyle(iTuTheme.teal)
+                    Text("Website activity")
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                Spacer()
+                Picker("Privacy", selection: $websitePrivacyFilter) {
+                    ForEach(WebsiteActivityPrivacyFilter.allCases) { filter in
+                        Text(filter.title).tag(filter)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+                .accessibilityLabel("Website activity privacy filter")
             }
-            Text("Domain totals from website activity.")
+            Text("Domain totals with URL visits and session times.")
                 .font(.system(size: 11))
                 .foregroundStyle(iTuTheme.inkDim)
             if model.usageLoading && model.websiteUsageStatistics == nil {
@@ -320,23 +458,76 @@ struct StatisticsView: View {
             } else if !websiteDomains.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(websiteDomains) { domain in
-                        HStack(spacing: 12) {
-                            Text(String(domain.hostname.first ?? "?"))
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .frame(width: 30, height: 30)
-                                .background(iTuTheme.teal)
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            Text(domain.hostname)
-                                .font(.system(size: 12, weight: .medium))
-                                .lineLimit(1)
-                            Spacer()
-                            Text(formatDuration(domain.activeSeconds))
-                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(iTuTheme.inkDim)
+                        if domain.hostname == "Other" {
+                            websiteDomainRow(domain)
+                        } else {
+                        DisclosureGroup {
+                            let details = websiteURLDetails.filter { $0.hostname == domain.hostname }
+                            if details.isEmpty {
+                                Text("No URL details available for this domain.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(iTuTheme.inkDim)
+                                    .padding(.vertical, 8)
+                            } else {
+                                VStack(spacing: 0) {
+                                    ForEach(details) { detail in
+                                        DisclosureGroup {
+                                            let sessions = websiteSessions(for: detail)
+                                            if sessions.isEmpty {
+                                                Text("No session visits available.")
+                                                    .font(.system(size: 11))
+                                                    .foregroundStyle(iTuTheme.inkDim)
+                                                    .padding(.vertical, 6)
+                                            } else {
+                                                VStack(spacing: 6) {
+                                                    ForEach(sessions) { session in
+                                                        HStack(alignment: .top, spacing: 8) {
+                                                            VStack(alignment: .leading, spacing: 2) {
+                                                                Text("\(sessionStart(session.startedAt)) – \(sessionEnd(session.endedAt))")
+                                                                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                                                Text("Visit \(formatDuration(session.activeSeconds))")
+                                                                    .font(.system(size: 10))
+                                                                    .foregroundStyle(iTuTheme.inkDim)
+                                                            }
+                                                            Spacer()
+                                                            if session.isPrivate { privateBadge }
+                                                        }
+                                                        .padding(.vertical, 4)
+                                                    }
+                                                }
+                                                .padding(.leading, 12)
+                                            }
+                                        } label: {
+                                            HStack(spacing: 8) {
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(StatisticsDisplayHelpers.websiteTitle(detail))
+                                                        .font(.system(size: 12, weight: .medium))
+                                                        .lineLimit(1)
+                                                    Text(detail.url)
+                                                        .font(.system(size: 10))
+                                                        .foregroundStyle(iTuTheme.inkDim)
+                                                        .lineLimit(1)
+                                                }
+                                                Spacer()
+                                                Text(formatDuration(detail.activeSeconds))
+                                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                                    .foregroundStyle(iTuTheme.inkDim)
+                                                Text("\(websiteSessions(for: detail).count) visits")
+                                                    .font(.system(size: 10))
+                                                    .foregroundStyle(iTuTheme.inkDim)
+                                                if detail.isPrivate { privateBadge }
+                                            }
+                                        }
+                                        .padding(.vertical, 6)
+                                        .overlay(alignment: .bottom) { Divider() }
+                                    }
+                                }
+                                .padding(.leading, 12)
+                            }
+                        } label: { websiteDomainRow(domain) }
+                            .padding(.vertical, 8)
+                            .overlay(alignment: .bottom) { Divider() }
                         }
-                        .padding(.vertical, 8)
-                        .overlay(alignment: .bottom) { Divider() }
                     }
                 }
                 if let error = model.websiteUsageError {
@@ -360,9 +551,45 @@ struct StatisticsView: View {
         .iTuPanel(radius: 14)
     }
 
+    private func websiteDomainRow(_ domain: StatisticsWebsiteSlice) -> some View {
+        HStack(spacing: 12) {
+            Text(String(domain.hostname.first ?? "?"))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(iTuTheme.teal)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            Text(domain.hostname)
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
+            Spacer()
+            Text(formatDuration(domain.activeSeconds))
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .foregroundStyle(iTuTheme.inkDim)
+        }
+    }
+
+    private var privateBadge: some View {
+        Text("Private")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(iTuTheme.coral)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(iTuTheme.coral.opacity(0.12))
+            .clipShape(Capsule())
+    }
+
+    private func sessionStart(_ value: String) -> String { sessionDate(value) }
+    private func sessionEnd(_ value: String) -> String { sessionDate(value) }
+
+    private func sessionDate(_ value: String) -> String {
+        guard let date = Self.isoFormatter.date(from: value) ?? Self.isoFormatterNoFraction.date(from: value) else { return value }
+        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().second())
+    }
+
     private func usageAppList(_ stats: UsageStatistics) -> some View {
         VStack(spacing: 8) {
-            ForEach(stats.topApps.prefix(5)) { app in
+            ForEach(stats.topApps.prefix(displaySettings.topAppsCount)) { app in
                 HStack(spacing: 10) {
                     UsageApplicationIcon(bundleID: app.bundleId, displayName: app.displayName, tint: usageColor(for: app.bundleId))
                     Text(app.displayName)
@@ -380,7 +607,7 @@ struct StatisticsView: View {
     }
 
     private func usageChartItems(_ stats: UsageStatistics) -> [UsageChartItem] {
-        let visibleBundleIDs = Set(stats.topApps.prefix(5).map(\.bundleId))
+        let visibleBundleIDs = Set(stats.topApps.prefix(displaySettings.topAppsCount).map(\.bundleId))
         if timeRange == "Today" {
             let hourly = stats.hourlyApps ?? []
             let hourlyByBundle = Dictionary(grouping: hourly, by: \.bundleId)
@@ -394,7 +621,7 @@ struct StatisticsView: View {
             for hour in 0..<24 {
                 let label = String(format: "%02d", hour)
                 var shown = 0
-                for app in stats.topApps.prefix(5) {
+                for app in stats.topApps.prefix(displaySettings.topAppsCount) {
                     let legacySeconds = max(0, (dailyByBundle[app.bundleId] ?? 0) - (hourlyByBundle[app.bundleId] ?? 0))
                     let seconds = (hourly.first { $0.hour == hour && $0.bundleId == app.bundleId }?.activeSeconds ?? 0)
                         + (hour == fallbackHour ? legacySeconds : 0)
@@ -486,13 +713,13 @@ struct StatisticsView: View {
                 }
                 .chartYAxis { AxisMarks(position: .leading) }
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                    AxisMarks(values: .automatic(desiredCount: chartTickCount)) { value in
                         AxisValueLabel {
                             if let label = value.as(String.self) { Text(shortDate(label)) }
                         }
                     }
                 }
-                .frame(height: 150)
+                .frame(height: chartHeight)
                 .accessibilityLabel("\(title), \(summary)")
             } else {
                 Text("No \(valueLabel.lowercased()) recorded in this period.")
@@ -662,7 +889,9 @@ struct StatisticsView: View {
             StatSummaryTile(title: "Review sessions", value: calendarStatisticValue("\(visibleCalendar.reduce(0) { $0 + $1.sessions })"), icon: "book.closed", color: iTuTheme.amber)
             StatSummaryTile(title: "Cards reviewed", value: calendarStatisticValue("\(visibleCalendar.reduce(0) { $0 + $1.reviews })"), icon: "rectangle.stack", color: iTuTheme.coral)
             StatSummaryTile(title: "Cards created", value: calendarStatisticValue("\(visibleCalendar.reduce(0) { $0 + $1.cardsCreated })"), icon: "plus.circle", color: iTuTheme.mint)
-            StatSummaryTile(title: "App activity", value: model.usageStatistics.map { formatDuration($0.totalActiveSeconds) } ?? (model.usageLoading ? "—" : "0s"), icon: "rectangle.inset.filled", color: iTuTheme.teal)
+            if displaySettings.showAppUsage {
+                StatSummaryTile(title: "App activity", value: model.usageStatistics.map { formatDuration($0.totalActiveSeconds) } ?? (model.usageLoading ? "—" : "0s"), icon: "rectangle.inset.filled", color: iTuTheme.teal)
+            }
         }
     }
 
@@ -731,6 +960,18 @@ struct StatisticsView: View {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let isoFormatterNoFraction: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
 }
 
 private struct StatSummaryTile: View {
@@ -785,5 +1026,197 @@ private struct UsageApplicationIcon: View {
         .frame(width: 30, height: 30)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .accessibilityHidden(true)
+    }
+}
+
+private struct StatisticsSettingsPopover: View {
+    @Environment(AppModel.self) private var model
+    @State private var loginItemError: String?
+    @State private var excludedBundleIDsDraft = ""
+    @State private var excludedBundleIDsEditing = false
+    @State private var excludedBundleIDsError: String?
+
+    var body: some View {
+        let settings = model.settingsStore
+        FeatureSettingsPopoverShell(title: "Statistics settings") {
+            FeatureSettingsSection(title: "Display") {
+                FeatureSettingsRow(label: "Default range") {
+                    Picker("", selection: Binding(
+                        get: { settings.statisticsDisplaySettings.defaultRange },
+                        set: { settings.statisticsDisplaySettings.defaultRange = $0 }
+                    )) {
+                        Text("Today").tag("Today")
+                        Text("7 days").tag("7 Days")
+                        Text("30 days").tag("30 Days")
+                        Text("3 months").tag("90 Days")
+                        Text("1 year").tag("365 Days")
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityLabel("Default statistics range")
+                }
+                Toggle("Show app usage", isOn: Binding(
+                    get: { settings.statisticsDisplaySettings.showAppUsage },
+                    set: { settings.statisticsDisplaySettings.showAppUsage = $0 }
+                ))
+                Toggle("Show website usage", isOn: Binding(
+                    get: { settings.statisticsDisplaySettings.showWebsiteUsage },
+                    set: { settings.statisticsDisplaySettings.showWebsiteUsage = $0 }
+                ))
+                Toggle("Show engagement", isOn: Binding(
+                    get: { settings.statisticsDisplaySettings.showEngagement },
+                    set: { settings.statisticsDisplaySettings.showEngagement = $0 }
+                ))
+                FeatureSettingsRow(label: "Top apps") {
+                    Stepper(value: Binding(
+                        get: { settings.statisticsDisplaySettings.topAppsCount },
+                        set: { settings.statisticsDisplaySettings.topAppsCount = min(10, max(1, $0)) }
+                    ), in: 1...10) { Text("\(settings.statisticsDisplaySettings.topAppsCount)") }
+                    .accessibilityLabel("Top apps count")
+                }
+                FeatureSettingsRow(label: "Website slices") {
+                    Stepper(value: Binding(
+                        get: { settings.statisticsDisplaySettings.websiteSliceCount },
+                        set: { settings.statisticsDisplaySettings.websiteSliceCount = min(10, max(1, $0)) }
+                    ), in: 1...10) { Text("\(settings.statisticsDisplaySettings.websiteSliceCount)") }
+                    .accessibilityLabel("Website slice count")
+                }
+                FeatureSettingsRow(label: "Chart density") {
+                    Picker("", selection: Binding(
+                        get: { settings.statisticsDisplaySettings.chartDensity },
+                        set: { settings.statisticsDisplaySettings.chartDensity = $0 }
+                    )) {
+                        ForEach(StatisticsChartDensity.allCases) { density in
+                            Text(density.label).tag(density)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityLabel("Chart density")
+                }
+            }
+
+            FeatureSettingsSection(title: "Tracking & data") {
+                if let usageError = model.usageError {
+                    Text(usageError)
+                        .font(.system(size: 11))
+                        .foregroundStyle(iTuTheme.coral)
+                }
+                Toggle("Enable usage tracking", isOn: Binding(
+                    get: { settings.usagePreferences.enabled },
+                    set: { settings.usagePreferences.enabled = $0 }
+                ))
+                Toggle("Track website usage", isOn: Binding(
+                    get: { settings.usagePreferences.websiteTrackingEnabled },
+                    set: { settings.usagePreferences.websiteTrackingEnabled = $0 }
+                ))
+                .disabled(!settings.usagePreferences.enabled)
+                Toggle("Pause tracking (this device)", isOn: Binding(
+                    get: { settings.usagePreferences.paused },
+                    set: { settings.usagePreferences.paused = $0 }
+                ))
+                FeatureSettingsRow(label: "Idle threshold") {
+                    Stepper(value: Binding(
+                        get: { settings.usagePreferences.idleThresholdSeconds },
+                        set: { settings.usagePreferences.idleThresholdSeconds = min(1800, max(60, $0)) }
+                    ), in: 60...1800, step: 30) {
+                        Text("\(settings.usagePreferences.idleThresholdSeconds)s")
+                            .font(.system(size: 11, design: .monospaced))
+                    }
+                    .accessibilityLabel("Idle threshold")
+                }
+                FeatureSettingsRow(label: "Retention") {
+                    Stepper(value: Binding(
+                        get: { settings.usagePreferences.retentionDays },
+                        set: { settings.usagePreferences.retentionDays = min(365, max(7, $0)) }
+                    ), in: 7...365, step: 7) { Text("\(settings.usagePreferences.retentionDays)d") }
+                    .accessibilityLabel("Retention days")
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Excluded bundle IDs")
+                        .font(.system(size: 12))
+                    TextField("com.example.App, …", text: Binding(
+                        get: { excludedBundleIDsDraft },
+                        set: {
+                            excludedBundleIDsDraft = $0
+                            excludedBundleIDsEditing = true
+                            excludedBundleIDsError = parseExcludedBundleIDs().error
+                        }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    HStack {
+                        if let excludedBundleIDsError {
+                            Text(excludedBundleIDsError)
+                                .font(.system(size: 11))
+                                .foregroundStyle(iTuTheme.coral)
+                        }
+                        Spacer()
+                        Button("Apply") { applyExcludedBundleIDs(settings.usagePreferences) }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .disabled(!canApplyExcludedBundleIDs(settings.usagePreferences))
+                    }
+                }
+                Toggle("Launch at Login (this device)", isOn: Binding(
+                    get: { settings.usagePreferences.launchAtLogin },
+                    set: { value in
+                        let previous = settings.usagePreferences.launchAtLogin
+                        do {
+                            if value { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                            settings.usagePreferences.launchAtLogin = value
+                            loginItemError = nil
+                        } catch {
+                            settings.usagePreferences.launchAtLogin = previous
+                            loginItemError = error.localizedDescription
+                        }
+                    }
+                ))
+                if let loginItemError {
+                    Text(loginItemError).font(.system(size: 11)).foregroundStyle(iTuTheme.coral)
+                }
+            }
+        }
+        .onAppear { syncExcludedBundleIDs(settings.usagePreferences) }
+        .onChange(of: settings.usagePreferences.excludedBundleIds) { _, _ in
+            if !excludedBundleIDsEditing { syncExcludedBundleIDs(settings.usagePreferences) }
+        }
+    }
+
+    private func syncExcludedBundleIDs(_ preferences: UsagePreferences) {
+        excludedBundleIDsDraft = preferences.excludedBundleIds.joined(separator: ", ")
+        excludedBundleIDsEditing = false
+        excludedBundleIDsError = nil
+    }
+
+    private func normalizedExcludedBundleIDs() -> [String]? {
+        let result = parseExcludedBundleIDs()
+        excludedBundleIDsError = result.error
+        return result.ids
+    }
+
+    private func parseExcludedBundleIDs() -> (ids: [String]?, error: String?) {
+        let ids = excludedBundleIDsDraft
+            .split(separator: ",", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        var seen = Set<String>()
+        let unique = ids.filter { seen.insert($0).inserted }
+        guard unique.count <= 100 else {
+            return (nil, "Use at most 100 bundle IDs.")
+        }
+        guard unique.allSatisfy({ $0.count <= 255 }) else {
+            return (nil, "Each bundle ID must be 255 characters or fewer.")
+        }
+        return (unique, nil)
+    }
+
+    private func canApplyExcludedBundleIDs(_ preferences: UsagePreferences) -> Bool {
+        guard let ids = parseExcludedBundleIDs().ids else { return false }
+        return excludedBundleIDsEditing && ids != preferences.excludedBundleIds
+    }
+
+    private func applyExcludedBundleIDs(_ preferences: UsagePreferences) {
+        guard let ids = normalizedExcludedBundleIDs() else { return }
+        model.settingsStore.usagePreferences.excludedBundleIds = ids
+        excludedBundleIDsDraft = ids.joined(separator: ", ")
+        excludedBundleIDsEditing = false
     }
 }

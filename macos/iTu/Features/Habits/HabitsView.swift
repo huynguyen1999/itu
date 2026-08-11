@@ -40,56 +40,6 @@ struct HabitsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        iTuSectionLabel(title: "TRACKING", color: iTuTheme.teal)
-                        Text("Habits")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(iTuTheme.ink)
-                        Text("Build consistent daily routines and track your streaks.")
-                            .font(.system(size: 13))
-                            .foregroundStyle(iTuTheme.inkDim)
-                    }
-
-                    Spacer()
-
-                    Button {
-                        let allCollapsed = !habitGroups.isEmpty && habitGroups.allSatisfy { collapsedGroups.contains($0.0) }
-                        collapsedGroups = allCollapsed ? [] : Set(habitGroups.map(\.0))
-                    } label: {
-                        Image(systemName: "square.grid.2x2")
-                            .font(.system(size: 14, weight: .semibold))
-                            .frame(width: 30, height: 30)
-                    }
-                    .buttonStyle(iTuGhostButtonStyle())
-                    .pointingHandCursor()
-                    .help("Collapse or expand habit groups")
-
-                    Button {
-                        model.presentedOverlay = .habitGroups
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 14, weight: .semibold))
-                            .frame(width: 30, height: 30)
-                    }
-                    .buttonStyle(iTuGhostButtonStyle())
-                    .pointingHandCursor()
-                    .help("Manage habit groups")
-
-                    Button {
-                        model.presentedOverlay = .habitCreate
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 13, weight: .bold))
-                            Text("New Habit")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                    }
-                    .buttonStyle(iTuPrimaryButtonStyle(height: 38))
-                }
-
                 // Stats Overview
                 overviewMetrics
 
@@ -198,6 +148,7 @@ struct HabitsView: View {
             .frame(maxWidth: 980)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .iTuPinnedHeader { headerBar }
         .background(
             LinearGradient(
                 colors: [iTuTheme.canvas, iTuTheme.mintTint.opacity(0.2)],
@@ -209,6 +160,55 @@ struct HabitsView: View {
             guard let range = visibleWeekRange else { return }
             await model.refreshHabitOccurrences(from: range.from, to: range.to)
         }
+    }
+
+    private var headerBar: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                iTuSectionLabel(title: "TRACKING", color: iTuTheme.teal)
+                Text("Habits")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(iTuTheme.ink)
+                Text("Build consistent daily routines and track your streaks.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+            Spacer()
+            Button {
+                let allCollapsed = !habitGroups.isEmpty && habitGroups.allSatisfy { collapsedGroups.contains($0.0) }
+                collapsedGroups = allCollapsed ? [] : Set(habitGroups.map(\.0))
+            } label: {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(iTuGhostButtonStyle())
+            .pointingHandCursor()
+            .help("Collapse or expand habit groups")
+            Button {
+                model.presentedOverlay = .habitGroups
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(iTuGhostButtonStyle())
+            .pointingHandCursor()
+            .help("Manage habit groups")
+            Button {
+                model.presentedOverlay = .habitCreate
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("New Habit")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+            }
+            .buttonStyle(iTuPrimaryButtonStyle(height: 38))
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 18)
     }
 
     private var overviewMetrics: some View {

@@ -28,6 +28,14 @@ extension OfflineStore {
     }
 
     @discardableResult
+    func permanentlyRemoveJournalNote(id: String) throws -> OfflineSnapshot {
+        state.journalNotes.removeAll { $0.id == id }
+        state.mutations.removeAll { $0.entityId == id && ($0.kind == "journal.delete" || $0.kind == "journal.restore") }
+        try persist()
+        return state
+    }
+
+    @discardableResult
     func saveJournalTemplate(_ value: JournalTemplateModel, mutation: SyncMutation) throws -> OfflineSnapshot {
         upsert(&state.journalTemplates, value)
         appendMutation(mutation)

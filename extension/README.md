@@ -1,6 +1,6 @@
 # iTu Browser Activity for Chromium
 
-This dependency-free Manifest V3 extension aggregates opted-in URL usage and sends cumulative daily summaries directly to the iTu API.
+This dependency-free Manifest V3 extension records opted-in browser activity as raw sessions in IndexedDB, projects daily URL/domain totals locally, and uploads sessions through a durable outbox.
 
 ## Configure
 
@@ -20,8 +20,8 @@ cd extension
 node --test
 ```
 
-The extension measures the active tab in the focused normal or InPrivate window. It stores the normalized HTTP(S) URL and hostname, including paths and queries but excluding fragments and embedded credentials. Statistics groups totals by hostname and provides URL detail. Non-HTTP(S) tabs are ignored, and backend access is requested only for the origin you configure.
+The extension measures the active tab in the focused normal or InPrivate window. It stores a normalized HTTP(S) URL and hostname (path retained; credentials, query strings, and fragments removed), page title, privacy state, and a stable session ID. Sessions shorter than three seconds are ignored; adjacent matching sessions merge only within 30 seconds. Non-HTTP(S) tabs are ignored, and backend access is requested only for the origin you configure.
 
 The popup shows today’s active time as a domain share chart with a ranked domain list. Select a domain to open its URL detail panel.
 
-Website summaries are saved locally before upload and retried by the background alarm when the backend is unavailable. Failed summaries are retained in the browser for up to 7 days.
+Raw sessions and the outbox are saved locally before upload and retained without a seven-day pruning window. Upload batches contain at most 100 sessions; transient failures retry after 2/4/8 seconds with jitter, then remain failed until connectivity or a manual retry signal. Open **Open full activity history** from the popup for Today, 7D, 30D, 90D, 1Y, or custom ranges, trend/domain/session details, search, private-window, and sync-state filters.

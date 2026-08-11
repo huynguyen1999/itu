@@ -57,6 +57,7 @@ export interface JournalEntryModel {
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;
+  deletedByDeviceId?: string | null;
   weeklyReview?: JournalWeeklyReviewModel | null;
   tags?: JournalTagModel[];
   attachments?: JournalAttachmentModel[];

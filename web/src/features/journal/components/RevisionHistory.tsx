@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { History, RotateCcw, X, Eye } from 'lucide-react';
+import { Eye, History, RotateCcw, X } from 'lucide-react';
 import { useJournalRevisions } from '../journalQueries';
 import { useRestoreJournalRevisionMutation } from '../journalMutations';
 import type { JournalEntryRevision } from '../journal.types';
+import { Button } from '@/shared/ui/button';
 
 interface RevisionHistoryProps {
   entryId: string;
@@ -11,7 +12,7 @@ interface RevisionHistoryProps {
 }
 
 export function RevisionHistory({ entryId, isOpen, onClose }: RevisionHistoryProps) {
-  const { data: revisions = [], isLoading } = useJournalRevisions(entryId);
+  const { data: revisions = [], isLoading, isError, refetch } = useJournalRevisions(entryId);
   const restoreMutation = useRestoreJournalRevisionMutation();
   const [selectedRevision, setSelectedRevision] = useState<JournalEntryRevision | null>(null);
 
@@ -21,81 +22,103 @@ export function RevisionHistory({ entryId, isOpen, onClose }: RevisionHistoryPro
     try {
       await restoreMutation.mutateAsync({ entryId, revisionId: revision.id, snapshot: revision.snapshot });
       onClose();
-    } catch (err) {
-      console.error('Failed to restore revision', err);
+    } catch {
+      // Mutation state is rendered in the panel so the user can retry.
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-sm">
-      <div className="w-full max-w-md h-full bg-slate-900 border-l border-slate-800 p-4 flex flex-col space-y-4 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2 font-semibold text-slate-200">
-            <History className="w-4 h-4 text-emerald-400" />
-            Version History
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-end bg-foreground/60 backdrop-blur-sm sm:items-stretch"
+      role="presentation"
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-md flex-col space-y-4 overflow-hidden rounded-t-[var(--itu-radius-l)] border border-border bg-card p-4 text-card-foreground shadow-[var(--itu-shadow-pop)] sm:h-full sm:max-h-none sm:rounded-none sm:rounded-l-[var(--itu-radius-l)]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="journal-revision-history-title"
+      >
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="flex items-center gap-2 font-semibold">
+            <History className="h-4 w-4 text-primary" />
+            <h2 id="journal-revision-history-title">Version History</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close version history">
+            <X className="h-4 w-4" />
+          </Button>
         </div>
 
         {isLoading ? (
-          <div className="text-xs text-slate-400 py-4">Loading revision history...</div>
+          <div className="py-4 text-sm text-muted-foreground" role="status">
+            Loading revision history…
+          </div>
+        ) : isError ? (
+          <div
+            className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--itu-radius-m)] border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive"
+            role="alert"
+          >
+            <span>Revision history could not be loaded.</span>
+            <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+              Retry
+            </Button>
+          </div>
         ) : revisions.length === 0 ? (
-          <div className="text-xs text-slate-400 py-4">No historical revisions recorded yet.</div>
+          <div className="rounded-[var(--itu-radius-m)] border border-dashed border-border p-4 text-sm text-muted-foreground">
+            No historical revisions recorded yet.
+          </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-            {revisions.map((rev) => {
-              const dateStr = new Date(rev.createdAt).toLocaleString();
-              const snapshot = rev.snapshot as any;
-              const isPreviewing = selectedRevision?.id === rev.id;
+          <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+            {revisions.map((revision) => {
+              const dateStr = new Date(revision.createdAt).toLocaleString();
+              const title = typeof revision.snapshot.title === 'string' ? revision.snapshot.title : 'Untitled';
+              const content =
+                typeof revision.snapshot.contentMarkdown === 'string' ? revision.snapshot.contentMarkdown : '';
+              const isPreviewing = selectedRevision?.id === revision.id;
 
               return (
                 <div
-                  key={rev.id}
-                  className={`p-3 rounded-xl border transition-all ${
-                    isPreviewing
-                      ? 'bg-slate-800/80 border-emerald-500/50'
-                      : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                  key={revision.id}
+                  className={`rounded-[var(--itu-radius-m)] border p-3 transition-colors ${
+                    isPreviewing ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted/20 hover:bg-muted/45'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-medium text-slate-200">Revision #{rev.revisionNumber}</span>
-                    <span className="text-[10px] text-slate-400">{dateStr}</span>
+                  <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                    <span className="font-semibold text-foreground">Revision #{revision.revisionNumber}</span>
+                    <span className="text-[11px] text-muted-foreground">{dateStr}</span>
                   </div>
 
-                  <div className="text-xs text-slate-400 line-clamp-2 mb-2 font-mono bg-slate-900/80 p-1.5 rounded-lg border border-slate-800/60">
-                    {snapshot.title || 'Untitled'} — {snapshot.contentMarkdown?.substring(0, 100) || 'No text'}
+                  <div className="mb-2 line-clamp-2 rounded-[var(--itu-radius-s)] border border-[var(--itu-border-soft)] bg-muted/40 p-1.5 font-mono text-xs text-muted-foreground">
+                    {title} — {content.substring(0, 100) || 'No text'}
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 text-xs">
-                    <button
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button
                       type="button"
-                      onClick={() => setSelectedRevision(isPreviewing ? null : rev)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedRevision(isPreviewing ? null : revision)}
+                      className="gap-1"
                     >
-                      <Eye className="w-3 h-3" />
+                      <Eye className="h-3 w-3" />
                       {isPreviewing ? 'Hide preview' : 'Preview'}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      onClick={() => void handleRestore(rev)}
+                      size="sm"
+                      onClick={() => void handleRestore(revision)}
                       disabled={restoreMutation.isPending}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
+                      className="gap-1"
                     >
-                      <RotateCcw className="w-3 h-3" />
-                      Restore
-                    </button>
+                      <RotateCcw className="h-3 w-3" />
+                      {restoreMutation.isPending ? 'Restoring…' : 'Restore'}
+                    </Button>
                   </div>
 
                   {isPreviewing && (
-                    <div className="mt-3 pt-3 border-t border-slate-800 space-y-1 text-xs text-slate-300">
-                      <div className="font-semibold text-emerald-400">{snapshot.title}</div>
-                      <div className="prose prose-invert prose-xs whitespace-pre-wrap font-mono text-[11px] bg-slate-950 p-2 rounded-lg border border-slate-800">
-                        {snapshot.contentMarkdown}
+                    <div className="mt-3 space-y-1 border-t border-border pt-3 text-xs">
+                      <div className="font-semibold text-primary">{title}</div>
+                      <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-[var(--itu-radius-s)] border border-border bg-muted/40 p-2 font-mono text-[11px] text-foreground">
+                        {content || 'No text'}
                       </div>
                     </div>
                   )}
@@ -103,6 +126,12 @@ export function RevisionHistory({ entryId, isOpen, onClose }: RevisionHistoryPro
               );
             })}
           </div>
+        )}
+
+        {restoreMutation.isError && (
+          <p className="text-sm text-destructive" role="alert">
+            The revision could not be restored. Try again.
+          </p>
         )}
       </div>
     </div>

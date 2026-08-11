@@ -13,8 +13,6 @@ struct HomeOverviewView: View {
 
         ScrollView {
             VStack(spacing: 24) {
-                headerBar
-
                 ViewThatFits(in: .horizontal) {
                     wideLayout(todayTasks: todayTasks, completedCount: completedTodayCount)
                     narrowLayout(todayTasks: todayTasks, completedCount: completedTodayCount)
@@ -24,6 +22,7 @@ struct HomeOverviewView: View {
             .frame(maxWidth: 1140)
             .frame(maxWidth: .infinity, alignment: .top)
         }
+        .iTuPinnedHeader { headerBar }
         .background(iTuTheme.canvas)
     }
 

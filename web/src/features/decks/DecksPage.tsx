@@ -80,6 +80,24 @@ export function DecksPage() {
         kicker="Spaced Repetition"
         title="Your decks"
         description="Create focused collections and keep learning organized."
+        stickyControls={
+          <form
+            className="relative"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setSubmittedSearch(searchInput.trim());
+            }}
+          >
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search your decks"
+              className="bg-card pl-9"
+              aria-label="Search decks"
+            />
+          </form>
+        }
       >
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
@@ -139,23 +157,6 @@ export function DecksPage() {
           />
         </FeatureSettingsButton>
       </PageHeader>
-
-      <form
-        className="relative"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setSubmittedSearch(searchInput.trim());
-        }}
-      >
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Search your decks"
-          className="bg-card pl-9"
-          aria-label="Search decks"
-        />
-      </form>
 
       {decks.isError ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed p-10 text-center">

@@ -1,55 +1,63 @@
 import { describe, expect, it } from 'vitest';
 import {
-  getWorkspaceNavigationDropPosition,
   getSyncStatusLabel,
-  orderWorkspaceNavigation,
+  isNavigationEntryActive,
   pendingMutationErrorLabel,
   pendingMutationLabel,
-  reorderWorkspaceNavigation,
+  workspaceNavigationGroups,
   workspaceNavigation,
 } from './Layout';
 
 describe('workspace navigation', () => {
-  it('exposes the centralized statistics destination', () => {
-    expect(workspaceNavigation).toEqual(
-      expect.arrayContaining([expect.objectContaining({ to: '/statistics', label: 'Statistics' })]),
-    );
+  it('exposes the canonical groups, stable IDs, order, and routes', () => {
+    expect(workspaceNavigationGroups.map(({ id, title }) => ({ id, title }))).toEqual([
+      { id: 'productivity', title: 'Productivity' },
+      { id: 'tracking', title: 'Tracking' },
+      { id: 'knowledge', title: 'Knowledge' },
+      { id: 'system', title: 'System' },
+    ]);
+    expect(workspaceNavigationGroups.map((group) => group.entries.map(({ id, to }) => ({ id, to })))).toEqual([
+      [
+        { id: 'home', to: '/' },
+        { id: 'plan', to: '/plan' },
+        { id: 'matrix', to: '/matrix' },
+        { id: 'focus', to: '/focus' },
+      ],
+      [
+        { id: 'habits', to: '/habits' },
+        { id: 'statistics', to: '/statistics' },
+        { id: 'budget', to: '/budget' },
+        { id: 'gym', to: '/gym' },
+      ],
+      [
+        { id: 'journal', to: '/journal' },
+        { id: 'learn', to: '/learn' },
+        { id: 'growth', to: '/growth' },
+      ],
+      [
+        { id: 'conflicts', to: '/conflicts' },
+        { id: 'notifications', to: '/notifications' },
+        { id: 'trash', to: '/trash' },
+        { id: 'profile', to: '/profile' },
+        { id: 'settings', to: '/settings' },
+      ],
+    ]);
+    expect(workspaceNavigation).toHaveLength(16);
+    expect(workspaceNavigation.slice(0, 5).map((entry) => entry.id)).toEqual([
+      'home',
+      'plan',
+      'matrix',
+      'focus',
+      'habits',
+    ]);
   });
 
-  it('restores a saved manual order and appends new destinations', () => {
-    const ordered = orderWorkspaceNavigation(workspaceNavigation, ['/learn', '/plan', '/missing']);
-
-    expect(ordered.map((item) => item.to).slice(0, 2)).toEqual(['/learn', '/plan']);
-    expect(ordered.map((item) => item.to)).toEqual(expect.arrayContaining(['/statistics', '/trash']));
-    expect(ordered).toHaveLength(workspaceNavigation.length);
-  });
-
-  it('moves a dragged destination before the drop target', () => {
-    const ordered = reorderWorkspaceNavigation(workspaceNavigation, '/learn', '/plan');
-
-    expect(ordered.map((item) => item.to).slice(0, 3)).toEqual(['/', '/learn', '/plan']);
-    expect(ordered).toHaveLength(workspaceNavigation.length);
-  });
-
-  it('moves a dragged destination downward before the drop target', () => {
-    const ordered = reorderWorkspaceNavigation(workspaceNavigation, '/plan', '/learn');
-
-    expect(ordered.map((item) => item.to).slice(7, 10)).toEqual(['/journal', '/plan', '/learn']);
-    expect(ordered).toHaveLength(workspaceNavigation.length);
-  });
-
-  it('moves a dragged destination after the bottom drop target', () => {
-    const ordered = reorderWorkspaceNavigation(workspaceNavigation, '/plan', '/trash', 'after');
-
-    expect(ordered.at(-1)?.to).toBe('/plan');
-    expect(ordered).toHaveLength(workspaceNavigation.length);
-  });
-
-  it('uses the hovered row half to choose before or after placement', () => {
-    const bounds = { top: 100, height: 40 };
-
-    expect(getWorkspaceNavigationDropPosition(bounds, 110)).toBe('before');
-    expect(getWorkspaceNavigationDropPosition(bounds, 130)).toBe('after');
+  it('keeps Plan active across every planning destination', () => {
+    for (const pathname of ['/plan', '/plan/today', '/inbox', '/today', '/upcoming', '/completed']) {
+      expect(isNavigationEntryActive('plan', pathname)).toBe(true);
+    }
+    expect(isNavigationEntryActive('plan', '/planets')).toBe(false);
+    expect(isNavigationEntryActive('home', '/plan')).toBe(false);
   });
 });
 

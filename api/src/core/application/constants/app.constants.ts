@@ -185,6 +185,14 @@ export const REST_ROUTES = {
   trashCardDelete: 'cards/:cardId',
   trashCardImageDelete: 'card-images/:imageId',
   trashTaskDelete: 'tasks/:taskId',
+  trashJournalEntryRestore: 'journal-entries/:entryId/restore',
+  trashBudgetTransactionRestore: 'budget-transactions/:transactionId/restore',
+  trashGymWorkoutRestore: 'gym-workouts/:workoutId/restore',
+  trashGymExerciseRestore: 'gym-exercises/:exerciseId/restore',
+  trashJournalEntryDelete: 'journal-entries/:entryId',
+  trashBudgetTransactionDelete: 'budget-transactions/:transactionId',
+  trashGymWorkoutDelete: 'gym-workouts/:workoutId',
+  trashGymExerciseDelete: 'gym-exercises/:exerciseId',
   journal: 'journal',
   budget: 'budget',
   gym: 'gym',
@@ -195,6 +203,9 @@ export const REST_ROUTES = {
   usageBatch: 'batch',
   usageDsn: 'dsn',
   usageIngest: 'ingest',
+  usageStatistics: 'statistics',
+  usageSessions: 'sessions',
+  usageSessionIngest: 'sessions/ingest',
 } as const;
 
 export const USAGE_CONSTANTS = {

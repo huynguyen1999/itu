@@ -196,7 +196,32 @@ export function HabitsPage() {
   return (
     <div className="min-h-full space-y-6">
       {/* Header Bar */}
-      <PageHeader kicker="Routines & Tracking" title="Habits">
+      <PageHeader
+        kicker="Routines & Tracking"
+        title="Habits"
+        stickyControls={
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="grid grid-cols-12 items-center gap-2">
+              <div className="col-span-5 md:col-span-6" />
+              <div className="col-span-7 grid grid-cols-7 text-center md:col-span-6">
+                {weekDays.map((day) => (
+                  <div key={day.dateStr} className="flex flex-col items-center gap-1.5">
+                    <span className={`text-xs font-semibold ${day.isToday ? 'text-blue-500' : 'text-muted-foreground'}`}>
+                      {day.dayName}
+                    </span>
+                    <span className={`text-sm font-bold ${day.isToday ? 'text-blue-500' : 'text-foreground'}`}>
+                      {day.dayNumber}
+                    </span>
+                    <div
+                      className={`flex h-4 w-4 items-center justify-center rounded-full border border-border/80 ${day.isToday ? 'border-blue-500 bg-blue-500/10' : ''}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        }
+      >
         <Button
           variant="ghost"
           size="icon"
@@ -236,31 +261,6 @@ export function HabitsPage() {
           />
         </FeatureSettingsButton>
       </PageHeader>
-
-      {/* Top 7-Day Calendar Header Bar */}
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="grid grid-cols-12 items-center gap-2">
-          {/* Empty spacer corresponding to left habit info column */}
-          <div className="col-span-5 md:col-span-6" />
-
-          {/* 7 Days Columns */}
-          <div className="col-span-7 md:col-span-6 grid grid-cols-7 text-center">
-            {weekDays.map((day) => (
-              <div key={day.dateStr} className="flex flex-col items-center gap-1.5">
-                <span className={`text-xs font-semibold ${day.isToday ? 'text-blue-500' : 'text-muted-foreground'}`}>
-                  {day.dayName}
-                </span>
-                <span className={`text-sm font-bold ${day.isToday ? 'text-blue-500' : 'text-foreground'}`}>
-                  {day.dayNumber}
-                </span>
-                <div
-                  className={`h-4 w-4 rounded-full border border-border/80 flex items-center justify-center ${day.isToday ? 'border-blue-500 bg-blue-500/10' : ''}`}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* Categorized Habit Sections */}
       {groupedHabits.length > 0 ? (

@@ -68,6 +68,25 @@
 }
 
 @layer components {
+  .itu-page-header-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: inherit;
+  }
+
+  .itu-page-header-sticky__controls {
+    border-bottom: 1px solid rgb(255 255 255 / 0.1);
+    padding-bottom: 1rem;
+    background: inherit;
+  }
+
+  .itu-learn-content .itu-page-header-sticky,
+  .itu-journal-content .itu-page-header-sticky,
+  .growth-main .itu-page-header-sticky {
+    top: 0;
+  }
+
   .itu-today {
     @apply mx-auto w-full max-w-[1240px] space-y-8 pb-8;
   }
@@ -1012,7 +1031,7 @@
   }
 
   .itu-journal-nav-link {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground;
+    @apply flex items-center gap-3 rounded-[var(--itu-radius-s)] px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground;
   }
 
   .itu-journal-nav-link svg {
@@ -1510,6 +1529,10 @@
 }
 
 @media (max-width: 767px) {
+  .itu-page-header-sticky {
+    top: 3.5rem;
+  }
+
   .itu-learn-workspace {
     display: block;
     min-height: calc(100vh - 3.5rem);
@@ -1613,12 +1636,12 @@
 
     /* Premium gradient surfaces (teal-deep → darker teal + mint glow) */
     --itu-gradient-deep: linear-gradient(165deg, #0d3831 0%, #0a2b26 100%);
-    --itu-glow-mint: radial-gradient(circle at 88% -10%, rgba(82, 232, 196, 0.20), transparent 55%);
-    --itu-glow-mint-subtle: radial-gradient(circle at 88% -10%, rgba(82, 232, 196, 0.10), transparent 40%);
+    --itu-glow-mint: radial-gradient(circle at 88% -10%, rgba(82, 232, 196, 0.2), transparent 55%);
+    --itu-glow-mint-subtle: radial-gradient(circle at 88% -10%, rgba(82, 232, 196, 0.1), transparent 40%);
     --itu-glow-gold: var(--itu-glow-mint);
     --itu-glow-gold-subtle: var(--itu-glow-mint-subtle);
     --itu-action-gradient:
-      radial-gradient(circle at 92% -45%, rgb(82 232 196 / 0.40), transparent 48%),
+      radial-gradient(circle at 92% -45%, rgb(82 232 196 / 0.4), transparent 48%),
       linear-gradient(145deg, #218f7e 0%, #12685d 52%, #0b443c 100%);
     --itu-page-background:
       radial-gradient(ellipse 72% 48% at 84% -8%, rgb(63 182 164 / 0.12), transparent 62%),
@@ -1805,8 +1828,13 @@
 }
 
 @keyframes eq {
-  0%, 100% { transform: scaleY(0.5); }
-  50% { transform: scaleY(1); }
+  0%,
+  100% {
+    transform: scaleY(0.5);
+  }
+  50% {
+    transform: scaleY(1);
+  }
 }
 
 /* Gradient surface card (teal-deep + mint glow) */
@@ -1916,46 +1944,6 @@
   transition:
     color 150ms ease,
     background-color 150ms ease;
-}
-
-.itu-primary-nav-item {
-  position: relative;
-  cursor: grab;
-}
-
-.itu-primary-nav-item:active {
-  cursor: grabbing;
-}
-
-.itu-primary-nav-item.is-dragging {
-  opacity: 0.55;
-}
-
-.itu-primary-nav-item.is-drop-target::before {
-  position: absolute;
-  z-index: 1;
-  right: 8px;
-  left: 8px;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--itu-teal-400);
-  box-shadow: 0 0 0 1px rgb(8 47 42 / 0.7);
-  content: '';
-  pointer-events: none;
-}
-
-.itu-primary-nav-item.is-drop-target-before::before {
-  top: -2px;
-}
-
-.itu-primary-nav-item.is-drop-target-after::before {
-  bottom: -2px;
-}
-
-.itu-primary-nav-item.is-drop-target .itu-primary-nav-link {
-  background: rgb(63 182 164 / 0.18);
-  box-shadow: inset 0 0 0 1px rgb(92 215 195 / 0.5);
-  color: white;
 }
 
 .itu-primary-nav-link:hover {
@@ -2729,6 +2717,38 @@
   color: var(--itu-teal-400);
 }
 
+.itu-journal-workspace,
+.itu-journal-content {
+  background: var(--itu-page-background);
+}
+
+.itu-journal-sidebar {
+  border-right-color: var(--itu-border);
+  background: var(--itu-surface-2);
+}
+
+.itu-journal-sidebar header {
+  border-bottom-color: var(--itu-border);
+}
+
+.itu-journal-nav-link {
+  border-radius: var(--itu-radius-s);
+}
+
+.itu-journal-nav-link:hover {
+  background: var(--itu-mint-50);
+  color: var(--itu-ink);
+}
+
+.itu-journal-nav-link.is-active {
+  background: var(--itu-mint-100);
+  color: var(--itu-teal-700);
+}
+
+.dark .itu-journal-nav-link.is-active {
+  color: var(--itu-teal-400);
+}
+
 .growth-shell::before {
   background:
     radial-gradient(circle at 82% 8%, rgb(225 154 46 / 0.07), transparent 28rem),
@@ -2751,7 +2771,6 @@
   min-height: 100%;
   background: var(--itu-page-background);
 }
-
 
 .growth-main {
   display: block;
@@ -3517,5 +3536,63 @@ body :is(.border-slate-200, .border-slate-100) {
 @media (prefers-reduced-motion: reduce) {
   .itu-checkbox[data-state='checked'] {
     animation: none;
+  }
+}
+
+/* Journal workspace adapts to a compact horizontal context rail on narrow screens. */
+@media (max-width: 1023px) {
+  .itu-journal-workspace {
+    display: flex;
+    min-height: 100vh;
+    flex-direction: column;
+  }
+
+  .itu-journal-sidebar {
+    min-height: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--itu-border);
+  }
+
+  .itu-journal-sidebar header {
+    display: none;
+  }
+
+  .itu-journal-sidebar nav {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 10px 16px;
+    scrollbar-width: thin;
+  }
+
+  .itu-journal-sidebar .nav-section-title {
+    display: none;
+  }
+
+  .itu-journal-nav-link {
+    min-height: 42px;
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .itu-journal-content {
+    min-height: 0;
+    flex: 1;
+  }
+
+  .itu-journal-content__inner {
+    padding: 24px 16px 96px;
+  }
+}
+
+@media (max-width: 639px) {
+  .itu-journal-nav-link {
+    min-height: 44px;
+    border-radius: var(--itu-radius-l);
+    padding-inline: 12px;
+  }
+
+  .itu-journal-content__inner {
+    padding-top: 16px;
   }
 }

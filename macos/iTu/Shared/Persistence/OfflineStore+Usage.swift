@@ -3,6 +3,26 @@ import Foundation
 extension OfflineStore {
     func usageSummaries() -> [UsageSummary] { state.usageSummaries }
 
+    func usageAppIconUploadHashes() -> [String: String] { state.usageAppIconUploadHashes }
+
+    func markUsageAppIconUploaded(bundleID: String, hash: String) throws -> OfflineSnapshot {
+        state.usageAppIconUploadHashes[bundleID] = hash
+        try persist()
+        return state
+    }
+
+    /// Drops application usage rows written before engaged-time tracking existed.
+    /// Website summaries are compatible and intentionally left untouched.
+    func cleanupLegacyUsage() throws -> OfflineSnapshot {
+        let remaining = state.usageSummaries.filter { $0.engagedSeconds != nil }
+        guard remaining.count != state.usageSummaries.count else { return state }
+        state.usageSummaries = remaining
+        let ids = Set(remaining.map(\.id))
+        state.usageUploadWatermarks = state.usageUploadWatermarks.filter { ids.contains($0.key) }
+        try persist()
+        return state
+    }
+
     func websiteUsageSummaries() -> [WebsiteUsageSummary] { state.websiteUsageSummaries }
 
     func usageSummaries(from: String?, to: String?) -> [UsageSummary] {

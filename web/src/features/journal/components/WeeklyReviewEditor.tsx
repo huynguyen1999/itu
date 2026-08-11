@@ -3,6 +3,7 @@ import { Calendar, CheckCircle2, Clock, Dumbbell, Flame, Layers, Sparkles, Zap }
 import { useWeeklySummary } from '../journalQueries';
 import type { JournalWeeklyReview } from '../journal.types';
 import { Card, CardContent } from '@/shared/ui/card';
+import { Button } from '@/shared/ui/button';
 
 interface WeeklyReviewEditorProps {
   weeklyReview?: Partial<JournalWeeklyReview> | null;
@@ -21,7 +22,12 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
   const periodStart = weeklyReview?.periodStart || start.toISOString().split('T')[0];
   const periodEnd = weeklyReview?.periodEnd || end.toISOString().split('T')[0];
 
-  const { data: summaryData } = useWeeklySummary(periodStart, periodEnd);
+  const {
+    data: summaryData,
+    isLoading: isSummaryLoading,
+    isError: isSummaryError,
+    refetch: refetchSummary,
+  } = useWeeklySummary(periodStart, periodEnd);
   const snapshot: any = weeklyReview?.summarySnapshot || summaryData || {};
 
   const [wentWell, setWentWell] = useState(weeklyReview?.wentWellMarkdown || '');
@@ -99,40 +105,60 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
       {/* Compact Top Summary Strip */}
       <Card>
         <CardContent className="p-3.5 space-y-3">
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 font-semibold text-primary">
               <Calendar className="w-4 h-4" />
               Week Summary ({periodStart} — {periodEnd})
             </div>
-            <span className="text-[10px] text-muted-foreground uppercase font-mono">Snapshot</span>
+            <span className="text-[11px] text-muted-foreground uppercase font-mono">Snapshot</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-foreground">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
-              <span>{tasksCompleted} tasks</span>
+          {isSummaryError ? (
+            <div
+              className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--itu-radius-s)] bg-destructive/10 p-2 text-xs text-destructive"
+              role="alert"
+            >
+              <span>Weekly summary could not be loaded.</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => void refetchSummary()}>
+                Retry
+              </Button>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-primary" />
-              <span>{Math.floor(focusMinutes / 60)}h {focusMinutes % 60}m focus</span>
+          ) : isSummaryLoading ? (
+            <p className="text-xs text-muted-foreground" role="status">
+              Loading summary…
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-foreground">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+                <span>{tasksCompleted} tasks</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-primary" />
+                <span>
+                  {Math.floor(focusMinutes / 60)}h {focusMinutes % 60}m focus
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5 text-primary" />
+                <span>
+                  Habits {habitsCompleted}/{habitsScheduled}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Dumbbell className="w-3.5 h-3.5 text-primary" />
+                <span>{workoutsCount} workouts</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-primary" />
+                <span>{learningReviews} reviews</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-primary" />
+                <span>+{growthXp} XP</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Flame className="w-3.5 h-3.5 text-primary" />
-              <span>Habits {habitsCompleted}/{habitsScheduled}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Dumbbell className="w-3.5 h-3.5 text-primary" />
-              <span>{workoutsCount} workouts</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-primary" />
-              <span>{learningReviews} reviews</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-primary" />
-              <span>+{growthXp} XP</span>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
@@ -141,7 +167,7 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
         <Card className="flex flex-col">
           <CardContent className="p-3.5 space-y-2 flex-1 flex flex-col">
             <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="h-2 w-2 rounded-full bg-primary" />
               What went well?
             </h4>
             <p className="text-[11px] text-muted-foreground">What worked & should continue?</p>
@@ -150,7 +176,7 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
               value={wentWell}
               onChange={(e) => updateFields('wentWell', e.target.value)}
               placeholder="Highlights, achievements, positive moments..."
-              className="w-full flex-1 rounded-md border border-input bg-background/50 p-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-ring resize-none min-h-[140px]"
+              className="min-h-[140px] w-full flex-1 resize-none rounded-[var(--itu-radius-s)] border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
             />
           </CardContent>
         </Card>
@@ -158,7 +184,7 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
         <Card className="flex flex-col">
           <CardContent className="p-3.5 space-y-2 flex-1 flex flex-col">
             <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-rose-500" />
+              <span className="h-2 w-2 rounded-full bg-destructive" />
               What didn't work?
             </h4>
             <p className="text-[11px] text-muted-foreground">What created friction or failed?</p>
@@ -167,7 +193,7 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
               value={friction}
               onChange={(e) => updateFields('friction', e.target.value)}
               placeholder="Blockers, distractions, missed habits..."
-              className="w-full flex-1 rounded-md border border-input bg-background/50 p-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-ring resize-none min-h-[140px]"
+              className="min-h-[140px] w-full flex-1 resize-none rounded-[var(--itu-radius-s)] border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
             />
           </CardContent>
         </Card>
@@ -184,7 +210,7 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
               value={nextWeek}
               onChange={(e) => updateFields('nextWeek', e.target.value)}
               placeholder="Ideas, adjustments, next focus..."
-              className="w-full flex-1 rounded-md border border-input bg-background/50 p-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-ring resize-none min-h-[140px]"
+              className="min-h-[140px] w-full flex-1 resize-none rounded-[var(--itu-radius-s)] border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
             />
           </CardContent>
         </Card>
@@ -198,7 +224,7 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
               <Sparkles className="w-4 h-4 text-primary" />
               Next Tiny Experiment (Pact → Act → React → Impact)
             </div>
-            <span className="text-[10px] uppercase tracking-wider font-mono text-primary font-semibold">
+            <span className="text-[11px] uppercase tracking-wider font-mono text-primary font-semibold">
               {experiment.status || 'ACTIVE'}
             </span>
           </div>
@@ -210,10 +236,8 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
                 type="text"
                 placeholder="If I prepare tomorrow's top 3 tasks before bed..."
                 value={experiment.hypothesis || ''}
-                onChange={(e) =>
-                  updateFields('experiment', { ...experiment, hypothesis: e.target.value })
-                }
-                className="w-full rounded-md border border-input bg-background/50 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                onChange={(e) => updateFields('experiment', { ...experiment, hypothesis: e.target.value })}
+                className="h-10 w-full rounded-[var(--itu-radius-s)] border border-input bg-background px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
 
@@ -223,10 +247,8 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
                 type="text"
                 placeholder="Write top 3 tasks on paper every night at 10 PM"
                 value={experiment.action || ''}
-                onChange={(e) =>
-                  updateFields('experiment', { ...experiment, action: e.target.value })
-                }
-                className="w-full rounded-md border border-input bg-background/50 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                onChange={(e) => updateFields('experiment', { ...experiment, action: e.target.value })}
+                className="h-10 w-full rounded-[var(--itu-radius-s)] border border-input bg-background px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
 
@@ -238,7 +260,7 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
                 onChange={(e) =>
                   updateFields('experiment', { ...experiment, durationDays: parseInt(e.target.value) || 7 })
                 }
-                className="w-full rounded-md border border-input bg-background/50 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                className="h-10 w-full rounded-[var(--itu-radius-s)] border border-input bg-background px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
 
@@ -248,10 +270,8 @@ export function WeeklyReviewEditor({ weeklyReview, onChange, entryDate }: Weekly
                 type="text"
                 placeholder="Did I start focused work within 15 minutes?"
                 value={experiment.measure || ''}
-                onChange={(e) =>
-                  updateFields('experiment', { ...experiment, measure: e.target.value })
-                }
-                className="w-full rounded-md border border-input bg-background/50 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                onChange={(e) => updateFields('experiment', { ...experiment, measure: e.target.value })}
+                className="h-10 w-full rounded-[var(--itu-radius-s)] border border-input bg-background px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
           </div>

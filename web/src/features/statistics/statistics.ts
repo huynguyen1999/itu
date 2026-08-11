@@ -1,4 +1,5 @@
 import type { GrowthSkill, GrowthStatistics, StudyCalendarDay, UsageSummary } from '@/shared/api/types';
+import type { WebsiteActivitySession, WebsiteUsageSummary } from '@/shared/api/usageApi';
 import { isSelectableGrowthEntry } from '@/shared/growthEntryFilters';
 
 export interface StatisticsDateRange {
@@ -26,13 +27,142 @@ export interface UsageStackPoint {
   [series: string]: string | number;
 }
 
-export function buildUsageTrendData(summary: UsageSummary | undefined, range: StatisticsDateRange): UsageTrendPoint[] {
+export interface WebsiteUsageSlice {
+  hostname: string;
+  activeSeconds: number;
+}
+
+export type WebsitePrivacyFilter = 'all' | 'normal' | 'private';
+
+export interface WebsiteUrlView {
+  url: string;
+  hostname: string;
+  activeSeconds: number;
+  latestTitle: string | null;
+  isPrivate: boolean;
+  visitCount: number;
+}
+
+export function selectWebsiteUsageSlices(
+  summary: { hostnames?: WebsiteUsageSlice[]; topHostnames: WebsiteUsageSlice[] } | undefined,
+  limit = 7,
+): WebsiteUsageSlice[] {
+  const domains = [...(summary?.hostnames ?? summary?.topHostnames ?? [])]
+    .map((domain) => ({ hostname: domain.hostname, activeSeconds: finiteNumber(domain.activeSeconds) }))
+    .filter((domain) => domain.activeSeconds > 0)
+    .sort((a, b) => b.activeSeconds - a.activeSeconds || a.hostname.localeCompare(b.hostname));
+  const top = domains.slice(0, limit);
+  const otherSeconds = domains.slice(limit).reduce((total, domain) => total + domain.activeSeconds, 0);
+  return otherSeconds > 0 ? [...top, { hostname: 'Other', activeSeconds: otherSeconds }] : top;
+}
+
+export function filterWebsiteSessions(sessions: WebsiteActivitySession[], filter: WebsitePrivacyFilter) {
+  if (filter === 'all') return sessions;
+  return sessions.filter((session) => session.isPrivate === (filter === 'private'));
+}
+
+export function websiteDomains(
+  summary: WebsiteUsageSummary | undefined,
+  sessions: WebsiteActivitySession[],
+  search: string,
+): WebsiteUsageSlice[] {
+  const query = search.trim().toLocaleLowerCase();
+  const totals = new Map<string, number>();
+  sessions.forEach((session) => totals.set(session.hostname, (totals.get(session.hostname) ?? 0) + finiteNumber(session.activeSeconds)));
+  const visibleDetailKeys = new Set(
+    sessions
+      .filter((session) => session.url)
+      .map((session) => `${session.hostname}\u0000${session.url}\u0000${session.isPrivate ? 'private' : 'normal'}`),
+  );
+  return [...totals.entries()]
+    .filter(([hostname]) => {
+      if (!query) return true;
+      return (
+        hostname.toLocaleLowerCase().includes(query) ||
+        summary?.urlDetails.some(
+          (detail) =>
+            visibleDetailKeys.has(`${detail.hostname}\u0000${detail.url}\u0000${detail.isPrivate ? 'private' : 'normal'}`) &&
+            detail.hostname === hostname &&
+            `${detail.latestTitle ?? ''} ${detail.url}`.toLocaleLowerCase().includes(query),
+        )
+      );
+    })
+    .map(([hostname, activeSeconds]) => ({ hostname, activeSeconds }))
+    .sort((a, b) => b.activeSeconds - a.activeSeconds || a.hostname.localeCompare(b.hostname));
+}
+
+export function websiteUrls(
+  summary: WebsiteUsageSummary | undefined,
+  sessions: WebsiteActivitySession[],
+  hostname: string | null,
+  search: string,
+): WebsiteUrlView[] {
+  if (!summary || !hostname) return [];
+  const query = search.trim().toLocaleLowerCase();
+  const matchingSessions = sessions.filter((session) => session.hostname === hostname && session.url);
+  const visibleDetailKeys = new Set(
+    matchingSessions.map((session) => `${session.url}\u0000${session.isPrivate ? 'private' : 'normal'}`),
+  );
+  return summary.urlDetails
+    .filter(
+      (detail) =>
+        detail.hostname === hostname &&
+        visibleDetailKeys.has(`${detail.url}\u0000${detail.isPrivate ? 'private' : 'normal'}`),
+    )
+    .map((detail) => {
+      const visits = matchingSessions.filter(
+        (session) => session.url === detail.url && session.isPrivate === detail.isPrivate,
+      );
+      return {
+        ...detail,
+        visitCount: visits.length,
+        activeSeconds: visits.length > 0 ? visits.reduce((total, visit) => total + visit.activeSeconds, 0) : detail.activeSeconds,
+      };
+    })
+    .filter((detail) => {
+      if (!query) return true;
+      return `${detail.hostname} ${detail.url} ${detail.latestTitle ?? ''}`.toLocaleLowerCase().includes(query);
+    })
+    .sort((a, b) => b.activeSeconds - a.activeSeconds || a.url.localeCompare(b.url));
+}
+
+export function engagementPercent(totalActiveSeconds: number, totalEngagedSeconds?: number) {
+  if (!Number.isFinite(totalEngagedSeconds) || !Number.isFinite(totalActiveSeconds) || totalActiveSeconds <= 0) {
+    return null;
+  }
+  return Math.min(100, Math.max(0, Math.round((Math.max(0, totalEngagedSeconds ?? 0) / totalActiveSeconds) * 100)));
+}
+
+export function buildUsageTrendData(
+  summary: UsageSummary | undefined,
+  range: StatisticsDateRange,
+  grouping?: 'DAY' | 'WEEK' | 'MONTH',
+  showZeroValueSeries = true,
+): UsageTrendPoint[] {
+  const bucket = bucketMode(range, grouping);
   const daily = new Map((summary?.daily ?? []).map((point) => [point.localDate, finiteNumber(point.activeSeconds)]));
-  return enumerateDates(range).map((date) => ({
-    key: date,
-    label: bucketLabel(date, 'day'),
-    activeSeconds: daily.get(date) ?? 0,
-  }));
+  const points = new Map<string, UsageTrendPoint>();
+
+  for (const date of enumerateDates(range)) {
+    const key = bucketKey(date, range.from, bucket);
+    if (!points.has(key)) {
+      points.set(key, {
+        key,
+        label: bucketLabel(date, bucket),
+        activeSeconds: 0,
+      });
+    }
+    const point = points.get(key);
+    if (point) {
+      point.activeSeconds += daily.get(date) ?? 0;
+    }
+  }
+
+  const result = [...points.values()];
+  if (!showZeroValueSeries) {
+    return result.filter((p) => p.activeSeconds > 0);
+  }
+  return result;
 }
 
 export function selectTopUsageApps(summary: UsageSummary | undefined, limit = 5) {
@@ -141,8 +271,10 @@ export function buildTrendData(
   days: StudyCalendarDay[],
   growth: GrowthStatistics | undefined,
   range: StatisticsDateRange,
+  grouping?: 'DAY' | 'WEEK' | 'MONTH',
+  showZeroValueSeries = true,
 ): TrendPoint[] {
-  const bucket = bucketMode(range);
+  const bucket = bucketMode(range, grouping);
   const points = new Map<string, TrendPoint>();
 
   for (const date of enumerateDates(range)) {
@@ -173,7 +305,11 @@ export function buildTrendData(
     if (point) point.xp += entry.xp;
   }
 
-  return [...points.values()];
+  const result = [...points.values()];
+  if (!showZeroValueSeries) {
+    return result.filter((p) => p.completedTasks > 0 || p.focusedMinutes > 0 || p.xp > 0);
+  }
+  return result;
 }
 
 function finiteNumber(value: unknown) {
@@ -197,7 +333,10 @@ export function rangeLabel(range: StatisticsDateRange) {
   return `${formatter.format(parseDateKey(range.from))} – ${formatter.format(parseDateKey(range.to))}`;
 }
 
-function bucketMode(range: StatisticsDateRange): 'day' | 'week' | 'month' {
+function bucketMode(range: StatisticsDateRange, grouping?: 'DAY' | 'WEEK' | 'MONTH'): 'day' | 'week' | 'month' {
+  if (grouping === 'DAY') return 'day';
+  if (grouping === 'WEEK') return 'week';
+  if (grouping === 'MONTH') return 'month';
   const days = inclusiveDayCount(range);
   if (days <= 31) return 'day';
   if (days <= 180) return 'week';

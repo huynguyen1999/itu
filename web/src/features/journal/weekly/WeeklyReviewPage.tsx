@@ -1,16 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { Calendar, CheckCircle2, Clock, Dumbbell, Flame, Sparkles, Trophy, Wallet, Zap } from 'lucide-react';
+import {
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Dumbbell,
+  Flame,
+  LoaderCircle,
+  Sparkles,
+  Trophy,
+  Wallet,
+  Zap,
+} from 'lucide-react';
 import { useJournalEntry, useWeeklySummary } from '../journalQueries';
 import { useCreateJournalEntryMutation, useUpdateJournalEntryMutation } from '../journalMutations';
 import { JournalMarkdownEditor } from '../components/JournalMarkdownEditor';
 import { createUlid } from '@/shared/sync/syncIdentity';
+import { Button } from '@/shared/ui/button';
+import { Card, CardContent } from '@/shared/ui/card';
 
 export function WeeklyReviewPage() {
   const { entryId } = useParams();
-
   const isNew = !entryId || entryId === 'new';
-  const { data: existingEntry, isLoading } = useJournalEntry(entryId || '', isNew);
+  const {
+    data: existingEntry,
+    isLoading: isEntryLoading,
+    isError: isEntryError,
+    refetch: refetchEntry,
+  } = useJournalEntry(entryId || '', isNew);
 
   const createMutation = useCreateJournalEntryMutation();
   const updateMutation = useUpdateJournalEntryMutation();
@@ -19,27 +36,30 @@ export function WeeklyReviewPage() {
   const [title, setTitle] = useState('Weekly Review — Week 32');
 
   const [periodStart, setPeriodStart] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - d.getDay() + 1);
-    return d.toISOString().split('T')[0];
+    const date = new Date();
+    date.setDate(date.getDate() - date.getDay() + 1);
+    return date.toISOString().split('T')[0];
   });
 
   const [periodEnd, setPeriodEnd] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - d.getDay() + 7);
-    return d.toISOString().split('T')[0];
+    const date = new Date();
+    date.setDate(date.getDate() - date.getDay() + 7);
+    return date.toISOString().split('T')[0];
   });
 
-  const { data: weeklyMetrics } = useWeeklySummary(periodStart, periodEnd);
+  const {
+    data: weeklyMetrics,
+    isLoading: isSummaryLoading,
+    isError: isSummaryError,
+    refetch: refetchSummary,
+  } = useWeeklySummary(periodStart, periodEnd);
 
   const [wentWell, setWentWell] = useState('');
   const [friction, setFriction] = useState('');
   const [nextWeek, setNextWeek] = useState('');
-
   const [experimentHypothesis, setExperimentHypothesis] = useState('');
   const [experimentAction, setExperimentAction] = useState('');
   const [experimentSuccess, setExperimentSuccess] = useState('');
-
   const [contentMarkdown, setContentMarkdown] = useState('');
 
   const tasksCompleted = weeklyMetrics?.tasks?.completed ?? 0;
@@ -50,19 +70,18 @@ export function WeeklyReviewPage() {
   const spendingVnd = weeklyMetrics?.expenses?.VND ?? 0;
 
   useEffect(() => {
-    if (existingEntry?.weeklyReview) {
-      setTitle(existingEntry.title || 'Weekly Review');
-      setWentWell(existingEntry.weeklyReview.wentWellMarkdown || '');
-      setFriction(existingEntry.weeklyReview.frictionMarkdown || '');
-      setNextWeek(existingEntry.weeklyReview.nextWeekMarkdown || '');
-      setContentMarkdown(existingEntry.contentMarkdown || '');
+    if (!existingEntry?.weeklyReview) return;
+    setTitle(existingEntry.title || 'Weekly Review');
+    setWentWell(existingEntry.weeklyReview.wentWellMarkdown || '');
+    setFriction(existingEntry.weeklyReview.frictionMarkdown || '');
+    setNextWeek(existingEntry.weeklyReview.nextWeekMarkdown || '');
+    setContentMarkdown(existingEntry.contentMarkdown || '');
 
-      if (existingEntry.weeklyReview.experimentSnapshot) {
-        const snap = existingEntry.weeklyReview.experimentSnapshot;
-        setExperimentHypothesis(snap.hypothesis || '');
-        setExperimentAction(snap.action || '');
-        setExperimentSuccess(snap.success || '');
-      }
+    if (existingEntry.weeklyReview.experimentSnapshot) {
+      const snapshot = existingEntry.weeklyReview.experimentSnapshot;
+      setExperimentHypothesis(snapshot.hypothesis || '');
+      setExperimentAction(snapshot.action || '');
+      setExperimentSuccess(snapshot.success || '');
     }
   }, [existingEntry]);
 
@@ -90,216 +109,209 @@ export function WeeklyReviewPage() {
         entryDate: periodStart,
         weeklyReview: payloadReview,
       });
-    } else {
-      await updateMutation.mutateAsync({
-        id,
-        title,
-        contentMarkdown,
-        weeklyReview: payloadReview,
-      });
+      return;
     }
+
+    await updateMutation.mutateAsync({ id, title, contentMarkdown, weeklyReview: payloadReview });
   };
 
+  if (isEntryLoading) {
+    return (
+      <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+        <LoaderCircle className="h-4 w-4 motion-safe:animate-spin" /> Loading weekly review…
+      </div>
+    );
+  }
+
+  if (isEntryError) {
+    return (
+      <div
+        className="mx-auto flex min-h-64 max-w-xl flex-col items-center justify-center gap-3 rounded-[var(--itu-radius-m)] border border-destructive/25 bg-destructive/10 p-6 text-center text-sm text-destructive"
+        role="alert"
+      >
+        <p>Weekly review could not be loaded.</p>
+        <Button type="button" variant="outline" size="sm" onClick={() => void refetchEntry()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-20">
-      {/* Header & Week Selector */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="text-2xl font-bold tracking-tight text-foreground bg-transparent outline-none"
-              />
-              <p className="text-xs text-muted-foreground">Reflection & Tiny Experiments</p>
-            </div>
+    <div className="mx-auto w-full max-w-5xl space-y-6 pb-20" aria-busy={isSaving}>
+      <header className="itu-page-header-sticky flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--itu-radius-s)] border border-primary/25 bg-primary/10 text-primary">
+            <Calendar className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <label className="sr-only" htmlFor="weekly-review-title">
+              Weekly review title
+            </label>
+            <input
+              id="weekly-review-title"
+              type="text"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              className="w-full bg-transparent text-2xl font-bold tracking-tight text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-3xl"
+            />
+            <p className="text-xs text-muted-foreground">Reflection & Tiny Experiments</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-card border border-border/80 rounded-xl px-3 py-1.5 text-xs text-foreground shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex min-h-10 items-center gap-1.5 rounded-[var(--itu-radius-s)] border border-input bg-background px-3 text-xs text-foreground">
+            <label className="sr-only" htmlFor="weekly-period-start">
+              Review period start
+            </label>
             <input
+              id="weekly-period-start"
               type="date"
               value={periodStart}
-              onChange={(e) => setPeriodStart(e.target.value)}
-              className="bg-transparent text-foreground outline-none"
+              onChange={(event) => setPeriodStart(event.target.value)}
+              className="min-w-0 bg-transparent outline-none"
             />
-            <span className="text-muted-foreground">–</span>
+            <span className="text-muted-foreground" aria-hidden="true">
+              –
+            </span>
+            <label className="sr-only" htmlFor="weekly-period-end">
+              Review period end
+            </label>
             <input
+              id="weekly-period-end"
               type="date"
               value={periodEnd}
-              onChange={(e) => setPeriodEnd(e.target.value)}
-              className="bg-transparent text-foreground outline-none"
+              onChange={(event) => setPeriodEnd(event.target.value)}
+              className="min-w-0 bg-transparent outline-none"
             />
           </div>
-
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            className="px-4 py-2 text-xs font-bold text-emerald-950 bg-emerald-500 hover:bg-emerald-400 rounded-xl transition-colors shadow-md"
-          >
-            Save Review
-          </button>
+          <Button type="button" onClick={() => void handleSave()} disabled={isSaving} className="w-full sm:w-auto">
+            {isSaving ? 'Saving…' : 'Save Review'}
+          </Button>
         </div>
+      </header>
+
+      {createMutation.isError || updateMutation.isError ? (
+        <p className="text-sm text-destructive" role="alert">
+          Review could not be saved. Try again.
+        </p>
+      ) : null}
+
+      <Card>
+        <CardContent className="space-y-3 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Calculated Weekly Metrics
+            </span>
+            {isSummaryError && (
+              <Button type="button" variant="outline" size="sm" onClick={() => void refetchSummary()}>
+                Retry metrics
+              </Button>
+            )}
+          </div>
+
+          {isSummaryError ? (
+            <p className="rounded-[var(--itu-radius-s)] bg-destructive/10 p-3 text-sm text-destructive" role="alert">
+              Weekly metrics could not be loaded.
+            </p>
+          ) : isSummaryLoading ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              Loading weekly metrics…
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-5">
+              <Metric
+                icon={<CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
+                label="Tasks"
+                value={`${tasksCompleted} completed`}
+              />
+              <Metric
+                icon={<Clock className="h-3.5 w-3.5 text-primary" />}
+                label="Focus Time"
+                value={`${Math.round(focusMinutes / 60)}h ${focusMinutes % 60}m`}
+              />
+              <Metric
+                icon={<Zap className="h-3.5 w-3.5 text-[var(--itu-amber-500)]" />}
+                label="Habits"
+                value={`${habitsCompleted} / ${habitsScheduled}`}
+              />
+              <Metric
+                icon={<Dumbbell className="h-3.5 w-3.5 text-primary" />}
+                label="Training"
+                value={`${workoutsCount} workouts`}
+              />
+              <Metric
+                icon={<Wallet className="h-3.5 w-3.5 text-primary" />}
+                label="Spending"
+                value={`₫${Number(spendingVnd).toLocaleString()}`}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <ReflectionCard
+          icon={<Trophy className="h-4 w-4 text-primary" />}
+          title="What went well"
+          placeholder="Wins, achievements, positive habits..."
+          value={wentWell}
+          onChange={setWentWell}
+        />
+        <ReflectionCard
+          icon={<Flame className="h-4 w-4 text-[var(--itu-amber-500)]" />}
+          title="What didn't work"
+          placeholder="Friction points, missed habits, distractions..."
+          value={friction}
+          onChange={setFriction}
+        />
+        <ReflectionCard
+          icon={<Sparkles className="h-4 w-4 text-primary" />}
+          title="What I'll try next week"
+          placeholder="Adjustments, new routines, focused targets..."
+          value={nextWeek}
+          onChange={setNextWeek}
+        />
       </div>
 
-      {/* Automatic Metrics Summary Snapshot */}
-      <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm space-y-3">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Calculated Weekly Metrics
-        </span>
-
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
-          <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1">
-            <span className="text-muted-foreground flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Tasks
-            </span>
-            <p className="text-base font-bold text-foreground">
-              {tasksCompleted} completed
-            </p>
+      <Card>
+        <CardContent className="space-y-4 p-4 sm:p-5">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">Tiny Experiment</h2>
           </div>
-
-          <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1">
-            <span className="text-muted-foreground flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-blue-500" /> Focus Time
-            </span>
-            <p className="text-base font-bold text-foreground">
-              {`${Math.round(focusMinutes / 60)}h ${focusMinutes % 60}m`}
-            </p>
-          </div>
-
-          <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1">
-            <span className="text-muted-foreground flex items-center gap-1">
-              <Zap className="w-3.5 h-3.5 text-amber-500" /> Habits
-            </span>
-            <p className="text-base font-bold text-foreground">
-              {habitsCompleted} / {habitsScheduled}
-            </p>
-          </div>
-
-          <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1">
-            <span className="text-muted-foreground flex items-center gap-1">
-              <Dumbbell className="w-3.5 h-3.5 text-purple-500" /> Training
-            </span>
-            <p className="text-base font-bold text-foreground">
-              {workoutsCount} workouts
-            </p>
-          </div>
-
-          <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1">
-            <span className="text-muted-foreground flex items-center gap-1">
-              <Wallet className="w-3.5 h-3.5 text-teal-500" /> Spending
-            </span>
-            <p className="text-base font-bold text-foreground">
-              ₫{Number(spendingVnd).toLocaleString()}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* 3 Reflection Columns */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* What Went Well */}
-        <div className="rounded-2xl border border-emerald-500/30 bg-card p-4 space-y-2 shadow-sm">
-          <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
-            <Trophy className="w-4 h-4" />
-            What went well
-          </div>
-          <textarea
-            placeholder="Wins, achievements, positive habits..."
-            value={wentWell}
-            onChange={(e) => setWentWell(e.target.value)}
-            rows={6}
-            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none resize-none border-0"
-          />
-        </div>
-
-        {/* What Didn't Work */}
-        <div className="rounded-2xl border border-amber-500/30 bg-card p-4 space-y-2 shadow-sm">
-          <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
-            <Flame className="w-4 h-4" />
-            What didn't work
-          </div>
-          <textarea
-            placeholder="Friction points, missed habits, distractions..."
-            value={friction}
-            onChange={(e) => setFriction(e.target.value)}
-            rows={6}
-            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none resize-none border-0"
-          />
-        </div>
-
-        {/* What I'll Try Next Week */}
-        <div className="rounded-2xl border border-blue-500/30 bg-card p-4 space-y-2 shadow-sm">
-          <div className="flex items-center gap-2 text-blue-400 font-bold text-xs uppercase tracking-wider">
-            <Sparkles className="w-4 h-4" />
-            What I'll try next week
-          </div>
-          <textarea
-            placeholder="Adjustments, new routines, focused targets..."
-            value={nextWeek}
-            onChange={(e) => setNextWeek(e.target.value)}
-            rows={6}
-            className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none resize-none border-0"
-          />
-        </div>
-      </div>
-
-      {/* Tiny Experiment Card */}
-      <div className="rounded-2xl border border-emerald-500/40 bg-card p-6 shadow-sm space-y-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-emerald-400" />
-          <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
-            Tiny Experiment
-          </h3>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="space-y-1">
-            <label className="font-semibold text-muted-foreground">Hypothesis</label>
-            <input
-              type="text"
+          <div className="grid grid-cols-1 gap-4 text-xs md:grid-cols-3">
+            <LabeledInput
+              id="experiment-hypothesis"
+              label="Hypothesis"
               placeholder="I believe that..."
               value={experimentHypothesis}
-              onChange={(e) => setExperimentHypothesis(e.target.value)}
-              className="w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              onChange={setExperimentHypothesis}
             />
-          </div>
-
-          <div className="space-y-1">
-            <label className="font-semibold text-muted-foreground">Action</label>
-            <input
-              type="text"
+            <LabeledInput
+              id="experiment-action"
+              label="Action"
               placeholder="For the next 7 days I will..."
               value={experimentAction}
-              onChange={(e) => setExperimentAction(e.target.value)}
-              className="w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              onChange={setExperimentAction}
             />
-          </div>
-
-          <div className="space-y-1">
-            <label className="font-semibold text-muted-foreground">Success Criteria</label>
-            <input
-              type="text"
+            <LabeledInput
+              id="experiment-success"
+              label="Success Criteria"
               placeholder="Success means..."
               value={experimentSuccess}
-              onChange={(e) => setExperimentSuccess(e.target.value)}
-              className="w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              onChange={setExperimentSuccess}
             />
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Narrative Markdown Reflection */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+      <section className="space-y-2" aria-labelledby="weekly-markdown-heading">
+        <h2 id="weekly-markdown-heading" className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
           Detailed Markdown Reflection
-        </h3>
+        </h2>
         <JournalMarkdownEditor
           value={contentMarkdown}
           onChange={setContentMarkdown}
@@ -308,7 +320,79 @@ export function WeeklyReviewPage() {
           minHeight="240px"
           frameless={false}
         />
-      </div>
+      </section>
     </div>
+  );
+}
+
+function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="space-y-1 rounded-[var(--itu-radius-s)] border border-border bg-muted/25 p-3">
+      <span className="flex items-center gap-1 text-muted-foreground">
+        {icon} {label}
+      </span>
+      <p className="text-sm font-bold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function ReflectionCard({
+  icon,
+  title,
+  placeholder,
+  value,
+  onChange,
+}: {
+  icon: ReactNode;
+  title: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Card className="flex flex-col">
+      <CardContent className="flex flex-1 flex-col space-y-2 p-4">
+        <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-foreground">
+          {icon}
+          {title}
+        </h2>
+        <textarea
+          rows={6}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          aria-label={title}
+          className="min-h-[150px] w-full flex-1 resize-none rounded-[var(--itu-radius-s)] border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function LabeledInput({
+  id,
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label htmlFor={id} className="space-y-1">
+      <span className="font-semibold text-muted-foreground">{label}</span>
+      <input
+        id={id}
+        type="text"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 w-full rounded-[var(--itu-radius-s)] border border-input bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
+      />
+    </label>
   );
 }

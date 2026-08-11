@@ -1,15 +1,22 @@
 import { useNavigate, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useGymOverview } from '../gymQueries';
-import { useCreateGymWorkout } from '../gymMutations';
+import { useStartGymWorkout } from '../gymMutations';
 import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Dumbbell, History, Activity, ChevronRight } from 'lucide-react';
+import { api } from '@/shared/api/client';
+import { formatVolume } from '../weightUnits';
 
 export function GymOverviewPage() {
   const navigate = useNavigate();
   const { data: overview, isLoading } = useGymOverview();
-  const startWorkout = useCreateGymWorkout();
-  const activeWorkout = overview?.recentWorkouts?.find((workout: any) => workout.status === 'ACTIVE' || workout.status === 'IN_PROGRESS');
+  const preferencesQuery = useQuery({ queryKey: ['user-preferences'], queryFn: () => api.getPreferences() });
+  const weightUnit = preferencesQuery.data?.gym?.weightUnit ?? 'KG';
+  const startWorkout = useStartGymWorkout();
+  const activeWorkout = overview?.recentWorkouts?.find(
+    (workout: any) => workout.status === 'ACTIVE' || workout.status === 'IN_PROGRESS',
+  );
 
   const recordWorkout = () => {
     if (activeWorkout) {
@@ -17,17 +24,14 @@ export function GymOverviewPage() {
       return;
     }
 
-    startWorkout.mutate({ title: 'Workout' }, {
-      onSuccess: (workout: any) => {
-        if (workout?.id) navigate(`/gym/workouts/${workout.id}`);
+    startWorkout.mutate(
+      { title: 'Workout' },
+      {
+        onSuccess: (workout: any) => {
+          if (workout?.id) navigate(`/gym/workouts/${workout.id}`);
+        },
       },
-    });
-  };
-
-  const logCompletedWorkout = () => {
-    startWorkout.mutate({ title: 'Workout', status: 'COMPLETED', endedAt: new Date().toISOString() }, {
-      onSuccess: () => navigate('/gym/history'),
-    });
+    );
   };
 
   if (isLoading) {
@@ -39,21 +43,20 @@ export function GymOverviewPage() {
       <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-foreground">Ready to train?</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Start a session and record your exercises, sets, and progress.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Start a session and record your exercises, sets, and progress.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" onClick={recordWorkout} disabled={startWorkout.isPending} className="shrink-0">
             {startWorkout.isPending ? 'Starting...' : activeWorkout ? 'Continue workout' : 'Start workout'}
           </Button>
-          {!activeWorkout && (
-            <Button type="button" variant="outline" onClick={logCompletedWorkout} disabled={startWorkout.isPending} className="shrink-0">
-              Log completed
-            </Button>
-          )}
         </div>
       </div>
       {startWorkout.isError && (
-        <p role="alert" className="text-xs text-destructive">Couldn’t start a workout. Please try again.</p>
+        <p role="alert" className="text-xs text-destructive">
+          Couldn’t start a workout. Please try again.
+        </p>
       )}
 
       {/* Weekly Stats */}
@@ -80,7 +83,7 @@ export function GymOverviewPage() {
             TOTAL VOLUME
           </span>
           <p className="text-2xl font-bold font-mono text-foreground">
-            {(overview?.weeklyVolumeKg ?? 0).toLocaleString()} kg
+            {formatVolume(overview?.weeklyVolumeKg ?? 0, weightUnit)}
           </p>
         </Card>
       </div>
@@ -97,7 +100,7 @@ export function GymOverviewPage() {
           </Link>
         </div>
 
-        {(!overview?.recentWorkouts || overview.recentWorkouts.length === 0) ? (
+        {!overview?.recentWorkouts || overview.recentWorkouts.length === 0 ? (
           <Card className="p-8 text-center text-xs text-muted-foreground">
             No workouts recorded yet. Your history will appear here after your first session.
           </Card>
@@ -113,12 +116,12 @@ export function GymOverviewPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-xs text-foreground">{w.title || 'Workout'}</span>
                     <span
-                        className={`text-xs font-mono px-1.5 py-0.5 rounded ${
+                      className={`text-xs font-mono px-1.5 py-0.5 rounded ${
                         w.status === 'COMPLETED'
                           ? 'bg-emerald-500/10 text-emerald-500'
                           : w.status === 'ACTIVE' || w.status === 'IN_PROGRESS'
-                          ? 'bg-blue-500/10 text-blue-500'
-                          : 'bg-muted text-muted-foreground'
+                            ? 'bg-blue-500/10 text-blue-500'
+                            : 'bg-muted text-muted-foreground'
                       }`}
                     >
                       {w.status}

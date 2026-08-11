@@ -41,6 +41,7 @@ export interface Deck {
   isDefault: boolean;
   archived: boolean;
   version?: number;
+  updatedAt?: string | null;
 }
 
 export interface DeckListItem extends Deck {
@@ -72,6 +73,7 @@ export interface Card {
   answerRichText: string;
   tags: string[];
   version?: number;
+  updatedAt?: string | null;
   images: CardImage[];
   reviewSummary?: {
     nextDueAt?: string | null;
@@ -84,6 +86,63 @@ export interface TrashSnapshot {
   cards: Card[];
   cardImages: CardImage[];
   tasks: ProductivityTask[];
+  journalEntries: TrashJournalEntry[];
+  budgetTransactions: TrashBudgetTransaction[];
+  gymWorkouts: TrashGymWorkout[];
+  gymExercises: TrashExerciseDefinition[];
+}
+
+export interface TrashJournalEntry {
+  id: string;
+  kind: 'NOTE' | 'WEEKLY_REVIEW';
+  title: string;
+  contentMarkdown?: string;
+  entryDate?: string;
+  version: number;
+  deletedAt: string;
+  deletedByDeviceId?: string | null;
+}
+
+export interface TrashBudgetTransaction {
+  id: string;
+  amount: string;
+  currency: string;
+  type: 'EXPENSE' | 'INCOME';
+  categoryId?: string | null;
+  categoryRel?: { name?: string | null } | null;
+  category?: string | null;
+  merchant?: string | null;
+  paymentMethod?: string | null;
+  transactionAt?: string | null;
+  note?: string | null;
+  version: number;
+  deletedAt: string;
+  deletedByDeviceId?: string | null;
+}
+
+export interface TrashGymWorkout {
+  id: string;
+  title?: string | null;
+  status?: 'IN_PROGRESS' | 'ACTIVE' | 'COMPLETED' | 'ABANDONED' | string;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  durationMinutes?: number | null;
+  exercises?: unknown[];
+  version: number;
+  deletedAt: string;
+  deletedByDeviceId?: string | null;
+}
+
+export interface TrashExerciseDefinition {
+  id: string;
+  name: string;
+  description?: string | null;
+  metricType?: string | null;
+  equipment?: string | null;
+  primaryMuscleGroup?: string | null;
+  version: number;
+  deletedAt: string;
+  deletedByDeviceId?: string | null;
 }
 
 export interface CreateCardRequest {
@@ -167,6 +226,8 @@ export interface UsageSummary {
     displayName: string;
     activeSeconds: number;
     engagedSeconds?: number;
+    iconUrl?: string | null;
+    iconHash?: string | null;
   }>;
   daily: Array<{
     localDate: string;
@@ -190,14 +251,14 @@ export interface UsageSummary {
   }>;
 }
 
-export interface WebsiteUrlDetail {
+interface WebsiteUrlDetailsSummary {
   url: string;
   activeSeconds: number;
 }
 
 export interface WebsiteUrlDetailsResponse {
   total: number;
-  items: WebsiteUrlDetail[];
+  items: WebsiteUrlDetailsSummary[];
 }
 
 export interface DeckStats {

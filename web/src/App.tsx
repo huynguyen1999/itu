@@ -20,6 +20,7 @@ import { BudgetWorkspace } from './features/budget/BudgetWorkspace';
 import { GymWorkspace } from './features/gym/GymWorkspace';
 import { PlanningProvider } from './features/planning/PlanningContext';
 import { GrowthRewardReceiptHost } from './features/growth/components/growth-reward-receipt';
+import { ConflictsPage, NotificationsPage } from './features/system';
 
 import { Brain } from 'lucide-react';
 
@@ -68,6 +69,8 @@ export function App() {
           <Route path="/journal/gym/exercises" element={<Navigate to="/gym/exercises" replace />} />
           <Route path="/journal/gym/active/:id" element={<WorkoutRedirect />} />
           <Route path="/statistics" element={<StatisticsPage />} />
+          <Route path="/conflicts" element={<ConflictsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/plan" element={<PlanningPage />} />
           <Route path="/plan/today" element={<PlanningPage view="today" />} />
           <Route path="/inbox" element={<PlanningPage view="inbox" />} />

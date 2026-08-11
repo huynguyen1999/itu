@@ -32,8 +32,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        model?.stopUsageTracking()
-        Task { await model?.uploadUsage() }
+        Task { @MainActor [weak self] in
+            guard let model = self?.model else { return }
+            await model.flushUsageForLifecycle()
+            model.stopUsageTracking()
+        }
         statusItemController?.stop()
         statusItemController = nil
         companionWindowController = nil

@@ -75,6 +75,54 @@ export class TrashService implements ITrashUseCase {
     if (!deleted) throw new EntityNotFoundException('TrashTask', taskId);
   }
 
+  async restoreJournalEntry(userId: string, entryId: string): Promise<unknown> {
+    const restored = await this.trash.restoreJournalEntry(userId, entryId);
+    if (!restored) throw new EntityNotFoundException('TrashJournalEntry', entryId);
+    return restored;
+  }
+
+  async restoreBudgetTransaction(userId: string, transactionId: string): Promise<unknown> {
+    const restored = await this.trash.restoreBudgetTransaction(userId, transactionId);
+    if (!restored) throw new EntityNotFoundException('TrashBudgetTransaction', transactionId);
+    return restored;
+  }
+
+  async restoreGymWorkout(userId: string, workoutId: string): Promise<unknown> {
+    const restored = await this.trash.restoreGymWorkout(userId, workoutId);
+    if (!restored) throw new EntityNotFoundException('TrashGymWorkout', workoutId);
+    return restored;
+  }
+
+  async restoreGymExercise(userId: string, exerciseId: string): Promise<unknown> {
+    const restored = await this.trash.restoreGymExercise(userId, exerciseId);
+    if (!restored) throw new EntityNotFoundException('TrashGymExercise', exerciseId);
+    return restored;
+  }
+
+  async deleteJournalEntry(userId: string, entryId: string): Promise<void> {
+    const attachments = await this.trash.deleteJournalEntry(userId, entryId);
+    if (!attachments) throw new EntityNotFoundException('TrashJournalEntry', entryId);
+    await Promise.allSettled(attachments.map((attachment) => this.media.delete(attachment.storageKey)));
+  }
+
+  async deleteBudgetTransaction(userId: string, transactionId: string): Promise<void> {
+    const deleted = await this.trash.deleteBudgetTransaction(userId, transactionId);
+    if (!deleted) throw new EntityNotFoundException('TrashBudgetTransaction', transactionId);
+  }
+
+  async deleteGymWorkout(userId: string, workoutId: string): Promise<void> {
+    const deleted = await this.trash.deleteGymWorkout(userId, workoutId);
+    if (!deleted) throw new EntityNotFoundException('TrashGymWorkout', workoutId);
+  }
+
+  async deleteGymExercise(userId: string, exerciseId: string): Promise<void> {
+    const deleted = await this.trash.deleteGymExercise(userId, exerciseId);
+    if (!deleted) throw new EntityNotFoundException('TrashGymExercise', exerciseId);
+    if (deleted.imageStorageKey) {
+      await this.media.delete(deleted.imageStorageKey).catch(() => undefined);
+    }
+  }
+
   private async deleteMedia(images: CardImageModel[]): Promise<void> {
     await Promise.all(images.map((image) => this.media.delete(image.storageKey)));
   }

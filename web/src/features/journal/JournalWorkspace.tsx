@@ -7,7 +7,6 @@ import { NotePage } from './components/NotePage';
 import { JournalSearchPage } from './JournalSearchPage';
 import { WeeklyReviewPage } from './weekly/WeeklyReviewPage';
 import { TemplateEditor } from './components/TemplateEditor';
-import { JournalTrashPage } from './JournalTrashPage';
 
 export function JournalWorkspace() {
   const navigate = useNavigate();
@@ -43,7 +42,6 @@ export function JournalWorkspace() {
 
             <Route path="notes" element={<JournalSearchPage />} />
             <Route path="notes/:entryId" element={<NotePage isDaily={false} />} />
-            <Route path="trash" element={<JournalTrashPage />} />
             <Route path="entry/:id" element={<JournalEntryPage />} />
             <Route path="templates" element={<TemplateEditor isOpen={true} onClose={() => navigate('/journal')} />} />
             <Route path="*" element={<Navigate to="/journal" replace />} />

@@ -6,16 +6,17 @@ import {
   useDeleteJournalTemplateMutation,
   useUpdateJournalTemplateMutation,
 } from '../journalMutations';
-import type { JournalEntryKind } from '../journal.types';
+import type { JournalEntryKind, JournalTemplate } from '../journal.types';
+import { Button } from '@/shared/ui/button';
 
 interface TemplateEditorProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectTemplate?: (template: any) => void;
+  onSelectTemplate?: (template: JournalTemplate) => void;
 }
 
 export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEditorProps) {
-  const { data: templates = [] } = useJournalTemplates();
+  const { data: templates = [], isLoading, isError, refetch } = useJournalTemplates();
   const createMutation = useCreateJournalTemplateMutation();
   const updateMutation = useUpdateJournalTemplateMutation();
   const deleteMutation = useDeleteJournalTemplateMutation();
@@ -28,10 +29,9 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
   const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -68,8 +68,8 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
         });
       }
       resetForm();
-    } catch (err) {
-      console.error(`Failed to ${editingId ? 'update' : 'create'} template`, err);
+    } catch {
+      // Mutation errors remain visible below so the user can retry without losing the form.
     }
   };
 
@@ -78,7 +78,7 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
     setIsCreating(true);
   };
 
-  const startEdit = (template: (typeof templates)[number]) => {
+  const startEdit = (template: JournalTemplate) => {
     setEditingId(template.id);
     setIsCreating(false);
     setName(template.name);
@@ -90,169 +90,203 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
   const handleDelete = async (id: string) => {
     try {
       await deleteMutation.mutateAsync(id);
-    } catch (err) {
-      console.error('Failed to delete template', err);
+    } catch {
+      // The mutation state communicates the failure and keeps the template available for another attempt.
     }
   };
 
+  const mutationError = createMutation.isError || updateMutation.isError || deleteMutation.isError;
+
   return (
     <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/60 p-4 backdrop-blur-sm"
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm"
+      role="presentation"
     >
       <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
+        className="flex max-h-[85vh] w-full max-w-xl flex-col space-y-4 overflow-hidden rounded-[var(--itu-radius-l)] border border-border bg-card p-5 text-card-foreground shadow-[var(--itu-shadow-pop)]"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="journal-templates-title"
       >
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2 font-semibold text-slate-200 text-sm">
-            <LayoutTemplate className="w-4 h-4 text-emerald-400" />
-            Journal Templates
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <LayoutTemplate className="h-4 w-4 text-primary" />
+            <h2 id="journal-templates-title">Journal Templates</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close templates">
+            <X className="h-4 w-4" />
+          </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs">
+        <div className="flex-1 space-y-3 overflow-y-auto pr-1 text-xs">
           {!isCreating && (
-            <button
-              type="button"
-              onClick={startCreate}
-              className="w-full p-2.5 rounded-xl border border-dashed border-slate-700 hover:border-emerald-500/50 hover:bg-slate-800/50 text-slate-300 transition-colors flex items-center justify-center gap-1.5 font-medium"
-            >
-              <Plus className="w-4 h-4" />
+            <Button type="button" variant="outline" onClick={startCreate} className="w-full gap-1.5 border-dashed">
+              <Plus className="h-4 w-4" />
               Create Custom Template
-            </button>
+            </Button>
           )}
 
           {(isCreating || editingId) && (
-            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-              <div className="font-semibold text-slate-200">{editingId ? 'Edit Template' : 'New Template'}</div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-slate-400 mb-1">Template Name</label>
+            <div className="space-y-3 rounded-[var(--itu-radius-m)] border border-border bg-muted/35 p-3.5">
+              <div className="font-semibold text-foreground">{editingId ? 'Edit Template' : 'New Template'}</div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="block text-muted-foreground">Template Name</span>
                   <input
                     type="text"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(event) => setName(event.target.value)}
                     placeholder="e.g. Morning Planning"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500"
+                    className="h-10 w-full rounded-[var(--itu-radius-s)] border border-input bg-background px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
                   />
-                </div>
-                <div>
-                  <label className="block text-slate-400 mb-1">Entry Kind</label>
+                </label>
+                <label className="space-y-1">
+                  <span className="block text-muted-foreground">Entry Kind</span>
                   <select
                     value={entryKind}
-                    onChange={(e) => setEntryKind(e.target.value as JournalEntryKind)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500"
+                    onChange={(event) => setEntryKind(event.target.value as JournalEntryKind)}
+                    className="h-10 w-full rounded-[var(--itu-radius-s)] border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <option value="NOTE">NOTE</option>
-                    <option value="WEEKLY_REVIEW">WEEKLY_REVIEW</option>
+                    <option value="WEEKLY_REVIEW">WEEKLY REVIEW</option>
                   </select>
-                </div>
+                </label>
               </div>
 
-              <div>
-                <label className="block text-slate-400 mb-1">Title Template</label>
+              <label className="block space-y-1">
+                <span className="block text-muted-foreground">Title Template</span>
                 <input
                   type="text"
                   value={titleTemplate}
-                  onChange={(e) => setTitleTemplate(e.target.value)}
+                  onChange={(event) => setTitleTemplate(event.target.value)}
                   placeholder="{{date}} or Weekly Review"
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500"
+                  className="h-10 w-full rounded-[var(--itu-radius-s)] border border-input bg-background px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="block text-slate-400 mb-1">Body Markdown</label>
+              <label className="block space-y-1">
+                <span className="block text-muted-foreground">Body Markdown</span>
                 <textarea
                   rows={4}
                   value={bodyMarkdown}
-                  onChange={(e) => setBodyMarkdown(e.target.value)}
+                  onChange={(event) => setBodyMarkdown(event.target.value)}
                   placeholder="## Prompt questions..."
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                  className="w-full rounded-[var(--itu-radius-s)] border border-input bg-background px-2.5 py-2 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
                 />
-              </div>
+              </label>
 
               <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-                >
+                <Button type="button" variant="ghost" size="sm" onClick={resetForm}>
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  size="sm"
                   onClick={() => void handleSave()}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
+                  disabled={createMutation.isPending || updateMutation.isPending}
                 >
-                  {editingId ? 'Save Changes' : 'Save Template'}
-                </button>
+                  {createMutation.isPending || updateMutation.isPending
+                    ? 'Saving…'
+                    : editingId
+                      ? 'Save Changes'
+                      : 'Save Template'}
+                </Button>
               </div>
             </div>
           )}
 
-          <div className="space-y-2">
-            {templates.map((tpl) => (
-              <div
-                key={tpl.id}
-                className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 transition-colors flex items-center justify-between"
-              >
-                <div>
-                  <div className="font-semibold text-slate-200 flex items-center gap-2">
-                    {tpl.name}
-                    {tpl.builtIn && (
-                      <span className="px-1.5 py-0.2 rounded bg-slate-800 text-[10px] text-slate-400 font-normal">
-                        Built-in
-                      </span>
+          {isError ? (
+            <div
+              className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--itu-radius-m)] border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive"
+              role="alert"
+            >
+              <span>Templates could not be loaded.</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+                Retry
+              </Button>
+            </div>
+          ) : isLoading ? (
+            <div
+              className="rounded-[var(--itu-radius-m)] border border-border bg-muted/30 p-4 text-sm text-muted-foreground"
+              role="status"
+            >
+              Loading templates…
+            </div>
+          ) : templates.length === 0 ? (
+            <div className="rounded-[var(--itu-radius-m)] border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
+              No templates yet. Create one to start with a repeatable prompt.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {templates.map((template) => (
+                <div
+                  key={template.id}
+                  className="flex items-center justify-between gap-3 rounded-[var(--itu-radius-m)] border border-border bg-muted/20 p-3 transition-colors hover:bg-muted/50"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 font-semibold text-foreground">
+                      <span className="truncate">{template.name}</span>
+                      {template.builtIn && (
+                        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
+                          Built-in
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+                      {template.entryKind} · {template.titleTemplate}
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1">
+                    {onSelectTemplate && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          onSelectTemplate(template);
+                          onClose();
+                        }}
+                      >
+                        Use
+                      </Button>
+                    )}
+                    {!template.builtIn && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => startEdit(template)}
+                        aria-label={`Edit ${template.name}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {!template.builtIn && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => void handleDelete(template.id)}
+                        aria-label={`Delete ${template.name}`}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
                     )}
                   </div>
-                  <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                    {tpl.entryKind} • {tpl.titleTemplate}
-                  </div>
                 </div>
+              ))}
+            </div>
+          )}
 
-                <div className="flex items-center gap-2">
-                  {onSelectTemplate && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSelectTemplate(tpl);
-                        onClose();
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 font-medium transition-colors"
-                    >
-                      Use
-                    </button>
-                  )}
-                  {!tpl.builtIn && (
-                    <button
-                      type="button"
-                      onClick={() => startEdit(tpl)}
-                      className="p-1 text-slate-500 hover:text-emerald-400 transition-colors"
-                      aria-label={`Edit ${tpl.name}`}
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                  {!tpl.builtIn && (
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(tpl.id)}
-                      className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          {mutationError && (
+            <p className="text-sm text-destructive" role="alert">
+              The template could not be saved or deleted. Try again.
+            </p>
+          )}
         </div>
       </div>
     </div>

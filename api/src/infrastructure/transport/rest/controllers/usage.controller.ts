@@ -1,5 +1,17 @@
-import { Body, Controller, Delete, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsageService } from '@core/application/use-cases/usage.service';
 import { AuthGuard } from '../guards/auth.guard';
 import { BrowserExtensionDsnGuard } from '../guards/browser-extension-dsn.guard';
@@ -9,11 +21,14 @@ import {
   BrowserExtensionUsageBatchDto,
   UsageDateQueryDto,
   UsageSummaryBatchDto,
+  WebsiteActivitySessionBatchDto,
   WebsiteUsageQueryDto,
   WebsiteUsageSummaryBatchDto,
   WebsiteUrlQueryDto,
 } from '../dto/usage.dto';
 import { REST_ROUTES } from '@core/application/constants/app.constants';
+import { MEDIA_ERRORS } from '@core/application/constants/app.constants';
+import type { AuthenticatedMultipartRequest } from '../types/authenticated-request';
 
 @ApiTags('Usage')
 @UseGuards(AuthGuard)
@@ -56,6 +71,27 @@ export class WebsiteUsageController {
       query.to ?? query.endDate,
       includeUrlDetails,
     );
+  }
+
+  @ApiOperation({ operationId: 'getWebsiteActivityStatistics' })
+  @Get(REST_ROUTES.usageStatistics)
+  statistics(@Req() req: AuthenticatedRequest, @Query() query: UsageDateQueryDto) {
+    return this.usage.getWebsiteStatistics(
+      req.user.sub,
+      query.from ?? query.startDate,
+      query.to ?? query.endDate,
+    );
+  }
+
+  @ApiOperation({ operationId: 'getWebsiteActivitySessions' })
+  @Get(REST_ROUTES.usageSessions)
+  async sessions(@Req() req: AuthenticatedRequest, @Query() query: UsageDateQueryDto) {
+    const statistics = await this.usage.getWebsiteStatistics(
+      req.user.sub,
+      query.from ?? query.startDate,
+      query.to ?? query.endDate,
+    );
+    return { from: statistics.from, to: statistics.to, sessions: statistics.sessions };
   }
 
   @ApiOperation({ operationId: 'getWebsiteUrls' })
@@ -106,5 +142,52 @@ export class BrowserExtensionUsageController {
   @Post(REST_ROUTES.usageIngest)
   ingest(@Req() req: BrowserExtensionRequest, @Body() body: BrowserExtensionUsageBatchDto) {
     return this.usage.ingestBrowserExtension(req.browserExtension.userId, body);
+  }
+
+  @ApiOperation({ operationId: 'ingestWebsiteActivitySessions' })
+  @UseGuards(BrowserExtensionDsnGuard)
+  @Post(REST_ROUTES.usageSessionIngest)
+  ingestSessions(@Req() req: BrowserExtensionRequest, @Body() body: WebsiteActivitySessionBatchDto) {
+    return this.usage.ingestWebsiteActivitySessions(req.browserExtension.userId, body);
+  }
+}
+
+@ApiTags('Usage')
+@UseGuards(AuthGuard)
+@Controller(`${REST_ROUTES.usage}/apps`)
+export class UsageAppController {
+  constructor(private readonly usage: UsageService) {}
+
+  @ApiOperation({ operationId: 'getUsageAppIdentities' })
+  @Get()
+  getApps(@Req() req: AuthenticatedRequest) {
+    return this.usage.getAppIdentities(req.user.sub);
+  }
+
+  @ApiOperation({ operationId: 'replaceUsageAppIcon' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['displayName', 'image'],
+      properties: {
+        displayName: { type: 'string', minLength: 1, maxLength: 255 },
+        image: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @Put(':bundleId/icon')
+  async replaceIcon(@Req() req: AuthenticatedMultipartRequest, @Param('bundleId') bundleId: string) {
+    const upload = await req.file();
+    if (!upload) throw new BadRequestException(MEDIA_ERRORS.imageFileRequired);
+    const displayName = (upload.fields.displayName as { value?: unknown } | undefined)?.value;
+    if (typeof displayName !== 'string') throw new BadRequestException('displayName is required');
+    return this.usage.replaceAppIcon(req.user.sub, {
+      bundleId,
+      displayName,
+      originalName: upload.filename,
+      mimeType: upload.mimetype,
+      buffer: await upload.toBuffer(),
+    });
   }
 }

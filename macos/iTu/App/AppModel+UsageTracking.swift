@@ -4,6 +4,8 @@ import Foundation
 extension AppModel {
     func setupUsageTracking() {
         let accountID = user?.id ?? "anonymous"
+        let trackingGeneration = sessionGeneration
+        let trackingStore = offlineStore
         let sessionStore = UsageSessionStore(accountID: accountID)
         self.usageSessionStore = sessionStore
 
@@ -13,10 +15,14 @@ extension AppModel {
 
         tracker.onSummaryChanged = { [weak self] summary in
             guard let self else { return }
+            guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
             Task { @MainActor in
+                guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
                 do {
-                    let latestDate = await self.offlineStore.usageSummaries().map(\.localDate).max()
-                    let snapshot = try await self.offlineStore.upsertUsage(summary)
+                    let latestDate = await trackingStore.usageSummaries().map(\.localDate).max()
+                    guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
+                    let snapshot = try await trackingStore.upsertUsage(summary)
+                    guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
                     self.localUsageSummaries = snapshot.usageSummaries
                     if let statistics = self.usageStatistics {
                         self.usageStatistics = statistics.adding([summary])
@@ -47,11 +53,22 @@ extension AppModel {
         let webTracker = WebsiteUsageTracker()
         webTracker.onSummaryChanged = { [weak self] summary in
             guard let self else { return }
+            guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
             Task { @MainActor in
+                guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
                 do {
-                    let snapshot = try await self.offlineStore.upsertWebsiteUsage(summary)
+                    let latestDate = await trackingStore.websiteUsageSummaries().map(\.localDate).max()
+                    guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
+                    let snapshot = try await trackingStore.upsertWebsiteUsage(summary)
+                    guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
                     self.localWebsiteUsageSummaries = snapshot.websiteUsageSummaries
-                    self.scheduleUsageUpload()
+                    if let latestDate, summary.localDate > latestDate {
+                        self.usageUploadTask?.cancel()
+                        self.usageUploadTask = nil
+                        _ = await self.uploadUsage()
+                    } else {
+                        self.scheduleUsageUpload()
+                    }
                 } catch {
                     self.usageError = error.localizedDescription
                 }
@@ -66,6 +83,19 @@ extension AppModel {
 
     func startUsageTracking() {
         guard user != nil else { return }
+        if usageWakeObserver == nil {
+            usageWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didWakeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    await Task.yield()
+                    _ = await self.uploadUsage()
+                }
+            }
+        }
         usageTracker?.setIdleThreshold(TimeInterval(settingsStore.usagePreferences.idleThresholdSeconds))
         usageTracker?.setExcludedBundleIDs(settingsStore.usagePreferences.excludedBundleIds)
         usageTracker?.setEnabled(settingsStore.usagePreferences.enabled)
@@ -77,6 +107,15 @@ extension AppModel {
 
         Task { @MainActor [weak self] in
             guard let self else { return }
+            let before = self.localUsageSummaries
+            if let snapshot = try? await self.offlineStore.cleanupLegacyUsage() {
+                if before != snapshot.usageSummaries {
+                    self.apply(snapshot)
+                    self.usageStatistics = nil
+                    self.usageServerStatistics = nil
+                    self.usageIsLocalOnly = true
+                }
+            }
             if let snapshot = try? await self.offlineStore.pruneUsage(keeping: self.settingsStore.usagePreferences.retentionDays) {
                 self.apply(snapshot)
             }
@@ -86,7 +125,8 @@ extension AppModel {
         }
     }
 
-    func applyUsagePreferences(_ preferences: UsagePreferences) {
+    func applyUsagePreferences(_ preferences: UsagePreferences, sync: Bool = true) {
+        let websiteWasRunning = websiteUsageTracker?.isRunning == true
         usageTracker?.setIdleThreshold(TimeInterval(preferences.idleThresholdSeconds))
         usageTracker?.setExcludedBundleIDs(preferences.excludedBundleIds)
         usageTracker?.setEnabled(preferences.enabled)
@@ -94,7 +134,22 @@ extension AppModel {
         websiteUsageTracker?.setEnabled(preferences.enabled && preferences.websiteTrackingEnabled)
         websiteUsageTracker?.setPaused(preferences.paused)
 
-        if preferences.enabled { scheduleUsageUpload() }
+        if preferences.enabled {
+            scheduleUsageUpload()
+        } else {
+            usageUploadTask?.cancel()
+            usageUploadTask = nil
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.flushUsageForLifecycle()
+                guard sync, self.user != nil else { return }
+                do {
+                    try await self.apiClient.updateUsagePreferences(preferences)
+                } catch {
+                    self.usageError = error.localizedDescription
+                }
+            }
+        }
 
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -106,9 +161,19 @@ extension AppModel {
             }
         }
 
-        Task {
-            guard user != nil else { return }
-            _ = try? await apiClient.updateUsagePreferences(preferences)
+        if preferences.enabled {
+            Task {
+                if websiteWasRunning && !preferences.websiteTrackingEnabled {
+                    await Task.yield()
+                    _ = await uploadUsage()
+                }
+                guard sync, user != nil else { return }
+                do {
+                    try await apiClient.updateUsagePreferences(preferences)
+                } catch {
+                    usageError = error.localizedDescription
+                }
+            }
         }
     }
 
@@ -125,7 +190,7 @@ extension AppModel {
     func scheduleUsageUpload() {
         guard usageUploadTask == nil else { return }
         usageUploadTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(900))
+            try? await Task.sleep(for: .seconds(120))
             guard let self, !Task.isCancelled else { return }
             self.usageUploadTask = nil
             _ = await self.uploadUsage()
@@ -135,30 +200,96 @@ extension AppModel {
     @discardableResult
     func uploadUsage() async -> Bool {
         guard user != nil else { return false }
+        if let usageUploadInFlight { return await usageUploadInFlight.value }
+        usageUploadGeneration &+= 1
+        let generation = usageUploadGeneration
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return false }
+            return await self.performUsageUpload()
+        }
+        usageUploadInFlight = task
+        let result = await task.value
+        if usageUploadGeneration == generation { usageUploadInFlight = nil }
+        return result
+    }
+
+    private func performUsageUpload() async -> Bool {
+        guard let accountID = user?.id else { return false }
+        let runGeneration = sessionGeneration
+        let store = offlineStore
+        let deviceID = syncCoordinator.syncDeviceId
         var failed = false
-        let pending = await offlineStore.usageSummariesToUpload()
+        guard !Task.isCancelled, runGeneration == sessionGeneration else { return false }
+        let pending = await store.usageSummariesToUpload()
         if !pending.isEmpty {
             do {
-                try await apiClient.uploadUsageSummaries(pending, deviceId: syncCoordinator.syncDeviceId)
-                apply(try await offlineStore.markUsageUploaded(pending))
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+                try await apiClient.uploadUsageSummaries(pending, deviceId: deviceID)
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+                let snapshot = try await store.markUsageUploaded(pending)
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+                apply(snapshot)
             } catch {
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
                 usageError = error.localizedDescription
                 failed = true
             }
         }
-        let pendingWebsites = await offlineStore.websiteUsageSummariesToUpload()
+        let pendingWebsites = await store.websiteUsageSummariesToUpload()
         if !pendingWebsites.isEmpty {
             do {
-                try await apiClient.uploadWebsiteUsageSummaries(pendingWebsites, deviceId: syncCoordinator.syncDeviceId)
-                apply(try await offlineStore.markWebsiteUsageUploaded(pendingWebsites))
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+                try await apiClient.uploadWebsiteUsageSummaries(pendingWebsites, deviceId: deviceID)
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+                let snapshot = try await store.markWebsiteUsageUploaded(pendingWebsites)
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+                apply(snapshot)
                 websiteUsageError = nil
             } catch {
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
                 websiteUsageError = error.localizedDescription
                 failed = true
             }
         }
-        if failed { scheduleUsageUpload() }
+        if !(await uploadUsageAppIcons(store: store, accountID: accountID, runGeneration: runGeneration)) { failed = true }
+        if failed, !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID { scheduleUsageUpload() }
         return !failed
+    }
+
+    private func uploadUsageAppIcons(store: OfflineStore, accountID: String, runGeneration: Int) async -> Bool {
+        guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+        let summaries = await store.usageSummaries()
+        let observed = Dictionary(summaries.map { ($0.bundleId, $0.displayName) }, uniquingKeysWith: { first, _ in first })
+        guard !observed.isEmpty else { return true }
+        guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+        guard let identities = try? await apiClient.fetchUsageAppIdentities() else { return false }
+        guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+        let identityByBundleID = Dictionary(uniqueKeysWithValues: identities.map { ($0.bundleId, $0) })
+        let cachedHashes = await store.usageAppIconUploadHashes()
+        var succeeded = true
+
+        for (bundleID, displayName) in observed {
+            guard let imageData = UsageAppIconRenderer.pngData(forBundleID: bundleID) else { continue }
+            let hash = UsageAppIconRenderer.sha256Hex(imageData)
+            guard UsageAppIconUploadDecision.shouldUpload(
+                localHash: hash,
+                server: identityByBundleID[bundleID],
+                cachedHash: cachedHashes[bundleID]
+            ) else { continue }
+            do {
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+                _ = try await apiClient.uploadUsageAppIcon(bundleId: bundleID, displayName: displayName, fileData: imageData)
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+                let snapshot = try await store.markUsageAppIconUploaded(bundleID: bundleID, hash: hash)
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+                apply(snapshot)
+            } catch {
+                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
+                // Icon delivery is best effort; usage summaries remain durable and retry later.
+                succeeded = false
+            }
+        }
+        return succeeded
     }
 
     func refreshUsage(from: String? = nil, to: String? = nil) async {
@@ -185,7 +316,7 @@ extension AppModel {
             usageError = local.isEmpty ? error.localizedDescription : nil
         }
         do {
-            let serverWeb = try await apiClient.fetchWebsiteUsage(from: from, to: to)
+            let serverWeb = try await apiClient.fetchWebsiteUsageStatistics(from: from, to: to)
             let pendingWeb = await offlineStore.pendingWebsiteUsageDeltas(from: from, to: to)
             websiteUsageStatistics = serverWeb.adding(pendingWeb)
             websiteUsageError = nil
@@ -220,7 +351,21 @@ extension AppModel {
         usageCheckpointTimer = nil
         usageUploadTask?.cancel()
         usageUploadTask = nil
+        usageUploadInFlight?.cancel()
+        usageUploadInFlight = nil
+        usageUploadGeneration &+= 1
         usageTracker?.stop()
         websiteUsageTracker?.stop()
+        if let usageWakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(usageWakeObserver)
+            self.usageWakeObserver = nil
+        }
+    }
+
+    func flushUsageForLifecycle() async {
+        usageTracker?.stop()
+        websiteUsageTracker?.stop()
+        await Task.yield()
+        _ = await uploadUsage()
     }
 }

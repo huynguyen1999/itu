@@ -1,10 +1,18 @@
 import React, { useState, useRef } from 'react';
-import { useGymExercises, useGymExerciseStats } from '../gymQueries';
-import { useCreateGymExercise, useUpdateGymExercise, useArchiveGymExercise, useUploadGymExerciseImage } from '../gymMutations';
+import { useQuery } from '@tanstack/react-query';
+import { useGymExercises, useGymExerciseStats, useGymWorkouts } from '../gymQueries';
+import {
+  useCreateGymExercise,
+  useUpdateGymExercise,
+  useArchiveGymExercise,
+  useUploadGymExerciseImage,
+} from '../gymMutations';
 import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Dumbbell, Plus, Search, Image as ImageIcon, Archive, Edit2, Activity, Check, UploadCloud } from 'lucide-react';
+import { api } from '@/shared/api/client';
+import { formatVolume, formatWeight } from '../weightUnits';
 
 const METRIC_OPTIONS = [
   { value: 'WEIGHT_REPS', label: 'Weight & reps' },
@@ -15,15 +23,13 @@ const METRIC_OPTIONS = [
 
 type MetricType = (typeof METRIC_OPTIONS)[number]['value'];
 
-function SegmentedMetricControl({
-  value,
-  onChange,
-}: {
-  value: MetricType;
-  onChange: (val: MetricType) => void;
-}) {
+function SegmentedMetricControl({ value, onChange }: { value: MetricType; onChange: (val: MetricType) => void }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-muted/50 border border-border/80 rounded-xl" role="radiogroup" aria-label="Metric type">
+    <div
+      className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-muted/50 border border-border/80 rounded-xl"
+      role="radiogroup"
+      aria-label="Metric type"
+    >
       {METRIC_OPTIONS.map((option) => {
         const isActive = value === option.value;
         return (
@@ -92,8 +98,8 @@ function ImageDropzone({
         isDragging
           ? 'border-emerald-500 bg-emerald-500/10'
           : hasImage
-          ? 'border-emerald-500/50 bg-emerald-500/5 hover:border-emerald-500 hover:bg-emerald-500/10'
-          : 'border-border/80 bg-muted/20 hover:border-emerald-500/60 hover:bg-emerald-500/5'
+            ? 'border-emerald-500/50 bg-emerald-500/5 hover:border-emerald-500 hover:bg-emerald-500/10'
+            : 'border-border/80 bg-muted/20 hover:border-emerald-500/60 hover:bg-emerald-500/5'
       }`}
     >
       <input
@@ -306,7 +312,10 @@ export function ExerciseLibraryPage() {
             </div>
 
             {createError && (
-              <p role="alert" className="text-xs text-rose-500 font-medium bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
+              <p
+                role="alert"
+                className="text-xs text-rose-500 font-medium bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20"
+              >
                 {createError}
               </p>
             )}
@@ -354,9 +363,7 @@ export function ExerciseLibraryPage() {
               <Card
                 key={ex.id}
                 className={`p-3 cursor-pointer transition-colors ${
-                  selectedEx?.id === ex.id
-                    ? 'border-emerald-500 bg-emerald-500/5'
-                    : 'hover:bg-muted/30'
+                  selectedEx?.id === ex.id ? 'border-emerald-500 bg-emerald-500/5' : 'hover:bg-muted/30'
                 }`}
                 onClick={() => setSelectedExId(ex.id)}
               >
@@ -396,7 +403,7 @@ function EmptyExerciseState() {
       <div>
         <p className="font-display text-sm font-semibold text-foreground">No exercises in the library yet</p>
         <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto leading-relaxed">
-          Exercises you create will show up here, ready to add into any routine.
+          Exercises you create will show up here, ready to add to any workout.
         </p>
       </div>
     </Card>
@@ -405,6 +412,9 @@ function EmptyExerciseState() {
 
 function ExerciseInspector({ exercise }: { exercise: any }) {
   const { data: stats, isLoading } = useGymExerciseStats(exercise.id);
+  const { data: completedWorkouts = [] } = useGymWorkouts({ status: 'COMPLETED', limit: 50 });
+  const preferencesQuery = useQuery({ queryKey: ['user-preferences'], queryFn: () => api.getPreferences() });
+  const weightUnit = preferencesQuery.data?.gym?.weightUnit ?? 'KG';
   const archiveEx = useArchiveGymExercise();
   const updateEx = useUpdateGymExercise();
   const uploadImage = useUploadGymExerciseImage();
@@ -416,6 +426,24 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
   const [equipment, setEquipment] = useState(exercise.equipment || '');
   const [primaryMuscleGroup, setPrimaryMuscleGroup] = useState(exercise.primaryMuscleGroup || '');
   const [editFile, setEditFile] = useState<File | null>(null);
+
+  type ExerciseHistoryItem = { id: string; date: string | null | undefined; sets: any[]; volume: number };
+  const exerciseHistory = completedWorkouts
+    .map((workout): ExerciseHistoryItem | null => {
+      const entry = (workout.exercises || []).find((candidate) => candidate.exerciseId === exercise.id);
+      if (!entry) return null;
+      const sets = (entry.sets || []).filter((set) => Boolean(set.completedAt));
+      return {
+        id: workout.id,
+        date: workout.startedAt || workout.endedAt,
+        sets,
+        volume: sets.reduce((total, set) => total + (set.weight || 0) * (set.reps || 0), 0),
+      };
+    })
+    .filter((item): item is ExerciseHistoryItem => item !== null)
+    .slice(0, 8);
+  const recentSets = (stats?.recentSets || exerciseHistory.flatMap((item) => item.sets)).slice(0, 6);
+  const maxHistoryVolume = Math.max(...exerciseHistory.map((item) => item.volume), 1);
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -482,7 +510,12 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Exercise name</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Exercise Name" className="text-xs h-9" />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Exercise Name"
+              className="text-xs h-9"
+            />
           </div>
 
           <div className="space-y-1.5">
@@ -495,7 +528,12 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
               <label className="text-xs font-medium text-muted-foreground">
                 Equipment <span className="text-muted-foreground/60 font-normal">(optional)</span>
               </label>
-              <Input value={equipment} onChange={(e) => setEquipment(e.target.value)} placeholder="e.g. Barbell" className="text-xs h-9" />
+              <Input
+                value={equipment}
+                onChange={(e) => setEquipment(e.target.value)}
+                placeholder="e.g. Barbell"
+                className="text-xs h-9"
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">
@@ -524,7 +562,12 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Reference image</label>
-            <ImageDropzone file={editFile} existingUrl={exercise.imageUrl} onFileSelect={setEditFile} isRequired={false} />
+            <ImageDropzone
+              file={editFile}
+              existingUrl={exercise.imageUrl}
+              onFileSelect={setEditFile}
+              isRequired={false}
+            />
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-border/50">
@@ -554,7 +597,11 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
             </label>
 
             {exercise.imageUrl ? (
-              <img src={exercise.imageUrl} alt={exercise.name} className="h-44 w-full object-cover rounded-xl border border-border/80" />
+              <img
+                src={exercise.imageUrl}
+                alt={exercise.name}
+                className="h-44 w-full object-cover rounded-xl border border-border/80"
+              />
             ) : (
               <div className="h-28 border border-dashed rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs text-muted-foreground bg-muted/20">
                 <ImageIcon className="w-5 h-5 text-muted-foreground/60" />
@@ -566,7 +613,9 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
           {/* Instructions / Description */}
           {exercise.description && (
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Instructions</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Instructions
+              </label>
               <p className="text-xs text-foreground bg-muted/30 p-3 rounded-xl border border-border/50 leading-relaxed">
                 {exercise.description}
               </p>
@@ -585,23 +634,86 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
             ) : !stats || stats.totalSets === 0 ? (
               <p className="text-xs text-muted-foreground italic">No workout history recorded yet for this exercise.</p>
             ) : (
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="p-2.5 bg-muted/40 rounded-xl border border-border/50">
-                  <span className="text-[10px] text-muted-foreground uppercase font-mono">Heaviest Weight</span>
-                  <p className="text-sm font-bold font-mono text-foreground mt-0.5">
-                    {stats.heaviestWeight != null ? `${stats.heaviestWeight} kg` : '—'}
-                  </p>
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="p-2.5 bg-muted/40 rounded-xl border border-border/50">
+                    <span className="text-[10px] text-muted-foreground uppercase font-mono">Heaviest Weight</span>
+                    <p className="text-sm font-bold font-mono text-foreground mt-0.5">
+                      {formatWeight(stats.heaviestWeight, weightUnit)}
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-muted/40 rounded-xl border border-border/50">
+                    <span className="text-[10px] text-muted-foreground uppercase font-mono">Est. 1RM</span>
+                    <p className="text-sm font-bold font-mono text-emerald-500 mt-0.5">
+                      {formatWeight(stats.estimated1RM, weightUnit)}
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-muted/40 rounded-xl border border-border/50">
+                    <span className="text-[10px] text-muted-foreground uppercase font-mono">Total Sets</span>
+                    <p className="text-sm font-bold font-mono text-foreground mt-0.5">{stats.totalSets}</p>
+                  </div>
                 </div>
-                <div className="p-2.5 bg-muted/40 rounded-xl border border-border/50">
-                  <span className="text-[10px] text-muted-foreground uppercase font-mono">Est. 1RM</span>
-                  <p className="text-sm font-bold font-mono text-emerald-500 mt-0.5">
-                    {stats.estimated1RM != null ? `${stats.estimated1RM} kg` : '—'}
-                  </p>
-                </div>
-                <div className="p-2.5 bg-muted/40 rounded-xl border border-border/50">
-                  <span className="text-[10px] text-muted-foreground uppercase font-mono">Total Sets</span>
-                  <p className="text-sm font-bold font-mono text-foreground mt-0.5">{stats.totalSets}</p>
-                </div>
+                {recentSets.length > 0 && (
+                  <div className="space-y-2">
+                    <h5 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Recent sets
+                    </h5>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {recentSets.map((set, index) => (
+                        <div
+                          key={`${set.id || 'recent'}-${index}`}
+                          className="rounded-lg border border-border/50 bg-muted/30 p-2 text-xs"
+                        >
+                          <span className="font-mono text-muted-foreground">
+                            {set.workoutTitle || `Set ${index + 1}`}
+                          </span>
+                          {set.performedAt && (
+                            <p className="text-[10px] text-muted-foreground">
+                              {new Date(set.performedAt).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                              })}
+                            </p>
+                          )}
+                          <p className="mt-1 font-semibold">
+                            {set.weight != null
+                              ? formatWeight(set.weight, weightUnit)
+                              : set.durationSeconds != null
+                                ? `${set.durationSeconds}s`
+                                : '—'}
+                          </p>
+                          {set.reps != null && <p className="text-muted-foreground">{set.reps} reps</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {exerciseHistory.length > 0 && (
+                  <div className="space-y-2">
+                    <h5 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Volume trend
+                    </h5>
+                    <div className="flex h-20 items-end gap-1.5" aria-label="Exercise volume trend">
+                      {exerciseHistory
+                        .slice()
+                        .reverse()
+                        .map((item) => (
+                          <div key={item.id} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+                            <div
+                              className="w-full rounded-t bg-emerald-500/70"
+                              style={{ height: `${Math.max(6, (item.volume / maxHistoryVolume) * 60)}px` }}
+                              title={formatVolume(item.volume, weightUnit)}
+                            />
+                            <span className="truncate text-[10px] text-muted-foreground">
+                              {item.date
+                                ? new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                                : '—'}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

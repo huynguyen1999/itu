@@ -4,12 +4,15 @@ import {
   BookOpenCheck,
   CalendarRange,
   CheckCircle2,
+  ChevronRight,
   Clock3,
   Layers3,
   Globe2,
   Link2,
+  LockKeyhole,
   MonitorPlay,
   PlusCircle,
+  Search,
   Target,
   Timer,
   Trophy,
@@ -22,6 +25,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -36,23 +41,31 @@ import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
 import {
   StatisticsSettingsPopover,
   DEFAULT_STATISTICS_DISPLAY_SETTINGS,
+  getStoredStatisticsSettings,
+  saveStoredStatisticsSettings,
   type StatisticsDisplaySettings,
 } from './StatisticsSettingsPopover';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Input } from '@/shared/ui/input';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { GrowthIconMark, growthColorClasses } from '@/shared/ui/GrowthIcons';
+import { AuthenticatedImage } from '@/shared/ui/AuthenticatedImage';
 import {
   buildTrendData,
   buildUsageStackData,
   buildUsageTrendData,
   dateRangeForDays,
+  engagementPercent,
   filterActivityRange,
   inclusiveDayCount,
   rangeLabel,
   selectTopAttributes,
   selectTopUsageApps,
   summarizeActivity,
+  filterWebsiteSessions,
+  websiteDomains,
+  websiteUrls,
+  type WebsitePrivacyFilter,
   type StatisticsDateRange,
   type TrendPoint,
 } from './statistics';
@@ -68,6 +81,7 @@ const rangePresets = [
 type RangePreset = (typeof rangePresets)[number]['days'] | 'custom';
 
 const defaultRangeDays = {
+  '1D': 1,
   '7D': 7,
   '30D': 30,
   '90D': 90,
@@ -78,9 +92,9 @@ export function StatisticsPage() {
   const today = useMemo(() => dateRangeForDays(1).to, []);
   const earliestDate = useMemo(() => dateRangeForDays(365).from, []);
   const [statsDisplaySettings, setStatsDisplaySettings] = useState<StatisticsDisplaySettings>(
-    DEFAULT_STATISTICS_DISPLAY_SETTINGS,
+    () => getStoredStatisticsSettings(),
   );
-  const initialRangeDays = defaultRangeDays[DEFAULT_STATISTICS_DISPLAY_SETTINGS.defaultDateRange];
+  const initialRangeDays = defaultRangeDays[statsDisplaySettings.defaultDateRange];
   const [range, setRange] = useState<StatisticsDateRange>(() => dateRangeForDays(initialRangeDays));
   const [rangePreset, setRangePreset] = useState<RangePreset>(initialRangeDays);
   const [customRange, setCustomRange] = useState<StatisticsDateRange>(range);
@@ -103,15 +117,34 @@ export function StatisticsPage() {
     queryFn: () => api.usageSummaries(range.from, range.to),
   });
   const websiteUsage = useQuery({
-    queryKey: ['usage', 'websites', 'summaries', range.from, range.to],
-    queryFn: () => api.websiteUsageSummaries(range.from, range.to),
+    queryKey: ['usage', 'websites', 'statistics', range.from, range.to],
+    queryFn: () => api.websiteUsageStatistics(range.from, range.to),
   });
 
   const activity = useMemo(() => filterActivityRange(calendar.data ?? [], range), [calendar.data, range]);
   const summary = useMemo(() => summarizeActivity(activity), [activity]);
-  const trends = useMemo(() => buildTrendData(activity, growth.data, range), [activity, growth.data, range]);
+  const trends = useMemo(
+    () =>
+      buildTrendData(
+        activity,
+        growth.data,
+        range,
+        statsDisplaySettings.grouping,
+        statsDisplaySettings.showZeroValueSeries,
+      ),
+    [activity, growth.data, range, statsDisplaySettings.grouping, statsDisplaySettings.showZeroValueSeries],
+  );
   const topAttributes = useMemo(() => selectTopAttributes(growthOverview.data?.skills ?? []), [growthOverview.data]);
-  const usageTrend = useMemo(() => buildUsageTrendData(usage.data, range), [usage.data, range]);
+  const usageTrend = useMemo(
+    () =>
+      buildUsageTrendData(
+        usage.data,
+        range,
+        statsDisplaySettings.grouping,
+        statsDisplaySettings.showZeroValueSeries,
+      ),
+    [usage.data, range, statsDisplaySettings.grouping, statsDisplaySettings.showZeroValueSeries],
+  );
   const topUsageApps = useMemo(() => selectTopUsageApps(usage.data), [usage.data]);
   const usageStack = useMemo(
     () => buildUsageStackData(usage.data, range, topUsageApps),
@@ -140,60 +173,76 @@ export function StatisticsPage() {
         kicker="Reports & Analytics"
         title="Statistics"
         description={`Tasks, deep work, learning, and Growth progress for ${rangeLabel(range)}.`}
+        stickyControls={
+          <section aria-labelledby="range-heading">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <h2 id="range-heading" className="flex items-center gap-2 text-sm font-semibold">
+                  <CalendarRange className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Time range
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">{rangeLabel(range)}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div
+                  className="inline-flex max-w-full overflow-x-auto rounded-lg border bg-card p-1"
+                  aria-label="Statistics range"
+                >
+                  {rangePresets.map((preset) => (
+                    <button
+                      type="button"
+                      key={preset.days}
+                      className={`min-h-9 shrink-0 rounded-md px-3 text-xs font-medium transition-colors ${
+                        rangePreset === preset.days
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      }`}
+                      aria-pressed={rangePreset === preset.days}
+                      onClick={() => choosePreset(preset.days)}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className={`min-h-9 shrink-0 rounded-md px-3 text-xs font-medium transition-colors ${
+                      rangePreset === 'custom'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                    aria-pressed={rangePreset === 'custom'}
+                    onClick={() => setRangePreset('custom')}
+                  >
+                    Custom
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        }
       >
         <FeatureSettingsButton title="Statistics settings">
           <StatisticsSettingsPopover
             settings={statsDisplaySettings}
-            onChange={(patch) => setStatsDisplaySettings((s) => ({ ...s, ...patch }))}
+            onChange={(patch) => {
+              setStatsDisplaySettings((current) => {
+                const next = { ...current, ...patch };
+                saveStoredStatisticsSettings(next);
+                if (patch.defaultDateRange && patch.defaultDateRange !== current.defaultDateRange) {
+                  const nextDays = defaultRangeDays[patch.defaultDateRange];
+                  setRangePreset(nextDays);
+                  const nextRange = dateRangeForDays(nextDays);
+                  setRange(nextRange);
+                  setCustomRange(nextRange);
+                }
+                return next;
+              });
+            }}
           />
         </FeatureSettingsButton>
       </PageHeader>
 
-      <section aria-labelledby="range-heading">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <h2 id="range-heading" className="flex items-center gap-2 text-sm font-semibold">
-              <CalendarRange className="h-4 w-4 text-primary" aria-hidden="true" />
-              Time range
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">{rangeLabel(range)}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div
-              className="inline-flex max-w-full overflow-x-auto rounded-lg border bg-card p-1"
-              aria-label="Statistics range"
-            >
-              {rangePresets.map((preset) => (
-                <button
-                  type="button"
-                  key={preset.days}
-                  className={`min-h-9 shrink-0 rounded-md px-3 text-xs font-medium transition-colors ${
-                    rangePreset === preset.days
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }`}
-                  aria-pressed={rangePreset === preset.days}
-                  onClick={() => choosePreset(preset.days)}
-                >
-                  {preset.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                className={`min-h-9 shrink-0 rounded-md px-3 text-xs font-medium transition-colors ${
-                  rangePreset === 'custom'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-                aria-pressed={rangePreset === 'custom'}
-                onClick={() => setRangePreset('custom')}
-              >
-                Custom
-              </button>
-            </div>
-          </div>
-        </div>
-
+      <section aria-label="Custom time range">
         {rangePreset === 'custom' ? (
           <div className="mt-3 flex flex-col gap-2 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-end">
             <label className="grid gap-1 text-xs font-medium text-muted-foreground">
@@ -293,6 +342,7 @@ export function StatisticsPage() {
             dataKey="completedTasks"
             valueLabel="Tasks"
             color="#0f766e"
+            showTrendComparison={statsDisplaySettings.showTrendComparison}
           />
           <TrendCard
             id="focus-duration-trend"
@@ -302,6 +352,7 @@ export function StatisticsPage() {
             dataKey="focusedMinutes"
             valueLabel="Minutes"
             color="#2563eb"
+            showTrendComparison={statsDisplaySettings.showTrendComparison}
           />
           <TrendCard
             id="experience-gained-trend"
@@ -311,6 +362,7 @@ export function StatisticsPage() {
             dataKey="xp"
             valueLabel="XP"
             color="#d97706"
+            showTrendComparison={statsDisplaySettings.showTrendComparison}
             className="lg:col-span-2 xl:col-span-1"
           />
         </section>
@@ -443,6 +495,7 @@ function TrendCard({
   dataKey,
   valueLabel,
   color,
+  showTrendComparison = true,
   className = '',
 }: {
   id: string;
@@ -452,6 +505,7 @@ function TrendCard({
   dataKey: 'completedTasks' | 'focusedMinutes' | 'xp';
   valueLabel: string;
   color: string;
+  showTrendComparison?: boolean;
   className?: string;
 }) {
   const hasData = data.some((point) => point[dataKey] > 0);
@@ -461,7 +515,7 @@ function TrendCard({
         <CardTitle id={id} className="text-base">
           {title}
         </CardTitle>
-        <p className="mt-1 text-xs text-muted-foreground">{summary}</p>
+        {showTrendComparison ? <p className="mt-1 text-xs text-muted-foreground">{summary}</p> : null}
       </CardHeader>
       <CardContent className="p-5">
         {hasData ? (
@@ -615,9 +669,24 @@ function UsageSection({
   topApps: UsageSummary['topApps'];
 }) {
   const hasHourlyBuckets = stack.length === 24;
-  const coveragePercent = summary?.engagementCoverage
-    ? Math.round((summary.engagementCoverage.observedActiveSeconds / (summary.engagementCoverage.totalActiveSeconds || 1)) * 100)
-    : null;
+  const engagedPercent = engagementPercent(summary?.totalActiveSeconds ?? 0, summary?.totalEngagedSeconds);
+  const hasEngagementData = engagedPercent !== null && summary?.totalEngagedSeconds != null;
+  const coveragePercent =
+    summary?.engagementCoverage && summary.engagementCoverage.totalActiveSeconds > 0
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            Math.round(
+              (summary.engagementCoverage.observedActiveSeconds / summary.engagementCoverage.totalActiveSeconds) * 100,
+            ),
+          ),
+        )
+      : null;
+  const engagementMeasurement =
+    coveragePercent === null
+      ? 'Engagement coverage is unavailable.'
+      : `Engagement was measured for ${coveragePercent}% of foreground activity.`;
 
   return (
     <section aria-labelledby="usage-heading" aria-busy={isLoading}>
@@ -667,16 +736,29 @@ function UsageSection({
               <div>
                 <div className="flex items-center gap-2">
                   <p className="text-xs font-medium text-muted-foreground">Engaged Time</p>
-                  {coveragePercent !== null && (
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                      {coveragePercent}% coverage
+                  <span className="group relative inline-flex">
+                    <button
+                      type="button"
+                      className="grid h-5 w-5 place-items-center rounded-full text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      aria-label="How Engaged Time is measured"
+                      aria-describedby="engagement-measurement"
+                    >
+                      ⓘ
+                    </button>
+                    <span
+                      id="engagement-measurement"
+                      role="tooltip"
+                      className="pointer-events-none invisible absolute left-0 top-full z-10 mt-2 w-64 rounded-[var(--itu-radius-s)] border border-border bg-card px-3 py-2 text-xs leading-4 text-foreground opacity-0 shadow-[var(--shadow-soft)] transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+                    >
+                      {engagementMeasurement}
                     </span>
-                  )}
+                  </span>
                 </div>
                 <p className="font-mono text-2xl font-bold tracking-[-0.03em] text-primary">
-                  {summary.totalEngagedSeconds != null
-                    ? formatActiveDuration(summary.totalEngagedSeconds)
-                    : 'Unavailable'}
+                  {hasEngagementData ? formatActiveDuration(summary.totalEngagedSeconds ?? 0) : '—'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {hasEngagementData ? `${engagedPercent}% of screen time` : 'Not enough engagement data yet.'}
                 </p>
               </div>
             </div>
@@ -739,13 +821,20 @@ function UsageSection({
                 <ChartEmptyState message="No app ranking is available in this period." />
               ) : (
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Top Applications</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Top Applications
+                  </p>
                   {topApps.map((app, index) => (
                     <div
                       key={app.bundleId}
                       className="flex items-center gap-3 rounded-[var(--itu-radius-s)] px-1.5 py-1.5 hover:bg-muted/30"
                     >
-                      <AppUsageIcon name={app.displayName} color={usageColors[index % usageColors.length]} />
+                      <AuthenticatedImage
+                        src={app.iconUrl ?? null}
+                        alt=""
+                        className="h-8 w-8 shrink-0 rounded-[var(--itu-radius-s)] object-cover shadow-sm"
+                        fallback={<AppUsageIcon name={app.displayName} color={usageColors[index % usageColors.length]} />}
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{app.displayName}</p>
                         {app.engagedSeconds != null && (
@@ -783,6 +872,41 @@ function WebsiteUsageSection({
   onRetry: () => void;
   summary?: WebsiteUsageSummary;
 }) {
+  const [filter, setFilter] = useState<WebsitePrivacyFilter>('all');
+  const [search, setSearch] = useState('');
+  const [selectedHostname, setSelectedHostname] = useState<string | null>(null);
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const privacySessions = useMemo(() => filterWebsiteSessions(summary?.sessions ?? [], filter), [summary, filter]);
+  const domains = useMemo(() => websiteDomains(summary, privacySessions, search), [summary, privacySessions, search]);
+  const filteredTotalActiveSeconds = domains.reduce((total, domain) => total + domain.activeSeconds, 0);
+  const selectedDomain = selectedHostname && domains.some((domain) => domain.hostname === selectedHostname)
+    ? selectedHostname
+    : null;
+  const urls = useMemo(
+    () => websiteUrls(summary, privacySessions, selectedDomain, search),
+    [summary, privacySessions, selectedDomain, search],
+  );
+  const selectedDetail = selectedUrl ? urls.find((url) => url.url === selectedUrl) ?? null : null;
+  const sessions = useMemo(
+    () =>
+      privacySessions.filter(
+        (session) => session.hostname === selectedDomain && session.url === selectedDetail?.url,
+      ),
+    [privacySessions, selectedDetail?.url, selectedDomain],
+  );
+
+  function selectDomain(hostname: string) {
+    if (hostname === 'Other') return;
+    setSelectedHostname((current) => (current === hostname ? null : hostname));
+    setSelectedUrl(null);
+  }
+
+  function changeFilter(next: WebsitePrivacyFilter) {
+    setFilter(next);
+    setSelectedHostname(null);
+    setSelectedUrl(null);
+  }
+
   return (
     <section aria-labelledby="website-usage-heading" aria-busy={isLoading}>
       <div className="mb-3">
@@ -803,86 +927,227 @@ function WebsiteUsageSection({
         </Card>
       ) : isError ? (
         <QueryError message="Website activity could not be loaded." onRetry={onRetry} />
-      ) : !summary || summary.totalActiveSeconds <= 0 ? (
-        <ChartEmptyState message="No synced website activity in this period." />
       ) : (
         <Card className="overflow-hidden shadow-[var(--shadow-soft)]">
-          <CardHeader className="flex-row items-end justify-between gap-4 border-b bg-muted/20 p-5">
+          <CardHeader className="flex-col gap-4 border-b bg-muted/20 p-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <CardTitle className="text-base">Domains and visited URLs</CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">Open a domain to inspect its individual URL totals.</p>
+              <CardTitle className="text-base">Website time by domain</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">Select a domain, URL, then a visit for exact timing.</p>
             </div>
-            <p className="shrink-0 font-mono text-2xl font-bold tracking-[-0.03em]">
-              {formatActiveDuration(summary.totalActiveSeconds)}
-            </p>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="relative min-w-48">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search title, domain, URL"
+                  aria-label="Search website activity"
+                  className="h-9 pl-8 text-xs"
+                />
+              </div>
+              <div className="inline-flex rounded-lg border bg-card p-1" aria-label="Website privacy filter">
+                {(['all', 'normal', 'private'] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`min-h-8 rounded-md px-2.5 text-xs font-medium capitalize transition-colors ${
+                      filter === value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+                    }`}
+                    aria-pressed={filter === value}
+                    onClick={() => changeFilter(value)}
+                  >
+                    {value === 'all' ? 'All' : value === 'normal' ? 'Normal' : 'Private'}
+                  </button>
+                ))}
+              </div>
+              <p className="shrink-0 font-mono text-xl font-bold tracking-[-0.03em]">
+                {formatActiveDuration(privacySessions.reduce((total, session) => total + session.activeSeconds, 0))}
+              </p>
+            </div>
           </CardHeader>
-          <CardContent className="p-0">
-            {(summary.hostnames ?? summary.topHostnames).map((domain) => {
-              const urls = summary.urlDetails.filter((detail) => detail.hostname === domain.hostname);
-              const detailedSeconds = urls.reduce((total, detail) => total + detail.activeSeconds, 0);
-              const legacySeconds = Math.max(0, domain.activeSeconds - detailedSeconds);
-              return (
-                <details key={domain.hostname} className="group border-b border-[var(--itu-border-soft)] last:border-0">
-                  <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-5 py-3 transition-colors hover:bg-[var(--itu-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-                    <DomainMark hostname={domain.hostname} />
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{domain.hostname}</span>
-                    <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-muted-foreground">
-                      {formatActiveDuration(domain.activeSeconds)}
-                    </span>
+          {!summary || filteredTotalActiveSeconds <= 0 || domains.length === 0 ? (
+            <CardContent className="p-5">
+              <ChartEmptyState
+                message={
+                  filter !== 'all' || search.trim() !== ''
+                    ? 'No website activity matches the selected filter.'
+                    : 'No synced website activity in this period.'
+                }
+              />
+            </CardContent>
+          ) : (
+            <CardContent className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.8fr)]">
+            <div className="h-64 min-w-0" aria-label="Website activity by domain">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={domains}
+                    dataKey="activeSeconds"
+                    nameKey="hostname"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="58%"
+                    outerRadius="82%"
+                    paddingAngle={2}
+                    stroke="var(--itu-surface)"
+                    strokeWidth={2}
+                    onClick={(entry) => selectDomain(String(entry.payload?.hostname ?? ''))}
+                  >
+                    {domains.map((domain, index) => (
+                      <Cell key={domain.hostname} fill={websiteColors[index % websiteColors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value, name, item) => {
+                      const percent =
+                        filteredTotalActiveSeconds > 0
+                          ? Math.round((Number(value) / filteredTotalActiveSeconds) * 100)
+                          : 0;
+                      return [
+                        `${percent}% · ${formatActiveDuration(Number(value))}`,
+                        String(name ?? item?.payload?.hostname ?? ''),
+                      ];
+                    }}
+                  />
+                  <text
+                    x="50%"
+                    y="47%"
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    className="fill-foreground font-mono text-lg font-bold"
+                  >
+                    {formatActiveDuration(filteredTotalActiveSeconds)}
+                  </text>
+                  <text
+                    x="50%"
+                    y="59%"
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    className="fill-muted-foreground text-[11px]"
+                  >
+                    active time
+                  </text>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="min-w-0 space-y-2" aria-label="Website domains">
+              {domains.map((domain, index) => {
+                const selected = selectedDomain === domain.hostname;
+                const percent = Math.round((domain.activeSeconds / filteredTotalActiveSeconds) * 100);
+                return (
+                  <button
+                    key={domain.hostname}
+                    type="button"
+                    className={`flex min-h-11 w-full items-center gap-3 rounded-[var(--itu-radius-s)] px-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      selected ? 'bg-primary/10' : 'hover:bg-muted/40'
+                    } ${domain.hostname === 'Other' ? 'cursor-default' : ''}`}
+                    onClick={() => selectDomain(domain.hostname)}
+                        aria-pressed={selected}
+                    aria-label={
+                      domain.hostname === 'Other' ? 'Other domains, not drillable' : `Inspect ${domain.hostname}`
+                    }
+                    disabled={domain.hostname === 'Other'}
+                  >
                     <span
-                      className="text-xs text-muted-foreground transition-transform group-open:rotate-90"
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: websiteColors[index % websiteColors.length] }}
                       aria-hidden="true"
-                    >
-                      ›
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium" title={domain.hostname}>
+                      {domain.hostname}
                     </span>
-                  </summary>
-                  <div className="border-t border-[var(--itu-border-soft)] bg-[var(--itu-surface-2)] px-5 py-3">
-                    {urls.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        URL detail is unavailable for earlier hostname-only activity.
-                      </p>
+                    <span className="shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground">
+                      {percent}% · {formatActiveDuration(domain.activeSeconds)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {selectedDomain ? (
+              <div className="border-t border-[var(--itu-border-soft)] pt-4 lg:col-span-2" aria-live="polite">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                    <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <span className="truncate" title={selectedDomain}>
+                      {selectedDomain}
+                    </span>
+                  </h3>
+                  {urls.length > 0 ? (
+                    <span className="text-xs text-muted-foreground">{urls.length} URLs</span>
+                  ) : null}
+                </div>
+                {urls.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No URL detail matches this filter or search.</p>
+                ) : (
+                  <div className="divide-y divide-[var(--itu-border-soft)] rounded-[var(--itu-radius-s)] border border-[var(--itu-border-soft)] bg-[var(--itu-surface-2)] px-3">
+                    {urls.map((item) => (
+                      <button
+                        key={`${item.url}-${item.isPrivate ? 'private' : 'normal'}`}
+                        type="button"
+                        className={`flex w-full items-start gap-3 py-2.5 text-left ${selectedUrl === item.url ? 'text-primary' : ''}`}
+                        onClick={() => setSelectedUrl((current) => (current === item.url ? null : item.url))}
+                        aria-pressed={selectedUrl === item.url}
+                      >
+                        <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2">
+                            <span className="truncate text-xs font-semibold" title={item.latestTitle ?? item.url}>
+                              {item.latestTitle?.trim() || formatWebsitePath(item.url)}
+                            </span>
+                            {item.isPrivate ? <PrivateMarker /> : null}
+                          </span>
+                          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground" title={item.url}>
+                            {formatWebsitePath(item.url)}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right font-mono text-xs font-semibold tabular-nums text-muted-foreground">
+                          <span className="block">{formatActiveDuration(item.activeSeconds)}</span>
+                          <span className="block text-[10px] font-normal">{item.visitCount} visits</span>
+                        </span>
+                        <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedDetail ? (
+                  <div className="mt-4 rounded-[var(--itu-radius-s)] border border-[var(--itu-border-soft)] bg-[var(--itu-surface-2)] p-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <h4 className="truncate text-xs font-semibold" title={selectedDetail.url}>
+                          {selectedDetail.latestTitle?.trim() || formatWebsitePath(selectedDetail.url)}
+                        </h4>
+                        {selectedDetail.isPrivate ? <PrivateMarker /> : null}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {formatActiveDuration(selectedDetail.activeSeconds)} · {sessions.length} visits
+                      </span>
+                    </div>
+                    {sessions.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No visit session detail is available for this URL.</p>
                     ) : (
                       <div className="divide-y divide-[var(--itu-border-soft)]">
-                        {urls.map((detail) => (
-                          <div key={detail.url} className="flex items-start gap-3 py-2.5">
-                            <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                            <p
-                              className="min-w-0 flex-1 break-all text-xs leading-5 text-foreground"
-                              title={detail.url}
-                            >
-                              {detail.url}
-                            </p>
-                            <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-muted-foreground">
-                              {formatActiveDuration(detail.activeSeconds)}
+                        {sessions.map((session) => (
+                          <div key={session.id} className="flex flex-wrap items-center gap-2 py-2 text-xs">
+                            <span className="font-mono tabular-nums">{formatSessionTime(session.startedAt, session.timezone)}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="font-mono tabular-nums">{formatSessionTime(session.endedAt, session.timezone)}</span>
+                            <span className="ml-auto font-mono font-semibold tabular-nums">
+                              {formatActiveDuration(session.activeSeconds)}
                             </span>
+                            {session.isPrivate ? <PrivateMarker /> : null}
                           </div>
                         ))}
                       </div>
                     )}
-                    {legacySeconds > 0 && urls.length > 0 ? (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {formatActiveDuration(legacySeconds)} of earlier activity has domain-only detail.
-                      </p>
-                    ) : null}
                   </div>
-                </details>
-              );
-            })}
+                ) : null}
+              </div>
+            ) : null}
           </CardContent>
+          )}
         </Card>
       )}
     </section>
-  );
-}
-
-function DomainMark({ hostname }: { hostname: string }) {
-  return (
-    <span
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--itu-radius-s)] bg-[var(--itu-mint-100)] text-sm font-bold text-[var(--itu-teal-700)]"
-      aria-hidden="true"
-    >
-      {hostname.charAt(0).toLocaleUpperCase() || '?'}
-    </span>
   );
 }
 
@@ -892,6 +1157,17 @@ const usageColors = [
   'var(--itu-amber-500)',
   'var(--itu-teal-400)',
   'var(--itu-coral-500)',
+];
+
+const websiteColors = [
+  'var(--itu-teal-600)',
+  'var(--itu-sync-blue, #4f8fcf)',
+  'var(--itu-amber-500)',
+  'var(--itu-teal-400)',
+  'var(--itu-coral-500)',
+  'var(--itu-glow-gold, #ad8a3d)',
+  'var(--itu-violet-item, #8b6fc9)',
+  'var(--itu-ink-faint)',
 ];
 
 function AppUsageIcon({ name, color }: { name: string; color: string }) {
@@ -934,6 +1210,43 @@ function formatActiveDuration(seconds: number) {
   const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
   if (safeSeconds < 60) return `${safeSeconds}s`;
   return formatMinutes(Math.floor(safeSeconds / 60));
+}
+
+function formatWebsitePath(url: string) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname || '/'}${parsed.search}${parsed.hash}`;
+  } catch {
+    return url;
+  }
+}
+
+function PrivateMarker() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+      <LockKeyhole className="h-3 w-3" aria-hidden="true" />
+      Private
+    </span>
+  );
+}
+
+function formatSessionTime(value: string, timezone: string) {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: timezone,
+    }).format(new Date(value));
+  } catch {
+    return new Date(value).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }
 }
 
 function axisActiveDuration(seconds: number) {

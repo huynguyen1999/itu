@@ -2,6 +2,7 @@ import Foundation
 
 struct AccountHydrationResult: Sendable {
     let snapshot: OfflineSnapshot
+    let usagePreferences: UsagePreferences?
     let habitTimeBlocks: [HabitTimeBlockModel]?
     let studySessionHistory: [StudySessionHistoryItem]?
     let notifications: [AppNotificationModel]?
@@ -43,12 +44,14 @@ final class AccountHydrator: @unchecked Sendable {
         async let rewardDefaults = fetch { try await self.apiClient.fetchGrowthTaskRewardDefaults() }
         async let mappings = fetch { try await self.apiClient.fetchGrowthAttributeMappings() }
         async let budgetCategories = fetch { try await self.apiClient.getBudgetCategories() }
+        async let budgetPeriod = fetch { try await self.apiClient.getBudgetPeriod(period: iTuCalendarSupport.monthString()) }
         async let budgetTransactions = fetch { try await self.apiClient.getBudgetTransactions() }
         async let gymExercises = fetch { try await self.apiClient.getGymExercises() }
         async let gymWorkouts = fetch { try await self.apiClient.getGymWorkouts() }
         async let journalNotes = fetch { try await self.apiClient.getJournalNotes() }
         async let journalTags = fetch { try await self.apiClient.getJournalTags() }
         async let journalTemplates = fetch { try await self.apiClient.getJournalTemplates() }
+        async let usagePreferences = fetch { try await self.apiClient.fetchUsagePreferences() }
 
         let fetchedDecks = await decks
         var cardsByDeck: [String: [CardModel]?] = [:]
@@ -70,6 +73,7 @@ final class AccountHydrator: @unchecked Sendable {
             rewardDefaults: await rewardDefaults, mappings: await mappings
         )
         resource.budgetCategories = await budgetCategories
+        resource.budgetPeriod = await budgetPeriod
         resource.budgetTransactions = await budgetTransactions
         resource.gymExercises = await gymExercises
         resource.gymWorkouts = await gymWorkouts
@@ -79,6 +83,7 @@ final class AccountHydrator: @unchecked Sendable {
         let snapshot = try await offlineStore.applyHydration(resource)
         return AccountHydrationResult(
             snapshot: snapshot,
+            usagePreferences: await usagePreferences,
             habitTimeBlocks: await timeBlocks,
             studySessionHistory: await history,
             notifications: await notifications
@@ -114,6 +119,7 @@ struct AccountHydrationResources: Sendable {
     let rewardDefaults: [GrowthTaskRewardDefaultDTO]?
     let mappings: [GrowthAttributeMappingDTO]?
     var budgetCategories: [BudgetCategoryModel]? = nil
+    var budgetPeriod: BudgetPeriodModel? = nil
     var budgetTransactions: [BudgetTransactionModel]? = nil
     var gymExercises: [ExerciseModel]? = nil
     var gymWorkouts: [WorkoutModel]? = nil

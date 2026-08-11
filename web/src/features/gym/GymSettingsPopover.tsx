@@ -1,24 +1,25 @@
-import { useState } from 'react';
+import type { GymPreferences } from '@/shared/api/preferencesApi';
+import { DEFAULT_GYM_PREFERENCES } from '@/shared/api/preferencesApi';
 
 interface GymSettingsPopoverProps {
-  preferences?: Record<string, any>;
-  onChange?: (patch: Record<string, any>) => void;
+  preferences?: Partial<GymPreferences>;
+  onChange?: (patch: Partial<GymPreferences>) => void;
 }
 
 export function GymSettingsPopover({ preferences = {}, onChange }: GymSettingsPopoverProps) {
-  const [weightUnit, setWeightUnit] = useState(preferences.weightUnit || preferences.defaultWeightUnit || 'KG');
+  const current = { ...DEFAULT_GYM_PREFERENCES, ...preferences };
+  const patch = (next: Partial<GymPreferences>) => onChange?.(next);
 
   return (
-    <div className="space-y-4 p-4 w-72 text-sm">
+    <div className="w-80 rounded-[var(--itu-radius-l)] border bg-card p-4 text-sm text-card-foreground shadow-[var(--itu-shadow-pop)]">
       <div className="space-y-2">
         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Default Weight Unit
         </label>
         <select
-          value={weightUnit}
+          value={current.weightUnit}
           onChange={(e) => {
-            setWeightUnit(e.target.value);
-            onChange?.({ weightUnit: e.target.value });
+            patch({ weightUnit: e.target.value as GymPreferences['weightUnit'] });
           }}
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs"
         >
@@ -26,7 +27,59 @@ export function GymSettingsPopover({ preferences = {}, onChange }: GymSettingsPo
           <option value="LBS">Pounds (lbs)</option>
         </select>
       </div>
-
+      <label className="flex items-center justify-between gap-3 border-t pt-3">
+        <span className="text-xs font-semibold">Default rest</span>
+        <select
+          value={current.defaultRestSeconds}
+          onChange={(event) => patch({ defaultRestSeconds: Number(event.target.value) })}
+          className="rounded-md border bg-background px-2 py-1.5 text-xs"
+        >
+          <option value="60">60 sec</option>
+          <option value="90">90 sec</option>
+          <option value="120">2 min</option>
+          <option value="180">3 min</option>
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-3 border-t pt-3">
+        <span className="text-xs font-semibold">Auto-start rest timer</span>
+        <input
+          type="checkbox"
+          checked={current.autoStartRestTimer}
+          onChange={(event) => patch({ autoStartRestTimer: event.target.checked })}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3 border-t pt-3">
+        <span className="text-xs font-semibold">Show previous performance</span>
+        <input
+          type="checkbox"
+          checked={current.showPrevious}
+          onChange={(event) => patch({ showPrevious: event.target.checked })}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3 border-t pt-3">
+        <span className="text-xs font-semibold">Show RPE</span>
+        <input
+          type="checkbox"
+          checked={current.showRpe}
+          onChange={(event) => patch({ showRpe: event.target.checked })}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3 border-t pt-3">
+        <span className="text-xs font-semibold">Rest timer sound</span>
+        <input
+          type="checkbox"
+          checked={current.restSoundEnabled ?? current.soundsEnabled}
+          onChange={(event) => patch({ restSoundEnabled: event.target.checked })}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3 border-t pt-3">
+        <span className="text-xs font-semibold">Set completion sound</span>
+        <input
+          type="checkbox"
+          checked={current.completionSoundEnabled ?? current.soundsEnabled}
+          onChange={(event) => patch({ completionSoundEnabled: event.target.checked })}
+        />
+      </label>
     </div>
   );
 }

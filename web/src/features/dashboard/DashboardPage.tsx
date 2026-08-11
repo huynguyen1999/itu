@@ -42,7 +42,7 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8 animate-in fade-in duration-500">
-      <header className="border-b pb-7">
+      <header className="itu-page-header-sticky border-b pb-7">
         <p className="itu-eyebrow">Learning workspace</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-[-0.035em] text-foreground sm:text-4xl">Overview</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">

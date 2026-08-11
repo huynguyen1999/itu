@@ -5,12 +5,16 @@ import { PageHeader } from '@/shared/ui/PageHeader';
 import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
 import { GymSettingsPopover } from './GymSettingsPopover';
 import { GymLocalNav } from './GymLocalNav';
+import { findActiveGymWorkout } from './GymLocalNav';
+import { useGymOverview } from './gymQueries';
 import { processGymExerciseImageQueue } from './exerciseImageQueue';
 import { useSync } from '@/shared/sync/SyncProvider';
 import { useEffect } from 'react';
 
 export function GymLayout() {
   const { state: syncState } = useSync();
+  const gymOverview = useGymOverview();
+  const activeWorkout = findActiveGymWorkout(gymOverview.data?.recentWorkouts);
   useEffect(() => {
     void processGymExerciseImageQueue();
     const retry = () => void processGymExerciseImageQueue();
@@ -43,13 +47,18 @@ export function GymLayout() {
           <p className="itu-secondary-rail__kicker">Tracking</p>
           <h2 className="itu-secondary-rail__title">Gym</h2>
         </header>
-        <GymLocalNav />
+        <GymLocalNav activeWorkout={activeWorkout} />
       </aside>
       <main className="min-w-0 space-y-4 px-4 py-4 md:px-6 md:py-6">
         <PageHeader
           kicker="Tracking"
           title="Gym & Fitness"
           description="Immediate workout logging, exercise library, set metrics, and training history"
+          stickyControls={
+            <div className="md:hidden">
+              <GymLocalNav mobile activeWorkout={activeWorkout} />
+            </div>
+          }
         >
           <FeatureSettingsButton title="Gym settings">
             <GymSettingsPopover
@@ -58,7 +67,6 @@ export function GymLayout() {
             />
           </FeatureSettingsButton>
         </PageHeader>
-        <div className="md:hidden"><GymLocalNav mobile /></div>
         <Outlet />
       </main>
     </div>

@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AppKit
 
 struct GymView: View {
     @Environment(AppModel.self) private var model
@@ -17,14 +18,40 @@ struct GymView: View {
     @State private var isSelectingExerciseImage = false
     @State private var isCreatingExercise = false
     @State private var exerciseError: String?
+    @State private var deleteWorkoutID: String?
+    @State private var deleteExerciseID: String?
     @State private var restTimer = GymRestTimer()
     @State private var restTimerTick = Date()
+    @State private var clockNow = Date()
     @State private var editingExerciseID: String?
     @State private var editingExerciseName = ""
+    @State private var showingExercisePicker = false
+    @State private var exerciseQuery = ""
+    @State private var exerciseFilter = "All"
+    @State private var pickerMuscleFilter = "All"
+    @State private var pickerEquipmentFilter = "All"
+    @State private var pickerMetricFilter = "All"
+    @State private var isCreatingPickerExercise = false
+    @State private var pickerCustomName = ""
+    @State private var pickerCustomMetric = "WEIGHT_REPS"
+    @State private var pickerCustomEquipment = ""
+    @State private var pickerCustomMuscle = ""
+    @State private var isCreatingPickerExerciseRequest = false
+    @State private var focusedSetID: String?
+    @State private var showingGymSettings = false
+    @State private var showingFinishConfirmation = false
+
+    private var visibleGymWorkouts: [WorkoutModel] {
+        model.gymWorkouts.filter { $0.deletedAt == nil }
+    }
+
+    private var visibleGymExercises: [ExerciseModel] {
+        model.gymExercises.filter { $0.deletedAt == nil }
+    }
 
     private var activeWorkout: WorkoutModel? {
-        model.gymWorkouts.first { $0.status == "ACTIVE" }
-            ?? model.gymOverview?.recentWorkouts.first { $0.status == "ACTIVE" }
+        visibleGymWorkouts.first { ["IN_PROGRESS", "ACTIVE"].contains($0.status) }
+            ?? model.gymOverview?.recentWorkouts.first { $0.deletedAt == nil && ["IN_PROGRESS", "ACTIVE"].contains($0.status) }
     }
 
     var body: some View {
@@ -65,6 +92,52 @@ struct GymView: View {
         .task {
             await reload()
         }
+        .task {
+            var wasRunning = false
+            while !Task.isCancelled {
+                let running = restTimer.isRunning
+                if wasRunning && !running && model.gymPreferences.soundsEnabled && model.gymPreferences.restSoundEnabled {
+                    NSSound.beep()
+                }
+                wasRunning = running
+                restTimerTick = Date()
+                clockNow = Date()
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
+        .alert("Discard workout?", isPresented: Binding(get: { deleteWorkoutID != nil }, set: { if !$0 { deleteWorkoutID = nil } })) {
+            Button("Discard", role: .destructive) {
+                if let id = deleteWorkoutID { Task { _ = await model.deleteGymWorkout(id: id) } }
+                deleteWorkoutID = nil
+            }
+            Button("Cancel", role: .cancel) { deleteWorkoutID = nil }
+        } message: {
+            Text("It won't enter workout history. You can restore it from Trash.")
+        }
+        .alert("Move exercise to Trash?", isPresented: Binding(get: { deleteExerciseID != nil }, set: { if !$0 { deleteExerciseID = nil } })) {
+            Button("Move to Trash", role: .destructive) {
+                if let id = deleteExerciseID { Task { _ = await model.deleteGymExercise(id: id) } }
+                deleteExerciseID = nil
+            }
+            Button("Cancel", role: .cancel) { deleteExerciseID = nil }
+        } message: {
+            Text("You can restore this exercise from Trash. Archived state is kept separate.")
+        }
+        .alert("Finish workout?", isPresented: $showingFinishConfirmation) {
+            Button("Finish Workout") {
+                guard let workout = activeWorkout else { return }
+                Task {
+                    let completed = await model.completeGymWorkout(id: workout.id)
+                    if completed && model.gymPreferences.soundsEnabled && model.gymPreferences.completionSoundEnabled { NSSound.beep() }
+                    if completed { selectedTab = "History" }
+                }
+            }
+            Button("Keep Training", role: .cancel) {}
+        } message: {
+            Text(activeWorkoutSummary)
+        }
+        .popover(isPresented: $showingGymSettings, arrowEdge: .top) { gymSettingsPopover }
+        .popover(isPresented: $showingExercisePicker, arrowEdge: .top) { exercisePickerPopover }
     }
 
     private var header: some View {
@@ -81,12 +154,24 @@ struct GymView: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(syncColor)
                     .accessibilityLabel("Gym sync status: \(syncStatus)")
-                if model.conflicts.contains(where: { ["gymworkout", "exercisedefinition"].contains($0.entityType.lowercased()) }) {
+                if model.conflicts.contains(where: { ["gymworkout", "exercisedefinition", "workout", "workout-exercise", "workout-set"].contains($0.entityType.lowercased()) }) {
                     Label("Gym change needs conflict resolution", systemImage: "exclamationmark.triangle.fill")
                         .font(.system(size: 11, weight: .medium)).foregroundStyle(iTuTheme.amber)
                 }
             }
             Spacer()
+            if activeWorkout != nil {
+                Button { selectedTab = "Active" } label: {
+                    Label("Active", systemImage: "figure.strengthtraining.traditional")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(iTuTheme.teal)
+            }
+            Button { showingGymSettings = true } label: { Image(systemName: "gearshape") }
+                .buttonStyle(.borderless)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(iTuTheme.inkDim)
+                .accessibilityLabel("Gym settings")
         }
         .padding(.horizontal, 28)
         .padding(.top, 24)
@@ -111,6 +196,7 @@ struct GymView: View {
 
             VStack(spacing: 4) {
                 railButton("Overview", icon: "square.grid.2x2", value: "Overview")
+                if activeWorkout != nil { railButton("Active", icon: "figure.strengthtraining.traditional", value: "Active") }
                 railButton("History", icon: "clock.arrow.circlepath", value: "History")
                 railButton("Exercises", icon: "figure.strengthtraining.traditional", value: "Exercises")
             }
@@ -146,22 +232,43 @@ struct GymView: View {
 
             if let workout = activeWorkout {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(workout.title)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(iTuTheme.ink)
+                    let sets = (workout.exercises ?? []).flatMap { $0.sets ?? [] }
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(workout.title)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(iTuTheme.ink)
+                            Text("\(sets.filter { $0.completedAt != nil }.count)/\(sets.count) sets · \(activeElapsedLabel(workout))")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(iTuTheme.inkDim)
+                        }
                         Spacer()
-                        Text("IN PROGRESS")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(iTuTheme.teal)
+                        Menu {
+                            Button("Discard workout", role: .destructive) { deleteWorkoutID = workout.id }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                        .menuStyle(.borderlessButton)
+                        Button("Finish workout") { showingFinishConfirmation = true }
+                            .buttonStyle(.borderedProminent)
+                            .tint(iTuTheme.teal)
                     }
                     HStack(spacing: 8) {
-                        Text(restTimer.isRunning ? "Rest \(Int(restTimer.remaining))s" : "Rest timer")
+                        Text(restTimerDisplay)
                             .font(.system(size: 12, design: .monospaced)).foregroundStyle(iTuTheme.inkDim)
-                        Button(restTimer.isRunning ? "Stop" : "Start \(model.gymPreferences.defaultRestSeconds)s") {
-                            if restTimer.isRunning { restTimer.stop() } else { restTimer.start(seconds: model.gymPreferences.defaultRestSeconds) }
-                            restTimerTick = Date()
-                        }.buttonStyle(.bordered).controlSize(.small)
+                        if restTimer.isRunning {
+                            Button("−15") { restTimer.adjust(by: -15); restTimerTick = Date() }
+                                .buttonStyle(.bordered).controlSize(.small)
+                            Button("Skip") { restTimer.stop(); restTimerTick = Date() }
+                                .buttonStyle(.bordered).controlSize(.small)
+                            Button("+15") { restTimer.adjust(by: 15); restTimerTick = Date() }
+                                .buttonStyle(.bordered).controlSize(.small)
+                        } else {
+                            Button("Start \(model.gymPreferences.defaultRestSeconds)s") {
+                                restTimer.start(seconds: model.gymPreferences.defaultRestSeconds)
+                                restTimerTick = Date()
+                            }.buttonStyle(.bordered).controlSize(.small)
+                        }
                     }
 
                     if let exercises = workout.exercises, !exercises.isEmpty {
@@ -169,18 +276,20 @@ struct GymView: View {
                             activeExerciseRow(exercise)
                         }
                     } else {
-                        Text("No exercises yet.")
-                            .font(.system(size: 13))
-                            .foregroundStyle(iTuTheme.inkDim)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Ready for your first exercise?")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("Your workout saves automatically while you train.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(iTuTheme.inkDim)
+                        }
+                    }
+                    HStack {
+                        Button { showingExercisePicker = true } label: { Label("Add exercise", systemImage: "plus") }
+                            .buttonStyle(.bordered)
                     }
                 }
                 .padding(16)
-                .background(iTuTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(iTuTheme.border, lineWidth: 1)
-                )
             } else {
                 VStack(alignment: .leading, spacing: 12) {
                     emptyState("No active workout. Start a session to record exercises, sets, and progress.")
@@ -199,6 +308,10 @@ struct GymView: View {
                 }
             }
         }
+        .padding(12)
+        .background(iTuTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(iTuTheme.border, lineWidth: 1))
     }
 
     @ViewBuilder
@@ -212,6 +325,14 @@ struct GymView: View {
                 Text(metricLabel(exercise.exercise?.metricType ?? "WEIGHT_REPS"))
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(iTuTheme.inkDim)
+                Menu {
+                    Button("Remove exercise", role: .destructive) {
+                        Task { _ = await model.removeGymExercise(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id) }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuStyle(.borderlessButton)
             }
 
             if let note = exercise.note, !note.isEmpty {
@@ -230,15 +351,95 @@ struct GymView: View {
                         Text(setSummary(set, metric: exercise.exercise?.metricType ?? "WEIGHT_REPS"))
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundStyle(iTuTheme.ink)
+                        if exercise.exercise?.metricType == "WEIGHT_REPS" {
+                            stepperButton("minus", value: set.weight ?? 0, step: 2.5) { value in
+                                Task { _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["weight": .number(value)]) }
+                            }
+                            stepperButton("plus", value: set.weight ?? 0, step: 2.5) { value in
+                                Task { _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["weight": .number(value)]) }
+                            }
+                        }
+                        if ["WEIGHT_REPS", "REPS"].contains(exercise.exercise?.metricType ?? "WEIGHT_REPS") {
+                            stepperButton("minus", value: Double(set.reps ?? 0), step: 1) { value in
+                                Task { _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["reps": .number(value)]) }
+                            }
+                            stepperButton("plus", value: Double(set.reps ?? 0), step: 1) { value in
+                                Task { _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["reps": .number(value)]) }
+                            }
+                        }
+                        if exercise.exercise?.metricType == "DURATION" || exercise.exercise?.metricType == "DISTANCE_DURATION" {
+                            if exercise.exercise?.metricType == "DISTANCE_DURATION" {
+                                stepperButton("minus", value: set.distanceMeters ?? 0, step: 100) { value in
+                                    Task { _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["distanceMeters": .number(value)]) }
+                                }
+                                stepperButton("plus", value: set.distanceMeters ?? 0, step: 100) { value in
+                                    Task { _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["distanceMeters": .number(value)]) }
+                                }
+                            }
+                            stepperButton("minus", value: Double(set.durationSeconds ?? 0), step: 15) { value in
+                                Task { _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["durationSeconds": .number(value)]) }
+                            }
+                            stepperButton("plus", value: Double(set.durationSeconds ?? 0), step: 15) { value in
+                                Task { _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["durationSeconds": .number(value)]) }
+                            }
+                        }
+                        if model.gymPreferences.showRpe {
+                            Text("RPE \(set.rpe.map { String(format: "%.1f", $0) } ?? "—")")
+                                .font(.system(size: 10, design: .monospaced)).foregroundStyle(iTuTheme.inkDim)
+                            stepperButton("minus", value: set.rpe ?? 0, step: 0.5) { value in
+                                Task { _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["rpe": .number(value)]) }
+                            }
+                            stepperButton("plus", value: set.rpe ?? 0, step: 0.5) { value in
+                                Task { _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["rpe": .number(min(10, value))]) }
+                            }
+                        }
+                        Menu {
+                            ForEach(["WARM_UP", "NORMAL", "DROP", "FAILURE"], id: \.self) { type in
+                                Button(type.replacingOccurrences(of: "_", with: " ")) {
+                                    Task { _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["type": .string(type)]) }
+                                }
+                            }
+                        } label: { Image(systemName: "tag") }
+                        .menuStyle(.borderlessButton)
                         Spacer()
-                        Image(systemName: set.completedAt == nil ? "circle" : "checkmark.circle.fill")
-                            .foregroundStyle(set.completedAt == nil ? iTuTheme.inkFaint : iTuTheme.teal)
-                            .accessibilityLabel(set.completedAt == nil ? "Set not completed" : "Set completed")
+                        if set.completedAt == nil {
+                            Button("Complete") {
+                                let nextSetID = activeWorkout.flatMap { nextUnfinishedSetID(in: $0, after: set.id) }
+                                if model.gymPreferences.autoStartRestTimer { restTimer.start(seconds: exercise.restSeconds ?? model.gymPreferences.defaultRestSeconds); restTimerTick = Date() }
+                                Task {
+                                    let completed = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["completedAt": .string(ISO8601DateFormatter().string(from: Date()))], complete: true)
+                                    if completed {
+                                        focusedSetID = nextSetID
+                                        if model.gymPreferences.soundsEnabled && model.gymPreferences.completionSoundEnabled { NSSound.beep() }
+                                    }
+                                }
+                            }.buttonStyle(.borderless).foregroundStyle(iTuTheme.teal)
+                        } else {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(iTuTheme.teal).accessibilityLabel("Set completed")
+                            Button("Reopen") {
+                                Task {
+                                    _ = await model.updateGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id, patch: ["completedAt": .null], complete: false)
+                                    focusedSetID = set.id
+                                }
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(iTuTheme.inkDim)
+                        }
+                        Button { Task { _ = await model.removeGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id, setID: set.id) } } label: { Image(systemName: "trash") }
+                            .buttonStyle(.borderless).foregroundStyle(iTuTheme.inkFaint)
                     }
                     .padding(.vertical, 6)
                     .padding(.horizontal, 8)
-                    .background(iTuTheme.canvas)
+                    .background(focusedSetID == set.id ? iTuTheme.mintTint : iTuTheme.canvas)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+            }
+            HStack(spacing: 8) {
+                Button { Task { _ = await model.addGymSet(workoutID: activeWorkout?.id ?? "", workoutExerciseID: exercise.id) } } label: { Label("Add set", systemImage: "plus.circle") }
+                    .buttonStyle(.borderless).foregroundStyle(iTuTheme.teal)
+                if let previous = model.gymPreviousSet(exerciseID: exercise.exerciseId) {
+                    Text("Previous: \(setSummary(previous, metric: exercise.exercise?.metricType ?? "WEIGHT_REPS"))")
+                        .font(.system(size: 11, design: .monospaced)).foregroundStyle(iTuTheme.inkDim)
                 }
             }
         }
@@ -277,7 +478,7 @@ struct GymView: View {
         HStack(spacing: 16) {
             metricCard(title: "THIS WEEK WORKOUTS", value: "\(weeklyWorkouts)", color: iTuTheme.teal)
             metricCard(title: "TOTAL SETS", value: "\(weeklySets)", color: iTuTheme.mint)
-            metricCard(title: "TOTAL VOLUME", value: "\(weeklyVolume) kg", color: iTuTheme.amber)
+            metricCard(title: "TOTAL VOLUME", value: formatWeight(Double(weeklyVolume)), color: iTuTheme.amber)
         }
 
         VStack(alignment: .leading, spacing: 12) {
@@ -294,7 +495,7 @@ struct GymView: View {
                 .foregroundStyle(iTuTheme.teal)
             }
 
-            let recent = model.gymOverview?.recentWorkouts ?? model.gymWorkouts
+            let recent = (model.gymOverview?.recentWorkouts ?? visibleGymWorkouts).filter { $0.deletedAt == nil }
             if recent.isEmpty {
                 emptyState("No workouts recorded yet. Your history will appear here after your first session.")
             } else {
@@ -331,11 +532,11 @@ struct GymView: View {
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(iTuTheme.ink)
 
-            if model.gymWorkouts.isEmpty {
+            if visibleGymWorkouts.isEmpty {
                 emptyState("No workouts in history.")
             } else {
                 VStack(spacing: 8) {
-                    ForEach(model.gymWorkouts) { workout in
+                    ForEach(visibleGymWorkouts) { workout in
                         workoutRow(workout)
                     }
                 }
@@ -351,7 +552,7 @@ struct GymView: View {
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(iTuTheme.ink)
                 Spacer()
-                Text("\(model.gymExercises.count) \(model.gymExercises.count == 1 ? "exercise" : "exercises")")
+                    Text("\(visibleGymExercises.count) \(visibleGymExercises.count == 1 ? "exercise" : "exercises")")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .foregroundStyle(iTuTheme.inkDim)
             }
@@ -530,11 +731,11 @@ struct GymView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(iTuTheme.border, lineWidth: 1))
 
-            if model.gymExercises.isEmpty {
+            if visibleGymExercises.isEmpty {
                 emptyExerciseLibraryState
             } else {
                 VStack(spacing: 8) {
-                    ForEach(model.gymExercises) { exercise in
+                    ForEach(visibleGymExercises) { exercise in
                         exerciseRow(exercise)
                     }
                 }
@@ -573,7 +774,7 @@ struct GymView: View {
             Text("No exercises in the library yet")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(iTuTheme.ink)
-            Text("Exercises you create will show up here, ready to add into any routine.")
+            Text("Exercises you create will show up here, ready to add into any workout.")
                 .font(.system(size: 13))
                 .foregroundStyle(iTuTheme.inkDim)
                 .multilineTextAlignment(.center)
@@ -636,6 +837,34 @@ struct GymView: View {
                 .clipShape(Capsule())
             Button("Edit") { editingExerciseID = exercise.id; editingExerciseName = exercise.name }.buttonStyle(.borderless)
             Button("Archive") { Task { _ = await model.archiveGymExercise(id: exercise.id) } }.buttonStyle(.borderless)
+            Button("Delete") { deleteExerciseID = exercise.id }.buttonStyle(.borderless)
+            }
+            let stats = model.gymStats(exerciseID: exercise.id)
+            if stats.totalSets > 0 {
+                Text("Best \(stats.bestWeight.map { formatWeight($0) } ?? "—") · 1RM \(stats.estimated1RM.map { formatWeight($0) } ?? "—") · Volume \(formatWeight(stats.totalVolumeKg))")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(iTuTheme.inkDim)
+                if !stats.volumeTrend.isEmpty {
+                    Text("Volume trend  " + stats.volumeTrend.suffix(5).map { String(Int($0)) }.joined(separator: "  →  "))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                }
+                if !stats.recentSets.isEmpty {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Recent sets")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(iTuTheme.inkDim)
+                        ForEach(stats.recentSets.prefix(3)) { set in
+                            HStack(spacing: 8) {
+                                Text(gymDateLabel(set.completedAt))
+                                    .frame(width: 78, alignment: .leading)
+                                Text(setSummary(set, metric: exercise.metricType))
+                            }
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(iTuTheme.inkFaint)
+                        }
+                    }
+                }
             }
             if editingExerciseID == exercise.id {
                 HStack {
@@ -705,16 +934,22 @@ struct GymView: View {
     }
 
     private func workoutRow(_ workout: WorkoutModel) -> some View {
-        HStack {
+        let exercises = workout.exercises ?? []
+        let sets = exercises.flatMap { $0.sets ?? [] }
+        let volume = sets.filter { $0.completedAt != nil }.reduce(0) { $0 + ($1.weight ?? 0) * Double($1.reps ?? 0) }
+        return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(workout.title)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(iTuTheme.ink)
                 if let started = workout.startedAt {
-                    Text(started)
+                    Text(gymDateLabel(started))
                         .font(.system(size: 11))
                         .foregroundStyle(iTuTheme.inkDim)
                 }
+                Text("\(workoutDurationLabel(workout)) · \(exercises.count) exercises · \(sets.count) sets · \(formatWeight(volume))")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(iTuTheme.inkFaint)
             }
             Spacer()
             Text(workout.status)
@@ -727,7 +962,7 @@ struct GymView: View {
             if workout.status == "COMPLETED" {
                 Button("Edit") { Task { _ = await model.updateGymWorkout(id: workout.id, patch: ["title": .string(workout.title)]) } }.buttonStyle(.borderless)
             }
-            Button { Task { _ = await model.deleteGymWorkout(id: workout.id) } } label: { Image(systemName: "trash") }
+            Button { deleteWorkoutID = workout.id } label: { Image(systemName: "trash") }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Delete workout")
         }
@@ -755,6 +990,215 @@ struct GymView: View {
         )
     }
 
+    private var gymSettingsPopover: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Gym settings").font(.headline)
+            Picker("Weight unit", selection: Binding(get: { model.gymPreferences.weightUnit }, set: { value in Task { _ = await model.updateGymPreferences(patch: ["weightUnit": .string(value)]) } })) {
+                Text("Kilograms (kg)").tag("KG")
+                Text("Pounds (lb)").tag("LBS")
+            }
+            Picker("Distance", selection: Binding(get: { model.gymPreferences.distanceUnit }, set: { value in Task { _ = await model.updateGymPreferences(patch: ["distanceUnit": .string(value)]) } })) {
+                Text("Kilometres").tag("KM")
+                Text("Miles").tag("MI")
+            }
+            Stepper(value: Binding(get: { model.gymPreferences.defaultRestSeconds }, set: { value in Task { _ = await model.updateGymPreferences(patch: ["defaultRestSeconds": .number(Double(value))]) } }), in: 0...600, step: 15) {
+                Text("Rest: \(model.gymPreferences.defaultRestSeconds)s")
+            }
+            Toggle("Auto-start rest timer", isOn: Binding(get: { model.gymPreferences.autoStartRestTimer }, set: { value in Task { _ = await model.updateGymPreferences(patch: ["autoStartRestTimer": .bool(value)]) } }))
+            Toggle("Show RPE", isOn: Binding(get: { model.gymPreferences.showRpe }, set: { value in Task { _ = await model.updateGymPreferences(patch: ["showRpe": .bool(value)]) } }))
+            Toggle("Sounds enabled", isOn: Binding(get: { model.gymPreferences.soundsEnabled }, set: { value in Task { _ = await model.updateGymPreferences(patch: ["soundsEnabled": .bool(value)]) } }))
+            Toggle("Rest timer sound", isOn: Binding(get: { model.gymPreferences.restSoundEnabled }, set: { value in Task { _ = await model.updateGymPreferences(patch: ["restSoundEnabled": .bool(value)]) } }))
+            Toggle("Set completion sound", isOn: Binding(get: { model.gymPreferences.completionSoundEnabled }, set: { value in Task { _ = await model.updateGymPreferences(patch: ["completionSoundEnabled": .bool(value)]) } }))
+            HStack(spacing: 8) {
+                Button("Test rest") { if model.gymPreferences.soundsEnabled && model.gymPreferences.restSoundEnabled { NSSound.beep() } }
+                Button("Test completion") { if model.gymPreferences.soundsEnabled && model.gymPreferences.completionSoundEnabled { NSSound.beep() } }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            Picker("Previous values", selection: Binding(get: { model.gymPreferences.previousPerformanceMode }, set: { value in Task { _ = await model.updateGymPreferences(patch: ["previousPerformanceMode": .string(value)]) } })) {
+                Text("Same exercise").tag("EXERCISE")
+                Text("Same workout").tag("WORKOUT")
+            }
+        }
+        .padding(18)
+        .frame(width: 260)
+    }
+
+    private var exercisePickerPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Add exercise").font(.headline)
+            TextField("Search exercises", text: $exerciseQuery)
+                .textFieldStyle(.roundedBorder)
+            Picker("Filter", selection: $exerciseFilter) {
+                Text("All").tag("All")
+                Text("Recent").tag("Recent")
+                Text("Favorites").tag("Favorites")
+                Text("Custom").tag("Custom")
+            }
+            .pickerStyle(.segmented)
+            HStack(spacing: 8) {
+                Picker("Muscle", selection: $pickerMuscleFilter) {
+                    ForEach(pickerMuscleOptions, id: \.self) { Text($0).tag($0) }
+                }
+                .pickerStyle(.menu)
+                Picker("Equipment", selection: $pickerEquipmentFilter) {
+                    ForEach(pickerEquipmentOptions, id: \.self) { Text($0).tag($0) }
+                }
+                .pickerStyle(.menu)
+                Picker("Metric", selection: $pickerMetricFilter) {
+                    ForEach(pickerMetricOptions, id: \.self) { Text(metricLabel($0)).tag($0) }
+                }
+                .pickerStyle(.menu)
+            }
+            Button {
+                isCreatingPickerExercise = true
+                pickerCustomName = exerciseQuery
+                pickerCustomMetric = pickerMetricFilter == "All" ? "WEIGHT_REPS" : pickerMetricFilter
+            } label: {
+                Label("Create custom exercise", systemImage: "plus.circle")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(iTuTheme.teal)
+            if isCreatingPickerExercise {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Create custom exercise")
+                        .font(.system(size: 13, weight: .semibold))
+                    TextField("Exercise name", text: $pickerCustomName)
+                        .textFieldStyle(.roundedBorder)
+                    Picker("Metric", selection: $pickerCustomMetric) {
+                        Text("Weight & reps").tag("WEIGHT_REPS")
+                        Text("Reps only").tag("REPS")
+                        Text("Duration").tag("DURATION")
+                        Text("Distance & duration").tag("DISTANCE_DURATION")
+                    }
+                    .pickerStyle(.menu)
+                    TextField("Equipment (optional)", text: $pickerCustomEquipment)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Primary muscle (optional)", text: $pickerCustomMuscle)
+                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        Button("Cancel") { isCreatingPickerExercise = false }
+                            .buttonStyle(.borderless)
+                        Spacer()
+                        Button(isCreatingPickerExerciseRequest ? "Creating…" : "Create and add") {
+                            createPickerExercise()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(iTuTheme.teal)
+                        .disabled(pickerCustomName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreatingPickerExerciseRequest)
+                    }
+                }
+                .padding(10)
+                .background(iTuTheme.canvas)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            } else {
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(pickerExercises) { exercise in
+                            HStack(spacing: 8) {
+                                Button {
+                                    Task {
+                                        _ = await model.addGymExercise(workoutID: activeWorkout?.id ?? "", exerciseID: exercise.id)
+                                        showingExercisePicker = false
+                                    }
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(exercise.name).font(.system(size: 13, weight: .medium))
+                                        Text(metricLabel(exercise.metricType)).font(.caption).foregroundStyle(iTuTheme.inkDim)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .buttonStyle(.plain)
+                                Button {
+                                    var ids = model.gymPreferences.favoriteExerciseIDs
+                                    if ids.contains(exercise.id) { ids.removeAll { $0 == exercise.id } } else { ids.append(exercise.id) }
+                                    Task { _ = await model.updateGymPreferences(patch: ["favoriteExerciseIDs": .array(ids.map(JSONValue.string))]) }
+                                } label: {
+                                    Image(systemName: model.gymPreferences.favoriteExerciseIDs.contains(exercise.id) ? "star.fill" : "star")
+                                }
+                                .buttonStyle(.borderless)
+                                .foregroundStyle(iTuTheme.amber)
+                            }
+                            .padding(8)
+                            .background(iTuTheme.canvas)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                }
+                .frame(maxHeight: 280)
+            }
+        }
+        .padding(14)
+        .frame(width: 320)
+    }
+
+    private var activeWorkoutSummary: String {
+        guard let workout = activeWorkout else { return "Your local workout will be saved to History." }
+        let exercises = workout.exercises ?? []
+        let sets = (workout.exercises ?? []).flatMap { $0.sets ?? [] }
+        let completed = sets.filter { $0.completedAt != nil }.count
+        let volume = sets.filter { $0.completedAt != nil }.reduce(0) { $0 + ($1.weight ?? 0) * Double($1.reps ?? 0) }
+        let unfinished = sets.count - completed
+        let warning = unfinished > 0 ? " \(unfinished) unfinished set\(unfinished == 1 ? "" : "s") will be discarded." : ""
+        return "\(completed) of \(sets.count) sets · \(exercises.count) exercises · \(workoutDurationLabel(workout)) · \(formatWeight(volume)).\(warning) Your local workout will be saved to History and synced when you reconnect."
+    }
+
+    private var pickerExercises: [ExerciseModel] {
+        let query = exerciseQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return visibleGymExercises.filter { exercise in
+            guard exercise.deletedAt == nil, query.isEmpty || exercise.name.lowercased().contains(query) else { return false }
+            guard pickerMuscleFilter == "All" || (exercise.primaryMuscleGroup ?? "General") == pickerMuscleFilter else { return false }
+            guard pickerEquipmentFilter == "All" || (exercise.equipment ?? "Bodyweight") == pickerEquipmentFilter else { return false }
+            guard pickerMetricFilter == "All" || exercise.metricType == pickerMetricFilter else { return false }
+            switch exerciseFilter {
+            case "Recent": return model.gymPreferences.recentExerciseIDs.contains(exercise.id)
+            case "Favorites": return model.gymPreferences.favoriteExerciseIDs.contains(exercise.id)
+            case "Custom": return exercise.userId == (model.user?.id ?? "")
+            default: return true
+            }
+        }
+    }
+
+    private func createPickerExercise() {
+        let name = pickerCustomName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        isCreatingPickerExerciseRequest = true
+        Task {
+            let created = await model.createGymExercise(
+                name: name,
+                description: "",
+                metricType: pickerCustomMetric,
+                equipment: pickerCustomEquipment.trimmingCharacters(in: .whitespacesAndNewlines),
+                primaryMuscleGroup: pickerCustomMuscle.trimmingCharacters(in: .whitespacesAndNewlines),
+                imageData: nil,
+                fileName: "",
+                mimeType: "image/jpeg"
+            )
+            if created,
+               let exercise = model.gymExercises.last(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+                _ = await model.addGymExercise(workoutID: activeWorkout?.id ?? "", exerciseID: exercise.id)
+                isCreatingPickerExercise = false
+                pickerCustomName = ""
+                pickerCustomEquipment = ""
+                pickerCustomMuscle = ""
+                showingExercisePicker = false
+            }
+            isCreatingPickerExerciseRequest = false
+        }
+    }
+
+    private var pickerMuscleOptions: [String] {
+        ["All"] + Set(visibleGymExercises.map { $0.primaryMuscleGroup ?? "General" }).sorted()
+    }
+
+    private var pickerEquipmentOptions: [String] {
+        ["All"] + Set(visibleGymExercises.map { $0.equipment ?? "Bodyweight" }).sorted()
+    }
+
+    private var pickerMetricOptions: [String] {
+        ["All"] + Set(visibleGymExercises.map(\.metricType)).sorted()
+    }
+
     private func metricLabel(_ metric: String) -> String {
         switch metric {
         case "REPS": return "Reps"
@@ -764,12 +1208,64 @@ struct GymView: View {
         }
     }
 
+    private var restTimerDisplay: String {
+        let _ = restTimerTick
+        return restTimer.isRunning ? "Rest \(Int(ceil(restTimer.remaining)))s" : "Rest timer"
+    }
+
+    private func activeElapsedLabel(_ workout: WorkoutModel) -> String {
+        guard let startedAt = workout.startedAt, let start = ISO8601DateFormatter().date(from: startedAt) else { return "0:00:00" }
+        let seconds = max(0, Int(clockNow.timeIntervalSince(start)))
+        return "\(seconds / 3600):\(String(format: "%02d", (seconds % 3600) / 60)):\(String(format: "%02d", seconds % 60))"
+    }
+
+    private func nextUnfinishedSetID(in workout: WorkoutModel, after setID: String) -> String? {
+        let allSets = (workout.exercises ?? []).flatMap { $0.sets ?? [] }
+        guard let index = allSets.firstIndex(where: { $0.id == setID }) else {
+            return allSets.first(where: { $0.completedAt == nil })?.id
+        }
+        let after = allSets[(index + 1)...].first(where: { $0.completedAt == nil })
+        return after?.id ?? allSets[..<index].first(where: { $0.completedAt == nil })?.id
+    }
+
+    private func gymDateLabel(_ value: String?) -> String {
+        guard let value, !value.isEmpty else { return "—" }
+        return String(value.prefix(10))
+    }
+
+    private func workoutDurationLabel(_ workout: WorkoutModel) -> String {
+        if let duration = workout.durationMinutes { return "\(max(0, duration))m" }
+        guard let started = workout.startedAt,
+              let start = ISO8601DateFormatter().date(from: started) else { return "0m" }
+        let end = workout.endedAt.flatMap { ISO8601DateFormatter().date(from: $0) } ?? Date()
+        return "\(max(0, Int(end.timeIntervalSince(start) / 60)))m"
+    }
+
+    private func formatWeight(_ value: Double) -> String {
+        let isPounds = model.gymPreferences.weightUnit == "LBS"
+        let converted = isPounds ? value * 2.2046226218 : value
+        return String(format: "%.1f %@", converted, isPounds ? "lb" : "kg")
+    }
+
+    private func formatDistance(_ value: Double) -> String {
+        let isMiles = model.gymPreferences.distanceUnit == "MI"
+        let converted = isMiles ? value * 0.000621371192 : value / 1000
+        return String(format: "%.2f %@", converted, isMiles ? "mi" : "km")
+    }
+
+    private func stepperButton(_ icon: String, value: Double, step: Double, action: @escaping (Double) -> Void) -> some View {
+        Button { action(max(0, value + (icon == "plus" ? step : -step))) } label: { Image(systemName: icon) }
+            .buttonStyle(.borderless)
+            .foregroundStyle(iTuTheme.teal)
+            .accessibilityLabel(icon == "plus" ? "Increase value" : "Decrease value")
+    }
+
     private func setSummary(_ set: WorkoutSetModel, metric: String) -> String {
         switch metric {
         case "REPS": return "\(set.reps ?? 0) reps"
         case "DURATION": return "\(set.durationSeconds ?? 0) sec"
-        case "DISTANCE_DURATION": return "\(set.distanceMeters ?? 0) m · \(set.durationSeconds ?? 0) sec"
-        default: return "\(set.weight ?? 0) kg · \(set.reps ?? 0) reps"
+        case "DISTANCE_DURATION": return "\(formatDistance(set.distanceMeters ?? 0)) · \(set.durationSeconds ?? 0) sec"
+        default: return "\(formatWeight(set.weight ?? 0)) · \(set.reps ?? 0) reps"
         }
     }
 

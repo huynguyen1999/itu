@@ -103,66 +103,6 @@ struct LearnView: View {
     private var deckLibraryView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        iTuSectionLabel(title: "KNOWLEDGE & LEARNING", color: iTuTheme.mint)
-                        Text("Flashcards & Decks")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(iTuTheme.ink)
-                        Text("Master new skills with spaced repetition flashcard review.")
-                            .font(.system(size: 13))
-                            .foregroundStyle(iTuTheme.inkDim)
-                    }
-
-                    Spacer()
-
-                    Button {
-                        showHistory = true
-                    } label: {
-                        Label("History", systemImage: "clock.arrow.circlepath")
-                    }
-                    .buttonStyle(iTuGhostButtonStyle(height: 38))
-
-                    Button {
-                        showCreateDeckSheet = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 13, weight: .bold))
-                            Text("New Deck")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                    }
-                    .buttonStyle(iTuPrimaryButtonStyle(height: 38))
-                }
-
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(iTuTheme.inkDim)
-                    TextField("Search your decks", text: $searchText)
-                        .textFieldStyle(.plain)
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(iTuTheme.inkDim)
-                        }
-                        .buttonStyle(.plain)
-                        .pointingHandCursor()
-                        .accessibilityLabel("Clear deck search")
-                    }
-                }
-                .padding(.horizontal, 12)
-                .frame(height: 38)
-                .background(iTuTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(iTuTheme.border, lineWidth: 1)
-                }
-
                 // Decks Grid
                 if filteredDecks.isEmpty {
                     VStack(spacing: 12) {
@@ -200,6 +140,14 @@ struct LearnView: View {
             .frame(maxWidth: 1100)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .iTuPinnedHeader {
+            VStack(alignment: .leading, spacing: 14) {
+                deckHeader
+                deckSearch
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
+        }
         .background(
             LinearGradient(
                 colors: [iTuTheme.canvas, iTuTheme.mintTint.opacity(0.2)],
@@ -212,6 +160,55 @@ struct LearnView: View {
                 Task { await model.createDeck(title: title, description: description) }
             }
         }
+    }
+
+    private var deckHeader: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                iTuSectionLabel(title: "KNOWLEDGE & LEARNING", color: iTuTheme.mint)
+                Text("Flashcards & Decks")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(iTuTheme.ink)
+                Text("Master new skills with spaced repetition flashcard review.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+            Spacer()
+            Button { showHistory = true } label: { Label("History", systemImage: "clock.arrow.circlepath") }
+                .buttonStyle(iTuGhostButtonStyle(height: 38))
+            Button { showCreateDeckSheet = true } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("New Deck")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+            }
+            .buttonStyle(iTuPrimaryButtonStyle(height: 38))
+        }
+    }
+
+    private var deckSearch: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(iTuTheme.inkDim)
+            TextField("Search your decks", text: $searchText)
+                .textFieldStyle(.plain)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(iTuTheme.inkDim)
+                }
+                .buttonStyle(.plain)
+                .pointingHandCursor()
+                .accessibilityLabel("Clear deck search")
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 38)
+        .background(iTuTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(iTuTheme.border, lineWidth: 1) }
     }
 }
 
@@ -328,27 +325,6 @@ private struct DeckDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack {
-                    Button {
-                        onBack()
-                    } label: {
-                        Label("Decks", systemImage: "chevron.left")
-                    }
-                    .buttonStyle(iTuGhostButtonStyle())
-
-                    Spacer()
-
-                    Button("Review Due", action: onStartReview)
-                        .buttonStyle(iTuSecondaryButtonStyle(height: 34))
-                    Button {
-                        editingCard = nil
-                        showEditor = true
-                    } label: {
-                        Label("Add Card", systemImage: "plus")
-                    }
-                    .buttonStyle(iTuPrimaryButtonStyle(height: 34))
-                }
-
                 VStack(alignment: .leading, spacing: 5) {
                     iTuSectionLabel(title: "DECK DETAIL", color: iTuTheme.teal)
                     Text(deck.title)
@@ -398,6 +374,30 @@ private struct DeckDetailView: View {
             .padding(24)
             .frame(maxWidth: 980)
             .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .iTuPinnedHeader {
+            HStack {
+                Button {
+                    onBack()
+                } label: {
+                    Label("Decks", systemImage: "chevron.left")
+                }
+                .buttonStyle(iTuGhostButtonStyle())
+
+                Spacer()
+
+                Button("Review Due", action: onStartReview)
+                    .buttonStyle(iTuSecondaryButtonStyle(height: 34))
+                Button {
+                    editingCard = nil
+                    showEditor = true
+                } label: {
+                    Label("Add Card", systemImage: "plus")
+                }
+                .buttonStyle(iTuPrimaryButtonStyle(height: 34))
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
         }
         .background(iTuTheme.canvas)
         .onAppear {
@@ -814,14 +814,6 @@ private struct StudyHistoryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack {
-                    Button(action: onBack) {
-                        Label("Decks", systemImage: "chevron.left")
-                    }
-                    .buttonStyle(iTuGhostButtonStyle())
-                    Spacer()
-                }
-
                 VStack(alignment: .leading, spacing: 6) {
                     iTuSectionLabel(title: "STUDY ARCHIVE", color: iTuTheme.mint)
                     Text("Session History")
@@ -842,6 +834,17 @@ private struct StudyHistoryView: View {
             .padding(24)
             .frame(maxWidth: 1100)
             .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .iTuPinnedHeader {
+            HStack {
+                Button(action: onBack) {
+                    Label("Decks", systemImage: "chevron.left")
+                }
+                .buttonStyle(iTuGhostButtonStyle())
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
         }
         .background(iTuTheme.canvas)
         .onAppear {

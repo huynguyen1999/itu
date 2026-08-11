@@ -283,7 +283,33 @@ export function MatrixPage() {
     <div className="flex h-[calc(100vh-6.5rem)] flex-col gap-4 overflow-hidden">
       <div className="flex flex-1 flex-col gap-4 min-h-0 overflow-hidden">
         {/* Header row */}
-        <PageHeader kicker="Prioritization & Matrix" title="Eisenhower Matrix">
+        <PageHeader
+          kicker="Prioritization & Matrix"
+          title="Eisenhower Matrix"
+          stickyControls={
+            showSearch ? (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  ref={searchInputRef}
+                  value={searchQuery}
+                  onChange={(e) => setMatrixSettings((settings) => ({ ...settings, searchQuery: e.target.value }))}
+                  placeholder="Search tasks across all quadrants…"
+                  className="h-10 pl-10 pr-10"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setMatrixSettings((settings) => ({ ...settings, searchQuery: '' }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ) : null
+          }
+        >
           <div className="flex items-center gap-2">
             {/* Search toggle button */}
             <Button
@@ -396,29 +422,6 @@ export function MatrixPage() {
             </FeatureSettingsButton>
           </div>
         </PageHeader>
-
-        {/* Collapsible search bar */}
-        {showSearch && (
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={searchInputRef}
-              value={searchQuery}
-              onChange={(e) => setMatrixSettings((settings) => ({ ...settings, searchQuery: e.target.value }))}
-              placeholder="Search tasks across all quadrants…"
-              className="h-10 pl-10 pr-10"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setMatrixSettings((settings) => ({ ...settings, searchQuery: '' }))}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                aria-label="Clear search"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Active filter chips */}
         {hasActiveFilters && (

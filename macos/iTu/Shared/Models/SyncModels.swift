@@ -19,6 +19,9 @@ struct SyncMutation: Codable, Identifiable, Equatable, Sendable {
     var baseVersion: Int?
     var baseValues: [String: JSONValue]?
     var payload: [String: JSONValue]
+    /// Per-field client edit clocks used by the server's granular merge.
+    /// Kept optional for backwards-compatible snapshots and non-edit mutations.
+    var fieldEditedAt: [String: String]? = nil
     var occurredAt: String
     var attemptCount: Int?
     var lastAttemptAt: String?
@@ -47,6 +50,7 @@ struct SyncMutationPayload: Codable, Sendable {
     let baseVersion: Int?
     let baseValues: [String: JSONValue]?
     let payload: [String: JSONValue]
+    let fieldEditedAt: [String: String]?
     let occurredAt: String
 
     init(_ mutation: SyncMutation) {
@@ -56,6 +60,7 @@ struct SyncMutationPayload: Codable, Sendable {
         baseVersion = mutation.baseVersion
         baseValues = mutation.baseValues
         payload = mutation.payload
+        fieldEditedAt = mutation.fieldEditedAt
         occurredAt = mutation.occurredAt
     }
 }
@@ -323,6 +328,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
     var lastSyncTime: String?
     var usageSummaries: [UsageSummary] = []
     var usageUploadWatermarks: [String: UsageUploadWatermark] = [:]
+    var usageAppIconUploadHashes: [String: String] = [:]
     var websiteUsageSummaries: [WebsiteUsageSummary] = []
     var websiteUsageUploadWatermarks: [String: Int] = [:]
     var budgetCategories: [BudgetCategoryModel] = []
@@ -378,6 +384,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         case lastSyncTime
         case usageSummaries
         case usageUploadWatermarks
+        case usageAppIconUploadHashes
         case websiteUsageSummaries
         case websiteUsageUploadWatermarks
         case budgetCategories, budgetPeriods, budgetTransactions, gymExercises, gymWorkouts, budgetPreferences, gymPreferences
@@ -425,6 +432,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         lastSyncTime = try values.decodeIfPresent(String.self, forKey: .lastSyncTime)
         usageSummaries = try values.decodeIfPresent([UsageSummary].self, forKey: .usageSummaries) ?? []
         usageUploadWatermarks = try values.decodeIfPresent([String: UsageUploadWatermark].self, forKey: .usageUploadWatermarks) ?? [:]
+        usageAppIconUploadHashes = try values.decodeIfPresent([String: String].self, forKey: .usageAppIconUploadHashes) ?? [:]
         websiteUsageSummaries = try values.decodeIfPresent([WebsiteUsageSummary].self, forKey: .websiteUsageSummaries) ?? []
         websiteUsageUploadWatermarks = try values.decodeIfPresent([String: Int].self, forKey: .websiteUsageUploadWatermarks) ?? [:]
         budgetCategories = try values.decodeIfPresent([BudgetCategoryModel].self, forKey: .budgetCategories) ?? []

@@ -69,6 +69,11 @@ export interface GymPreferences {
   autoStartRestTimer: boolean;
   previousPerformanceMode: 'EXERCISE' | 'ROUTINE';
   showRpe: boolean;
+  showPrevious: boolean;
+  soundsEnabled: boolean;
+  restSoundEnabled: boolean;
+  completionSoundEnabled: boolean;
+  favoriteExerciseIds: string[];
   weeklyWorkoutGoal?: number;
 }
 
@@ -159,7 +164,12 @@ export const DEFAULT_GYM_PREFERENCES: GymPreferences = {
   defaultRestSeconds: 120,
   autoStartRestTimer: true,
   previousPerformanceMode: 'EXERCISE',
-  showRpe: true,
+  showRpe: false,
+  showPrevious: true,
+  soundsEnabled: true,
+  restSoundEnabled: true,
+  completionSoundEnabled: true,
+  favoriteExerciseIds: [],
   weeklyWorkoutGoal: 3,
 };
 
@@ -366,7 +376,12 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       const updated = { ...(local.budget || local.money), ...patch };
       saveLocalPreferences({ ...local, budget: updated, money: updated });
       return context.offlineMutation(
-        { kind: SYNC_KINDS.budgetPreferences.update, entityId: 'budget', payload: patch, optimistic: { id: 'budget', ...updated } as unknown as BudgetPreferences },
+        {
+          kind: SYNC_KINDS.budgetPreferences.update,
+          entityId: 'budget',
+          payload: patch,
+          optimistic: { id: 'budget', ...updated } as unknown as BudgetPreferences,
+        },
         async () => {
           try {
             return (await context.request('/preferences/budget', {
@@ -385,7 +400,12 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       const updated = { ...local.gym, ...patch };
       saveLocalPreferences({ ...local, gym: updated });
       return context.offlineMutation(
-        { kind: SYNC_KINDS.gymPreferences.update, entityId: 'gym', payload: patch, optimistic: { id: 'gym', ...updated } as unknown as GymPreferences },
+        {
+          kind: SYNC_KINDS.gymPreferences.update,
+          entityId: 'gym',
+          payload: patch,
+          optimistic: { id: 'gym', ...updated } as unknown as GymPreferences,
+        },
         async () => {
           try {
             return await context.request<GymPreferences>('/preferences/gym', {

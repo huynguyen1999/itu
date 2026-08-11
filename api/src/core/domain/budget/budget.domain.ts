@@ -50,6 +50,7 @@ export interface BudgetTransactionDomain {
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;
+  deletedByDeviceId?: string | null;
 }
 
 export interface CategoryOverviewStat {

@@ -11,7 +11,17 @@ struct UpcomingView: View {
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Header
+                // Days Sections
+                ForEach(groupedByDay, id: \.dateLabel) { dayGroup in
+                    daySection(dayGroup)
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: 980)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .iTuPinnedHeader {
+            VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
                     iTuSectionLabel(title: "PLANNING", color: iTuTheme.teal)
                     Text("Next 7 Days")
@@ -21,18 +31,10 @@ struct UpcomingView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(iTuTheme.inkDim)
                 }
-
-                // Quick Add to Today
                 quickCaptureHeader
-
-                // Days Sections
-                ForEach(groupedByDay, id: \.dateLabel) { dayGroup in
-                    daySection(dayGroup)
-                }
             }
-            .padding(24)
-            .frame(maxWidth: 980)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
         }
         .background(
             LinearGradient(

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, Tag as TagIcon, X } from 'lucide-react';
 import { useJournalTags } from '../journalQueries';
 import { useCreateJournalTagMutation } from '../journalMutations';
+import { Button } from '@/shared/ui/button';
 
 interface TagPickerProps {
   selectedTagIds: string[];
@@ -9,12 +10,12 @@ interface TagPickerProps {
 }
 
 export function TagPicker({ selectedTagIds, onChange }: TagPickerProps) {
-  const { data: tags = [] } = useJournalTags();
+  const { data: tags = [], isLoading, isError, refetch } = useJournalTags();
   const createTag = useCreateJournalTagMutation();
   const [isOpen, setIsOpen] = useState(false);
   const [newTagName, setNewTagName] = useState('');
 
-  const selectedTags = tags.filter((t) => selectedTagIds.includes(t.id));
+  const selectedTags = tags.filter((tag) => selectedTagIds.includes(tag.id));
 
   const handleCreateTag = async () => {
     if (!newTagName.trim()) return;
@@ -22,8 +23,8 @@ export function TagPicker({ selectedTagIds, onChange }: TagPickerProps) {
       const created = await createTag.mutateAsync({ name: newTagName });
       onChange([...selectedTagIds, created.id]);
       setNewTagName('');
-    } catch (err) {
-      console.error('Failed to create tag', err);
+    } catch {
+      // The mutation error is rendered next to the create control.
     }
   };
 
@@ -40,75 +41,112 @@ export function TagPicker({ selectedTagIds, onChange }: TagPickerProps) {
       {selectedTags.map((tag) => (
         <span
           key={tag.id}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+          className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-primary"
         >
-          <TagIcon className="w-3 h-3" />
+          <TagIcon className="h-3 w-3" />
           {tag.name}
           <button
             type="button"
             onClick={() => toggleTag(tag.id)}
-            className="hover:text-emerald-200 transition-colors"
+            className="rounded-full text-primary/75 transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`Remove tag ${tag.name}`}
           >
-            <X className="w-3 h-3" />
+            <X className="h-3 w-3" />
           </button>
         </span>
       ))}
 
-      <button
+      <Button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+        variant="outline"
+        size="sm"
+        onClick={() => setIsOpen((open) => !open)}
+        className="h-8 gap-1 rounded-full px-2.5"
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
       >
-        <Plus className="w-3 h-3" />
+        <Plus className="h-3 w-3" />
         Tag
-      </button>
+      </Button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 z-50 w-56 p-2 rounded-xl bg-slate-900 border border-slate-800 shadow-xl space-y-2">
-          <div className="text-[11px] font-medium text-slate-400">Select or create tags</div>
-          <div className="max-h-36 overflow-y-auto space-y-1">
-            {tags.map((tag) => {
-              const selected = selectedTagIds.includes(tag.id);
-              return (
-                <button
-                  key={tag.id}
-                  type="button"
-                  onClick={() => toggleTag(tag.id)}
-                  className={`w-full text-left px-2 py-1 rounded-lg text-xs flex items-center justify-between transition-colors ${
-                    selected
-                      ? 'bg-emerald-500/20 text-emerald-300 font-medium'
-                      : 'hover:bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  <span>#{tag.name}</span>
-                  {selected && <span className="text-emerald-400">✓</span>}
-                </button>
-              );
-            })}
-          </div>
+        <div className="absolute left-0 top-full z-50 mt-2 w-64 space-y-2 rounded-[var(--itu-radius-m)] border border-border bg-popover p-3 text-popover-foreground shadow-[var(--itu-shadow-pop)]">
+          <div className="text-[11px] font-semibold text-muted-foreground">Select or create tags</div>
 
-          <div className="flex gap-1 pt-1 border-t border-slate-800">
+          {isError ? (
+            <div
+              className="space-y-2 rounded-[var(--itu-radius-s)] bg-destructive/10 p-2 text-xs text-destructive"
+              role="alert"
+            >
+              <p>Tags could not be loaded.</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+                Retry
+              </Button>
+            </div>
+          ) : isLoading ? (
+            <div className="py-2 text-xs text-muted-foreground" role="status">
+              Loading tags…
+            </div>
+          ) : (
+            <div className="max-h-40 space-y-1 overflow-y-auto" role="listbox" aria-label="Journal tags">
+              {tags.length === 0 ? (
+                <p className="py-2 text-xs text-muted-foreground">No tags yet.</p>
+              ) : (
+                tags.map((tag) => {
+                  const selected = selectedTagIds.includes(tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => toggleTag(tag.id)}
+                      className={`flex min-h-9 w-full items-center justify-between rounded-[var(--itu-radius-s)] px-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        selected ? 'bg-primary/10 font-medium text-primary' : 'text-foreground hover:bg-muted'
+                      }`}
+                      role="option"
+                      aria-selected={selected}
+                    >
+                      <span>#{tag.name}</span>
+                      {selected && <span aria-hidden="true">✓</span>}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-1 border-t border-border pt-2">
+            <label className="sr-only" htmlFor="new-journal-tag">
+              New tag name
+            </label>
             <input
+              id="new-journal-tag"
               type="text"
               placeholder="New tag..."
               value={newTagName}
-              onChange={(e) => setNewTagName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
+              onChange={(event) => setNewTagName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
                   void handleCreateTag();
                 }
               }}
-              className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+              className="h-9 min-w-0 flex-1 rounded-[var(--itu-radius-s)] border border-input bg-background px-2 text-xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
             />
-            <button
+            <Button
               type="button"
-              onClick={handleCreateTag}
-              className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs transition-colors"
+              size="sm"
+              className="h-9 px-2"
+              onClick={() => void handleCreateTag()}
+              disabled={!newTagName.trim() || createTag.isPending}
             >
-              Add
-            </button>
+              {createTag.isPending ? 'Adding…' : 'Add'}
+            </Button>
           </div>
+          {createTag.isError && (
+            <p className="text-xs text-destructive" role="alert">
+              Tag could not be created. Try again.
+            </p>
+          )}
         </div>
       )}
     </div>

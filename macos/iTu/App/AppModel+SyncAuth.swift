@@ -56,6 +56,7 @@ extension AppModel {
     }
 
     func logout() async {
+        await flushUsageForLifecycle()
         stopUsageTracking()
         invalidateSession()
         syncCoordinator.stop()
@@ -97,6 +98,7 @@ extension AppModel {
 
     func deleteAccount(password: String?) async -> Bool {
         do {
+            await flushUsageForLifecycle()
             stopUsageTracking()
             invalidateSession()
             syncCoordinator.stop()
@@ -222,6 +224,7 @@ extension AppModel {
                 : .conflict
 
             if wasOffline && syncPhase != .offline {
+                _ = await uploadUsage()
                 let syncedCount = max(0, previousPendingCount - snapshot.mutations.count)
                 let message = syncedCount > 0 ? "\(syncedCount) change\(syncedCount == 1 ? "" : "s") synced" : nil
                 enqueueNotice(AppNotice(level: .success, presentation: .toast, title: "Back online", message: message))
@@ -265,6 +268,10 @@ extension AppModel {
                 let result = try await AccountHydrator(apiClient: apiClient, offlineStore: store).hydrate()
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == userID else { return }
                 apply(result.snapshot)
+                if let serverUsagePreferences = result.usagePreferences {
+                    settingsStore.mergeUsagePreferencesFromServer(serverUsagePreferences)
+                    applyUsagePreferences(settingsStore.usagePreferences, sync: false)
+                }
                 await uploadPendingJournalAttachments()
                 if let value = result.habitTimeBlocks { habitTimeBlocks = value }
                 if let value = result.studySessionHistory { studySessionHistory = value }

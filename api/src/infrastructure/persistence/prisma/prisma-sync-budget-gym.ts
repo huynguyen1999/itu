@@ -4,9 +4,21 @@ import { InvalidSyncMutationException } from '@core/domain/exceptions';
 import { Tx, recordSyncChange } from './prisma-sync-mutation.shared';
 import { assertClientId, enumValue, fieldConflict, notFound, optionalString, requiredString, stale } from './prisma-sync.helpers';
 import { createUlid } from './ulid';
+import { SyncMergeResolver } from './sync-merge-resolver';
 
-const BUDGET_KINDS = ['budgettransaction.create', 'budgettransaction.update', 'budgettransaction.delete', 'budget_transaction.create', 'budget_transaction.update', 'budget_transaction.delete'];
-const GYM_KINDS = ['gymworkout.create', 'gymworkout.update', 'gymworkout.delete', 'gym_workout.create', 'gym_workout.update', 'gym_workout.delete'];
+const BUDGET_KINDS = ['budgettransaction.create', 'budgettransaction.update', 'budgettransaction.delete', 'budgettransaction.restore', 'budget_transaction.create', 'budget_transaction.update', 'budget_transaction.delete', 'budget_transaction.restore'];
+const GYM_KINDS = ['gymworkout.create', 'gymworkout.update', 'gymworkout.delete', 'gymworkout.restore', 'gym_workout.create', 'gym_workout.update', 'gym_workout.delete', 'gym_workout.restore'];
+const GRANULAR_GYM_KINDS = [
+  'workout.create', 'workout.update', 'workout.finish', 'workout.complete', 'workout.delete',
+  'workout-exercise.create', 'workout-exercise.update', 'workout-exercise.delete',
+  'workout_exercise.create', 'workout_exercise.update', 'workout_exercise.delete',
+  'workoutexercise.create', 'workoutexercise.update', 'workoutexercise.delete',
+  'workout_set.create', 'workout_set.update', 'workout_set.complete', 'workout_set.delete',
+  'workout-set.create', 'workout-set.update', 'workout-set.complete', 'workout-set.delete',
+  'workoutset.create', 'workoutset.update', 'workoutset.complete', 'workoutset.delete',
+  'gymworkout.finish', 'gymworkoutexercise.create', 'gymworkoutexercise.update', 'gymworkoutexercise.delete',
+  'gymworkoutset.create', 'gymworkoutset.update', 'gymworkoutset.complete', 'gymworkoutset.delete',
+];
 const PREFERENCE_KINDS = [
   'budgetpreferences.upsert',
   'budgetpreferences.update',
@@ -18,7 +30,7 @@ const PREFERENCE_KINDS = [
 const MONEY_GYM_KINDS = [
   'moneycategory.create', 'moneycategory.reorder', 'moneycategory.update', 'moneycategory.delete',
   'moneybudgetperiod.update', 'moneycategorybudget.upsert', 'moneycategorybudget.delete',
-  'exercisedefinition.create', 'exercisedefinition.update', 'exercisedefinition.delete',
+  'exercisedefinition.create', 'exercisedefinition.update', 'exercisedefinition.delete', 'exercisedefinition.restore',
   'gymworkout.complete', 'gymworkout.abandon',
 ];
 const CATEGORY_ICONS = new Set(['food', 'transport', 'shopping', 'bills', 'health', 'education', 'entertainment', 'fitness', 'travel', 'other']);
@@ -29,9 +41,11 @@ function validateCategoryVisuals(icon: string | null | undefined, color: string 
 }
 
 export class PrismaSyncBudgetGym {
-  readonly kinds: readonly string[] = [...BUDGET_KINDS, ...GYM_KINDS, ...PREFERENCE_KINDS, ...MONEY_GYM_KINDS];
+  readonly kinds: readonly string[] = [...BUDGET_KINDS, ...GYM_KINDS, ...GRANULAR_GYM_KINDS, ...PREFERENCE_KINDS, ...MONEY_GYM_KINDS];
+  private readonly mergeResolver = new SyncMergeResolver();
 
   async applyMutation(tx: Tx, userId: string, mutation: SyncMutation): Promise<SyncConflict | null | undefined> {
+    if (GRANULAR_GYM_KINDS.includes(mutation.kind)) return this.applyGranularGym(tx, userId, mutation);
     if (BUDGET_KINDS.includes(mutation.kind)) return this.applyBudget(tx, userId, mutation);
     if (GYM_KINDS.includes(mutation.kind)) return this.applyGym(tx, userId, mutation);
     if (PREFERENCE_KINDS.includes(mutation.kind)) return this.applyPreferences(tx, userId, mutation);
@@ -126,7 +140,8 @@ export class PrismaSyncBudgetGym {
     }
     const row = await tx.exerciseDefinition.findFirst({ where: { id: mutation.entityId, userId } });
     if (!row) return notFound(mutation, 'exercisedefinition');
-    if (mutation.kind.endsWith('.delete')) { const updated = await tx.exerciseDefinition.update({ where: { id: row.id }, data: { archivedAt: new Date(), version: { increment: 1 } } }); await recordSyncChange(tx, userId, 'exercisedefinition', updated.id, 'DELETE', { id: updated.id }); return null; }
+    if (mutation.kind.endsWith('.delete')) { const updated = await tx.exerciseDefinition.update({ where: { id: row.id }, data: { deletedAt: new Date(), deletedByDeviceId: (mutation as any).serverDeviceId, version: { increment: 1 } } }); await recordSyncChange(tx, userId, 'exercisedefinition', updated.id, 'DELETE', { id: updated.id }); return null; }
+    if (mutation.kind.endsWith('.restore')) { if (mutation.baseVersion !== undefined && mutation.baseVersion !== row.version) return stale(mutation, 'exercisedefinition', row); const updated = await tx.exerciseDefinition.update({ where: { id: row.id }, data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } } }); await recordSyncChange(tx, userId, 'exercisedefinition', updated.id, 'UPSERT', updated); return null; }
     const conflict = fieldConflict(mutation, 'exercisedefinition', row);
     if (conflict) return conflict;
     const updated = await tx.exerciseDefinition.update({ where: { id: row.id }, data: { name: payload.name === undefined ? row.name : requiredString(payload, 'name'), normalizedName: payload.name === undefined ? row.normalizedName : requiredString(payload, 'name').trim().toLowerCase(), description: payload.description === undefined ? row.description : optionalString(payload, 'description'), version: { increment: 1 } } });
@@ -134,12 +149,303 @@ export class PrismaSyncBudgetGym {
     return null;
   }
 
+  private canonicalGranularKind(kind: string): string {
+    if (kind === 'gymworkout.finish' || kind === 'workout.complete') return 'workout.finish';
+    if (kind.startsWith('gymworkoutexercise.')) return kind.replace('gymworkoutexercise.', 'workout-exercise.');
+    if (kind.startsWith('workout_exercise.')) return kind.replace('workout_exercise.', 'workout-exercise.');
+    if (kind.startsWith('workoutexercise.')) return kind.replace('workoutexercise.', 'workout-exercise.');
+    if (kind.startsWith('gymworkoutset.')) return kind.replace('gymworkoutset.', 'workout-set.');
+    if (kind.startsWith('workout_set.')) return kind.replace('workout_set.', 'workout-set.');
+    if (kind.startsWith('workoutset.')) return kind.replace('workoutset.', 'workout-set.');
+    return kind;
+  }
+
+  private async applyGranularGym(tx: Tx, userId: string, mutation: SyncMutation): Promise<SyncConflict | null> {
+    const kind = this.canonicalGranularKind(mutation.kind);
+    if (kind === 'workout.create') return this.createGranularWorkout(tx, userId, mutation);
+    if (kind === 'workout.update') return this.updateGranularWorkout(tx, userId, mutation);
+    if (kind === 'workout.finish') return this.finishGranularWorkout(tx, userId, mutation);
+    if (kind === 'workout.delete') return this.deleteGranularWorkout(tx, userId, mutation);
+    if (kind.startsWith('workout-exercise.')) return this.applyGranularWorkoutExercise(tx, userId, mutation, kind);
+    return this.applyGranularWorkoutSet(tx, userId, mutation, kind);
+  }
+
+  private async createGranularWorkout(tx: Tx, userId: string, mutation: SyncMutation): Promise<SyncConflict | null> {
+    assertClientId(mutation.entityId);
+    const existing = await tx.gymWorkout.findFirst({ where: { id: mutation.entityId } });
+    if (existing) {
+      if (existing.userId !== userId) throw new InvalidSyncMutationException('Workout does not belong to user');
+      return stale(mutation, 'workout', existing);
+    }
+    const payload = mutation.payload;
+    if (payload.status === 'COMPLETED') throw new InvalidSyncMutationException('Workouts must be finished after creation');
+    const status = GymWorkoutStatus.IN_PROGRESS;
+    if (await tx.gymWorkout.findFirst({ where: { userId, status, deletedAt: null } })) {
+      return { mutationId: mutation.id, entityType: 'workout', entityId: mutation.entityId, reason: 'STALE_VERSION', serverData: null, localDraft: payload };
+    }
+    const startedAt = this.dateValue(payload, 'startedAt') ?? new Date(mutation.occurredAt);
+    const workout = await tx.gymWorkout.create({
+      data: {
+        id: mutation.entityId,
+        userId,
+        title: optionalString(payload, 'title'),
+        source: optionalString(payload, 'source'),
+        status,
+        startedAt,
+        endedAt: null,
+        durationMinutes: null,
+      },
+    });
+    await recordSyncChange(tx, userId, 'workout', workout.id, 'UPSERT', workout);
+    return null;
+  }
+
+  private async updateGranularWorkout(tx: Tx, userId: string, mutation: SyncMutation): Promise<SyncConflict | null> {
+    const workout = await tx.gymWorkout.findFirst({ where: { id: mutation.entityId, userId, deletedAt: null } });
+    if (!workout) return notFound(mutation, 'workout');
+    if (mutation.payload.status !== undefined) throw new InvalidSyncMutationException('Workout status changes must use the workout lifecycle');
+
+    // This canonical mutation intentionally patches workout metadata only. Child
+    // hierarchy changes have their own granular mutation kinds.
+    const merged = await this.resolveGranularFields(tx, userId, mutation, 'workout', workout);
+    if (merged.resolvedPayload === null || merged.resolvedPayload.title === undefined) return null;
+    const title = merged.resolvedPayload.title;
+    if (title !== null && typeof title !== 'string') throw new InvalidSyncMutationException('title must be a string');
+    const updated = await tx.gymWorkout.update({
+      where: { id: workout.id },
+      data: { title: title === null ? null : title.trim(), version: { increment: 1 } },
+    });
+    await this.writeGranularClocks(tx, userId, mutation, 'workout', merged.updatedClocks);
+    await recordSyncChange(tx, userId, 'workout', updated.id, 'UPSERT', updated);
+    return null;
+  }
+
+  private async finishGranularWorkout(tx: Tx, userId: string, mutation: SyncMutation): Promise<SyncConflict | null> {
+    const workout = await tx.gymWorkout.findFirst({ where: { id: mutation.entityId, userId, deletedAt: null } });
+    if (!workout) return notFound(mutation, 'workout');
+    if (mutation.baseVersion !== undefined && mutation.baseVersion !== workout.version) return stale(mutation, 'workout', workout);
+    const endedAt = this.dateValue(mutation.payload, 'endedAt') ?? new Date(mutation.occurredAt);
+    await tx.gymWorkoutSet.updateMany({
+      where: { workoutExercise: { workoutId: workout.id }, completedAt: null, deletedAt: null },
+      data: { deletedAt: endedAt, version: { increment: 1 } },
+    });
+    await tx.gymWorkoutExercise.updateMany({
+      where: {
+        workoutId: workout.id,
+        deletedAt: null,
+        sets: { none: { completedAt: { not: null }, deletedAt: null } },
+      },
+      data: { deletedAt: endedAt, version: { increment: 1 } },
+    });
+    const updated = await tx.gymWorkout.update({
+      where: { id: workout.id },
+      data: {
+        status: GymWorkoutStatus.COMPLETED,
+        endedAt,
+        durationMinutes: this.numberValue(mutation.payload, 'durationMinutes') ?? workout.durationMinutes,
+        version: { increment: 1 },
+      },
+    });
+    await recordSyncChange(tx, userId, 'workout', updated.id, 'UPSERT', await this.fullWorkout(tx, updated.id));
+    return null;
+  }
+
+  private async deleteGranularWorkout(tx: Tx, userId: string, mutation: SyncMutation): Promise<SyncConflict | null> {
+    const workout = await tx.gymWorkout.findFirst({ where: { id: mutation.entityId, userId } });
+    if (!workout) return notFound(mutation, 'workout');
+    if (mutation.baseVersion !== undefined && mutation.baseVersion !== workout.version) return stale(mutation, 'workout', workout);
+    const deleted = await tx.gymWorkout.update({
+      where: { id: workout.id },
+      data: { deletedAt: new Date(mutation.occurredAt), deletedByDeviceId: mutation.serverDeviceId ?? null, version: { increment: 1 } },
+    });
+    await recordSyncChange(tx, userId, 'workout', deleted.id, 'DELETE', { id: deleted.id });
+    return null;
+  }
+
+  private async applyGranularWorkoutExercise(tx: Tx, userId: string, mutation: SyncMutation, kind: string): Promise<SyncConflict | null> {
+    const payload = mutation.payload;
+    if (kind.endsWith('.create')) {
+      assertClientId(mutation.entityId);
+      const workoutId = requiredString(payload, 'workoutId');
+      const workout = await tx.gymWorkout.findFirst({ where: { id: workoutId, userId, deletedAt: null } });
+      if (!workout) return notFound(mutation, 'workout');
+      const definition = await tx.exerciseDefinition.findFirst({ where: { id: requiredString(payload, 'exerciseId'), userId, deletedAt: null } });
+      if (!definition) return notFound(mutation, 'exercisedefinition');
+      const existing = await tx.gymWorkoutExercise.findFirst({ where: { id: mutation.entityId } });
+      if (existing) return existing.workoutId === workoutId ? stale(mutation, 'workout-exercise', existing) : notFound(mutation, 'workout-exercise');
+      const created = await tx.gymWorkoutExercise.create({
+        data: {
+          id: mutation.entityId,
+          workoutId,
+          exerciseId: definition.id,
+          exerciseName: definition.name,
+          metricType: definition.metricType,
+          weightUnit: definition.defaultWeightUnit,
+          sortOrder: this.numberValue(payload, 'sortOrder') ?? 0,
+          note: payload.note === undefined ? null : this.nullableString(payload, 'note'),
+          restSeconds: this.numberValue(payload, 'restSeconds'),
+        },
+      });
+      await recordSyncChange(tx, userId, 'workout-exercise', created.id, 'UPSERT', created);
+      return null;
+    }
+
+    const row = await tx.gymWorkoutExercise.findFirst({
+      where: { id: mutation.entityId, deletedAt: null, workout: { userId, deletedAt: null } },
+    });
+    if (!row) return notFound(mutation, 'workout-exercise');
+    if (kind.endsWith('.delete')) {
+      if (mutation.baseVersion !== undefined && mutation.baseVersion !== row.version) return stale(mutation, 'workout-exercise', row);
+      const deleted = await tx.gymWorkoutExercise.update({ where: { id: row.id }, data: { deletedAt: new Date(mutation.occurredAt), deletedByDeviceId: mutation.serverDeviceId ?? null, version: { increment: 1 } } });
+      await recordSyncChange(tx, userId, 'workout-exercise', deleted.id, 'DELETE', { id: deleted.id });
+      return null;
+    }
+    const merged = await this.resolveGranularFields(tx, userId, mutation, 'workout-exercise', row);
+    if (merged.resolvedPayload === null) return null;
+    return this.updateGranularWorkoutExercise(tx, userId, mutation, row, merged.resolvedPayload, merged.updatedClocks);
+  }
+
+  private async updateGranularWorkoutExercise(tx: Tx, userId: string, mutation: SyncMutation, row: any, payload: Record<string, unknown>, updatedClocks: Array<{ fieldName: string; editedAt: Date }>): Promise<SyncConflict | null> {
+    const data: Record<string, unknown> = {};
+    if (payload.exerciseId !== undefined) {
+      const definition = await tx.exerciseDefinition.findFirst({ where: { id: requiredString(payload, 'exerciseId'), userId, deletedAt: null } });
+      if (!definition) return notFound(mutation, 'exercisedefinition');
+      data.exerciseId = definition.id;
+      data.exerciseName = definition.name;
+      data.metricType = definition.metricType;
+      data.weightUnit = definition.defaultWeightUnit;
+    }
+    for (const field of ['sortOrder', 'restSeconds']) if (payload[field] !== undefined) data[field] = this.numberOrNull(payload, field);
+    if (payload.note !== undefined) data.note = this.nullableString(payload, 'note');
+    if (Object.keys(data).length === 0) return null;
+    const updated = await tx.gymWorkoutExercise.update({ where: { id: row.id }, data: { ...data, version: { increment: 1 } } });
+    await this.writeGranularClocks(tx, userId, mutation, 'workout-exercise', updatedClocks);
+    await recordSyncChange(tx, userId, 'workout-exercise', updated.id, 'UPSERT', updated);
+    return null;
+  }
+
+  private async applyGranularWorkoutSet(tx: Tx, userId: string, mutation: SyncMutation, kind: string): Promise<SyncConflict | null> {
+    const payload = mutation.payload;
+    if (kind.endsWith('.create')) {
+      assertClientId(mutation.entityId);
+      const workoutExerciseId = requiredString(payload, 'workoutExerciseId');
+      const parent = await tx.gymWorkoutExercise.findFirst({ where: { id: workoutExerciseId, deletedAt: null, workout: { userId, deletedAt: null } } });
+      if (!parent) return notFound(mutation, 'workout-exercise');
+      const existing = await tx.gymWorkoutSet.findFirst({ where: { id: mutation.entityId } });
+      if (existing) return existing.workoutExerciseId === workoutExerciseId ? stale(mutation, 'workout-set', existing) : notFound(mutation, 'workout-set');
+      const created = await tx.gymWorkoutSet.create({
+        data: {
+          id: mutation.entityId,
+          workoutExerciseId,
+          sortOrder: this.numberValue(payload, 'sortOrder') ?? 0,
+          type: enumValue(WorkoutSetType, payload.type ?? 'NORMAL', 'type'),
+          reps: this.numberOrNull(payload, 'reps'),
+          weight: this.numberOrNull(payload, 'weight'),
+          durationSeconds: this.numberOrNull(payload, 'durationSeconds'),
+          distanceMeters: this.numberOrNull(payload, 'distanceMeters'),
+          rpe: this.numberOrNull(payload, 'rpe'),
+          completedAt: this.dateValue(payload, 'completedAt'),
+        },
+      });
+      await recordSyncChange(tx, userId, 'workout-set', created.id, 'UPSERT', created);
+      return null;
+    }
+
+    const row = await tx.gymWorkoutSet.findFirst({ where: { id: mutation.entityId, deletedAt: null, workoutExercise: { deletedAt: null, workout: { userId, deletedAt: null } } } });
+    if (!row) return notFound(mutation, 'workout-set');
+    if (kind.endsWith('.delete')) {
+      if (mutation.baseVersion !== undefined && mutation.baseVersion !== row.version) return stale(mutation, 'workout-set', row);
+      const deleted = await tx.gymWorkoutSet.update({ where: { id: row.id }, data: { deletedAt: new Date(mutation.occurredAt), deletedByDeviceId: mutation.serverDeviceId ?? null, version: { increment: 1 } } });
+      await recordSyncChange(tx, userId, 'workout-set', deleted.id, 'DELETE', { id: deleted.id });
+      return null;
+    }
+    if (kind.endsWith('.complete')) {
+      if (mutation.baseVersion !== undefined && mutation.baseVersion !== row.version) return stale(mutation, 'workout-set', row);
+      const completed = await tx.gymWorkoutSet.update({ where: { id: row.id }, data: { completedAt: this.dateValue(payload, 'completedAt') ?? new Date(mutation.occurredAt), version: { increment: 1 } } });
+      await recordSyncChange(tx, userId, 'workout-set', completed.id, 'UPSERT', completed);
+      return null;
+    }
+    const merged = await this.resolveGranularFields(tx, userId, mutation, 'workout-set', row);
+    if (merged.resolvedPayload === null) return null;
+    return this.updateGranularWorkoutSet(tx, userId, mutation, row, merged.resolvedPayload, merged.updatedClocks);
+  }
+
+  private async updateGranularWorkoutSet(tx: Tx, userId: string, mutation: SyncMutation, row: any, payload: Record<string, unknown>, updatedClocks: Array<{ fieldName: string; editedAt: Date }>): Promise<SyncConflict | null> {
+    const data: Record<string, unknown> = {};
+    if (payload.sortOrder !== undefined) data.sortOrder = this.numberValue(payload, 'sortOrder');
+    if (payload.type !== undefined) data.type = enumValue(WorkoutSetType, payload.type, 'type');
+    for (const field of ['reps', 'weight', 'durationSeconds', 'distanceMeters', 'rpe']) if (payload[field] !== undefined) data[field] = this.numberOrNull(payload, field);
+    if (payload.completedAt !== undefined) data.completedAt = this.dateValue(payload, 'completedAt');
+    if (Object.keys(data).length === 0) return null;
+    const updated = await tx.gymWorkoutSet.update({ where: { id: row.id }, data: { ...data, version: { increment: 1 } } });
+    await this.writeGranularClocks(tx, userId, mutation, 'workout-set', updatedClocks);
+    await recordSyncChange(tx, userId, 'workout-set', updated.id, 'UPSERT', updated);
+    return null;
+  }
+
+  private async resolveGranularFields(tx: Tx, userId: string, mutation: SyncMutation, entityType: string, row: Record<string, unknown>) {
+    const fields = Object.keys(mutation.payload).filter((field) => field !== 'id' && field !== 'version');
+    const clocks = fields.length === 0 ? [] : await tx.syncFieldClock.findMany({ where: { userId, entityType, entityId: mutation.entityId, fieldName: { in: fields } } });
+    const result = this.mergeResolver.resolveMutationFields(mutation, entityType, clocks, row, mutation.serverDeviceId ?? 'server');
+    const applied = result.outcome.appliedFields;
+    if (applied.length === 0) return { resolvedPayload: null, updatedClocks: [] as Array<{ fieldName: string; editedAt: Date }> };
+    return result;
+  }
+
+  private async writeGranularClocks(tx: Tx, userId: string, mutation: SyncMutation, entityType: string, clocks: Array<{ fieldName: string; editedAt: Date }>): Promise<void> {
+    for (const clock of clocks) {
+      await tx.syncFieldClock.upsert({
+        where: { userId_entityType_entityId_fieldName: { userId, entityType, entityId: mutation.entityId, fieldName: clock.fieldName } },
+        create: { userId, entityType, entityId: mutation.entityId, fieldName: clock.fieldName, editedAt: clock.editedAt, deviceId: mutation.serverDeviceId ?? 'server', mutationId: mutation.id },
+        update: { editedAt: clock.editedAt, deviceId: mutation.serverDeviceId ?? 'server', mutationId: mutation.id },
+      });
+    }
+  }
+
+  private dateValue(payload: Record<string, unknown>, key: string): Date | null {
+    const value = payload[key];
+    if (value === undefined || value === null || value === '') return null;
+    if (typeof value !== 'string' && !(value instanceof Date)) throw new InvalidSyncMutationException(`${key} must be a date`);
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new InvalidSyncMutationException(`${key} must be a valid date`);
+    return date;
+  }
+
+  private numberValue(payload: Record<string, unknown>, key: string): number | null {
+    const value = payload[key];
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'number' || !Number.isFinite(value)) throw new InvalidSyncMutationException(`${key} must be a number`);
+    return value;
+  }
+
+  private numberOrNull(payload: Record<string, unknown>, key: string): number | null | undefined {
+    if (!Object.prototype.hasOwnProperty.call(payload, key)) return undefined;
+    const value = payload[key];
+    if (value === null || value === undefined) return value as null | undefined;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'object' && value !== null && 'toNumber' in value && typeof value.toNumber === 'function') {
+      const number = value.toNumber();
+      if (Number.isFinite(number)) return number;
+    }
+    throw new InvalidSyncMutationException(`${key} must be a number`);
+  }
+
+  private nullableString(payload: Record<string, unknown>, key: string): string | null {
+    const value = payload[key];
+    if (value === null) return null;
+    if (typeof value !== 'string') throw new InvalidSyncMutationException(`${key} must be a string`);
+    return value.trim();
+  }
+
   private async applyGymLifecycle(tx: Tx, userId: string, mutation: SyncMutation): Promise<SyncConflict | null> {
     const row = await tx.gymWorkout.findFirst({ where: { id: mutation.entityId, userId, deletedAt: null } });
     if (!row) return notFound(mutation, 'gymworkout');
     if (mutation.baseVersion !== undefined && mutation.baseVersion !== row.version) return stale(mutation, 'gymworkout', row);
-    if (mutation.kind.endsWith('.abandon')) { const deleted = await tx.gymWorkout.update({ where: { id: row.id }, data: { deletedAt: new Date(), version: { increment: 1 } } }); await recordSyncChange(tx, userId, 'gymworkout', deleted.id, 'DELETE', { id: deleted.id }); return null; }
-    const completed = await tx.gymWorkout.update({ where: { id: row.id }, data: { status: GymWorkoutStatus.COMPLETED, endedAt: mutation.payload.endedAt ? new Date(mutation.payload.endedAt as string) : new Date(), durationMinutes: typeof mutation.payload.durationMinutes === 'number' ? mutation.payload.durationMinutes : row.durationMinutes, version: { increment: 1 } } });
+    if (mutation.kind.endsWith('.abandon')) { const deleted = await tx.gymWorkout.update({ where: { id: row.id }, data: { deletedAt: new Date(), deletedByDeviceId: (mutation as any).serverDeviceId, version: { increment: 1 } } }); await recordSyncChange(tx, userId, 'gymworkout', deleted.id, 'DELETE', { id: deleted.id }); return null; }
+    const endedAt = mutation.payload.endedAt ? new Date(mutation.payload.endedAt as string) : new Date(mutation.occurredAt);
+    await tx.gymWorkoutSet.updateMany({ where: { workoutExercise: { workoutId: row.id }, completedAt: null, deletedAt: null }, data: { deletedAt: endedAt, version: { increment: 1 } } });
+    await tx.gymWorkoutExercise.updateMany({ where: { workoutId: row.id, deletedAt: null, sets: { none: { completedAt: { not: null }, deletedAt: null } } }, data: { deletedAt: endedAt, version: { increment: 1 } } });
+    const completed = await tx.gymWorkout.update({ where: { id: row.id }, data: { status: GymWorkoutStatus.COMPLETED, endedAt, durationMinutes: typeof mutation.payload.durationMinutes === 'number' ? mutation.payload.durationMinutes : row.durationMinutes, version: { increment: 1 } } });
     await recordSyncChange(tx, userId, 'gymworkout', completed.id, 'UPSERT', await this.fullWorkout(tx, completed.id));
     return null;
   }
@@ -174,9 +480,15 @@ export class PrismaSyncBudgetGym {
     }
     const row = await tx.budgetTransaction.findFirst({ where: { id: mutation.entityId, userId }, include: { categoryRel: true } });
     if (!row) return notFound(mutation, 'budgettransaction');
+    if (mutation.kind.endsWith('.restore')) {
+      if (mutation.baseVersion !== undefined && mutation.baseVersion !== row.version) return stale(mutation, 'budgettransaction', row);
+      const restored = await tx.budgetTransaction.update({ where: { id: row.id }, data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } }, include: { categoryRel: true } });
+      await recordSyncChange(tx, userId, 'budgettransaction', restored.id, 'UPSERT', restored);
+      return null;
+    }
     if (mutation.kind.endsWith('.delete')) {
       if (mutation.baseVersion !== undefined && mutation.baseVersion !== row.version) return stale(mutation, 'budgettransaction', row);
-      const deleted = await tx.budgetTransaction.update({ where: { id: row.id }, data: { deletedAt: new Date(), version: { increment: 1 } } });
+      const deleted = await tx.budgetTransaction.update({ where: { id: row.id }, data: { deletedAt: new Date(), deletedByDeviceId: (mutation as any).serverDeviceId, version: { increment: 1 } } });
       await recordSyncChange(tx, userId, 'budgettransaction', deleted.id, 'DELETE', { id: deleted.id });
       return null;
     }
@@ -208,9 +520,9 @@ export class PrismaSyncBudgetGym {
     const payload = mutation.payload;
     if (mutation.kind.endsWith('.create')) {
       assertClientId(mutation.entityId);
-      const status = payload.status === 'COMPLETED' ? GymWorkoutStatus.COMPLETED : GymWorkoutStatus.IN_PROGRESS;
-      if (status === GymWorkoutStatus.COMPLETED && !payload.endedAt) throw new InvalidSyncMutationException('endedAt is required for completed workouts');
-      if (status === GymWorkoutStatus.IN_PROGRESS && await tx.gymWorkout.findFirst({ where: { userId, status, deletedAt: null } })) {
+      if (payload.status === 'COMPLETED') throw new InvalidSyncMutationException('Workouts must be finished after creation');
+      const status = GymWorkoutStatus.IN_PROGRESS;
+      if (await tx.gymWorkout.findFirst({ where: { userId, status, deletedAt: null } })) {
         return { mutationId: mutation.id, entityType: 'gymworkout', entityId: mutation.entityId, reason: 'STALE_VERSION', serverData: null, localDraft: payload };
       }
       const row = await tx.gymWorkout.upsert({
@@ -222,8 +534,8 @@ export class PrismaSyncBudgetGym {
           source: optionalString(payload, 'source'),
           status,
           startedAt: payload.startedAt ? new Date(payload.startedAt as string) : new Date(),
-          endedAt: payload.endedAt ? new Date(payload.endedAt as string) : null,
-          durationMinutes: typeof payload.durationMinutes === 'number' ? payload.durationMinutes : null,
+          endedAt: null,
+          durationMinutes: null,
         },
         update: {},
       });
@@ -234,24 +546,27 @@ export class PrismaSyncBudgetGym {
     }
     const row = await tx.gymWorkout.findFirst({ where: { id: mutation.entityId, userId } });
     if (!row) return notFound(mutation, 'gymworkout');
+    if (payload.status !== undefined) throw new InvalidSyncMutationException('Workout status changes must use the workout lifecycle');
+    if (mutation.kind.endsWith('.restore')) {
+      if (mutation.baseVersion !== undefined && mutation.baseVersion !== row.version) return stale(mutation, 'gymworkout', row);
+      const restored = await tx.gymWorkout.update({ where: { id: row.id }, data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } } });
+      await recordSyncChange(tx, userId, 'gymworkout', restored.id, 'UPSERT', await this.fullWorkout(tx, restored.id));
+      return null;
+    }
     if (mutation.kind.endsWith('.delete')) {
       if (mutation.baseVersion !== undefined && mutation.baseVersion !== row.version) return stale(mutation, 'gymworkout', row);
-      const deleted = await tx.gymWorkout.update({ where: { id: row.id }, data: { deletedAt: new Date(), version: { increment: 1 } } });
+      const deleted = await tx.gymWorkout.update({ where: { id: row.id }, data: { deletedAt: new Date(), deletedByDeviceId: (mutation as any).serverDeviceId, version: { increment: 1 } } });
       await recordSyncChange(tx, userId, 'gymworkout', deleted.id, 'DELETE', { id: deleted.id });
       return null;
     }
     const conflict = fieldConflict(mutation, 'gymworkout', row);
     if (conflict) return conflict;
-    const status = payload.status === undefined ? row.status : payload.status === 'COMPLETED' ? GymWorkoutStatus.COMPLETED : GymWorkoutStatus.IN_PROGRESS;
-    if (status === GymWorkoutStatus.IN_PROGRESS && row.status !== GymWorkoutStatus.IN_PROGRESS && await tx.gymWorkout.findFirst({ where: { userId, status: GymWorkoutStatus.IN_PROGRESS, deletedAt: null, id: { not: row.id } } })) {
-      return { mutationId: mutation.id, entityType: 'gymworkout', entityId: row.id, reason: 'STALE_VERSION', serverData: row, localDraft: payload };
-    }
     await tx.gymWorkout.update({
       where: { id: row.id },
       data: {
         title: payload.title === undefined ? row.title : optionalString(payload, 'title'),
         source: payload.source === undefined ? row.source : optionalString(payload, 'source'),
-        status,
+        status: row.status,
         startedAt: payload.startedAt === undefined ? row.startedAt : new Date(payload.startedAt as string),
         endedAt: payload.endedAt === undefined ? row.endedAt : new Date(payload.endedAt as string),
         durationMinutes: payload.durationMinutes === undefined ? row.durationMinutes : (payload.durationMinutes as number),
@@ -269,7 +584,7 @@ export class PrismaSyncBudgetGym {
     await tx.gymWorkoutExercise.deleteMany({ where: { workoutId } });
     for (const [index, value] of raw.entries()) {
       const exercise = value as Record<string, unknown>;
-      const definition = await tx.exerciseDefinition.findFirst({ where: { id: requiredString(exercise, 'exerciseId'), userId } });
+      const definition = await tx.exerciseDefinition.findFirst({ where: { id: requiredString(exercise, 'exerciseId'), userId, deletedAt: null } });
       if (!definition) throw new InvalidSyncMutationException('Exercise definition not found');
       const created = await tx.gymWorkoutExercise.create({ data: {
         id: typeof exercise.id === 'string' ? exercise.id : createUlid(), workoutId,
@@ -292,6 +607,6 @@ export class PrismaSyncBudgetGym {
   }
 
   private fullWorkout(tx: Tx, id: string) {
-    return tx.gymWorkout.findUniqueOrThrow({ where: { id }, include: { exercises: { include: { exercise: true, sets: { orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } } } });
+    return tx.gymWorkout.findUniqueOrThrow({ where: { id }, include: { exercises: { where: { deletedAt: null }, include: { exercise: true, sets: { where: { deletedAt: null }, orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } } } });
   }
 }

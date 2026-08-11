@@ -1,5 +1,30 @@
 # Project Progress
 
+## Completed deployment: Website Activity session history
+
+- The Chromium extension now stores indefinite local Website Activity Sessions in IndexedDB, incrementally maintains daily URL/domain projections, migrates old `totals` as legacy aggregates without fabricated timestamps, and uses a durable session outbox.
+- URL normalization removes credentials, queries, and fragments while retaining paths; sessions preserve page title and Private state. The popup remains Today-first and the local dashboard provides preset/custom ranges, adaptive trends, domain composition, domain-to-URL-to-session detail, search/privacy/sync diagnostics, and local-only range/clear/reset actions.
+- The API provides DSN-authenticated, partially acknowledged session ingestion plus authenticated statistics/session reads. Stable checkpoint retries update one owned row, range aggregation uses each session's timezone, and title/Private metadata is available to Web and macOS Statistics.
+- Transient uploads stop after the initial request plus three exponential retries. FAILED rows wait for an online/user signal; permanent rejections and configuration failures are not restarted by connectivity recovery.
+- Verification passed: extension 11/11 tests; API Prisma generate/validate, typecheck, build, and 59 suites / 254 tests; Web typecheck, 43 files / 207 tests, and production build; signed macOS Debug build and focused API/Statistics 13/13 tests. The full signed macOS suite remains blocked by three pre-existing failures recorded in `latest_session_work.md`.
+- Additive migrations `20260811120000_website_activity_sessions` and `20260811130000_website_activity_session_contract` remain undeployed.
+
+## Implementation complete: Statistics, navigation, Trash, Budget, and Gym
+
+- Canonical plan: [`plans/statistics-navigation-trash-budget-gym.md`](../plans/statistics-navigation-trash-budget-gym.md), derived from the user-approved 5C implementation brief.
+- Durable checkpoint: [`agent_docs/statistics_navigation_trash_budget_gym_done_state.md`](statistics_navigation_trash_budget_gym_done_state.md). Resume there instead of reconstructing this session.
+- Completed `USAGE-FOUNDATION`: app-only legacy rows without engagement and their native watermarks are cleaned, `engagedSeconds` is uploaded and validated, app/website usage flushes through the shared ~120-second path plus lifecycle triggers, and focused/full API and signed macOS gates passed. The cleanup migration remains undeployed.
+- Completed `STATISTICS-WEB`: Engaged Time copy/coverage accessibility, a top-domain donut with `Other`, keyboard selection, and paginated URL drilldown passed focused/full Web tests, typecheck, build, and independent design review. Authenticated visual QA remains unavailable in the sandbox.
+- Completed `APP-IDENTITY`: the API stores user-scoped app identities and processed icon media; macOS hashes and uploads deterministic 64×64 PNGs with account-safe retry/coalescing; Web renders authenticated icons with the existing fallback. API, Web, and signed focused macOS verification passed; the additive identity migration remains undeployed.
+- Completed `NAV-PARITY`: Web and macOS now share the exact four-group primary navigation order, real Web Conflicts/Notifications destinations, canonical mobile reachability, native Plan-to-Inbox mapping, and drift-detecting parity tests. Web full gates and signed native parity tests passed.
+- Completed `STATISTICS-MACOS`: a native gear popover persists local display controls and hydrates/syncs tracking preferences (including idle threshold and exclusions), Statistics honors visibility/top-N/density settings, and account changes rebuild usage trackers safely. API preference tests/build and signed focused macOS settings/client tests passed; the existing usage restart timing test remains flaky.
+- Completed `GLOBAL-TRASH`: the additive API contract, Web, and macOS now unify Task, Journal, Budget Transaction, Gym Workout, and user-owned Exercise tombstones behind the global Trash filters, queued restores, and confirmed permanent deletion. Journal-local Trash navigation is removed; stale restore versions are rejected; native server Trash rows persist across offline restarts. The additive migration remains undeployed.
+- Completed `JOURNAL-STYLE`: shared token language, responsive Web inspector/editor behavior, accessible controls, and native surface/radius normalization without changing Journal Sync behavior.
+- Completed `BUDGET-PARITY`: native Overview/Transactions/Budgets/Calendar/Categories parity plus current-period hydration and restart-safe optimistic replay.
+- Completed Gym Phases 10–22: live logger UX, granular field-clock Sync, restart/reconnect-safe optimistic children, compatible compaction, completion/reopen, settings/units/timers, history, and progress on Web and macOS.
+- Phase 23 remains an explicit product exclusion: no Routine system, HealthKit, or watchOS was introduced.
+- Final gates passed for API (63 suites / 273 tests, typecheck, build), Web (47 files / 221 tests, typecheck, build, detector), and signed focused macOS Budget/Gym + OfflineStore tests. Production release still requires the undeployed migrations and manual authenticated two-device/visual acceptance recorded in the durable checkpoint.
+
 ## Implementation complete: offline-first Budget, Gym, and Journal parity
 
 - Canonical plan: [`plans/macos-budget-gym-journal-parity.md`](../plans/macos-budget-gym-journal-parity.md).

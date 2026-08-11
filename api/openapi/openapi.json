@@ -1312,6 +1312,190 @@
         ]
       }
     },
+    "/trash/journal-entries/{entryId}/restore": {
+      "post": {
+        "operationId": "TrashController_restoreJournalEntry",
+        "parameters": [
+          {
+            "name": "entryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/budget-transactions/{transactionId}/restore": {
+      "post": {
+        "operationId": "TrashController_restoreBudgetTransaction",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/gym-workouts/{workoutId}/restore": {
+      "post": {
+        "operationId": "TrashController_restoreGymWorkout",
+        "parameters": [
+          {
+            "name": "workoutId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/gym-exercises/{exerciseId}/restore": {
+      "post": {
+        "operationId": "TrashController_restoreGymExercise",
+        "parameters": [
+          {
+            "name": "exerciseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/journal-entries/{entryId}": {
+      "delete": {
+        "operationId": "TrashController_deleteJournalEntry",
+        "parameters": [
+          {
+            "name": "entryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/budget-transactions/{transactionId}": {
+      "delete": {
+        "operationId": "TrashController_deleteBudgetTransaction",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/gym-workouts/{workoutId}": {
+      "delete": {
+        "operationId": "TrashController_deleteGymWorkout",
+        "parameters": [
+          {
+            "name": "workoutId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
+    "/trash/gym-exercises/{exerciseId}": {
+      "delete": {
+        "operationId": "TrashController_deleteGymExercise",
+        "parameters": [
+          {
+            "name": "exerciseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trash"
+        ]
+      }
+    },
     "/productivity/task-lists": {
       "get": {
         "operationId": "ProductivityController_taskLists",
@@ -4808,7 +4992,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExerciseStatsResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -5044,6 +5235,70 @@
         ]
       }
     },
+    "/usage/apps": {
+      "get": {
+        "operationId": "getUsageAppIdentities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/usage/apps/{bundleId}/icon": {
+      "put": {
+        "operationId": "replaceUsageAppIcon",
+        "parameters": [
+          {
+            "name": "bundleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "displayName",
+                  "image"
+                ],
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
     "/usage/websites/summaries": {
       "get": {
         "operationId": "getWebsiteUsageSummaries",
@@ -5070,6 +5325,36 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/usage/websites/statistics": {
+      "get": {
+        "operationId": "getWebsiteActivityStatistics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/usage/websites/sessions": {
+      "get": {
+        "operationId": "getWebsiteActivitySessions",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -5146,6 +5431,31 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BrowserExtensionUsageBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/usage/websites/sessions/ingest": {
+      "post": {
+        "operationId": "ingestWebsiteActivitySessions",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebsiteActivitySessionBatchDto"
               }
             }
           }
@@ -5445,7 +5755,38 @@
       },
       "UpdateUsagePreferencesDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "trackingEnabled": {
+            "type": "boolean",
+            "description": "Enable foreground application tracking"
+          },
+          "websiteTrackingEnabled": {
+            "type": "boolean",
+            "description": "Enable browser website tracking"
+          },
+          "retentionDays": {
+            "type": "integer",
+            "description": "Number of days to retain usage summaries",
+            "minimum": 7,
+            "maximum": 365
+          },
+          "idleThresholdSeconds": {
+            "type": "integer",
+            "description": "Idle threshold in seconds before an app is no longer engaged",
+            "minimum": 60,
+            "maximum": 1800
+          },
+          "excludedBundleIds": {
+            "type": "array",
+            "description": "Bundle identifiers excluded from foreground usage tracking",
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        }
       },
       "CreateBudgetCategoryDto": {
         "type": "object",
@@ -5734,33 +6075,126 @@
           }
         }
       },
+      "ExerciseStatsSetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workoutExerciseId": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "WARM_UP",
+              "WARMUP",
+              "NORMAL",
+              "DROP",
+              "FAILURE"
+            ]
+          },
+          "reps": {
+            "type": "number",
+            "nullable": true
+          },
+          "weight": {
+            "type": "number",
+            "nullable": true
+          },
+          "durationSeconds": {
+            "type": "number",
+            "nullable": true
+          },
+          "distanceMeters": {
+            "type": "number",
+            "nullable": true
+          },
+          "rpe": {
+            "type": "number",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "performedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "workoutId": {
+            "type": "string"
+          },
+          "workoutTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "number"
+          },
+          "deletedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workoutExerciseId",
+          "sortOrder",
+          "type"
+        ]
+      },
+      "ExerciseStatsResponseDto": {
+        "type": "object",
+        "properties": {
+          "heaviestWeight": {
+            "type": "number",
+            "nullable": true
+          },
+          "bestVolumeSet": {
+            "type": "number",
+            "nullable": true
+          },
+          "estimated1RM": {
+            "type": "number",
+            "nullable": true
+          },
+          "totalSets": {
+            "type": "number"
+          },
+          "lastPerformedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "recentSets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExerciseStatsSetDto"
+            }
+          }
+        },
+        "required": [
+          "totalSets",
+          "recentSets"
+        ]
+      },
       "CreateWorkoutDto": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "description": "Client-generated workout ID (ULID)"
+          },
           "title": {
             "type": "string",
             "description": "Workout title"
-          },
-          "startedAt": {
-            "type": "string",
-            "description": "ISO date string of start time"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "IN_PROGRESS",
-              "ACTIVE",
-              "COMPLETED"
-            ],
-            "default": "IN_PROGRESS"
-          },
-          "endedAt": {
-            "type": "string",
-            "description": "ISO date string of end time"
-          },
-          "durationMinutes": {
-            "type": "number",
-            "description": "Duration in minutes"
           },
           "exercises": {
             "description": "Workout exercises",
@@ -5785,6 +6219,7 @@
           "type": {
             "type": "string",
             "enum": [
+              "WARM_UP",
               "WARMUP",
               "NORMAL",
               "DROP",
@@ -5810,6 +6245,12 @@
           "rpe": {
             "type": "number",
             "description": "Rate of Perceived Exertion (RPE 1-10)"
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "ISO date string when this set was completed",
+            "format": "date-time",
+            "nullable": true
           }
         }
       },
@@ -5867,14 +6308,6 @@
             "type": "number",
             "description": "Duration in minutes"
           },
-          "status": {
-            "type": "string",
-            "enum": [
-              "IN_PROGRESS",
-              "ACTIVE",
-              "COMPLETED"
-            ]
-          },
           "exercises": {
             "description": "Workout exercises",
             "type": "array",
@@ -5893,6 +6326,10 @@
         "properties": {}
       },
       "BrowserExtensionUsageBatchDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "WebsiteActivitySessionBatchDto": {
         "type": "object",
         "properties": {}
       }

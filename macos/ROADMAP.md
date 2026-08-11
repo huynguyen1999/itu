@@ -311,15 +311,17 @@ Verification: signed Debug build and the full test suite passed, including
 focused `UsageTrackingTests` (9/9); the former Observation macro environment
 blocker did not recur.
 
-### Chromium Browser Integration core — 2026-08-09
+### Chromium Website Activity sessions — 2026-08-11
 
-The dependency-free Manifest V3 extension sends cumulative URL-level summaries
-directly to the backend through a rotatable, hash-only DSN credential. Normal and
-InPrivate activity is grouped by hostname in Statistics with URL drill-down; privileged schemes are excluded. The
-extension no longer requests or uses native messaging; the native host target
-remains only for compatibility. Extension tests (6/6), API tests (53 suites/216 tests), web tests (35 files/179
-tests), and production builds pass. Migration deployment and live Edge acceptance
-remain.
+The dependency-free Manifest V3 extension stores durable local Website Activity
+Sessions in IndexedDB and uploads them through a rotatable, hash-only DSN
+credential. Normal and Private activity remains distinct through exact
+domain-to-URL-to-session drill-down, including titles and visit times, while URL
+queries, fragments, and credentials are discarded. macOS Statistics consumes the
+server session contract with title fallback and Private filtering. Extension tests
+(11/11), API tests (59 suites/254 tests), signed macOS build, and focused native
+API/Statistics tests (13/13) pass. The additive session migrations remain
+undeployed; live Edge acceptance remains.
 
 ### Budget, Gym, and Journal parity deployment handoff — 2026-08-10
 
@@ -328,8 +330,8 @@ This is not a production-deployment claim.
 
 - [x] Keep Budget Transactions and Gym Workouts in standalone storage and
   application boundaries rather than Journal persistence.
-- [x] Support Gym `IN_PROGRESS`/`COMPLETED`, active-to-completed transitions,
-  and direct historical completed creation while another Workout is active.
+- [x] Support Gym `IN_PROGRESS`/`COMPLETED` and active-to-completed
+  transitions; reject direct historical completed creation.
 - [x] Match Web and macOS offline-first outbox/SYNC behavior for Budget, Gym,
   and retained Journal Notes/Weekly Reviews, including restart/reconnect
   reconciliation and visible conflicts.

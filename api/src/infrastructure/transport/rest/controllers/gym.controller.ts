@@ -24,10 +24,23 @@ import {
   UpdateExerciseDto,
   CreateWorkoutDto,
   UpdateWorkoutDto,
+  UpdateWorkoutExerciseDto,
+  ExerciseStatsResponseDto,
 } from '../dto/gym.dto';
+import { ApiOkResponse } from '@nestjs/swagger';
 import type { AuthenticatedMultipartRequest, AuthenticatedRequest } from '../types/authenticated-request';
 import { createUlid } from '../../../../core/application/ulid';
 import type { FastifyReply } from 'fastify';
+
+function normalizeWorkoutExercises(exercises: UpdateWorkoutExerciseDto[] | undefined) {
+  return exercises?.map((exercise) => ({
+    ...exercise,
+    sets: exercise.sets?.map((set) => ({
+      ...set,
+      completedAt: set.completedAt === undefined || set.completedAt === null ? set.completedAt : new Date(set.completedAt),
+    })),
+  }));
+}
 
 @UseGuards(AuthGuard)
 @Controller(REST_ROUTES.gym)
@@ -78,7 +91,12 @@ export class GymController {
     const buffer = await upload.toBuffer();
     await this.mediaStorage.storeRawBuffer(storageKey, buffer);
     const imageUrl = `/gym/exercises/${id}/image`;
-    return this.gymService.updateExerciseImage(req.user.sub, id, storageKey, imageUrl);
+    try {
+      return await this.gymService.updateExerciseImage(req.user.sub, id, storageKey, imageUrl);
+    } catch (error) {
+      await this.mediaStorage.delete(storageKey).catch(() => undefined);
+      throw error;
+    }
   }
 
   @Get('exercises/:id/image')
@@ -98,6 +116,7 @@ export class GymController {
   }
 
   @Get('exercises/:id/stats')
+  @ApiOkResponse({ type: ExerciseStatsResponseDto })
   getExerciseStats(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.gymService.getExerciseStats(req.user.sub, id);
   }
@@ -112,11 +131,9 @@ export class GymController {
 
   @Post('workouts')
   createWorkout(@Req() req: AuthenticatedRequest, @Body() dto: CreateWorkoutDto) {
-    if (dto.status === 'COMPLETED' && !dto.endedAt) throw new BadRequestException('endedAt is required for completed workouts');
     return this.gymService.createWorkout(req.user.sub, {
       ...dto,
-      startedAt: dto.startedAt ? new Date(dto.startedAt) : undefined,
-      endedAt: dto.endedAt ? new Date(dto.endedAt) : undefined,
+      exercises: normalizeWorkoutExercises(dto.exercises),
     });
   }
 
@@ -133,6 +150,7 @@ export class GymController {
       ...dto,
       startedAt: dto.startedAt ? new Date(dto.startedAt) : undefined,
       endedAt: dto.endedAt ? new Date(dto.endedAt) : undefined,
+      exercises: normalizeWorkoutExercises(dto.exercises),
     });
   }
 

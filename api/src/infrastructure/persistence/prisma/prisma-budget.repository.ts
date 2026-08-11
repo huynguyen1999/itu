@@ -75,6 +75,7 @@ export class PrismaBudgetRepository implements IBudgetRepositoryPort {
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
       deletedAt: e.deletedAt || null,
+      deletedByDeviceId: e.deletedByDeviceId || null,
     };
   }
 
@@ -345,10 +346,11 @@ export class PrismaBudgetRepository implements IBudgetRepositoryPort {
   }
 
   async deleteTransaction(userId: string, id: string): Promise<void> {
-    await this.prisma.budgetTransaction.update({
-      where: { id },
+    const result = await this.prisma.budgetTransaction.updateMany({
+      where: { id, userId, deletedAt: null },
       data: { deletedAt: new Date(), version: { increment: 1 } },
     });
+    if (result.count === 0) throw new Error(`Transaction ${id} not found`);
     await this.prisma.$transaction(async (tx) => recordSyncChange(tx, userId, 'budgettransaction', id, 'DELETE', { id }));
   }
 

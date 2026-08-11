@@ -1,12 +1,14 @@
 import { Inject, Module, OnModuleDestroy, OnModuleInit, Injectable } from '@nestjs/common';
 import { AuthModule } from '@features/auth/auth.module';
 import { PersistenceModule } from '@infrastructure/persistence/persistence.module';
+import { MediaModule } from '@infrastructure/media/media.module';
 import { UsageService } from '@core/application/use-cases/usage.service';
 import { TOKENS } from '@core/application/constants/tokens';
 import type { ILogger } from '@core/application/ports/out/services.port';
 import {
   BrowserExtensionUsageController,
   UsageController,
+  UsageAppController,
   WebsiteUsageController,
 } from '@infrastructure/transport/rest/controllers/usage.controller';
 import { BrowserExtensionDsnGuard } from '@infrastructure/transport/rest/guards/browser-extension-dsn.guard';
@@ -43,8 +45,8 @@ class UsageRetentionScheduler implements OnModuleInit, OnModuleDestroy {
 }
 
 @Module({
-  imports: [AuthModule, PersistenceModule],
-  controllers: [UsageController, WebsiteUsageController, BrowserExtensionUsageController],
+  imports: [AuthModule, PersistenceModule, MediaModule],
+  controllers: [UsageController, UsageAppController, WebsiteUsageController, BrowserExtensionUsageController],
   providers: [UsageService, UsageRetentionScheduler, BrowserExtensionDsnGuard],
 })
 export class UsageModule {}

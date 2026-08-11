@@ -1,8 +1,14 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, Optional } from '@nestjs/common';
 import { USAGE_CONSTANTS } from '@core/application/constants/app.constants';
 import { TOKENS } from '@core/application/constants/tokens';
-import type { IUsageRepository, WebsiteUsageSummaryWrite } from '@core/application/ports/out/repositories.port';
+import type {
+  IUsageRepository,
+  UsageAppIdentityWrite,
+  WebsiteActivitySessionWrite,
+  WebsiteUsageSummaryWrite,
+} from '@core/application/ports/out/repositories.port';
+import type { IMediaStorage } from '@core/application/ports/out/services.port';
 import { DEFAULT_USAGE_PREFERENCES } from './preferences.service';
 
 export interface UsageSummaryInput {
@@ -30,6 +36,32 @@ export interface BrowserExtensionUsageBatchInput {
   summaries: WebsiteUsageSummaryInput[];
 }
 
+export interface WebsiteActivitySessionInput {
+  id: string;
+  startedAt: string;
+  endedAt: string;
+  browserBundleId: string;
+  browserDisplayName: string;
+  hostname: string;
+  url: string;
+  pageTitle?: string | null;
+  isPrivate: boolean;
+  timezone: string;
+}
+
+export interface WebsiteActivitySessionBatchInput {
+  installationId: string;
+  sessions: WebsiteActivitySessionInput[];
+}
+
+export interface UsageAppIconInput {
+  bundleId: string;
+  displayName: string;
+  originalName: string;
+  mimeType: string;
+  buffer: Buffer;
+}
+
 const MAX_BATCH_SIZE = USAGE_CONSTANTS.maxBatchSize;
 const MAX_ACTIVE_SECONDS = USAGE_CONSTANTS.maxActiveSeconds;
 
@@ -44,6 +76,17 @@ function parseDate(value: string, field: string): Date {
 
 function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function localDateFor(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function nextDay(date: Date): Date {
@@ -78,7 +121,10 @@ function validateWebsiteRange(start: Date, end: Date): void {
 
 @Injectable()
 export class UsageService {
-  constructor(@Inject(TOKENS.USAGE_REPOSITORY) private readonly usage: IUsageRepository) {}
+  constructor(
+    @Inject(TOKENS.USAGE_REPOSITORY) private readonly usage: IUsageRepository,
+    @Optional() @Inject(TOKENS.MEDIA_STORAGE) private readonly media?: IMediaStorage,
+  ) {}
 
   async getSummaries(userId: string, from?: string, to?: string) {
     const today = new Date();
@@ -99,15 +145,38 @@ export class UsageService {
     const daily = new Map<string, { activeSeconds: number; engagedSeconds: number; hasEngaged: boolean }>();
     const dailyApps = new Map<
       string,
-      { localDate: string; bundleId: string; displayName: string; activeSeconds: number; engagedSeconds: number; hasEngaged: boolean }
+      {
+        localDate: string;
+        bundleId: string;
+        displayName: string;
+        activeSeconds: number;
+        engagedSeconds: number;
+        hasEngaged: boolean;
+      }
     >();
     const apps = new Map<
       string,
-      { bundleId: string; displayName: string; activeSeconds: number; engagedSeconds: number; hasEngaged: boolean }
+      {
+        bundleId: string;
+        displayName: string;
+        activeSeconds: number;
+        engagedSeconds: number;
+        hasEngaged: boolean;
+        iconHash?: string | null;
+        iconStorageKey?: string | null;
+      }
     >();
     const hourlyApps = new Map<
       string,
-      { localDate: string; hour: number; bundleId: string; displayName: string; activeSeconds: number; engagedSeconds: number; hasEngaged: boolean }
+      {
+        localDate: string;
+        hour: number;
+        bundleId: string;
+        displayName: string;
+        activeSeconds: number;
+        engagedSeconds: number;
+        hasEngaged: boolean;
+      }
     >();
 
     let totalActiveSeconds = 0;
@@ -141,6 +210,8 @@ export class UsageService {
         activeSeconds: 0,
         engagedSeconds: 0,
         hasEngaged: false,
+        iconHash: row.iconHash,
+        iconStorageKey: row.iconStorageKey,
       };
       dailyApp.activeSeconds += row.activeSeconds;
       if (hasEngaged) {
@@ -181,6 +252,8 @@ export class UsageService {
         app.hasEngaged = true;
       }
       if (!app.displayName && row.displayName) app.displayName = row.displayName;
+      if (!app.iconHash && row.iconHash) app.iconHash = row.iconHash;
+      if (!app.iconStorageKey && row.iconStorageKey) app.iconStorageKey = row.iconStorageKey;
       apps.set(row.bundleId, app);
     }
 
@@ -204,7 +277,8 @@ export class UsageService {
           bundleId: a.bundleId,
           displayName: a.displayName,
           activeSeconds: a.activeSeconds,
-          engagedSeconds: a.hasEngaged ? a.engagedSeconds : undefined,
+          ...(a.hasEngaged ? { engagedSeconds: a.engagedSeconds } : {}),
+          ...this.iconResponse(a.iconHash, a.iconStorageKey),
         })),
       daily: [...daily.entries()].map(([localDate, val]) => ({
         localDate,
@@ -226,6 +300,74 @@ export class UsageService {
         activeSeconds: a.activeSeconds,
         engagedSeconds: a.hasEngaged ? a.engagedSeconds : undefined,
       })),
+    };
+  }
+
+  async getAppIdentities(userId: string) {
+    const identities = await this.usage.listAppIdentities(userId);
+    return identities.map((identity) => ({
+      bundleId: identity.bundleId,
+      displayName: identity.displayName,
+      ...this.iconResponse(identity.iconHash, identity.iconStorageKey),
+    }));
+  }
+
+  async replaceAppIcon(userId: string, input: UsageAppIconInput) {
+    const bundleId = requireText(input.bundleId, 'bundleId');
+    const displayName = requireText(input.displayName, 'displayName').trim();
+    if (!displayName) throw new BadRequestException('displayName is required and must be at most 255 characters');
+    if (!this.media) throw new Error('Media storage is not configured');
+
+    const hash = createHash('sha256').update(input.buffer).digest('hex');
+    const existing = await this.usage.findAppIdentity(userId, bundleId);
+    if (existing?.iconHash === hash && existing.iconStorageKey) {
+      const identity = await this.usage.upsertAppIdentity(userId, {
+        bundleId,
+        displayName,
+        iconHash: hash,
+        iconStorageKey: existing.iconStorageKey,
+      });
+      return {
+        bundleId: identity.bundleId,
+        displayName: identity.displayName,
+        ...this.iconResponse(identity.iconHash, identity.iconStorageKey),
+      };
+    }
+
+    const stored = await this.media.storeUserImage({
+      userId,
+      folder: 'usage-app-icons',
+      originalName: input.originalName,
+      mimeType: input.mimeType,
+      buffer: input.buffer,
+    });
+    const write: UsageAppIdentityWrite = {
+      bundleId,
+      displayName,
+      iconHash: hash,
+      iconStorageKey: stored.storageKey,
+    };
+    let identity;
+    try {
+      identity = await this.usage.upsertAppIdentity(userId, write);
+    } catch (error) {
+      await this.media.delete(stored.storageKey).catch(() => undefined);
+      throw error;
+    }
+    if (existing?.iconStorageKey && existing.iconStorageKey !== stored.storageKey) {
+      await this.media.delete(existing.iconStorageKey).catch(() => undefined);
+    }
+    return {
+      bundleId: identity.bundleId,
+      displayName: identity.displayName,
+      ...this.iconResponse(identity.iconHash, identity.iconStorageKey),
+    };
+  }
+
+  private iconResponse(iconHash?: string | null, iconStorageKey?: string | null) {
+    return {
+      ...(iconHash ? { iconHash } : {}),
+      ...(iconStorageKey ? { iconUrl: `/media/${iconStorageKey}` } : {}),
     };
   }
 
@@ -335,14 +477,161 @@ export class UsageService {
     };
   }
 
-  async getWebsiteUrls(
-    userId: string,
-    hostname: string,
-    from?: string,
-    to?: string,
-    limit = 100,
-    offset = 0,
-  ) {
+  async ingestWebsiteActivitySessions(userId: string, input: WebsiteActivitySessionBatchInput) {
+    if (!input || typeof input.installationId !== 'string' || !Array.isArray(input.sessions)) {
+      throw new BadRequestException('installationId and sessions are required');
+    }
+    if (input.installationId.length === 0 || input.installationId.length > 128) {
+      throw new BadRequestException('installationId must be at most 128 characters');
+    }
+    if (input.sessions.length > MAX_BATCH_SIZE) {
+      throw new BadRequestException(`sessions must contain at most ${MAX_BATCH_SIZE} entries`);
+    }
+    try {
+      await this.usage.ensureBrowserExtensionDevice(userId, input.installationId);
+    } catch {
+      throw new ForbiddenException('Website installation does not belong to this user');
+    }
+    const preferences = await this.usage.getTrackingPreferences(userId);
+    if (!preferences.trackingEnabled || !preferences.websiteTrackingEnabled) {
+      return {
+        accepted: [],
+        rejected: input.sessions.map((session) => ({ id: session.id, reason: 'tracking_disabled' })),
+      };
+    }
+
+    const acceptedWrites = new Map<string, WebsiteActivitySessionWrite>();
+    const rejected: Array<{ id: string; reason: string }> = [];
+    for (const session of input.sessions) {
+      const id = typeof session?.id === 'string' ? session.id : '';
+      try {
+        if (!id || id.length > 128) throw new Error('id is required and must be at most 128 characters');
+        if (acceptedWrites.has(id)) throw new Error('duplicate session id');
+        const startedAt = parseInstant(session.startedAt, 'startedAt');
+        const endedAt = parseInstant(session.endedAt, 'endedAt');
+        const activeSeconds = Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000);
+        if (activeSeconds <= 0 || activeSeconds > MAX_ACTIVE_SECONDS) {
+          throw new Error('session duration must be between 1 and 86400 seconds');
+        }
+        const browserBundleId = requireText(session.browserBundleId, 'browserBundleId');
+        const browserDisplayName = requireText(session.browserDisplayName, 'browserDisplayName');
+        const hostname = normalizeHostname(session.hostname);
+        const url = normalizeActivityUrl(session.url, hostname);
+        const pageTitle = sanitizePageTitle(session.pageTitle);
+        const timezone = requireTimezone(session.timezone);
+        if (typeof session.isPrivate !== 'boolean') throw new Error('isPrivate must be a boolean');
+        acceptedWrites.set(id, {
+          id,
+          installationId: input.installationId,
+          browserBundleId,
+          browserDisplayName,
+          startedAt,
+          endedAt,
+          activeSeconds,
+          hostname,
+          url,
+          pageTitle,
+          isPrivate: session.isPrivate,
+          timezone,
+        });
+      } catch (error) {
+        rejected.push({ id, reason: error instanceof Error ? error.message : 'invalid session' });
+      }
+    }
+    const accepted = await this.usage.ingestWebsiteActivitySessions(userId, [...acceptedWrites.values()]);
+    return { accepted, rejected };
+  }
+
+  async getWebsiteStatistics(userId: string, from?: string, to?: string) {
+    const preferences = await this.usage.getTrackingPreferences(userId);
+    if (!preferences.trackingEnabled || !preferences.websiteTrackingEnabled) {
+      throw new ForbiddenException('Website tracking authorization is required');
+    }
+    const { start, end } = this.websiteDateRange(preferences.retentionDays, from, to);
+    const candidates = await this.usage.findWebsiteActivitySessions(
+      userId,
+      new Date(start.getTime() - 86_400_000),
+      new Date(nextDay(end).getTime() + 86_400_000),
+    );
+    const rows = candidates
+      .map((row) => ({ ...row, localDate: localDateFor(row.startedAt, row.timezone) }))
+      .filter((row) => row.localDate >= dateKey(start) && row.localDate <= dateKey(end));
+    const byHostname = new Map<string, number>();
+    const byUrl = new Map<string, {
+      url: string;
+      hostname: string;
+      activeSeconds: number;
+      latestTitle: string | null;
+      latestAt: number;
+      isPrivate: boolean;
+    }>();
+    const daily = new Map<string, number>();
+    for (const row of rows) {
+      byHostname.set(row.hostname, (byHostname.get(row.hostname) ?? 0) + row.activeSeconds);
+      daily.set(row.localDate, (daily.get(row.localDate) ?? 0) + row.activeSeconds);
+      if (row.url) {
+        const key = `${row.isPrivate ? 'private' : 'public'}\u0000${row.url}`;
+        const detail = byUrl.get(key) ?? {
+          url: row.url,
+          hostname: row.hostname,
+          activeSeconds: 0,
+          latestTitle: null,
+          latestAt: 0,
+          isPrivate: row.isPrivate,
+        };
+        detail.activeSeconds += row.activeSeconds;
+        detail.isPrivate = detail.isPrivate || row.isPrivate;
+        const at = row.endedAt.getTime();
+        if (at >= detail.latestAt && (row.pageTitle !== null || detail.latestTitle === null)) {
+          detail.latestAt = at;
+          detail.latestTitle = row.pageTitle;
+        }
+        byUrl.set(key, detail);
+      }
+    }
+    const hostnames = [...byHostname.entries()]
+      .map(([hostname, activeSeconds]) => ({ hostname, activeSeconds }))
+      .sort((a, b) => b.activeSeconds - a.activeSeconds);
+    return {
+      from: dateKey(start),
+      to: dateKey(end),
+      totalActiveSeconds: rows.reduce((sum, row) => sum + row.activeSeconds, 0),
+      hostnames,
+      topHostnames: hostnames.slice(0, 10),
+      urlDetails: [...byUrl.values()]
+        .sort((a, b) => b.activeSeconds - a.activeSeconds)
+        .map(({ latestAt: _latestAt, ...detail }) => detail),
+      daily: [...daily.entries()].map(([localDate, activeSeconds]) => ({ localDate, activeSeconds })),
+      sessions: rows.map((row) => ({
+        id: row.id,
+        installationId: row.installationId,
+        browserBundleId: row.browserBundleId,
+        browserDisplayName: row.browserDisplayName,
+        startedAt: row.startedAt.toISOString(),
+        endedAt: row.endedAt.toISOString(),
+        activeSeconds: row.activeSeconds,
+        hostname: row.hostname,
+        localDate: row.localDate,
+        url: row.url,
+        pageTitle: row.pageTitle,
+        isPrivate: row.isPrivate,
+        timezone: row.timezone,
+        createdAt: row.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  private websiteDateRange(retentionDays: number, from?: string, to?: string) {
+    const today = new Date();
+    const defaultTo = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    const defaultFrom = new Date(defaultTo.getTime() - (retentionDays - 1) * 86_400_000);
+    const start = from ? parseDate(from, 'from') : defaultFrom;
+    const end = to ? parseDate(to, 'to') : defaultTo;
+    validateWebsiteRange(start, end);
+    return { start, end };
+  }
+
+  async getWebsiteUrls(userId: string, hostname: string, from?: string, to?: string, limit = 100, offset = 0) {
     const preferences = await this.usage.getTrackingPreferences(userId);
     if (!preferences.trackingEnabled || !preferences.websiteTrackingEnabled) {
       throw new ForbiddenException('Website tracking authorization is required');
@@ -486,6 +775,40 @@ function normalizeWebsiteUrl(value: unknown, hostname: string): string | null {
   } catch {
     throw new BadRequestException('url must be a valid HTTP(S) URL matching hostname');
   }
+}
+
+function parseInstant(value: unknown, field: string): Date {
+  if (typeof value !== 'string' || !value || Number.isNaN(Date.parse(value))) {
+    throw new Error(`${field} must be a valid ISO timestamp`);
+  }
+  return new Date(value);
+}
+
+function normalizeActivityUrl(value: unknown, hostname: string): string {
+  if (value === undefined || value === null) throw new Error('url is required');
+  if (typeof value !== 'string' || value.length === 0 || value.length > 2048) {
+    throw new Error('url must be a valid HTTP(S) URL at most 2048 characters');
+  }
+  try {
+    const url = new URL(value);
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || normalizeHostname(url.hostname) !== hostname) {
+      throw new Error('invalid URL');
+    }
+    url.hash = '';
+    url.search = '';
+    url.username = '';
+    url.password = '';
+    return url.toString();
+  } catch {
+    throw new Error('url must be a valid HTTP(S) URL matching hostname');
+  }
+}
+
+function sanitizePageTitle(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string' || value.length > 512) throw new Error('pageTitle must be at most 512 characters');
+  const sanitized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  return sanitized || null;
 }
 
 function requireText(value: unknown, field: string): string {

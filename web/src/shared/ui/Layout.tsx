@@ -25,16 +25,9 @@ import {
   BookOpen,
   WalletCards,
   Dumbbell,
+  type LucideIcon,
 } from 'lucide-react';
-import {
-  CSSProperties,
-  DragEvent as ReactDragEvent,
-  PointerEvent as ReactPointerEvent,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { CSSProperties, PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
@@ -56,46 +49,72 @@ import { useSync } from '../sync/SyncProvider';
 import type { ClientSyncMutation, SyncState } from '../sync/syncQueue';
 
 const SYNCING_STATUS_DELAY_MS = 200;
-const WORKSPACE_NAVIGATION_ORDER_KEY = 'itu.workspace-navigation-order';
+export type WorkspaceNavigationEntry = {
+  id: string;
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end: boolean;
+};
 
-export const workspaceNavigation = [
-  { to: '/', label: 'Home', icon: Home, end: true },
-  { to: '/plan', label: 'Plan', icon: CheckSquare2, end: false },
-  { to: '/matrix', label: 'Matrix', icon: Grid2X2, end: false },
-  { to: '/focus', label: 'Focus', icon: Focus, end: false },
-  { to: '/habits', label: 'Habits', icon: Repeat2, end: false },
-  { to: '/statistics', label: 'Statistics', icon: BarChart3, end: false },
-  { to: '/budget', label: 'Budget', icon: WalletCards, end: false },
-  { to: '/gym', label: 'Gym', icon: Dumbbell, end: false },
-  { to: '/journal', label: 'Journal', icon: BookOpen, end: false },
-  { to: '/learn', label: 'Learn', icon: Brain, end: false },
-  { to: '/growth', label: 'Growth', icon: Sprout, end: false },
-  { to: '/trash', label: 'Trash', icon: Trash2, end: false },
+export type WorkspaceNavigationGroup = {
+  id: string;
+  title: string;
+  entries: readonly WorkspaceNavigationEntry[];
+};
+
+export const workspaceNavigationGroups: readonly WorkspaceNavigationGroup[] = [
+  {
+    id: 'productivity',
+    title: 'Productivity',
+    entries: [
+      { id: 'home', to: '/', label: 'Home', icon: Home, end: true },
+      { id: 'plan', to: '/plan', label: 'Plan', icon: CheckSquare2, end: false },
+      { id: 'matrix', to: '/matrix', label: 'Matrix', icon: Grid2X2, end: false },
+      { id: 'focus', to: '/focus', label: 'Focus', icon: Focus, end: false },
+    ],
+  },
+  {
+    id: 'tracking',
+    title: 'Tracking',
+    entries: [
+      { id: 'habits', to: '/habits', label: 'Habits', icon: Repeat2, end: false },
+      { id: 'statistics', to: '/statistics', label: 'Statistics', icon: BarChart3, end: false },
+      { id: 'budget', to: '/budget', label: 'Budget', icon: WalletCards, end: false },
+      { id: 'gym', to: '/gym', label: 'Gym', icon: Dumbbell, end: false },
+    ],
+  },
+  {
+    id: 'knowledge',
+    title: 'Knowledge',
+    entries: [
+      { id: 'journal', to: '/journal', label: 'Journal', icon: BookOpen, end: false },
+      { id: 'learn', to: '/learn', label: 'Learn', icon: Brain, end: false },
+      { id: 'growth', to: '/growth', label: 'Growth', icon: Sprout, end: false },
+    ],
+  },
+  {
+    id: 'system',
+    title: 'System',
+    entries: [
+      { id: 'conflicts', to: '/conflicts', label: 'Conflicts', icon: TriangleAlert, end: false },
+      { id: 'notifications', to: '/notifications', label: 'Notifications', icon: Bell, end: false },
+      { id: 'trash', to: '/trash', label: 'Trash', icon: Trash2, end: false },
+      { id: 'profile', to: '/profile', label: 'Profile', icon: User, end: false },
+      { id: 'settings', to: '/settings', label: 'Settings', icon: Settings, end: false },
+    ],
+  },
 ] as const;
 
-type WorkspaceNavigationItem = (typeof workspaceNavigation)[number];
-type WorkspaceNavigationDropPosition = 'before' | 'after';
+export const workspaceNavigation: readonly WorkspaceNavigationEntry[] = workspaceNavigationGroups.flatMap(
+  (group) => group.entries,
+);
 
 const planningNavigation = [
   { to: '/inbox', label: 'Inbox', icon: Inbox, end: false },
   { to: '/plan/today', label: 'Today', icon: CalendarDays, end: false },
   { to: '/upcoming', label: 'Next 7 Days', icon: CircleDot, end: false },
 ] as const;
-
-const CORE_PRODUCTIVITY_PATHS = new Set(['/', '/plan', '/matrix', '/focus']);
-const TRACKING_PATHS = new Set(['/habits', '/statistics', '/budget', '/gym']);
-
-function groupWorkspaceNavigation(items: readonly WorkspaceNavigationItem[]) {
-  const productivity = items.filter((item) => CORE_PRODUCTIVITY_PATHS.has(item.to));
-  const tracking = items.filter((item) => TRACKING_PATHS.has(item.to));
-  const knowledge = items.filter((item) => !CORE_PRODUCTIVITY_PATHS.has(item.to) && !TRACKING_PATHS.has(item.to));
-
-  return [
-    { title: 'Productivity', items: productivity },
-    { title: 'Tracking', items: tracking },
-    { title: 'Knowledge', items: knowledge },
-  ].filter((group) => group.items.length > 0);
-}
 
 export function Layout({
   planningSidebar,
@@ -108,12 +127,7 @@ export function Layout({
   const theme = useTheme();
   const location = useLocation();
   const [railWidth, setRailWidth] = useStoredNumber('itu.app-rail-width', 236);
-  const [orderedWorkspaceNavigation, setOrderedWorkspaceNavigation] = useStoredWorkspaceNavigation();
-  const [draggedWorkspaceNavigationItem, setDraggedWorkspaceNavigationItem] = useState<string | null>(null);
-  const [workspaceNavigationDropTarget, setWorkspaceNavigationDropTarget] = useState<{
-    to: string;
-    position: WorkspaceNavigationDropPosition;
-  } | null>(null);
+  const orderedWorkspaceNavigation = workspaceNavigation;
   const railCompact = railWidth < 132;
   const userLabel = auth.user?.displayName || auth.user?.email || 'Profile';
   const ThemeIcon = theme.theme === 'dark' ? Sun : Moon;
@@ -160,32 +174,6 @@ export function Layout({
     window.addEventListener('pointerup', finish, { once: true });
   }
 
-  function moveWorkspaceNavigationItem(targetTo: string, position: WorkspaceNavigationDropPosition) {
-    if (!draggedWorkspaceNavigationItem || draggedWorkspaceNavigationItem === targetTo) return;
-    setOrderedWorkspaceNavigation((items) =>
-      reorderWorkspaceNavigation(items, draggedWorkspaceNavigationItem, targetTo, position),
-    );
-  }
-
-  function handleWorkspaceNavigationDragStart(event: ReactDragEvent<HTMLElement>, item: WorkspaceNavigationItem) {
-    setDraggedWorkspaceNavigationItem(item.to);
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', item.to);
-  }
-
-  function handleWorkspaceNavigationDragOver(event: ReactDragEvent<HTMLElement>, targetTo: string) {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-    setWorkspaceNavigationDropTarget(
-      draggedWorkspaceNavigationItem && draggedWorkspaceNavigationItem !== targetTo
-        ? {
-            to: targetTo,
-            position: getWorkspaceNavigationDropPosition(event.currentTarget.getBoundingClientRect(), event.clientY),
-          }
-        : null,
-    );
-  }
-
   return (
     <div className="itu-app-shell min-h-screen md:flex">
       <a
@@ -202,47 +190,17 @@ export function Layout({
           <Brand compact={railCompact} />
         </div>
 
-        <nav
-          className="itu-app-rail__nav space-y-3"
-          aria-label="Primary navigation"
-          onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-              setWorkspaceNavigationDropTarget(null);
-            }
-          }}
-        >
-          {groupWorkspaceNavigation(orderedWorkspaceNavigation).map((group) => (
-            <div key={group.title} className="itu-app-rail__group">
+        <nav className="itu-app-rail__nav space-y-3" aria-label="Primary navigation">
+          {workspaceNavigationGroups.map((group) => (
+            <div key={group.id} className="itu-app-rail__group">
               {!railCompact && (
                 <div className="px-3 pb-1 text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground/60 select-none">
                   {group.title}
                 </div>
               )}
               <div className="space-y-0.5">
-                {group.items.map((item) => (
-                  <div
-                    key={item.to}
-                    className={`itu-primary-nav-item${draggedWorkspaceNavigationItem === item.to ? ' is-dragging' : ''}${
-                      workspaceNavigationDropTarget?.to === item.to
-                        ? ` is-drop-target is-drop-target-${workspaceNavigationDropTarget.position}`
-                        : ''
-                    }`}
-                    draggable
-                    onDragStart={(event) => handleWorkspaceNavigationDragStart(event, item)}
-                    onDragOver={(event) => handleWorkspaceNavigationDragOver(event, item.to)}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      moveWorkspaceNavigationItem(
-                        item.to,
-                        getWorkspaceNavigationDropPosition(event.currentTarget.getBoundingClientRect(), event.clientY),
-                      );
-                      setWorkspaceNavigationDropTarget(null);
-                    }}
-                    onDragEnd={() => {
-                      setDraggedWorkspaceNavigationItem(null);
-                      setWorkspaceNavigationDropTarget(null);
-                    }}
-                  >
+                {group.entries.map((item) => (
+                  <div key={item.id} className="itu-primary-nav-item">
                     <NavigationLink {...item} />
                   </div>
                 ))}
@@ -254,7 +212,12 @@ export function Layout({
         <div className="itu-app-rail__footer">
           <SyncStatus compact={railCompact} />
           <NotificationMenu />
-          <AccountMenu userLabel={userLabel} account={growth.data?.account} compact={railCompact} onLogout={auth.logout} />
+          <AccountMenu
+            userLabel={userLabel}
+            account={growth.data?.account}
+            compact={railCompact}
+            onLogout={auth.logout}
+          />
         </div>
         <button
           className="itu-app-rail__resizer hidden md:block"
@@ -305,9 +268,10 @@ export function Layout({
                 key={item.to}
                 to={item.to}
                 end={item.end}
-                className={({ isActive }) =>
+                aria-current={isNavigationEntryActive(item.id, location.pathname) ? 'page' : undefined}
+                className={() =>
                   `flex min-h-12 min-w-12 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                    isActive
+                    isNavigationEntryActive(item.id, location.pathname)
                       ? 'bg-primary/10 text-primary'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   }`
@@ -359,20 +323,6 @@ export function Layout({
                   </DropdownMenuItem>
                 );
               })}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Account</DropdownMenuLabel>
-              <DropdownMenuItem asChild>
-                <Link to="/profile">
-                  <User className="h-4 w-4" />
-                  Profile
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/settings">
-                  <Settings className="h-4 w-4" />
-                  Settings
-                </Link>
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </nav>
@@ -777,7 +727,7 @@ function AccountMenu({
               {account && (
                 <span className="flex flex-col gap-1 mt-1.5">
                   <span className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
-                    <span 
+                    <span
                       className="block h-full bg-gradient-to-r from-[#2ebd85] to-[#0ea5e9]"
                       style={{ width: `${progressPercent}%` }}
                     />
@@ -827,95 +777,45 @@ function Brand({ compact = false }: { compact?: boolean }) {
 }
 
 function NavigationLink({
+  id,
   to,
   label,
   icon: Icon,
   end,
 }: {
+  id: string;
   to: string;
   label: string;
   icon: typeof CalendarDays;
   end: boolean;
 }) {
+  const location = useLocation();
+  const isActive = isNavigationEntryActive(id, location.pathname);
+
   return (
-    <NavLink to={to} end={end} className={({ isActive }) => `itu-primary-nav-link${isActive ? ' is-active' : ''}`}>
+    <NavLink
+      to={to}
+      end={end}
+      aria-label={label}
+      title={label}
+      aria-current={isActive ? 'page' : undefined}
+      className={`itu-primary-nav-link${isActive ? ' is-active' : ''}`}
+    >
       <Icon className="h-4 w-4 shrink-0" />
       <span className="itu-app-rail__label">{label}</span>
     </NavLink>
   );
 }
 
-export function orderWorkspaceNavigation(
-  items: readonly WorkspaceNavigationItem[],
-  storedOrder: readonly string[] | null,
-) {
-  if (!storedOrder?.length) return [...items];
-
-  const byPath = new Map<string, WorkspaceNavigationItem>(items.map((item) => [item.to, item]));
-  const seen = new Set<string>();
-  const ordered: WorkspaceNavigationItem[] = [];
-
-  for (const path of storedOrder) {
-    const item = byPath.get(path);
-    if (!item || seen.has(path)) continue;
-    ordered.push(item);
-    seen.add(path);
+export function isNavigationEntryActive(id: string, pathname: string): boolean {
+  if (id === 'home') return pathname === '/';
+  if (id === 'plan') {
+    return ['/plan', '/inbox', '/today', '/upcoming', '/completed'].some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`),
+    );
   }
-
-  for (const item of items) {
-    if (!seen.has(item.to)) ordered.push(item);
-  }
-
-  return ordered;
-}
-
-export function reorderWorkspaceNavigation(
-  items: readonly WorkspaceNavigationItem[],
-  sourceTo: string,
-  targetTo: string,
-  position: WorkspaceNavigationDropPosition = 'before',
-) {
-  const next = [...items];
-  const sourceIndex = next.findIndex((item) => item.to === sourceTo);
-  if (sourceIndex < 0 || sourceTo === targetTo) return next;
-
-  const [source] = next.splice(sourceIndex, 1);
-  const targetIndex = next.findIndex((item) => item.to === targetTo);
-  if (targetIndex < 0) return [...items];
-
-  next.splice(position === 'after' ? targetIndex + 1 : targetIndex, 0, source);
-  return next;
-}
-
-export function getWorkspaceNavigationDropPosition(
-  targetBounds: Pick<DOMRect, 'top' | 'height'>,
-  pointerY: number,
-): WorkspaceNavigationDropPosition {
-  return pointerY >= targetBounds.top + targetBounds.height / 2 ? 'after' : 'before';
-}
-
-function useStoredWorkspaceNavigation() {
-  const [items, setItems] = useState(() =>
-    orderWorkspaceNavigation(workspaceNavigation, readWorkspaceNavigationOrder()),
-  );
-
-  useEffect(() => {
-    window.localStorage.setItem(WORKSPACE_NAVIGATION_ORDER_KEY, JSON.stringify(items.map((item) => item.to)));
-  }, [items]);
-
-  return [items, setItems] as const;
-}
-
-function readWorkspaceNavigationOrder() {
-  const stored = window.localStorage.getItem(WORKSPACE_NAVIGATION_ORDER_KEY);
-  if (!stored) return null;
-
-  try {
-    const parsed: unknown = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : null;
-  } catch {
-    return null;
-  }
+  const entry = workspaceNavigation.find((item) => item.id === id);
+  return entry ? pathname === entry.to || pathname.startsWith(`${entry.to}/`) : false;
 }
 
 function useStoredNumber(key: string, fallback: number) {

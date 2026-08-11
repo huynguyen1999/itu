@@ -121,6 +121,14 @@ export interface ITrashRepository {
   deleteCard(userId: string, cardId: string): Promise<CardImageModel[] | null>;
   deleteCardImage(userId: string, imageId: string): Promise<CardImageModel | null>;
   deleteTask(userId: string, taskId: string): Promise<boolean>;
+  restoreJournalEntry(userId: string, entryId: string): Promise<any | null>;
+  restoreBudgetTransaction(userId: string, transactionId: string): Promise<any | null>;
+  restoreGymWorkout(userId: string, workoutId: string): Promise<any | null>;
+  restoreGymExercise(userId: string, exerciseId: string): Promise<any | null>;
+  deleteJournalEntry(userId: string, entryId: string): Promise<any[] | null>;
+  deleteBudgetTransaction(userId: string, transactionId: string): Promise<boolean>;
+  deleteGymWorkout(userId: string, workoutId: string): Promise<boolean>;
+  deleteGymExercise(userId: string, exerciseId: string): Promise<any | null>;
   purgeExpired(cutoff: Date): Promise<CardImageModel[]>;
 }
 
@@ -195,6 +203,22 @@ export interface UsageSummaryRecord {
   displayName: string;
   activeSeconds: number;
   engagedSeconds?: number | null;
+  iconHash?: string | null;
+  iconStorageKey?: string | null;
+}
+
+export interface UsageAppIdentityRecord {
+  bundleId: string;
+  displayName: string;
+  iconHash?: string | null;
+  iconStorageKey?: string | null;
+}
+
+export interface UsageAppIdentityWrite {
+  bundleId: string;
+  displayName: string;
+  iconHash: string;
+  iconStorageKey: string;
 }
 
 export interface UsageSummaryWrite {
@@ -227,12 +251,45 @@ export interface WebsiteUsageSummaryWrite {
   activeSeconds: number;
 }
 
+export interface WebsiteActivitySessionRecord {
+  id: string;
+  userId: string;
+  installationId: string;
+  browserBundleId: string;
+  browserDisplayName: string;
+  startedAt: Date;
+  endedAt: Date;
+  activeSeconds: number;
+  hostname: string;
+  url: string;
+  pageTitle: string | null;
+  isPrivate: boolean;
+  timezone: string;
+  createdAt: Date;
+}
+
+export interface WebsiteActivitySessionWrite {
+  id: string;
+  installationId: string;
+  browserBundleId: string;
+  browserDisplayName: string;
+  startedAt: Date;
+  endedAt: Date;
+  activeSeconds: number;
+  hostname: string;
+  url: string;
+  pageTitle: string | null;
+  isPrivate: boolean;
+  timezone: string;
+}
+
 export interface IUsageRepository {
   findDevice(userId: string, deviceId: string): Promise<{ platform: string } | null>;
   findSummaries(userId: string, from: Date, toExclusive: Date): Promise<UsageSummaryRecord[]>;
-  getTrackingPreferences(
-    userId: string,
-  ): Promise<{
+  listAppIdentities(userId: string): Promise<UsageAppIdentityRecord[]>;
+  findAppIdentity(userId: string, bundleId: string): Promise<UsageAppIdentityRecord | null>;
+  upsertAppIdentity(userId: string, data: UsageAppIdentityWrite): Promise<UsageAppIdentityRecord>;
+  getTrackingPreferences(userId: string): Promise<{
     trackingEnabled: boolean;
     websiteTrackingEnabled: boolean;
     retentionDays: number;
@@ -252,6 +309,8 @@ export interface IUsageRepository {
     offset: number,
   ): Promise<{ items: Array<{ url: string; activeSeconds: number }>; total: number }>;
   replaceWebsiteBatch(userId: string, deviceId: string, summaries: WebsiteUsageSummaryWrite[]): Promise<number>;
+  ingestWebsiteActivitySessions(userId: string, sessions: WebsiteActivitySessionWrite[]): Promise<string[]>;
+  findWebsiteActivitySessions(userId: string, from: Date, toExclusive: Date): Promise<WebsiteActivitySessionRecord[]>;
   replaceBrowserExtensionCredential(userId: string, id: string, keyHash: string): Promise<void>;
   findBrowserExtensionCredential(keyHash: string): Promise<{ userId: string } | null>;
   ensureBrowserExtensionDevice(userId: string, installationId: string): Promise<string>;

@@ -20,7 +20,7 @@ struct ConflictsView: View {
             .padding(.horizontal, 24)
             .padding(.top, 28)
             .padding(.bottom, 18)
-            .background(iTuTheme.surface.opacity(0.84))
+            .background(iTuTheme.surface)
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(iTuTheme.border)

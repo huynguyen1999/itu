@@ -2,7 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, LayoutTemplate, MoreHorizontal, PanelRight, Trash2 } from 'lucide-react';
 import { useJournalEntry } from '../journalQueries';
-import { useCreateJournalEntryMutation, useUpdateJournalEntryMutation, useDeleteJournalEntryMutation } from '../journalMutations';
+import {
+  useCreateJournalEntryMutation,
+  useUpdateJournalEntryMutation,
+  useDeleteJournalEntryMutation,
+} from '../journalMutations';
 import { TagPicker } from './TagPicker';
 import { AttachmentTray } from './AttachmentTray';
 import { TemplateEditor } from './TemplateEditor';
@@ -48,7 +52,9 @@ export function NotePage({ isDaily = false }: NotePageProps) {
       setId(existingEntry.id);
       setTitle(existingEntry.title);
       setContentMarkdown(existingEntry.contentMarkdown || '');
-      setEntryDate(existingEntry.entryDate ? new Date(existingEntry.entryDate).toISOString().split('T')[0] : initialDate);
+      setEntryDate(
+        existingEntry.entryDate ? new Date(existingEntry.entryDate).toISOString().split('T')[0] : initialDate,
+      );
       setSelectedTagIds(existingEntry.tags?.map((t) => t.id) || []);
       activeEntryRef.current = existingEntry;
     } else if (isNew || date) {
@@ -120,11 +126,7 @@ export function NotePage({ isDaily = false }: NotePageProps) {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-        Loading note...
-      </div>
-    );
+    return <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">Loading note...</div>;
   }
 
   const currentEntryObj: JournalEntry = (existingEntry || {
@@ -143,17 +145,17 @@ export function NotePage({ isDaily = false }: NotePageProps) {
   }) as JournalEntry;
 
   return (
-    <div className="flex h-full min-h-[calc(100vh-4rem)] bg-background">
+    <div className="flex h-full min-h-[calc(100vh-4rem)] flex-col bg-background lg:flex-row">
       {/* Main Document Workspace */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         {/* Top Header / Bar */}
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/60 bg-background/80 backdrop-blur px-6 py-3">
+        <header className="itu-page-header-sticky flex items-center justify-between border-b border-border/60 px-6 py-3">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              title="Back"
+              aria-label="Back to previous page"
+              className="rounded-[var(--itu-radius-s)] p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -167,7 +169,10 @@ export function NotePage({ isDaily = false }: NotePageProps) {
             <button
               type="button"
               onClick={() => setShowInspector(!showInspector)}
-              className={`p-1.5 rounded-lg border transition-colors ${
+              aria-label={showInspector ? 'Hide note inspector' : 'Show note inspector'}
+              aria-expanded={showInspector}
+              aria-controls="note-inspector"
+              className={`rounded-[var(--itu-radius-s)] border p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                 showInspector
                   ? 'border-primary/40 bg-primary/10 text-primary'
                   : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -181,20 +186,27 @@ export function NotePage({ isDaily = false }: NotePageProps) {
               <button
                 type="button"
                 onClick={() => setShowMenu(!showMenu)}
-                className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label="Open note actions"
+                aria-expanded={showMenu}
+                aria-haspopup="menu"
+                className="rounded-[var(--itu-radius-s)] border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
 
               {showMenu && (
-                <div className="absolute right-0 mt-1 w-44 rounded-xl border border-border bg-card shadow-lg p-1.5 z-30 text-xs">
+                <div
+                  className="absolute right-0 z-30 mt-1 w-44 rounded-[var(--itu-radius-m)] border border-border bg-card p-1.5 text-xs shadow-lg"
+                  role="menu"
+                >
                   <button
                     type="button"
                     onClick={() => {
                       setShowTemplates(true);
                       setShowMenu(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-muted text-foreground"
+                    className="flex w-full items-center gap-2 rounded-[var(--itu-radius-s)] px-2.5 py-1.5 text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    role="menuitem"
                   >
                     <LayoutTemplate className="w-3.5 h-3.5" />
                     Templates
@@ -206,7 +218,8 @@ export function NotePage({ isDaily = false }: NotePageProps) {
                         void handleDelete();
                         setShowMenu(false);
                       }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-destructive/10 text-destructive"
+                      className="flex w-full items-center gap-2 rounded-[var(--itu-radius-s)] px-2.5 py-1.5 text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      role="menuitem"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       Delete Note
@@ -234,7 +247,7 @@ export function NotePage({ isDaily = false }: NotePageProps) {
             />
 
             <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded-md border border-border/40">
+              <div className="flex items-center gap-1.5 rounded-[var(--itu-radius-s)] border border-border/40 bg-muted/40 px-2.5 py-1">
                 <Calendar className="w-3.5 h-3.5 text-primary" />
                 <input
                   type="date"
@@ -272,9 +285,7 @@ export function NotePage({ isDaily = false }: NotePageProps) {
           {/* Attachments Section */}
           {id && existingEntry && (
             <div className="pt-6 border-t border-border/40">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Attachments
-              </h4>
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Attachments</h4>
               <AttachmentTray entryId={id} attachments={existingEntry.attachments} />
             </div>
           )}
@@ -282,19 +293,10 @@ export function NotePage({ isDaily = false }: NotePageProps) {
       </div>
 
       {/* Collapsible Inspector Sidebar */}
-      {showInspector && (
-        <NoteInspector
-          entry={currentEntryObj}
-          onClose={() => setShowInspector(false)}
-        />
-      )}
+      {showInspector && <NoteInspector entry={currentEntryObj} onClose={() => setShowInspector(false)} />}
 
       {/* Template Selection Dialog */}
-      <TemplateEditor
-        isOpen={showTemplates}
-        onClose={() => setShowTemplates(false)}
-        onSelectTemplate={applyTemplate}
-      />
+      <TemplateEditor isOpen={showTemplates} onClose={() => setShowTemplates(false)} onSelectTemplate={applyTemplate} />
     </div>
   );
 }

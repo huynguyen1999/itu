@@ -12,18 +12,36 @@ export interface GymExercise {
   primaryMuscleGroup?: string | null;
   defaultWeightUnit?: 'KG' | 'LBS';
   defaultRestSeconds?: number | null;
+  version?: number;
+  isFavorite?: boolean;
+  favorite?: boolean;
+  archivedAt?: string | null;
+  imageUrl?: string | null;
+}
+
+export interface GymPreviousSet {
+  weight?: number | null;
+  reps?: number | null;
+  durationSeconds?: number | null;
+  distanceMeters?: number | null;
+  rpe?: number | null;
 }
 
 export interface GymWorkoutSet {
   id?: string;
   sortOrder: number;
-  type?: 'WARMUP' | 'NORMAL' | 'DROP' | 'FAILURE';
+  type?: 'WARM_UP' | 'WARMUP' | 'NORMAL' | 'DROP' | 'FAILURE';
   reps?: number | null;
   weight?: number | null;
   durationSeconds?: number | null;
   distanceMeters?: number | null;
   rpe?: number | null;
   completedAt?: string | null;
+  version?: number;
+  previous?: GymPreviousSet;
+  performedAt?: string | null;
+  workoutId?: string;
+  workoutTitle?: string | null;
 }
 
 export interface GymWorkoutExercise {
@@ -35,6 +53,7 @@ export interface GymWorkoutExercise {
   restSeconds?: number | null;
   exercise?: GymExercise | null;
   sets: GymWorkoutSet[];
+  version?: number;
 }
 
 export interface GymWorkout {
@@ -45,6 +64,7 @@ export interface GymWorkout {
   endedAt?: string | null;
   durationMinutes?: number | null;
   exercises?: GymWorkoutExercise[];
+  version?: number;
 }
 
 export interface GymOverview {
@@ -57,6 +77,15 @@ export interface GymOverview {
 export interface GymWorkoutUpdate {
   title: string;
   exercises: GymWorkoutExercise[];
+}
+
+export interface GymExerciseStats {
+  heaviestWeight: number | null;
+  bestVolumeSet?: number | null;
+  estimated1RM: number | null;
+  totalSets: number;
+  lastPerformedAt?: string | null;
+  recentSets?: GymWorkoutSet[];
 }
 
 export function useGymOverview() {
@@ -74,7 +103,7 @@ export function useGymExercises() {
 }
 
 export function useGymExerciseStats(id: string) {
-  return useQuery({
+  return useQuery<GymExerciseStats>({
     queryKey: ['gym', 'exercise-stats', id],
     queryFn: () => api.getGymExerciseStats(id),
     enabled: Boolean(id),

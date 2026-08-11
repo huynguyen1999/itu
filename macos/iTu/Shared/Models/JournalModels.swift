@@ -82,6 +82,7 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
     let createdAt: String
     var updatedAt: String
     var deletedAt: String?
+    var deletedByDeviceId: String?
     var weeklyReview: JournalWeeklyReviewModel?
     var tags: [JournalTagModel]
     var attachments: [JournalAttachmentModel]
@@ -90,7 +91,7 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
         id: String, userId: String, kind: String = "NOTE", title: String,
         contentMarkdown: String, entryDate: String, updatedAt: String,
         timezone: String = iTuCalendarSupport.timezone.identifier, templateId: String? = nil, tagIds: [String] = [],
-        version: Int = 1, createdAt: String? = nil, deletedAt: String? = nil,
+        version: Int = 1, createdAt: String? = nil, deletedAt: String? = nil, deletedByDeviceId: String? = nil,
         weeklyReview: JournalWeeklyReviewModel? = nil, tags: [JournalTagModel] = [],
         attachments: [JournalAttachmentModel] = []
     ) {
@@ -98,7 +99,7 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
         self.contentMarkdown = contentMarkdown; self.entryDate = entryDate
         self.timezone = timezone; self.templateId = templateId; self.tagIds = tagIds
         self.version = version; self.createdAt = createdAt ?? updatedAt
-        self.updatedAt = updatedAt; self.deletedAt = deletedAt
+        self.updatedAt = updatedAt; self.deletedAt = deletedAt; self.deletedByDeviceId = deletedByDeviceId
         self.weeklyReview = weeklyReview; self.tags = tags; self.attachments = attachments
     }
 
@@ -116,7 +117,7 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id, userId, kind, title, contentMarkdown, entryDate, timezone, templateId,
-             tagIds, version, createdAt, updatedAt, deletedAt, weeklyReview, tags, attachments
+             tagIds, version, createdAt, updatedAt, deletedAt, deletedByDeviceId, weeklyReview, tags, attachments
     }
 
     init(from decoder: Decoder) throws {
@@ -134,6 +135,7 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
         createdAt = try values.decodeIfPresent(String.self, forKey: .createdAt) ?? ""
         updatedAt = try values.decodeIfPresent(String.self, forKey: .updatedAt) ?? createdAt
         deletedAt = try values.decodeIfPresent(String.self, forKey: .deletedAt)
+        deletedByDeviceId = try values.decodeIfPresent(String.self, forKey: .deletedByDeviceId)
         weeklyReview = try values.decodeIfPresent(JournalWeeklyReviewModel.self, forKey: .weeklyReview)
         tags = try values.decodeIfPresent([JournalTagModel].self, forKey: .tags) ?? []
         attachments = try values.decodeIfPresent([JournalAttachmentModel].self, forKey: .attachments) ?? []

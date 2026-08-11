@@ -324,7 +324,15 @@ describe('UsageService', () => {
       service.replaceBatch('user-1', {
         deviceId: 'device-1',
         summaries: [
-          { localDate: '2026-08-01', hour: 9, bundleId: 'a', displayName: 'A', timezone: 'UTC', activeSeconds: 10, engagedSeconds: -1 },
+          {
+            localDate: '2026-08-01',
+            hour: 9,
+            bundleId: 'a',
+            displayName: 'A',
+            timezone: 'UTC',
+            activeSeconds: 10,
+            engagedSeconds: -1,
+          },
         ],
       }),
     ).rejects.toThrow('engagedSeconds must be an integer between 0 and activeSeconds');
@@ -333,7 +341,15 @@ describe('UsageService', () => {
       service.replaceBatch('user-1', {
         deviceId: 'device-1',
         summaries: [
-          { localDate: '2026-08-01', hour: 9, bundleId: 'a', displayName: 'A', timezone: 'UTC', activeSeconds: 10, engagedSeconds: 15 },
+          {
+            localDate: '2026-08-01',
+            hour: 9,
+            bundleId: 'a',
+            displayName: 'A',
+            timezone: 'UTC',
+            activeSeconds: 10,
+            engagedSeconds: 15,
+          },
         ],
       }),
     ).rejects.toThrow('engagedSeconds must be an integer between 0 and activeSeconds');
@@ -341,8 +357,22 @@ describe('UsageService', () => {
 
   it('calculates totalEngagedSeconds and engagementCoverage in getSummaries', async () => {
     repo.findSummaries.mockResolvedValue([
-      { localDate: new Date('2026-08-01T00:00:00Z'), hour: 9, bundleId: 'a', displayName: 'A', activeSeconds: 100, engagedSeconds: 80 },
-      { localDate: new Date('2026-08-01T00:00:00Z'), hour: 10, bundleId: 'b', displayName: 'B', activeSeconds: 50, engagedSeconds: 50 },
+      {
+        localDate: new Date('2026-08-01T00:00:00Z'),
+        hour: 9,
+        bundleId: 'a',
+        displayName: 'A',
+        activeSeconds: 100,
+        engagedSeconds: 80,
+      },
+      {
+        localDate: new Date('2026-08-01T00:00:00Z'),
+        hour: 10,
+        bundleId: 'b',
+        displayName: 'B',
+        activeSeconds: 50,
+        engagedSeconds: 50,
+      },
     ]);
     const result = await new UsageService(repo).getSummaries('user-1', '2026-08-01', '2026-08-01');
     expect(result.totalActiveSeconds).toBe(150);
@@ -352,6 +382,13 @@ describe('UsageService', () => {
       totalActiveSeconds: 150,
       complete: true,
     });
+    expect(result.totalEngagedSeconds).toBeLessThanOrEqual(result.totalActiveSeconds);
+    expect(result.engagementCoverage.observedActiveSeconds).toBeLessThanOrEqual(
+      result.engagementCoverage.totalActiveSeconds,
+    );
+    expect(
+      (result.engagementCoverage.observedActiveSeconds / result.engagementCoverage.totalActiveSeconds) * 100,
+    ).toBeLessThanOrEqual(100);
     expect(result.topApps[0]).toMatchObject({ bundleId: 'a', activeSeconds: 100, engagedSeconds: 80 });
   });
 
@@ -366,11 +403,128 @@ describe('UsageService', () => {
       items: [{ url: 'https://github.com/huynguyen1999/itu', activeSeconds: 120 }],
     });
 
-    const result = await new UsageService(repo).getWebsiteUrls('user-1', 'github.com', '2026-08-01', '2026-08-01', 50, 0);
+    const result = await new UsageService(repo).getWebsiteUrls(
+      'user-1',
+      'github.com',
+      '2026-08-01',
+      '2026-08-01',
+      50,
+      0,
+    );
     expect(result).toEqual({
       total: 1,
       items: [{ url: 'https://github.com/huynguyen1999/itu', activeSeconds: 120 }],
     });
-    expect(repo.findWebsiteUrls).toHaveBeenCalledWith('user-1', expect.any(Date), expect.any(Date), 'github.com', 50, 0);
+    expect(repo.findWebsiteUrls).toHaveBeenCalledWith(
+      'user-1',
+      expect.any(Date),
+      expect.any(Date),
+      'github.com',
+      50,
+      0,
+    );
+  });
+
+  it('returns authenticated icon URLs for app identities and omits fallback fields', async () => {
+    repo.listAppIdentities = jest.fn().mockResolvedValue([
+      { bundleId: 'a', displayName: 'A', iconHash: 'hash', iconStorageKey: 'user-1/usage-app-icons/a.webp' },
+      { bundleId: 'b', displayName: 'B' },
+    ]);
+    await expect(new UsageService(repo).getAppIdentities('user-1')).resolves.toEqual([
+      { bundleId: 'a', displayName: 'A', iconHash: 'hash', iconUrl: '/media/user-1/usage-app-icons/a.webp' },
+      { bundleId: 'b', displayName: 'B' },
+    ]);
+  });
+
+  it('stores a new icon, hashes it, and deletes the replaced file after upsert', async () => {
+    repo.findAppIdentity = jest.fn().mockResolvedValue({
+      bundleId: 'a',
+      displayName: 'Old',
+      iconHash: 'old-hash',
+      iconStorageKey: 'user-1/usage-app-icons/old.webp',
+    });
+    repo.upsertAppIdentity = jest.fn().mockResolvedValue({
+      bundleId: 'a',
+      displayName: 'New',
+      iconHash: '2bb80d537b1da3e38bd30361aa855686bde0ba3f7f7c7e5c2b6f8f7f7f7f7f7f',
+      iconStorageKey: 'user-1/usage-app-icons/new.webp',
+    });
+    const media = {
+      storeUserImage: jest.fn().mockResolvedValue({ storageKey: 'user-1/usage-app-icons/new.webp' }),
+      delete: jest.fn().mockResolvedValue(undefined),
+    } as any;
+    const result = await new UsageService(repo, media).replaceAppIcon('user-1', {
+      bundleId: 'a',
+      displayName: 'New',
+      originalName: 'icon.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('new-icon'),
+    });
+    expect(media.storeUserImage).toHaveBeenCalledWith(expect.objectContaining({ folder: 'usage-app-icons' }));
+    expect(repo.upsertAppIdentity).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ bundleId: 'a', displayName: 'New', iconHash: expect.stringMatching(/^[a-f0-9]{64}$/) }),
+    );
+    expect(media.delete).toHaveBeenCalledWith('user-1/usage-app-icons/old.webp');
+    expect(result.iconUrl).toBe('/media/user-1/usage-app-icons/new.webp');
+  });
+
+  it('skips rewriting an icon when the uploaded bytes have the same hash', async () => {
+    const buffer = Buffer.from('same-icon');
+    const hash = require('node:crypto').createHash('sha256').update(buffer).digest('hex');
+    repo.findAppIdentity = jest.fn().mockResolvedValue({
+      bundleId: 'a',
+      displayName: 'Old',
+      iconHash: hash,
+      iconStorageKey: 'user-1/usage-app-icons/old.webp',
+    });
+    repo.upsertAppIdentity = jest.fn().mockResolvedValue({
+      bundleId: 'a',
+      displayName: 'New',
+      iconHash: hash,
+      iconStorageKey: 'user-1/usage-app-icons/old.webp',
+    });
+    const media = { storeUserImage: jest.fn(), delete: jest.fn() } as any;
+    await new UsageService(repo, media).replaceAppIcon('user-1', {
+      bundleId: 'a',
+      displayName: 'New',
+      originalName: 'icon.png',
+      mimeType: 'image/png',
+      buffer,
+    });
+    expect(media.storeUserImage).not.toHaveBeenCalled();
+    expect(media.delete).not.toHaveBeenCalled();
+  });
+
+  it('keeps the new icon when deleting the replaced file fails', async () => {
+    repo.findAppIdentity = jest.fn().mockResolvedValue({
+      bundleId: 'a',
+      displayName: 'Old',
+      iconHash: 'old-hash',
+      iconStorageKey: 'user-1/usage-app-icons/old.webp',
+    });
+    repo.upsertAppIdentity = jest.fn().mockResolvedValue({
+      bundleId: 'a',
+      displayName: 'New',
+      iconHash: 'new-hash',
+      iconStorageKey: 'user-1/usage-app-icons/new.webp',
+    });
+    const media = {
+      storeUserImage: jest.fn().mockResolvedValue({ storageKey: 'user-1/usage-app-icons/new.webp' }),
+      delete: jest.fn().mockRejectedValue(new Error('old file unavailable')),
+    } as any;
+
+    await expect(
+      new UsageService(repo, media).replaceAppIcon('user-1', {
+        bundleId: 'a',
+        displayName: 'New',
+        originalName: 'icon.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from('new-icon'),
+      }),
+    ).resolves.toMatchObject({ iconUrl: '/media/user-1/usage-app-icons/new.webp' });
+    expect(repo.upsertAppIdentity).toHaveBeenCalled();
+    expect(media.delete).toHaveBeenCalledWith('user-1/usage-app-icons/old.webp');
+    expect(media.delete).not.toHaveBeenCalledWith('user-1/usage-app-icons/new.webp');
   });
 });

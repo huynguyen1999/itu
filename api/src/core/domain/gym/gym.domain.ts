@@ -1,6 +1,7 @@
 export type ExerciseMetricType = 'WEIGHT_REPS' | 'REPS' | 'DURATION' | 'DISTANCE_DURATION';
 export type WeightUnit = 'KG' | 'LBS';
-export type WorkoutSetType = 'WARMUP' | 'NORMAL' | 'DROP' | 'FAILURE';
+/** WARMUP remains accepted for aggregate REST clients; WARM_UP is canonical for sync. */
+export type WorkoutSetType = 'WARM_UP' | 'WARMUP' | 'NORMAL' | 'DROP' | 'FAILURE';
 export type WorkoutStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ACTIVE';
 
 export interface ExerciseDomain {
@@ -18,6 +19,8 @@ export interface ExerciseDomain {
   defaultWeightUnit: WeightUnit;
   defaultRestSeconds?: number | null;
   archivedAt?: Date | null;
+  deletedAt?: Date | null;
+  deletedByDeviceId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   version: number;
@@ -34,6 +37,12 @@ export interface WorkoutSetDomain {
   distanceMeters?: number | null;
   rpe?: number | null;
   completedAt?: Date | null;
+  /** Workout context included by exercise-history/statistics responses. */
+  performedAt?: Date | null;
+  workoutId?: string;
+  workoutTitle?: string | null;
+  version?: number;
+  deletedAt?: Date | null;
 }
 
 export interface WorkoutExerciseDomain {
@@ -45,6 +54,8 @@ export interface WorkoutExerciseDomain {
   sortOrder: number;
   note?: string | null;
   restSeconds?: number | null;
+  version?: number;
+  deletedAt?: Date | null;
   exercise?: ExerciseDomain;
   sets: WorkoutSetDomain[];
 }
@@ -61,6 +72,7 @@ export interface WorkoutDomain {
   updatedAt: Date;
   version: number;
   deletedAt?: Date | null;
+  deletedByDeviceId?: string | null;
   exercises: WorkoutExerciseDomain[];
 }
 

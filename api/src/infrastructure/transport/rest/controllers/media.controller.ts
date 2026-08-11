@@ -46,7 +46,8 @@ export class MediaController {
     }
     const image = await this.cards.findImageByStorageKey(req.user.sub, storageKey);
     const isOwnedGrowthIcon = storageKey.startsWith(`${req.user.sub}/growth-icons/`);
-    if (!image && !isOwnedGrowthIcon) throw new NotFoundException();
+    const isOwnedUsageAppIcon = storageKey.startsWith(`${req.user.sub}/usage-app-icons/`);
+    if (!image && !isOwnedGrowthIcon && !isOwnedUsageAppIcon) throw new NotFoundException();
 
     const stream = await this.media.read(image?.storageKey ?? storageKey);
     if (!stream) throw new NotFoundException();
@@ -55,5 +56,4 @@ export class MediaController {
     res.header('Cache-Control', 'private, max-age=3600');
     return res.send(stream);
   }
-
 }

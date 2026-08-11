@@ -61,6 +61,8 @@ export interface IJournalRepository {
   create(userId: string, data: CreateJournalEntryData, mutationMeta?: { deviceId?: string; mutationId?: string }): Promise<JournalEntryModel>;
   update(userId: string, id: string, data: UpdateJournalEntryData, mutationMeta?: { deviceId?: string; mutationId?: string }): Promise<JournalEntryModel | null>;
   delete(userId: string, id: string): Promise<boolean>;
+  softDelete(userId: string, id: string): Promise<boolean>;
+  hardDelete(userId: string, id: string): Promise<JournalAttachmentModel[] | null>;
   restore(userId: string, id: string): Promise<JournalEntryModel | null>;
   listRevisions(userId: string, entryId: string): Promise<JournalEntryRevisionModel[]>;
   restoreRevision(userId: string, entryId: string, revisionId: string): Promise<JournalEntryModel | null>;

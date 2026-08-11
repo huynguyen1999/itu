@@ -68,6 +68,40 @@ final class OfflineStoreTests: XCTestCase {
         XCTAssertTrue(snapshot.tasks.isEmpty)
     }
 
+    func testServerTrashRowsPersistAcrossRestartAndRestoreQueuesMutation() async throws {
+        let json = """
+        {"decks":[],"cards":[],"tasks":[],"journalEntries":[],"budgetTransactions":[{"id":"transaction-trash","userId":"user-1","type":"EXPENSE","amount":"12.50","currency":"VND","category":"Food","categoryId":"category-1","merchant":"Cafe","paymentMethod":"CASH","transactionAt":"2026-08-01T10:00:00Z","note":null,"version":3,"createdAt":"2026-08-01T09:00:00Z","updatedAt":"2026-08-01T10:00:00Z","deletedAt":"2026-08-01T10:00:00Z","deletedByDeviceId":"device-1"}],"gymWorkouts":[],"gymExercises":[]}
+        """.data(using: .utf8)!
+        let trash = try JSONDecoder().decode(TrashSnapshotModel.self, from: json)
+        let store = OfflineStore(accountID: "trash-cache-user", baseURL: temporaryDirectory)
+        _ = try await store.load()
+
+        let cached = try await store.cacheTrashItems(trash)
+        XCTAssertEqual(cached.budgetTransactions.first?.deletedAt, "2026-08-01T10:00:00Z")
+        XCTAssertEqual(cached.budgetTransactions.first?.deletedByDeviceId, "device-1")
+
+        let reloadedStore = OfflineStore(accountID: "trash-cache-user", baseURL: temporaryDirectory)
+        let reloaded = try await reloadedStore.load()
+        let deleted = try XCTUnwrap(reloaded.budgetTransactions.first)
+        XCTAssertEqual(reloaded.budgetTransactions.filter { $0.deletedAt != nil }.map(\.id), ["transaction-trash"])
+        let restored = BudgetTransactionModel(id: deleted.id, userId: deleted.userId, type: deleted.type, amount: deleted.amount, currency: deleted.currency, category: deleted.category, categoryId: deleted.categoryId, merchant: deleted.merchant, paymentMethod: deleted.paymentMethod, transactionAt: deleted.transactionAt, note: deleted.note, version: (deleted.version ?? 1) + 1, createdAt: deleted.createdAt, updatedAt: "2026-08-01T11:00:00Z", deletedAt: nil, deletedByDeviceId: nil)
+        let restoredSnapshot = try await reloadedStore.saveBudgetTransaction(restored, mutation: SyncMutation(id: "restore-1", kind: "budgettransaction.restore", entityId: restored.id, baseVersion: deleted.version, payload: ["deletedAt": .null], occurredAt: "2026-08-01T11:00:00Z"))
+
+        XCTAssertNil(restoredSnapshot.budgetTransactions.first?.deletedAt)
+        XCTAssertEqual(restoredSnapshot.mutations.last?.kind, "budgettransaction.restore")
+        let restartedAgain = OfflineStore(accountID: "trash-cache-user", baseURL: temporaryDirectory)
+        let finalSnapshot = try await restartedAgain.load()
+        XCTAssertNil(finalSnapshot.budgetTransactions.first?.deletedAt)
+        XCTAssertEqual(finalSnapshot.mutations.last?.kind, "budgettransaction.restore")
+    }
+
+    func testTrashFilterEmptyCopyUsesCanonicalFilterName() {
+        XCTAssertEqual(TrashFilter.all.emptyMessage, "Trash is empty")
+        XCTAssertEqual(TrashFilter.journal.emptyMessage, "No deleted journal")
+        XCTAssertEqual(TrashFilter.budget.emptyMessage, "No deleted budget")
+        XCTAssertEqual(TrashFilter.gym.emptyMessage, "No deleted gym")
+    }
+
     @MainActor
     func testTrashUsesServerTaskSnapshotWhenDeletedTaskIsNotInLocalActiveTasks() throws {
         let json = """

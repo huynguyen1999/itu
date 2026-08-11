@@ -64,7 +64,7 @@ export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 pb-12">
-      <header className="flex flex-col gap-5 border-b border-border/60 pb-6 sm:flex-row sm:items-end sm:justify-between">
+      <header className="itu-page-header-sticky flex flex-col gap-5 rounded-[var(--itu-radius-l)] border border-border/60 p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
         <div className="min-w-0 space-y-2">
           <p className="flex items-center gap-2 text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-primary">
             <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
@@ -92,8 +92,7 @@ export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
       </header>
 
       <section aria-labelledby="journal-today" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_250px]">
-        <div className="relative overflow-hidden rounded-[var(--itu-radius-l)] border border-[var(--itu-teal-700)] bg-[var(--itu-teal-900)] p-6 text-white shadow-[var(--itu-shadow-card)] sm:p-8">
-          <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-[var(--itu-teal-400)]/20 blur-3xl" />
+        <div className="itu-gradient-card overflow-hidden rounded-[var(--itu-radius-l)] border-none p-6 shadow-[var(--itu-shadow-card)] sm:p-8">
           <div className="relative flex min-h-[210px] flex-col justify-between gap-8">
             <div className="space-y-3">
               <p className="text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-[var(--itu-teal-400)]">
@@ -179,7 +178,7 @@ export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
             {[0, 1, 2, 3].map((item) => (
               <div
                 key={item}
-                className="h-36 animate-pulse rounded-[var(--itu-radius-m)] border border-border bg-card"
+                className="motion-safe:animate-pulse h-36 rounded-[var(--itu-radius-m)] border border-border bg-card"
               />
             ))}
           </div>
@@ -218,7 +217,10 @@ function SyncStatus({ phase, label }: { phase: string; label: string }) {
       className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--itu-radius-s)] border border-border bg-card px-3 text-[11px] text-muted-foreground"
       title={label}
     >
-      <Icon className={`h-3.5 w-3.5 ${color} ${phase === 'syncing' ? 'animate-spin' : ''}`} aria-hidden="true" />
+      <Icon
+        className={`h-3.5 w-3.5 ${color} ${phase === 'syncing' ? 'motion-safe:animate-spin' : ''}`}
+        aria-hidden="true"
+      />
       <span className="hidden sm:inline">{label}</span>
       <span className="sr-only">Journal sync status: {label}</span>
     </span>

@@ -2,6 +2,8 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
+  IsDateString,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -169,4 +171,59 @@ export class BrowserExtensionUsageBatchDto {
   @ValidateNested({ each: true })
   @Type(() => WebsiteUsageSummaryDto)
   summaries!: WebsiteUsageSummaryDto[];
+}
+
+export class WebsiteActivitySessionDto {
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, 128)
+  id!: string;
+
+  @IsDateString()
+  startedAt!: string;
+
+  @IsDateString()
+  endedAt!: string;
+
+  @IsString()
+  @Length(1, 255)
+  browserBundleId!: string;
+
+  @IsString()
+  @Length(1, 255)
+  browserDisplayName!: string;
+
+  @IsString()
+  @Length(1, 253)
+  @Matches(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/)
+  hostname!: string;
+
+  @IsString()
+  @Length(1, 2048)
+  url!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 512)
+  pageTitle?: string | null;
+
+  @IsBoolean()
+  isPrivate!: boolean;
+
+  @IsString()
+  @Length(1, 100)
+  timezone!: string;
+}
+
+export class WebsiteActivitySessionBatchDto {
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, 128)
+  installationId!: string;
+
+  @IsArray()
+  @ArrayMaxSize(5000)
+  @ValidateNested({ each: true })
+  @Type(() => WebsiteActivitySessionDto)
+  sessions!: WebsiteActivitySessionDto[];
 }

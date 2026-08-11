@@ -14,6 +14,7 @@ export interface ClientSyncMutation {
   entityId: string;
   baseVersion?: number;
   baseValues?: Record<string, unknown>;
+  fieldEditedAt?: Record<string, string>;
   payload: Record<string, unknown>;
   occurredAt: string;
   attemptCount?: number;
@@ -380,7 +381,8 @@ export class SyncQueue {
       const queuedAfterPush = await offlineSyncStore.listMutations();
       const knownMutations = [...queuedAfterPush, ...mutations];
       acknowledgedGrowthMappings = knownMutations.filter(
-        (mutation) => syncResult.acknowledgedMutationIds.includes(mutation.id) && isGrowthAttributeMappingUpsert(mutation),
+        (mutation) =>
+          syncResult.acknowledgedMutationIds.includes(mutation.id) && isGrowthAttributeMappingUpsert(mutation),
       );
       const supersededMappingIds = supersededGrowthMappingMutationIds(
         queuedAfterPush,
@@ -568,8 +570,8 @@ export class SyncQueue {
 }
 
 function toSyncMutationPayload(mutation: ClientSyncMutation) {
-  const { id, kind, entityId, baseVersion, baseValues, payload, occurredAt } = mutation;
-  return { id, kind, entityId, baseVersion, baseValues, payload, occurredAt };
+  const { id, kind, entityId, baseVersion, baseValues, fieldEditedAt, payload, occurredAt } = mutation;
+  return { id, kind, entityId, baseVersion, baseValues, fieldEditedAt, payload, occurredAt };
 }
 
 function clearMutationFailure(mutation: ClientSyncMutation): ClientSyncMutation {
@@ -684,6 +686,7 @@ export function coalesceMutation(
     }
   }
   if (!existing) return { mutation: next };
+  if (!canCompactGymMutation(existing, next)) return { mutation: next };
   return {
     replacedId: existing.id,
     mutation: {
@@ -692,10 +695,32 @@ export function coalesceMutation(
       id: existing.id,
       baseVersion: existing.baseVersion ?? next.baseVersion,
       baseValues: { ...next.baseValues, ...existing.baseValues },
+      ...(existing.fieldEditedAt || next.fieldEditedAt
+        ? { fieldEditedAt: { ...existing.fieldEditedAt, ...next.fieldEditedAt } }
+        : {}),
       payload: { ...existing.payload, ...next.payload },
       occurredAt: existing.occurredAt,
     },
   };
+}
+
+/**
+ * A set type and completion are semantic transitions, not ordinary field edits.
+ * Keep those records separate so retries/restarts cannot erase the transition.
+ */
+function canCompactGymMutation(existing: ClientSyncMutation, next: ClientSyncMutation): boolean {
+  const semanticFields = new Set(['type', 'completedAt']);
+  const existingSet = existing.kind.startsWith('workout-set.');
+  const nextSet = next.kind.startsWith('workout-set.');
+  if (!existingSet || !nextSet) return true;
+  if (existing.kind === 'workout-set.create' && next.kind === 'workout-set.update') {
+    return !Object.keys(next.payload).some((field) => semanticFields.has(field));
+  }
+  if (existing.kind !== 'workout-set.update' || next.kind !== 'workout-set.update') return false;
+  return (
+    !Object.keys(existing.payload).some((field) => semanticFields.has(field)) &&
+    !Object.keys(next.payload).some((field) => semanticFields.has(field))
+  );
 }
 
 export function supersededGrowthMappingMutationIds(

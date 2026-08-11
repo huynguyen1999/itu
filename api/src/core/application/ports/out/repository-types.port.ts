@@ -35,6 +35,10 @@ export interface TrashSnapshotData {
   cards: CardModel[];
   cardImages: CardImageModel[];
   tasks: any[];
+  journalEntries?: any[];
+  budgetTransactions?: any[];
+  gymWorkouts?: any[];
+  gymExercises?: any[];
 }
 
 export interface CreateScheduledJobData {

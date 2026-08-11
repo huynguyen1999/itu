@@ -1,582 +1,462 @@
-import type { ReactNode } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArchiveRestore,
-  CheckSquare2,
   ChevronLeft,
+  Dumbbell,
+  FileImage,
+  FileText,
   Flag,
-  Inbox,
   Layers3,
   LoaderCircle,
+  ReceiptText,
   RotateCcw,
   Trash2,
+  type LucideIcon,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { api } from '@/shared/api/client';
+import type {
+  Card,
+  CardImage,
+  Deck,
+  ProductivityTask,
+  TrashBudgetTransaction,
+  TrashExerciseDefinition,
+  TrashGymWorkout,
+  TrashJournalEntry,
+  TrashSnapshot,
+} from '@/shared/api/types';
 import { Button } from '@/shared/ui/button';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { Skeleton } from '@/shared/ui/skeleton';
-import { api } from '@/shared/api/client';
-import type { Card as ApiCard, Deck } from '@/shared/api/client';
-import type { ProductivityTask, TrashSnapshot } from '@/shared/api/types';
-import { MarkdownPreview } from '@/shared/markdown/MarkdownPreview';
-import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+type TrashFilter = 'All' | 'Tasks' | 'Journal' | 'Budget' | 'Gym';
+type TrashKind = 'task' | 'deck' | 'card' | 'cardImage' | 'journal' | 'budget' | 'gymWorkout' | 'gymExercise';
 
-type PermanentDeleteTarget =
-  | { type: 'deck'; id: string; label: string }
-  | { type: 'card'; id: string; label: string; deckId: string }
-  | { type: 'task'; id: string; label: string };
-
-type ToastKind = 'restore' | 'delete';
-
-interface ToastState {
-  open: boolean;
-  message: string;
-  kind: ToastKind;
+interface TrashRow {
+  id: string;
+  kind: TrashKind;
+  title: string;
+  typeLabel: string;
+  deletedAt?: string | null;
+  detail?: string;
+  icon: LucideIcon;
 }
 
-const PRIORITY_COLOR: Record<string, string> = {
-  HIGH: 'text-rose-500',
-  MEDIUM: 'text-amber-500',
-  LOW: 'text-blue-500',
-  NONE: 'text-muted-foreground',
-};
+interface DeleteTarget {
+  row: TrashRow;
+}
 
-// ─── Main Component ──────────────────────────────────────────────────────────
+const FILTERS: TrashFilter[] = ['All', 'Tasks', 'Journal', 'Budget', 'Gym'];
 
 export function TrashPage() {
   const queryClient = useQueryClient();
-  const [deleteTarget, setDeleteTarget] = useState<PermanentDeleteTarget | null>(null);
-  const [toast, setToast] = useState<ToastState>({ open: false, message: '', kind: 'restore' });
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [filter, setFilter] = useState<TrashFilter>('All');
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const trashQuery = useQuery({ queryKey: ['trash'], queryFn: () => api.trash() });
+  const snapshot = trashQuery.data;
+  const rows = snapshot ? rowsForFilter(snapshot, filter) : [];
+  const total = snapshot ? rowsForFilter(snapshot, 'All').length : 0;
 
-  // ── Toast helper ────────────────────────────────────────────────────────
-
-  const showToast = useCallback((message: string, kind: ToastKind) => {
-    setToast({ open: true, message, kind });
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => {
-      setToast((prev) => ({ ...prev, open: false }));
-    }, 2600);
+  const showMessage = useCallback((text: string, error = false) => {
+    setMessage({ text, error });
+    if (messageTimer.current) clearTimeout(messageTimer.current);
+    messageTimer.current = setTimeout(() => setMessage(null), 3200);
   }, []);
 
   useEffect(() => {
     return () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
+      if (messageTimer.current) clearTimeout(messageTimer.current);
     };
   }, []);
 
-  // ── Targeted cache updates ──────────────────────────────────────────────
-  // Update the trash cache directly (remove the item) instead of refetching
-  // the whole trash snapshot, and invalidate only the resources the operation
-  // actually affects.
-
   const removeFromTrash = useCallback(
-    (type: 'deck' | 'card' | 'task', id: string) => {
+    (row: TrashRow) => {
       queryClient.setQueryData<TrashSnapshot>(['trash'], (current) => {
         if (!current) return current;
-        const key = type === 'deck' ? 'decks' : type === 'card' ? 'cards' : 'tasks';
-        return { ...current, [key]: current[key].filter((item) => item.id !== id) };
+        const key = trashKey(row.kind);
+        if (key === 'decks' || key === 'cards' || key === 'cardImages' || key === 'tasks') {
+          return { ...current, [key]: current[key].filter((item) => item.id !== row.id) };
+        }
+        return { ...current, [key]: (current[key] ?? []).filter((item) => item.id !== row.id) };
       });
     },
     [queryClient],
   );
 
-  // ── Mutations ───────────────────────────────────────────────────────────
-
-  const restoreDeck = useMutation({
-    mutationFn: (deckId: string) => api.restoreDeck(deckId),
-    onSuccess: (_, deckId) => {
-      removeFromTrash('deck', deckId);
-      void queryClient.invalidateQueries({ queryKey: ['decks'] });
-      showToast('Deck restored.', 'restore');
+  const restoreMutation = useMutation<unknown, Error, TrashRow>({
+    mutationFn: (row) => restoreRow(row),
+    onSuccess: (_, row) => {
+      removeFromTrash(row);
+      invalidateRestoredResource(queryClient, row.kind);
+      showMessage(`${row.typeLabel} restored.`);
     },
+    onError: () => showMessage('Could not restore this item. Try again.', true),
   });
 
-  const restoreCard = useMutation({
-    mutationFn: (card: ApiCard) => api.restoreCard(card.id),
-    onSuccess: (_, card) => {
-      removeFromTrash('card', card.id);
-      void queryClient.invalidateQueries({ queryKey: ['cards'] });
-      void queryClient.invalidateQueries({ queryKey: ['due'] });
-      showToast('Card restored.', 'restore');
-    },
-  });
-
-  const restoreTask = useMutation({
-    mutationFn: (taskId: string) => api.restoreTrashTask(taskId),
-    onSuccess: (_, taskId) => {
-      removeFromTrash('task', taskId);
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      showToast('Task restored.', 'restore');
-    },
-  });
-
-  const deleteDeck = useMutation({
-    mutationFn: (deckId: string) => api.deleteTrashDeck(deckId),
-    onSuccess: (_, deckId) => {
+  const deleteMutation = useMutation<unknown, Error, TrashRow>({
+    mutationFn: (row) => deleteRow(row),
+    onSuccess: (_, row) => {
       setDeleteTarget(null);
-      removeFromTrash('deck', deckId);
-      showToast('Deck permanently deleted.', 'delete');
+      removeFromTrash(row);
+      showMessage(`${row.typeLabel} permanently deleted.`);
     },
+    onError: () => showMessage('Could not permanently delete this item.', true),
   });
 
-  const deleteCard = useMutation({
-    mutationFn: (target: Extract<PermanentDeleteTarget, { type: 'card' }>) => api.deleteTrashCard(target.id),
-    onSuccess: (_, target) => {
-      setDeleteTarget(null);
-      removeFromTrash('card', target.id);
-      showToast('Card permanently deleted.', 'delete');
-    },
-  });
-
-  const deleteTask = useMutation({
-    mutationFn: (taskId: string) => api.deleteTrashTask(taskId),
-    onSuccess: (_, taskId) => {
-      setDeleteTarget(null);
-      removeFromTrash('task', taskId);
-      showToast('Task permanently deleted.', 'delete');
-    },
-  });
-
-  const snapshot = trashQuery.data;
-  const totalItems = (snapshot?.decks.length ?? 0) + (snapshot?.cards.length ?? 0) + (snapshot?.tasks.length ?? 0);
+  const isDeleting = deleteMutation.isPending;
+  const isInitialLoading = trashQuery.isLoading && !snapshot;
 
   return (
-    <div className="space-y-8">
-      {/* ── Breadcrumb ────────────────────────────────────────────────── */}
+    <div className="space-y-7">
       <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline">
-        <ChevronLeft className="h-4 w-4" />
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         Recover removed content
       </Link>
 
-      {/* ── Hero ──────────────────────────────────────────────────────── */}
       <PageHeader
         kicker="System & Maintenance"
         title="Trash"
-        description="Deleted items remain recoverable for 30 days before they are permanently removed."
+        description="Deleted items remain recoverable until they are permanently removed."
+        stickyControls={
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div
+              className="flex flex-wrap gap-1 rounded-xl border bg-muted/30 p-1"
+              role="tablist"
+              aria-label="Trash filters"
+            >
+              {FILTERS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="tab"
+                  aria-selected={filter === option}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    filter === option ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  onClick={() => setFilter(option)}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            {trashQuery.isFetching && !isInitialLoading && (
+              <span className="text-xs text-muted-foreground">Refreshing…</span>
+            )}
+          </div>
+        }
       >
-        <SummaryPill total={totalItems} />
+        <div className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border bg-card/80 px-3.5 text-xs font-bold text-muted-foreground shadow-sm">
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+          {total} item{total === 1 ? '' : 's'}
+        </div>
       </PageHeader>
 
-      {/* ── Loading ───────────────────────────────────────────────────── */}
-      {trashQuery.isLoading && <TrashLoading />}
+      {isInitialLoading && <TrashLoading />}
 
-      {/* ── Error ─────────────────────────────────────────────────────── */}
       {trashQuery.isError && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          {trashQuery.error instanceof Error ? trashQuery.error.message : 'Could not load trash'}
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+        >
+          <span>
+            {snapshot ? 'Trash could not be refreshed. Showing the last saved items.' : 'Trash could not be loaded.'}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void trashQuery.refetch()}
+            disabled={trashQuery.isFetching}
+          >
+            {trashQuery.isFetching && <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+            Retry
+          </Button>
         </div>
       )}
 
-      {/* ── Content ───────────────────────────────────────────────────── */}
-      {!trashQuery.isLoading && !trashQuery.isError && snapshot && totalItems > 0 && (
-        <div className="space-y-10">
-          {/* Tasks */}
-          {snapshot.tasks.length > 0 && (
-            <TrashSection
-              title="Tasks"
-              icon={CheckSquare2}
-              iconBg="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
-              count={snapshot.tasks.length}
-              actions={
-                snapshot.tasks.length > 1 && (
-                  <button
-                    type="button"
-                    className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
-                    onClick={() => {
-                      snapshot.tasks.forEach((t) => restoreTask.mutate(t.id));
-                    }}
-                  >
-                    Restore all
-                  </button>
-                )
-              }
-            >
-              <div className="grid gap-3 sm:grid-cols-2">
-                {snapshot.tasks.map((task) => (
-                  <TaskTrashItem
-                    key={task.id}
-                    task={task}
-                    isPending={restoreTask.isPending && restoreTask.variables === task.id}
-                    onRestore={() => restoreTask.mutate(task.id)}
-                    onDelete={() => setDeleteTarget({ type: 'task', id: task.id, label: task.title })}
-                  />
-                ))}
-              </div>
-            </TrashSection>
-          )}
-
-          {/* Decks */}
-          <TrashSection
-            title="Decks"
-            icon={Layers3}
-            iconBg="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
-            count={snapshot.decks.length}
-          >
-            {snapshot.decks.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {snapshot.decks.map((deck) => (
-                  <DeckTrashItem
-                    key={deck.id}
-                    deck={deck}
-                    isPending={restoreDeck.isPending && restoreDeck.variables === deck.id}
-                    onRestore={() => restoreDeck.mutate(deck.id)}
-                    onDelete={() => setDeleteTarget({ type: 'deck', id: deck.id, label: deck.title })}
-                  />
-                ))}
-              </div>
-            ) : (
-              <EmptySection
-                icon={Layers3}
-                title="No deleted decks"
-                description="Deleted decks will appear here until they expire."
-              />
-            )}
-          </TrashSection>
-
-          {/* Cards */}
-          <TrashSection
-            title="Cards"
-            icon={ArchiveRestore}
-            iconBg="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
-            count={snapshot.cards.length}
-          >
-            {snapshot.cards.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {snapshot.cards.map((card) => (
-                  <CardTrashItem
-                    key={card.id}
-                    card={card}
-                    isPending={restoreCard.isPending && restoreCard.variables?.id === card.id}
-                    onRestore={() => restoreCard.mutate(card)}
-                    onDelete={() =>
-                      setDeleteTarget({
-                        type: 'card',
-                        id: card.id,
-                        label: card.promptRichText || 'Deleted card',
-                        deckId: card.deckId,
-                      })
-                    }
-                  />
-                ))}
-              </div>
-            ) : (
-              <EmptySection
-                icon={ArchiveRestore}
-                title="No deleted cards"
-                description="Deleted cards will appear here until they expire."
-              />
-            )}
-          </TrashSection>
+      {!isInitialLoading && snapshot && rows.length > 0 && (
+        <div className="divide-y rounded-2xl border bg-card" aria-live="polite">
+          {rows.map((row) => (
+            <TrashRowItem
+              key={`${row.kind}:${row.id}`}
+              row={row}
+              isPending={restoreMutation.isPending && restoreMutation.variables?.id === row.id}
+              onRestore={() => restoreMutation.mutate(row)}
+              onDelete={() => setDeleteTarget({ row })}
+            />
+          ))}
         </div>
       )}
 
-      {/* ── Empty state ───────────────────────────────────────────────── */}
-      {!trashQuery.isLoading && !trashQuery.isError && snapshot && totalItems === 0 && (
-        <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed bg-card/50 p-8 text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-            <Inbox className="h-7 w-7 text-muted-foreground" />
-          </div>
-          <h2 className="text-lg font-semibold text-foreground">Trash is empty</h2>
+      {!isInitialLoading && snapshot && rows.length === 0 && (
+        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-dashed bg-card/50 p-8 text-center">
+          <Trash2 className="mb-3 h-8 w-8 text-muted-foreground" aria-hidden="true" />
+          <h2 className="text-lg font-semibold text-foreground">
+            {total === 0 ? 'Trash is empty' : `No ${filter.toLowerCase()} items`}
+          </h2>
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-            Deleted decks, cards, and tasks will appear here and can be restored within 30 days.
+            {total === 0
+              ? 'Deleted content will appear here and can be restored.'
+              : 'Try another filter to see deleted content.'}
           </p>
         </div>
       )}
 
-      {/* ── Confirm dialog ────────────────────────────────────────────── */}
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
-        }}
+        onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}
         title="Delete permanently?"
         description={
-          deleteTarget
-            ? deleteTarget.type === 'deck'
-              ? `This will permanently remove deck "${deleteTarget.label}" from trash. Its cards will move to Recovered Cards.`
-              : deleteTarget.type === 'task'
-                ? `This will permanently delete "${deleteTarget.label}". This action cannot be undone.`
-                : 'This will permanently remove this card from iTu. It will no longer be recoverable from trash.'
-            : ''
+          deleteTarget ? `This will permanently delete “${deleteTarget.row.title}”. This action cannot be undone.` : ''
         }
         confirmLabel="Delete permanently"
-        isPending={deleteDeck.isPending || deleteCard.isPending || deleteTask.isPending}
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          if (deleteTarget.type === 'deck') deleteDeck.mutate(deleteTarget.id);
-          if (deleteTarget.type === 'card') deleteCard.mutate(deleteTarget);
-          if (deleteTarget.type === 'task') deleteTask.mutate(deleteTarget.id);
-        }}
+        isPending={isDeleting}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.row)}
       />
 
-      {/* ── Toast ─────────────────────────────────────────────────────── */}
-      <div
-        role="status"
-        aria-live="polite"
-        className={`fixed bottom-6 right-6 z-50 flex max-w-xs items-center gap-2.5 rounded-xl border bg-card px-4 py-3 text-sm font-medium text-card-foreground shadow-lg transition-all duration-200 sm:bottom-8 sm:right-8 ${
-          toast.open ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0'
-        }`}
-      >
-        <span
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-            toast.kind === 'restore'
-              ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
-              : 'bg-destructive/10 text-destructive'
-          }`}
+      {message && (
+        <div
+          role={message.error ? 'alert' : 'status'}
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-50 rounded-xl border bg-card px-4 py-3 text-sm font-medium shadow-lg"
         >
-          {toast.kind === 'restore' ? <RotateCcw className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
-        </span>
-        <span>{toast.message}</span>
-      </div>
+          {message.text}
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Summary Pill ────────────────────────────────────────────────────────────
-
-function SummaryPill({ total }: { total: number }) {
-  return (
-    <div className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border bg-card/80 px-3.5 text-xs font-bold text-muted-foreground shadow-sm">
-      <Trash2 className="h-3.5 w-3.5" />
-      <span>
-        {total} item{total === 1 ? '' : 's'}
-      </span>
-    </div>
-  );
-}
-
-// ─── Section ─────────────────────────────────────────────────────────────────
-
-function TrashSection({
-  title,
-  count,
-  icon: Icon,
-  iconBg,
-  actions,
-  children,
-}: {
-  title: string;
-  count: number;
-  icon: typeof Trash2;
-  iconBg: string;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${iconBg}`}>
-            <Icon className="h-4 w-4" />
-          </span>
-          <h2 className="text-base font-bold tracking-tight text-foreground">{title}</h2>
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-bold text-muted-foreground">
-            {count}
-          </span>
-        </div>
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-// ─── Card Components ─────────────────────────────────────────────────────────
-
-function TaskTrashItem({
-  task,
+function TrashRowItem({
+  row,
   isPending,
   onRestore,
   onDelete,
 }: {
-  task: ProductivityTask;
+  row: TrashRow;
   isPending: boolean;
   onRestore: () => void;
   onDelete: () => void;
 }) {
-  const deletedDaysAgo = task.deletedAt
-    ? Math.round((Date.now() - new Date(task.deletedAt).getTime()) / 86_400_000)
-    : null;
-
-  const daysLeft = deletedDaysAgo !== null ? 30 - deletedDaysAgo : null;
-
+  const Icon = row.icon;
   return (
-    <article className="trash-card group relative min-h-[148px] rounded-xl border bg-card p-4 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-muted-foreground/20 hover:shadow-md">
-      {/* Left accent bar — visible on hover */}
-      <span className="absolute bottom-3 left-0 top-3 w-0.5 rounded-full bg-transparent transition-colors duration-150 group-hover:bg-primary" />
-
-      <div className="flex items-start gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Flag className={`h-4 w-4 ${PRIORITY_COLOR[task.priority] ?? PRIORITY_COLOR.NONE}`} />
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-base font-bold text-foreground">{task.title}</h3>
-
-          {task.descriptionMarkdown && (
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{task.descriptionMarkdown}</p>
-          )}
-
-          {deletedDaysAgo !== null && daysLeft !== null && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Deleted {deletedDaysAgo === 0 ? 'today' : `${deletedDaysAgo} day${deletedDaysAgo === 1 ? '' : 's'} ago`}
-              <span className="mx-1.5 inline-block h-1 w-1 rounded-full bg-muted-foreground/40" />
-              <span className="font-bold text-amber-600 dark:text-amber-400">
-                {daysLeft} day{daysLeft === 1 ? '' : 's'} left
-              </span>
-            </p>
-          )}
-        </div>
-      </div>
-
-      <TrashActions isPending={isPending} onRestore={onRestore} onDelete={onDelete} restoreLabel="Restore" />
-    </article>
-  );
-}
-
-function DeckTrashItem({
-  deck,
-  isPending,
-  onRestore,
-  onDelete,
-}: {
-  deck: Deck;
-  isPending: boolean;
-  onRestore: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <article className="trash-card group relative overflow-hidden rounded-xl border bg-card shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-muted-foreground/20 hover:shadow-md">
-      {/* Left accent bar — visible on hover */}
-      <span className="absolute bottom-3 left-0 top-3 w-0.5 rounded-full bg-transparent transition-colors duration-150 group-hover:bg-primary" />
-
-      <div className="border-b bg-muted/20 px-4 py-3">
-        <h3 className="truncate text-base font-bold text-foreground">{deck.title}</h3>
-      </div>
-
-      <div className="space-y-3 p-4">
-        <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">{deck.description || 'No description'}</p>
-
-        <TrashActions isPending={isPending} onRestore={onRestore} onDelete={onDelete} restoreLabel="Restore" />
-      </div>
-    </article>
-  );
-}
-
-function CardTrashItem({
-  card,
-  isPending,
-  onRestore,
-  onDelete,
-}: {
-  card: ApiCard;
-  isPending: boolean;
-  onRestore: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <article className="trash-card group relative overflow-hidden rounded-xl border bg-card shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-muted-foreground/20 hover:shadow-md">
-      {/* Left accent bar — visible on hover */}
-      <span className="absolute bottom-3 left-0 top-3 w-0.5 rounded-full bg-transparent transition-colors duration-150 group-hover:bg-primary" />
-
-      <div className="space-y-2.5 p-4">
-        <div className="grid gap-2.5 sm:grid-cols-2">
-          <div className="rounded-lg border bg-muted/25 p-3">
-            <p className="mb-1.5 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Prompt</p>
-            <MarkdownPreview value={card.promptRichText} className="line-clamp-4 text-sm" />
-          </div>
-          <div className="rounded-lg border bg-muted/25 p-3">
-            <p className="mb-1.5 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Answer</p>
-            <MarkdownPreview value={card.answerRichText} className="line-clamp-4 text-sm" />
-          </div>
-        </div>
-
-        <TrashActions isPending={isPending} onRestore={onRestore} onDelete={onDelete} restoreLabel="Restore" />
-      </div>
-    </article>
-  );
-}
-
-// ─── Shared Actions ──────────────────────────────────────────────────────────
-
-function TrashActions({
-  isPending,
-  onRestore,
-  onDelete,
-  restoreLabel,
-}: {
-  isPending: boolean;
-  onRestore: () => void;
-  onDelete: () => void;
-  restoreLabel: string;
-}) {
-  return (
-    <div className="mt-3 flex flex-wrap justify-end gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
-        disabled={isPending}
-        onClick={onRestore}
-      >
-        {isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-        {restoreLabel}
-      </Button>
-      <Button
-        type="button"
-        variant="destructive"
-        size="sm"
-        className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
-        onClick={onDelete}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-        Delete
-      </Button>
-    </div>
-  );
-}
-
-// ─── Empty Section ───────────────────────────────────────────────────────────
-
-function EmptySection({ icon: Icon, title, description }: { icon: typeof Trash2; title: string; description: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-dashed bg-card/40 p-4">
+    <article className="flex flex-wrap items-center gap-3 p-4 sm:flex-nowrap">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-        <Icon className="h-4.5 w-4.5" />
+        <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
-      <div>
-        <p className="text-sm font-semibold text-foreground">{title}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
+      <div className="min-w-0 flex-1">
+        <h2 className="truncate text-sm font-semibold text-foreground">{row.title}</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {row.typeLabel}
+          {row.detail ? ` · ${row.detail}` : ''}
+          {row.deletedAt ? ` · Deleted ${relativeTime(row.deletedAt)}` : ''}
+        </p>
       </div>
-    </div>
+      <div className="ml-auto flex shrink-0 gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={onRestore} disabled={isPending}>
+          {isPending ? (
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+          Restore
+        </Button>
+        <Button type="button" variant="destructive" size="sm" onClick={onDelete} disabled={isPending}>
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Delete permanently
+        </Button>
+      </div>
+    </article>
   );
 }
 
-// ─── Loading Skeleton ────────────────────────────────────────────────────────
+export function rowsForFilter(snapshot: TrashSnapshot, filter: TrashFilter): TrashRow[] {
+  const tasks = snapshot.tasks.map((task) => taskRow(task));
+  const journal = (snapshot.journalEntries ?? []).map((entry) => journalRow(entry));
+  const budget = (snapshot.budgetTransactions ?? []).map((transaction) => budgetRow(transaction));
+  const gym = [
+    ...(snapshot.gymWorkouts ?? []).map((workout) => workoutRow(workout)),
+    ...(snapshot.gymExercises ?? []).map((exercise) => exerciseRow(exercise)),
+  ];
+  if (filter === 'Tasks') return tasks;
+  if (filter === 'Journal') return journal;
+  if (filter === 'Budget') return budget;
+  if (filter === 'Gym') return gym;
+  return [
+    ...tasks,
+    ...journal,
+    ...budget,
+    ...gym,
+    ...snapshot.decks.map((deck) => deckRow(deck)),
+    ...snapshot.cards.map((card) => cardRow(card)),
+    ...snapshot.cardImages.map((image) => cardImageRow(image)),
+  ];
+}
+
+function taskRow(task: ProductivityTask): TrashRow {
+  return { id: task.id, kind: 'task', title: task.title, typeLabel: 'Task', deletedAt: task.deletedAt, icon: Flag };
+}
+
+function journalRow(entry: TrashJournalEntry): TrashRow {
+  return {
+    id: entry.id,
+    kind: 'journal',
+    title: entry.title || 'Untitled entry',
+    typeLabel: `Journal entry · ${entry.kind === 'WEEKLY_REVIEW' ? 'Weekly Review' : 'Note'}`,
+    deletedAt: entry.deletedAt,
+    icon: FileText,
+  };
+}
+
+function budgetRow(transaction: TrashBudgetTransaction): TrashRow {
+  const category = transaction.categoryRel?.name || transaction.category || 'Uncategorized';
+  return {
+    id: transaction.id,
+    kind: 'budget',
+    title: transaction.merchant || category,
+    typeLabel: 'Budget transaction',
+    detail: `${transaction.amount} ${transaction.currency}`,
+    deletedAt: transaction.deletedAt,
+    icon: ReceiptText,
+  };
+}
+
+function workoutRow(workout: TrashGymWorkout): TrashRow {
+  return {
+    id: workout.id,
+    kind: 'gymWorkout',
+    title: workout.title || 'Gym workout',
+    typeLabel: 'Gym workout',
+    detail: workout.status || undefined,
+    deletedAt: workout.deletedAt,
+    icon: Dumbbell,
+  };
+}
+
+function exerciseRow(exercise: TrashExerciseDefinition): TrashRow {
+  return {
+    id: exercise.id,
+    kind: 'gymExercise',
+    title: exercise.name,
+    typeLabel: 'Exercise definition',
+    detail: exercise.metricType || undefined,
+    deletedAt: exercise.deletedAt,
+    icon: Dumbbell,
+  };
+}
+
+function deckRow(deck: Deck): TrashRow {
+  const deletedAt =
+    (deck as Deck & { deletedAt?: string | null; updatedAt?: string | null }).deletedAt ??
+    (deck as Deck & { updatedAt?: string | null }).updatedAt;
+  return { id: deck.id, kind: 'deck', title: deck.title, typeLabel: 'Flashcard deck', deletedAt, icon: Layers3 };
+}
+
+function cardRow(card: Card): TrashRow {
+  return {
+    id: card.id,
+    kind: 'card',
+    title: plainText(card.promptRichText) || 'Deleted flashcard',
+    typeLabel: 'Flashcard',
+    deletedAt: card.updatedAt,
+    icon: ArchiveRestore,
+  };
+}
+
+function cardImageRow(image: CardImage): TrashRow {
+  return {
+    id: image.id,
+    kind: 'cardImage',
+    title: 'Card image',
+    typeLabel: 'Flashcard image',
+    deletedAt: image.deletedAt,
+    icon: FileImage,
+  };
+}
+
+function trashKey(
+  kind: TrashKind,
+):
+  | 'decks'
+  | 'cards'
+  | 'cardImages'
+  | 'tasks'
+  | 'journalEntries'
+  | 'budgetTransactions'
+  | 'gymWorkouts'
+  | 'gymExercises' {
+  if (kind === 'deck') return 'decks';
+  if (kind === 'card') return 'cards';
+  if (kind === 'cardImage') return 'cardImages';
+  if (kind === 'task') return 'tasks';
+  if (kind === 'journal') return 'journalEntries';
+  if (kind === 'budget') return 'budgetTransactions';
+  if (kind === 'gymWorkout') return 'gymWorkouts';
+  return 'gymExercises';
+}
+
+function restoreRow(row: TrashRow) {
+  if (row.kind === 'deck') return api.restoreDeck(row.id);
+  if (row.kind === 'card') return api.restoreCard(row.id);
+  if (row.kind === 'cardImage') return api.restoreCardImage(row.id);
+  if (row.kind === 'task') return api.restoreTrashTask(row.id);
+  if (row.kind === 'journal') return api.restoreTrashJournalEntry(row.id);
+  if (row.kind === 'budget') return api.restoreTrashBudgetTransaction(row.id);
+  if (row.kind === 'gymWorkout') return api.restoreTrashGymWorkout(row.id);
+  return api.restoreTrashGymExercise(row.id);
+}
+
+function deleteRow(row: TrashRow) {
+  if (row.kind === 'deck') return api.deleteTrashDeck(row.id);
+  if (row.kind === 'card') return api.deleteTrashCard(row.id);
+  if (row.kind === 'cardImage') return api.deleteTrashCardImage(row.id);
+  if (row.kind === 'task') return api.deleteTrashTask(row.id);
+  if (row.kind === 'journal') return api.deleteTrashJournalEntry(row.id);
+  if (row.kind === 'budget') return api.deleteTrashBudgetTransaction(row.id);
+  if (row.kind === 'gymWorkout') return api.deleteTrashGymWorkout(row.id);
+  return api.deleteTrashGymExercise(row.id);
+}
+
+function invalidateRestoredResource(queryClient: ReturnType<typeof useQueryClient>, kind: TrashKind) {
+  const prefixes: Record<TrashKind, string[]> = {
+    task: ['tasks', 'dashboard'],
+    deck: ['decks', 'deck', 'dashboard'],
+    card: ['cards', 'deck', 'due'],
+    cardImage: ['cards', 'deck'],
+    journal: ['journal-entries', 'journal-dashboard', 'journal'],
+    budget: ['budget'],
+    gymWorkout: ['gym'],
+    gymExercise: ['gym'],
+  };
+  for (const prefix of prefixes[kind]) void queryClient.invalidateQueries({ queryKey: [prefix] });
+}
+
+function plainText(value: string): string {
+  return value
+    .replace(/[#*_`>\[\]()]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
+}
+
+function relativeTime(value: string): string {
+  const elapsedDays = Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000);
+  if (!Number.isFinite(elapsedDays) || elapsedDays <= 0) return 'today';
+  if (elapsedDays === 1) return 'yesterday';
+  return `${elapsedDays} days ago`;
+}
 
 function TrashLoading() {
   return (
-    <div className="space-y-8">
-      {[{ icon: CheckSquare2 }, { icon: Layers3 }, { icon: ArchiveRestore }].map((section, i) => (
-        <section key={i} className="space-y-3">
-          <div className="flex items-center gap-2.5">
-            <Skeleton className="h-7 w-7 rounded-lg" />
-            <Skeleton className="h-5 w-20" />
-            <Skeleton className="h-5 w-7 rounded-full" />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Skeleton className="h-[148px] rounded-xl" />
-            <Skeleton className="h-[148px] rounded-xl" />
-          </div>
-        </section>
+    <div className="space-y-3" role="status" aria-label="Loading trash">
+      {[1, 2, 3, 4].map((item) => (
+        <Skeleton key={item} className="h-[76px] rounded-2xl" />
       ))}
     </div>
   );

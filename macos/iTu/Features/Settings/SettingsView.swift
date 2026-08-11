@@ -80,17 +80,6 @@ struct SettingsView: View {
             // Main Content Area
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    // Page Header
-                    VStack(alignment: .leading, spacing: 4) {
-                        iTuSectionLabel(title: "Preferences & System", color: iTuTheme.teal)
-                        Text("Settings")
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundStyle(iTuTheme.ink)
-                        Text("Configure appearance, desktop sync, and Companion window behavior.")
-                            .font(.system(size: 13))
-                            .foregroundStyle(iTuTheme.inkDim)
-                    }
-
                     // Section Heading
                     VStack(alignment: .leading, spacing: 2) {
                         iTuSectionLabel(title: "SETTINGS", color: iTuTheme.teal)
@@ -111,10 +100,25 @@ struct SettingsView: View {
                 }
                 .padding(28)
             }
+            .iTuPinnedHeader { pageHeader }
             .background(iTuTheme.canvas)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tint(iTuTheme.teal)
+    }
+
+    private var pageHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            iTuSectionLabel(title: "Preferences & System", color: iTuTheme.teal)
+            Text("Settings")
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .foregroundStyle(iTuTheme.ink)
+            Text("Configure appearance, desktop sync, and Companion window behavior.")
+                .font(.system(size: 13))
+                .foregroundStyle(iTuTheme.inkDim)
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 18)
     }
 }
 

@@ -2,403 +2,192 @@ import SwiftUI
 
 struct TrashView: View {
     @Environment(AppModel.self) private var model
-    @State private var showEmptyConfirm = false
+    @State private var filter: TrashFilter = .all
     @State private var deleteTarget: TrashDeleteTarget?
 
-    var body: some View {
-        let trashedTasks = model.trashedTasks
-        let trashedDecks = model.trashSnapshot?.decks ?? []
-        let trashedCards = model.trashSnapshot?.cards ?? []
-        let totalCount = trashedTasks.count + trashedDecks.count + trashedCards.count
+    private var tasks: [ProductivityTask] { model.trashedTasks }
+    private var decks: [DeckModel] { model.trashSnapshot?.decks ?? [] }
+    private var cards: [CardModel] { model.trashSnapshot?.cards ?? [] }
+    private var journal: [JournalNoteModel] { model.trashedJournalEntries }
+    private var budget: [BudgetTransactionModel] { model.trashedBudgetTransactions }
+    private var workouts: [WorkoutModel] { model.trashedGymWorkouts }
+    private var exercises: [ExerciseModel] { model.trashedGymExercises }
 
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Button {
-                    model.selectedSection = .inbox
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 11, weight: .bold))
-                        Text("Recover removed content")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .foregroundStyle(iTuTheme.teal)
-                }
-                .buttonStyle(.plain)
-                .pointingHandCursor()
+    private var totalCount: Int { tasks.count + decks.count + cards.count + journal.count + budget.count + workouts.count + exercises.count }
 
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        iTuSectionLabel(title: "SYSTEM & MAINTENANCE", color: iTuTheme.inkFaint)
-                        Text("Trash")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(iTuTheme.ink)
-                        Text("Deleted items remain recoverable for 30 days before they are permanently removed.")
-                            .font(.system(size: 13))
-                            .foregroundStyle(iTuTheme.inkDim)
-                    }
-                    Spacer()
-                    HStack(spacing: 10) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 12))
-                            Text("\(totalCount) item\(totalCount == 1 ? "" : "s")")
-                                .font(.system(size: 12, weight: .bold))
-                        }
-                        .foregroundStyle(iTuTheme.inkDim)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(iTuTheme.surface)
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule().stroke(iTuTheme.border, lineWidth: 1)
-                        )
-
-                        if !trashedTasks.isEmpty {
-                            Button {
-                                showEmptyConfirm = true
-                            } label: {
-                                Label("Empty Tasks", systemImage: "trash")
-                            }
-                            .buttonStyle(iTuDangerButtonStyle())
-                        }
-                    }
-                }
-
-                if model.trashIsLoading && model.trashSnapshot == nil {
-                    ProgressView("Loading Trash…")
-                        .frame(maxWidth: .infinity, minHeight: 240)
-                        .iTuPanel(radius: 14)
-                } else if let errorMessage = model.trashErrorMessage, model.trashSnapshot == nil {
-                    VStack(spacing: 10) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 30))
-                            .foregroundStyle(iTuTheme.coral)
-                        Text(errorMessage)
-                            .font(.system(size: 13))
-                            .foregroundStyle(iTuTheme.inkDim)
-                            .multilineTextAlignment(.center)
-                        Button("Try Again") {
-                            Task { await model.refreshTrash() }
-                        }
-                        .buttonStyle(iTuSecondaryButtonStyle(height: 32))
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 240)
-                    .iTuPanel(radius: 14)
-                } else if totalCount == 0 {
-                    VStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(iTuTheme.surface)
-                                .frame(width: 48, height: 48)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(iTuTheme.border, lineWidth: 1)
-                                )
-                            Image(systemName: "archivebox")
-                                .font(.system(size: 20))
-                                .foregroundStyle(iTuTheme.inkDim)
-                        }
-
-                        Text("Trash is empty")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(iTuTheme.ink)
-
-                        Text("Deleted decks, cards, and tasks will appear here and can be\nrestored within 30 days.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(iTuTheme.inkDim)
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(3)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 240)
-                    .iTuPanel(radius: 14)
-                } else {
-                    VStack(alignment: .leading, spacing: 18) {
-                        if !trashedTasks.isEmpty {
-                            TrashSection(title: "Tasks", count: trashedTasks.count, icon: "checkmark.square") {
-                                VStack(spacing: 0) {
-                                    ForEach(Array(trashedTasks.enumerated()), id: \.element.id) { index, task in
-                                        TrashTaskRow(task: task)
-                                        if index < trashedTasks.count - 1 {
-                                            Rectangle()
-                                                .fill(iTuTheme.borderSoft)
-                                                .frame(height: 1)
-                                                .padding(.leading, 40)
-                                        }
-                                    }
-                                }
-                                .iTuPanel(radius: 14)
-                            }
-                        }
-
-                        if !trashedDecks.isEmpty {
-                            TrashSection(title: "Decks", count: trashedDecks.count, icon: "square.stack.3d.up") {
-                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                    ForEach(trashedDecks) { deck in
-                                        TrashDeckCard(
-                                            deck: deck,
-                                            onRestore: { Task { await model.restoreTrashDeck(deck) } },
-                                            onDelete: { deleteTarget = .deck(deck) }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        if !trashedCards.isEmpty {
-                            TrashSection(title: "Cards", count: trashedCards.count, icon: "rectangle.stack.badge.xmark") {
-                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                    ForEach(trashedCards) { card in
-                                        TrashCardCard(
-                                            card: card,
-                                            onRestore: { Task { await model.restoreTrashCard(card) } },
-                                            onDelete: { deleteTarget = .card(card) }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(24)
-            .frame(maxWidth: 980)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
-        .background(iTuTheme.canvas)
-        .alert("Empty Tasks?", isPresented: $showEmptyConfirm) {
-            Button("Delete Permanently", role: .destructive) {
-                Task {
-                    for task in trashedTasks {
-                        await model.permanentlyDeleteTrashTask(task)
-                    }
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This permanently deletes every trashed task. Decks and cards are not affected.")
-        }
-        .alert(item: $deleteTarget) { target in
-            Alert(
-                title: Text("Delete permanently?"),
-                message: Text(target.message),
-                primaryButton: .destructive(Text("Delete Permanently")) {
-                    Task {
-                        switch target {
-                        case let .deck(deck): await model.permanentlyDeleteTrashDeck(deck)
-                        case let .card(card): await model.permanentlyDeleteTrashCard(card)
-                        }
-                    }
-                },
-                secondaryButton: .cancel()
-            )
-        }
-        .task {
-            await model.refreshTrash()
+    private var filteredCount: Int {
+        switch filter {
+        case .all: totalCount
+        case .tasks: tasks.count
+        case .journal: journal.count
+        case .budget: budget.count
+        case .gym: workouts.count + exercises.count
         }
     }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if let error = model.trashErrorMessage, model.trashSnapshot != nil || totalCount > 0 {
+                    HStack(spacing: 10) {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .font(.system(size: 12)).foregroundStyle(iTuTheme.coral)
+                        Spacer()
+                        Button("Retry") { Task { await model.refreshTrash() } }
+                            .buttonStyle(iTuSecondaryButtonStyle(height: 28))
+                    }
+                    .padding(10)
+                    .background(iTuTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+
+                if model.trashIsLoading && model.trashSnapshot == nil && totalCount == 0 {
+                    ProgressView("Loading Trash…").frame(maxWidth: .infinity, minHeight: 220).iTuPanel(radius: 14)
+                } else if let error = model.trashErrorMessage, model.trashSnapshot == nil && totalCount == 0 {
+                    VStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle").font(.system(size: 28)).foregroundStyle(iTuTheme.coral)
+                        Text(error).font(.system(size: 13)).foregroundStyle(iTuTheme.inkDim).multilineTextAlignment(.center)
+                        Button("Try Again") { Task { await model.refreshTrash() } }.buttonStyle(iTuSecondaryButtonStyle(height: 32))
+                    }.frame(maxWidth: .infinity, minHeight: 220).iTuPanel(radius: 14)
+                } else if filteredCount == 0 {
+                    VStack(spacing: 10) {
+                        Image(systemName: "archivebox").font(.system(size: 26)).foregroundStyle(iTuTheme.inkDim)
+                        Text(filter.emptyMessage)
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Deleted content will appear here.").font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim)
+                    }.frame(maxWidth: .infinity, minHeight: 220).iTuPanel(radius: 14)
+                } else {
+                    content
+                }
+            }
+            .padding(24).frame(maxWidth: 980).frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .iTuPinnedHeader {
+            VStack(alignment: .leading, spacing: 14) {
+                trashHeader
+                Picker("Trash filter", selection: $filter) {
+                    ForEach(TrashFilter.allCases) { value in Text(value.title).tag(value) }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityLabel("Trash filter")
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
+        }
+        .background(iTuTheme.canvas)
+        .alert(item: $deleteTarget) { target in
+            Alert(title: Text("Delete permanently?"), message: Text(target.message), primaryButton: .destructive(Text("Delete permanently")) {
+                Task { await performPermanentDelete(target) }
+            }, secondaryButton: .cancel())
+        }
+        .task { await model.refreshTrash() }
+    }
+
+    private var trashHeader: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 5) {
+                iTuSectionLabel(title: "SYSTEM & MAINTENANCE", color: iTuTheme.inkFaint)
+                Text("Trash").font(.system(size: 26, weight: .bold, design: .rounded))
+                Text("Recover deleted content or permanently remove it.")
+                    .font(.system(size: 13)).foregroundStyle(iTuTheme.inkDim)
+            }
+            Spacer()
+            if model.syncPhase == .pending || model.syncPhase == .syncing {
+                Label("Pending sync", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 11, weight: .medium)).foregroundStyle(iTuTheme.amber)
+            }
+            Text("\(totalCount) item\(totalCount == 1 ? "" : "s")")
+                .font(.system(size: 12, weight: .bold)).foregroundStyle(iTuTheme.inkDim)
+                .padding(.horizontal, 10).padding(.vertical, 6).background(iTuTheme.surface).clipShape(Capsule())
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if filter == .all || filter == .tasks { section("Tasks", icon: "checkmark.square", tasks) { taskRow($0) } }
+            if filter == .all { section("Decks", icon: "square.stack.3d.up", decks) { deckRow($0) }; section("Cards", icon: "rectangle.stack.badge.xmark", cards) { cardRow($0) } }
+            if filter == .all || filter == .journal { section("Journal", icon: "book.closed", journal) { journalRow($0) } }
+            if filter == .all || filter == .budget { section("Budget", icon: "creditcard", budget) { budgetRow($0) } }
+            if filter == .all || filter == .gym {
+                section("Gym Workouts", icon: "figure.strengthtraining.traditional", workouts) { workoutRow($0) }
+                section("Gym Exercises", icon: "dumbbell", exercises) { exerciseRow($0) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func section<Item: Identifiable, Row: View>(_ title: String, icon: String, _ items: [Item], @ViewBuilder row: @escaping (Item) -> Row) -> some View {
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("\(title) · \(items.count)", systemImage: icon).font(.system(size: 15, weight: .bold)).foregroundStyle(iTuTheme.ink)
+                VStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        row(item)
+                        if index < items.count - 1 { Divider().padding(.leading, 12) }
+                    }
+                }.iTuPanel(radius: 12)
+            }
+        }
+    }
+
+    private func taskRow(_ task: ProductivityTask) -> some View { row(title: task.title, type: "Task", deletedAt: task.deletedAt, restore: { Task { await model.restoreTrashTask(task) } }, remove: { deleteTarget = .task(task) }) }
+    private func deckRow(_ deck: DeckModel) -> some View { row(title: deck.title, type: "Flashcard Deck", deletedAt: nil, restore: { Task { await model.restoreTrashDeck(deck) } }, remove: { deleteTarget = .deck(deck) }) }
+    private func cardRow(_ card: CardModel) -> some View { row(title: card.frontMarkdown.isEmpty ? "Untitled Flashcard" : card.frontMarkdown, type: "Flashcard", deletedAt: nil, restore: { Task { await model.restoreTrashCard(card) } }, remove: { deleteTarget = .card(card) }) }
+    private func journalRow(_ value: JournalNoteModel) -> some View { row(title: value.title.isEmpty ? "Untitled note" : value.title, type: value.kind == "WEEKLY_REVIEW" ? "Weekly Review" : "Journal Entry", deletedAt: value.deletedAt, restore: { Task { await model.restoreTrashJournalEntry(value) } }, remove: { deleteTarget = .journal(value) }) }
+    private func budgetRow(_ value: BudgetTransactionModel) -> some View { row(title: value.merchant ?? value.category, type: "Budget Transaction", deletedAt: value.deletedAt, restore: { Task { await model.restoreTrashBudgetTransaction(value) } }, remove: { deleteTarget = .budget(value) }) }
+    private func workoutRow(_ value: WorkoutModel) -> some View { row(title: value.title, type: "Gym Workout", deletedAt: value.deletedAt, restore: { Task { await model.restoreTrashGymWorkout(value) } }, remove: { deleteTarget = .workout(value) }) }
+    private func exerciseRow(_ value: ExerciseModel) -> some View { row(title: value.name, type: "Exercise", deletedAt: value.deletedAt, restore: { Task { await model.restoreTrashGymExercise(value) } }, remove: { deleteTarget = .exercise(value) }) }
+
+    private func row(title: String, type: String, deletedAt: String?, restore: @escaping () -> Void, remove: @escaping () -> Void) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "trash").foregroundStyle(iTuTheme.coral)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                Text(deletedAtLabel(deletedAt, type: type)).font(.system(size: 11)).foregroundStyle(iTuTheme.inkFaint).lineLimit(1)
+            }
+            Spacer()
+            Button("Restore", action: restore).buttonStyle(iTuSecondaryButtonStyle(height: 28)).disabled(model.syncPhase == .syncing)
+            Button("Delete permanently", action: remove).buttonStyle(iTuDangerButtonStyle()).disabled(model.syncPhase == .syncing)
+        }
+        .padding(12)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func deletedAtLabel(_ value: String?, type: String) -> String {
+        guard let value else { return type }
+        let formatter = ISO8601DateFormatter()
+        guard let date = formatter.date(from: value) else { return "\(type) · Deleted recently" }
+        let relative = RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
+        return "\(type) · Deleted \(relative)"
+    }
+
+    private func performPermanentDelete(_ target: TrashDeleteTarget) async {
+        switch target {
+        case let .task(value): await model.permanentlyDeleteTrashTask(value)
+        case let .deck(value): await model.permanentlyDeleteTrashDeck(value)
+        case let .card(value): await model.permanentlyDeleteTrashCard(value)
+        case let .journal(value): await model.permanentlyDeleteTrashJournalEntry(value)
+        case let .budget(value): await model.permanentlyDeleteTrashBudgetTransaction(value)
+        case let .workout(value): await model.permanentlyDeleteTrashGymWorkout(value)
+        case let .exercise(value): await model.permanentlyDeleteTrashGymExercise(value)
+        }
+    }
+}
+
+enum TrashFilter: String, CaseIterable, Identifiable {
+    case all, tasks, journal, budget, gym
+    var id: String { rawValue }
+    var title: String { rawValue == "all" ? "All" : rawValue.capitalized }
+    var emptyMessage: String { self == .all ? "Trash is empty" : "No deleted \(title.lowercased())" }
 }
 
 private enum TrashDeleteTarget: Identifiable {
-    case deck(DeckModel)
-    case card(CardModel)
-
+    case task(ProductivityTask), deck(DeckModel), card(CardModel), journal(JournalNoteModel), budget(BudgetTransactionModel), workout(WorkoutModel), exercise(ExerciseModel)
     var id: String {
-        switch self {
-        case let .deck(deck): "deck-\(deck.id)"
-        case let .card(card): "card-\(card.id)"
-        }
+        switch self { case let .task(v): "task-\(v.id)"; case let .deck(v): "deck-\(v.id)"; case let .card(v): "card-\(v.id)"; case let .journal(v): "journal-\(v.id)"; case let .budget(v): "budget-\(v.id)"; case let .workout(v): "workout-\(v.id)"; case let .exercise(v): "exercise-\(v.id)" }
     }
-
     var message: String {
-        switch self {
-        case let .deck(deck): "This permanently removes \"\(deck.title)\". Its cards move to Recovered Cards."
-        case .card: "This card will no longer be recoverable from Trash."
-        }
-    }
-}
-
-private struct TrashSection<Content: View>: View {
-    let title: String
-    let count: Int
-    let icon: String
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .foregroundStyle(iTuTheme.teal)
-                Text(title)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(iTuTheme.ink)
-                Text("\(count)")
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(iTuTheme.inkDim)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(iTuTheme.canvas)
-                    .clipShape(Capsule())
-            }
-            content()
-        }
-    }
-}
-
-private struct TrashDeckCard: View {
-    let deck: DeckModel
-    let onRestore: @MainActor @Sendable () -> Void
-    let onDelete: @MainActor @Sendable () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                DeckIconView(icon: deck.icon, size: 16, color: iTuTheme.teal)
-                    .frame(width: 30, height: 30)
-                    .background(iTuTheme.mintTint)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                Text(deck.title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(iTuTheme.ink)
-                    .lineLimit(1)
-            }
-            Text(deck.description.isEmpty ? "No description" : deck.description)
-                .font(.system(size: 12))
-                .foregroundStyle(iTuTheme.inkDim)
-                .lineLimit(2)
-            trashActions(onRestore: onRestore, onDelete: onDelete)
-        }
-        .padding(14)
-        .iTuPanel(radius: 12)
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(isHovered ? iTuTheme.teal.opacity(0.5) : iTuTheme.border, lineWidth: 1)
-        }
-        .onHover { isHovered = $0 }
-        .contextMenu {
-            Button("Restore Deck", action: onRestore)
-            Button("Delete Permanently", role: .destructive, action: onDelete)
-        }
-    }
-}
-
-private struct TrashCardCard: View {
-    let card: CardModel
-    let onRestore: @MainActor @Sendable () -> Void
-    let onDelete: @MainActor @Sendable () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("PROMPT")
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundStyle(iTuTheme.inkFaint)
-            Text(card.frontMarkdown)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(iTuTheme.ink)
-                .lineLimit(3)
-            Divider()
-            Text("ANSWER")
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundStyle(iTuTheme.inkFaint)
-            Text(card.backMarkdown)
-                .font(.system(size: 12))
-                .foregroundStyle(iTuTheme.inkDim)
-                .lineLimit(3)
-            trashActions(onRestore: onRestore, onDelete: onDelete)
-        }
-        .padding(14)
-        .iTuPanel(radius: 12)
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(isHovered ? iTuTheme.teal.opacity(0.5) : iTuTheme.border, lineWidth: 1)
-        }
-        .onHover { isHovered = $0 }
-        .contextMenu {
-            Button("Restore Card", action: onRestore)
-            Button("Delete Permanently", role: .destructive, action: onDelete)
-        }
-    }
-}
-
-@MainActor @ViewBuilder
-private func trashActions(
-    onRestore: @MainActor @escaping () -> Void,
-    onDelete: @MainActor @escaping () -> Void
-) -> some View {
-    HStack(spacing: 8) {
-        Spacer()
-        Button {
-            onRestore()
-        } label: {
-            Label("Restore", systemImage: "arrow.uturn.backward")
-        }
-        .buttonStyle(iTuSecondaryButtonStyle(height: 28))
-
-        Button {
-            onDelete()
-        } label: {
-            Label("Delete", systemImage: "trash")
-        }
-        .buttonStyle(iTuDangerButtonStyle())
-    }
-}
-
-private struct TrashTaskRow: View {
-    @Environment(AppModel.self) private var model
-    let task: ProductivityTask
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "trash")
-                .font(.system(size: 15))
-                .foregroundStyle(iTuTheme.coral)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(task.title)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(iTuTheme.ink)
-                if let deletedAt = task.deletedAt {
-                    Text("Deleted: \(deletedAt)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(iTuTheme.inkFaint)
-                }
-            }
-
-            Spacer()
-
-            Button {
-                Task { await model.restoreTrashTask(task) }
-            } label: {
-                Label("Restore", systemImage: "arrow.uturn.backward")
-            }
-            .buttonStyle(iTuSecondaryButtonStyle(height: 28))
-
-            Button {
-                Task { await model.permanentlyDeleteTrashTask(task) }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(iTuTheme.coral)
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.plain)
-            .pointingHandCursor()
-            .help("Delete Permanently")
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(isHovered ? iTuTheme.coralTint.opacity(0.3) : Color.clear)
-        .onHover { isHovered = $0 }
-        .contextMenu {
-            Button("Restore Task") {
-                Task { await model.restoreTrashTask(task) }
-            }
-            Button("Delete Permanently", role: .destructive) {
-                Task { await model.permanentlyDeleteTrashTask(task) }
-            }
-        }
+        switch self { case let .task(v): "\(v.title) will no longer be recoverable."; case let .deck(v): "\(v.title) and its cards will no longer be recoverable."; case .card: "This Flashcard will no longer be recoverable."; case let .journal(v): "\(v.title.isEmpty ? "This Journal Entry" : v.title) will no longer be recoverable."; case .budget: "This Budget Transaction will no longer be recoverable."; case let .workout(v): "\(v.title) will no longer be recoverable."; case let .exercise(v): "\(v.name) will no longer be recoverable." }
     }
 }

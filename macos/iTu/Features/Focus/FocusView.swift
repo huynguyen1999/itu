@@ -55,7 +55,7 @@ struct FocusView: View {
             .padding(.horizontal, 24)
             .padding(.top, 24)
             .padding(.bottom, 16)
-            .background(iTuTheme.surface.opacity(0.85))
+            .background(iTuTheme.surface)
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(iTuTheme.border)
