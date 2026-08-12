@@ -19,9 +19,12 @@ struct CalendarTimelineItem: Decodable, Identifiable, Sendable {
     let status: String?
     let taskId: String?
     let priority: String?
+    let description: String?
+    let location: String?
+    let timeZone: String?
 
     private enum CodingKeys: String, CodingKey {
-        case id, kind, title, startAt, endAt, readOnly, allDay, dueAt, sourceId, sourceName, color, status, taskId, priority
+        case id, kind, title, startAt, endAt, readOnly, allDay, dueAt, sourceId, sourceName, color, status, taskId, priority, description, location, timeZone
     }
 
     init(
@@ -38,11 +41,15 @@ struct CalendarTimelineItem: Decodable, Identifiable, Sendable {
         color: String? = nil,
         status: String? = nil,
         taskId: String? = nil,
-        priority: String? = nil
+        priority: String? = nil,
+        description: String? = nil,
+        location: String? = nil,
+        timeZone: String? = nil
     ) {
         self.id = id; self.kind = kind; self.title = title; self.startAt = startAt; self.endAt = endAt
         self.readOnly = readOnly; self.allDay = allDay ?? (kind == "TASK_DUE"); self.dueAt = dueAt
         self.sourceId = sourceId; self.sourceName = sourceName; self.color = color; self.status = status; self.taskId = taskId; self.priority = priority
+        self.description = description; self.location = location; self.timeZone = timeZone
     }
 
     init(from decoder: Decoder) throws {
@@ -61,6 +68,9 @@ struct CalendarTimelineItem: Decodable, Identifiable, Sendable {
         status = try values.decodeIfPresent(String.self, forKey: .status)
         taskId = try values.decodeIfPresent(String.self, forKey: .taskId)
         priority = try values.decodeIfPresent(String.self, forKey: .priority)
+        description = try values.decodeIfPresent(String.self, forKey: .description)
+        location = try values.decodeIfPresent(String.self, forKey: .location)
+        timeZone = try values.decodeIfPresent(String.self, forKey: .timeZone)
     }
 }
 

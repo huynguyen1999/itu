@@ -80,6 +80,15 @@
     color: #edf3f0;
   }
 
+  .itu-page-header-sticky--transparent {
+    border-bottom-color: transparent;
+    background: transparent;
+  }
+
+  .itu-page-header-sticky--transparent::before {
+    background: transparent;
+  }
+
   .itu-page-header-sticky::before {
     position: absolute;
     inset: 0;
@@ -160,14 +169,12 @@
   .itu-page-header-sticky__actions .border-input,
   .itu-page-header-sticky__actions .border-border {
     border-color: rgb(255 255 255 / 0.2);
-    background: rgb(255 255 255 / 0.08);
     color: #f4faf7;
   }
 
   .itu-page-header-sticky__actions .border-input:hover,
   .itu-page-header-sticky__actions .border-border:hover {
     border-color: rgb(255 255 255 / 0.4);
-    background: rgb(255 255 255 / 0.14);
     color: #f4faf7;
   }
 

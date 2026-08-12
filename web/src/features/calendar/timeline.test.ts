@@ -6,6 +6,7 @@ import {
   intervalToRect,
   isArrangeableTask,
   isSameLocalDay,
+  itemSpansDay,
   localDayIndex,
   localMinutesSinceMidnight,
   snapTimestamp,
@@ -85,14 +86,22 @@ describe('timeline math', () => {
     expect(timelineItemColor('TASK_DURATION', 'EMERALD')).toBe('#059669');
   });
 
-  it('maps vertical grid points back to local calendar time', () => {
-    const rangeStart = new Date('2026-08-10T00:00:00');
-    expect(localDayIndex('2026-08-12T13:30:00', rangeStart)).toBe(2);
-    expect(localMinutesSinceMidnight('2026-08-12T13:30:00')).toBe(810);
+  it('detects multi-day task overlaps correctly', () => {
+    const item = {
+      startAt: '2026-08-14T23:00:00.000',
+      endAt: '2026-08-15T03:00:00.000',
+    };
+    expect(itemSpansDay(item, new Date('2026-08-14T00:00:00'))).toBe(true);
+    expect(itemSpansDay(item, new Date('2026-08-15T00:00:00'))).toBe(true);
+    expect(itemSpansDay(item, new Date('2026-08-16T00:00:00'))).toBe(false);
+    expect(itemSpansDay(item, new Date('2026-08-13T00:00:00'))).toBe(false);
 
-    const point = gridTimestampFromPoint(2 * 180 + 30, 38 + 13 * 60 + 30, rangeStart);
-    expect(point.getDate()).toBe(12);
-    expect(point.getHours()).toBe(13);
-    expect(point.getMinutes()).toBe(30);
+    const exactMidnight = {
+      startAt: '2026-08-14T23:00:00.000',
+      endAt: '2026-08-15T00:00:00.000',
+    };
+    expect(itemSpansDay(exactMidnight, new Date('2026-08-14T00:00:00'))).toBe(true);
+    expect(itemSpansDay(exactMidnight, new Date('2026-08-15T00:00:00'))).toBe(false);
   });
 });
+

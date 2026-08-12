@@ -7,6 +7,7 @@ export function PageHeader({
   children,
   stickyControls,
   className = '',
+  transparent = false,
 }: {
   kicker?: string;
   title: ReactNode;
@@ -14,9 +15,10 @@ export function PageHeader({
   children?: ReactNode;
   stickyControls?: ReactNode;
   className?: string;
+  transparent?: boolean;
 }) {
   return (
-    <div className="itu-page-header-sticky">
+    <div className={`itu-page-header-sticky${transparent ? ' itu-page-header-sticky--transparent' : ''}`}>
       <header
         className={`itu-page-header-sticky__row flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between ${className}`.trim()}
       >

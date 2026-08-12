@@ -7,7 +7,7 @@ final class NavigationParityTests: XCTestCase {
         XCTAssertEqual(NavigationSchema.primaryGroups.map(\.title), ["Productivity", "Tracking", "Knowledge", "System"])
 
         XCTAssertEqual(NavigationSchema.primaryGroups.map { $0.entries.map(\.id) }, [
-            ["home", "plan", "matrix", "focus"],
+            ["home", "plan", "matrix", "focus", "calendar"],
             ["habits", "statistics", "budget", "gym"],
             ["journal", "learn", "growth"],
             ["conflicts", "notifications", "trash", "profile", "settings"]
@@ -17,7 +17,7 @@ final class NavigationParityTests: XCTestCase {
     func testPrimaryEntriesMapToAppSectionsAndPlanUsesInbox() {
         let entries = NavigationSchema.primaryGroups.flatMap(\.entries)
         XCTAssertEqual(entries.map(\.destination), [
-            .home, .inbox, .matrix, .focus,
+            .home, .inbox, .matrix, .focus, .calendar,
             .habits, .statistics, .budget, .gym,
             .journal, .learn, .growth,
             .conflicts, .notifications, .trash, .profile, .settings

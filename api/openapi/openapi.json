@@ -1763,31 +1763,28 @@
         ]
       }
     },
-    "/productivity/tasks/reorder": {
-      "post": {
-        "operationId": "ProductivityController_reorderTasks",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReorderTasksDto"
-              }
+    "/productivity/tasks/{id}": {
+      "get": {
+        "operationId": "ProductivityController_getTask",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
-          "201": {
+          "200": {
             "description": ""
           }
         },
         "tags": [
           "Productivity"
         ]
-      }
-    },
-    "/productivity/tasks/{id}": {
+      },
       "patch": {
         "operationId": "ProductivityController_updateTask",
         "parameters": [
@@ -1833,6 +1830,30 @@
         ],
         "responses": {
           "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/tasks/reorder": {
+      "post": {
+        "operationId": "ProductivityController_reorderTasks",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderTasksDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
             "description": ""
           }
         },
@@ -1958,6 +1979,39 @@
         },
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Productivity"
+        ]
+      }
+    },
+    "/productivity/task-reminders/{id}": {
+      "patch": {
+        "operationId": "ProductivityController_updateReminder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReminderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
             "description": ""
           }
         },
@@ -4384,6 +4438,44 @@
         ]
       }
     },
+    "/preferences/calendar": {
+      "get": {
+        "operationId": "getCalendarPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      },
+      "patch": {
+        "operationId": "updateCalendarPreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCalendarPreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
     "/budget/overview": {
       "get": {
         "operationId": "BudgetController_getOverview",
@@ -5470,6 +5562,194 @@
           "Usage"
         ]
       }
+    },
+    "/calendar/timeline": {
+      "get": {
+        "operationId": "CalendarController_timeline",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calendar"
+        ]
+      }
+    },
+    "/calendar/sources": {
+      "get": {
+        "operationId": "CalendarController_sources",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calendar"
+        ]
+      }
+    },
+    "/calendar/sources/ics": {
+      "post": {
+        "operationId": "CalendarController_createIcs",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIcsCalendarDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calendar"
+        ]
+      }
+    },
+    "/calendar/sources/{id}/refresh": {
+      "post": {
+        "operationId": "CalendarController_refresh",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calendar"
+        ]
+      }
+    },
+    "/calendar/sources/{id}": {
+      "patch": {
+        "operationId": "CalendarController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateExternalCalendarDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calendar"
+        ]
+      },
+      "delete": {
+        "operationId": "CalendarController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calendar"
+        ]
+      }
+    },
+    "/calendar/google/connect": {
+      "get": {
+        "operationId": "CalendarController_connectGoogle",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calendar"
+        ]
+      }
+    },
+    "/calendar/google/callback": {
+      "get": {
+        "operationId": "CalendarController_googleCallback",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calendar"
+        ]
+      }
+    },
+    "/calendar/google/webhook": {
+      "post": {
+        "operationId": "CalendarController_googleWebhook",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Calendar"
+        ]
+      }
     }
   },
   "info": {
@@ -5606,6 +5886,10 @@
         "properties": {}
       },
       "CreateReminderDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateReminderDto": {
         "type": "object",
         "properties": {}
       },
@@ -5787,6 +6071,10 @@
             }
           }
         }
+      },
+      "UpdateCalendarPreferencesDto": {
+        "type": "object",
+        "properties": {}
       },
       "CreateBudgetCategoryDto": {
         "type": "object",
@@ -6330,6 +6618,14 @@
         "properties": {}
       },
       "WebsiteActivitySessionBatchDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateIcsCalendarDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateExternalCalendarDto": {
         "type": "object",
         "properties": {}
       }

@@ -221,7 +221,7 @@ export class PrismaProductivityRepository implements IProductivityRepository {
 
     const items = await this.db.task.findMany({
       where,
-      include: { taskList: { select: { id: true, title: true, color: true } }, tags: { include: { tag: true } }, reminders: true },
+      include: { taskList: { select: { id: true, title: true, color: true, isDefault: true } }, tags: { include: { tag: true } }, reminders: true },
       orderBy: [{ createdAt: 'desc' }, { sortOrder: 'desc' }, { id: 'desc' }],
       take: take + 1,
       ...(filter?.cursor && { cursor: { id: filter.cursor }, skip: 1 }),

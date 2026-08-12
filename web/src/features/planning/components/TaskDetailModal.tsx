@@ -232,6 +232,7 @@ export function TaskDetailModal({
         <DialogOverlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm animate-in fade-in-0" />
         <DialogContent
           hideCloseButton
+          hideOverlay
           className="fixed left-[50%] top-[50%] z-50 flex h-auto min-h-[18rem] max-h-[90dvh] w-full max-w-xl translate-x-[-50%] translate-y-[-50%] flex-col border bg-card p-0 text-card-foreground shadow-2xl rounded-2xl overflow-hidden duration-200"
         >
           <DialogTitle className="sr-only">Edit Task: {task.title}</DialogTitle>

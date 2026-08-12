@@ -33,6 +33,10 @@ export class CalendarService {
     ]);
 
     const taskItems = taskPage.data.flatMap((task: any) => {
+      const isDefaultInbox = !task.taskListId || task.taskList?.isDefault || task.taskList?.title?.toLowerCase() === 'inbox';
+      const sourceId = isDefaultInbox ? null : task.taskListId;
+      const sourceName = isDefaultInbox ? 'Inbox' : task.taskList?.title ?? 'Inbox';
+
       if (task.scheduledStartAt && task.scheduledEndAt) {
         return [
           {
@@ -44,8 +48,8 @@ export class CalendarService {
             dueAt: task.dueAt ?? null,
             allDay: false,
             taskId: task.id,
-            sourceId: task.taskListId ?? null,
-            sourceName: task.taskList?.title ?? null,
+            sourceId,
+            sourceName,
             color: task.taskList?.color ?? null,
             priority: task.priority,
             readOnly: false,
@@ -64,8 +68,8 @@ export class CalendarService {
             dueAt: task.dueAt,
             allDay: true,
             taskId: task.id,
-            sourceId: task.taskListId ?? null,
-            sourceName: task.taskList?.title ?? null,
+            sourceId,
+            sourceName,
             color: task.taskList?.color ?? null,
             priority: task.priority,
             readOnly: false,
@@ -110,6 +114,9 @@ export class CalendarService {
       priority: null,
       readOnly: true,
       status: event.status,
+      description: event.description ?? null,
+      location: event.location ?? null,
+      timeZone: event.timeZone ?? null,
     }));
 
     return {

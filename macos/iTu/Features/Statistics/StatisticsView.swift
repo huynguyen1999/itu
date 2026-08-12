@@ -472,6 +472,7 @@ struct StatisticsView: View {
             HStack {
                 HStack(spacing: 8) {
                     Image(systemName: "globe")
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(iTuTheme.teal)
                     Text("Website activity")
                         .font(.system(size: 16, weight: .semibold))

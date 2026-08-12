@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 const calendarFixture = vi.hoisted(() => ({
-  preferences: undefined as { calendar: { zoom: 'DAY'; visibleKinds: Array<'TASK_DURATION' | 'TASK_DUE' | 'FOCUS_SESSION' | 'EXTERNAL_EVENT'>; showCompleted: boolean; collapsedGroupIds: string[] } } | undefined,
+  preferences: undefined as { calendar: { zoom: 'DAY' | 'WEEK' | 'MONTH'; visibleKinds: Array<'TASK_DURATION' | 'TASK_DUE' | 'FOCUS_SESSION' | 'EXTERNAL_EVENT'>; showCompleted: boolean; collapsedGroupIds: string[] } } | undefined,
   timelineItems: [] as Array<Record<string, unknown>>,
 }));
 
@@ -41,7 +41,7 @@ const queryMocks = vi.hoisted(() => ({
 
 vi.mock('@tanstack/react-query', () => queryMocks);
 
-import { CalendarPage, groupCalendarItems } from './CalendarPage';
+import { CalendarPage, formatSingleTime, groupCalendarItems } from './CalendarPage';
 
 describe('CalendarPage', () => {
   it('keeps the week visible and exposes Arrange tasks as a reveal action', () => {
@@ -69,9 +69,13 @@ describe('CalendarPage', () => {
       { id: 'cal-z', kind: 'EXTERNAL_EVENT', title: 'Zed', startAt: '2026-08-12T10:00:00Z', endAt: '2026-08-12T10:30:00Z', sourceId: 'z', sourceName: 'Zed', readOnly: true },
       { id: 'project-b', kind: 'TASK_DURATION', title: 'Beta', startAt: '2026-08-12T10:00:00Z', endAt: '2026-08-12T10:30:00Z', sourceId: 'b', sourceName: 'Beta', readOnly: false },
       { id: 'inbox', kind: 'TASK_DURATION', title: 'Inbox', startAt: '2026-08-12T10:00:00Z', endAt: '2026-08-12T10:30:00Z', sourceId: null, sourceName: null, readOnly: false },
+      { id: 'inbox-assigned', kind: 'TASK_DURATION', title: 'Inbox Assigned', startAt: '2026-08-12T10:00:00Z', endAt: '2026-08-12T10:30:00Z', sourceId: 'list-inbox', sourceName: 'Inbox', readOnly: false },
       { id: 'project-a', kind: 'TASK_DURATION', title: 'Alpha', startAt: '2026-08-12T10:00:00Z', endAt: '2026-08-12T10:30:00Z', sourceId: 'a', sourceName: 'Alpha', readOnly: false },
     ]);
     expect(groups.map((group) => group.id)).toEqual(['project:inbox', 'project:a', 'project:b', 'calendar:z', 'focus']);
+    const inboxGroup = groups.find((g) => g.id === 'project:inbox');
+    expect(inboxGroup?.items.map((i) => i.id)).toEqual(['inbox', 'inbox-assigned']);
+    expect(inboxGroup?.subtitle).toBe('Inbox');
   });
 
   it('does not position a due-only task as a timed block in day view', () => {
@@ -140,12 +144,66 @@ describe('CalendarPage', () => {
     }));
 
     const markup = renderToStaticMarkup(<CalendarPage />);
-
-    expect(markup).toContain('height:190px');
+    expect(markup).toContain('height:220px');
     expect(markup).toContain('top:18px');
-    expect(markup).toContain('top:60px');
-    expect(markup).toContain('top:102px');
+    expect(markup).toContain('top:72px');
+    expect(markup).toContain('top:126px');
+    calendarFixture.preferences = undefined;
+    calendarFixture.timelineItems = [];
+  });
+
+  it('renders a multi-day task across all spanned days in week view', () => {
+    calendarFixture.preferences = {
+      calendar: { zoom: 'WEEK', visibleKinds: ['TASK_DURATION'], showCompleted: true, collapsedGroupIds: [] },
+    };
+    calendarFixture.timelineItems = [{
+      id: 'overnight-task',
+      kind: 'TASK_DURATION',
+      title: 'Build a small T...',
+      startAt: '2026-08-14T23:00:00.000',
+      endAt: '2026-08-15T03:00:00.000',
+      allDay: false,
+      readOnly: false,
+      taskId: 'overnight-task',
+    }];
+
+    const markup = renderToStaticMarkup(<CalendarPage />);
+
+    // Count rendered item cards via unique item aria-label (1 continuous spanning bar across days)
+    const matches = markup.match(/aria-label="Build a small T\.\.\., Task, draggable"/g) || [];
+    expect(matches.length).toBe(1);
+    expect(markup).toContain('width:264px');
+
+
+    calendarFixture.preferences = undefined;
+    calendarFixture.timelineItems = [];
+  });
+
+  it('renders a 3-line layout for same-date duration tasks and split columns for different-date duration tasks', () => {
+    calendarFixture.preferences = {
+      calendar: { zoom: 'DAY', visibleKinds: ['TASK_DURATION'], showCompleted: true, collapsedGroupIds: [] },
+    };
+    calendarFixture.timelineItems = [
+      {
+        id: 'same-day-task',
+        kind: 'TASK_DURATION',
+        title: 'Same Day Feature',
+        startAt: '2026-08-12T09:00:00.000Z',
+        endAt: '2026-08-12T10:30:00.000Z',
+        allDay: false,
+        readOnly: false,
+        taskId: 'same-day-task',
+      },
+    ];
+
+    const markupSameDay = renderToStaticMarkup(<CalendarPage />);
+    expect(markupSameDay).toContain('Same Day Feature');
+    expect(markupSameDay).toContain(formatSingleTime('2026-08-12T09:00:00.000Z'));
+    expect(markupSameDay).toContain(formatSingleTime('2026-08-12T10:30:00.000Z'));
+
     calendarFixture.preferences = undefined;
     calendarFixture.timelineItems = [];
   });
 });
+
+

@@ -31,6 +31,40 @@ export function isSameLocalDay(first: Date | string, second: Date | string): boo
   );
 }
 
+export function toDayNumber(timestamp: Date | string): number {
+  const d = new Date(timestamp);
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+export function getEffectiveEndDayNumber(startAt: Date | string, endAt?: Date | string | null): number {
+  if (!endAt) return toDayNumber(startAt);
+  const end = new Date(endAt);
+  const start = new Date(startAt);
+  if (end.getTime() <= start.getTime()) return toDayNumber(startAt);
+
+  if (end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0 && end.getMilliseconds() === 0) {
+    const prev = new Date(end.getTime() - 1);
+    return toDayNumber(prev);
+  }
+  return toDayNumber(end);
+}
+
+export function itemSpansDay(
+  item: { startAt: Date | string; endAt?: Date | string | null },
+  targetDate: Date | string,
+): boolean {
+  const startDay = toDayNumber(item.startAt);
+  if (Number.isNaN(startDay)) return false;
+
+  const endDay = getEffectiveEndDayNumber(item.startAt, item.endAt);
+  const targetDay = toDayNumber(targetDate);
+
+  return targetDay >= startDay && targetDay <= endDay;
+}
+
+
+
+
 export function timelineItemColor(kind: TimelineItemKind, sourceColor?: string | null): string {
   if (sourceColor) {
     if (sourceColor.startsWith('#') || sourceColor.startsWith('var(') || sourceColor.startsWith('rgb')) return sourceColor;
@@ -167,20 +201,74 @@ export function intervalToRect(
   return { left, width: Math.max(minimumWidth, right - left) };
 }
 
-export function assignOverlapLane(items: Array<{ startAt: string; endAt?: string | null }>): number[] {
-  const lanes: number[] = [];
-  const laneEnds: number[] = [];
-  items.forEach((item, index) => {
+export function assignOverlapLane(
+  items: Array<{ startAt: string; endAt?: string | null; left?: number; width?: number }>,
+  minHorizontalGap: number = 0,
+): number[] {
+  const bounds = items.map((item) => {
+    if (item.left !== undefined && item.width !== undefined) {
+      return { left: item.left, right: item.left + item.width };
+    }
     const start = new Date(item.startAt).getTime();
-    const end = item.endAt ? new Date(item.endAt).getTime() : start;
-    let lane = laneEnds.findIndex((laneEnd) => laneEnd <= start);
+    const end = item.endAt ? new Date(item.endAt).getTime() : start + 30 * 60_000;
+    return { left: start, right: Math.max(start + 30 * 60_000, end) };
+  });
+
+  const indices = items
+    .map((_, i) => i)
+    .sort((a, b) => bounds[a].left - bounds[b].left || bounds[a].right - bounds[b].right);
+
+  const lanes: number[] = new Array(items.length).fill(0);
+  const laneEnds: number[] = [];
+
+  indices.forEach((index) => {
+    const { left, right } = bounds[index];
+    let lane = laneEnds.findIndex((end) => end + minHorizontalGap <= left);
     if (lane < 0) {
       lane = laneEnds.length;
-      laneEnds.push(end);
+      laneEnds.push(right);
     } else {
-      laneEnds[lane] = end;
+      laneEnds[lane] = right;
     }
     lanes[index] = lane;
   });
+
   return lanes;
+}
+
+export function computeDynamicItemTops(
+  items: Array<{ left: number; width: number; height: number }>,
+  lanes: number[],
+  baseTop: number = 10,
+  gap: number = 7,
+  minHorizontalGap: number = 0,
+): { tops: number[]; maxBottom: number } {
+  const count = items.length;
+  const tops: number[] = new Array(count).fill(baseTop);
+
+  const indices = items.map((_, i) => i).sort((a, b) => lanes[a] - lanes[b]);
+
+  indices.forEach((i) => {
+    const laneI = lanes[i];
+    const leftI = items[i].left;
+    const rightI = items[i].left + items[i].width;
+
+    let maxY = baseTop;
+    for (let j = 0; j < count; j++) {
+      if (lanes[j] < laneI) {
+        const leftJ = items[j].left;
+        const rightJ = items[j].left + items[j].width;
+        if (leftI < rightJ + minHorizontalGap && rightI + minHorizontalGap > leftJ) {
+          const bottomJ = tops[j] + items[j].height + gap;
+          if (bottomJ > maxY) {
+            maxY = bottomJ;
+          }
+        }
+      }
+    }
+    tops[i] = maxY;
+  });
+
+  const maxBottom = tops.reduce((max, top, i) => Math.max(max, top + items[i].height), baseTop);
+  return { tops, maxBottom };
 }

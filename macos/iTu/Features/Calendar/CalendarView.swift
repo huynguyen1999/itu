@@ -52,7 +52,8 @@ struct CalendarView: View {
                 id: item.id, title: item.title, start: start, end: item.endAt.flatMap(iTuDateSupport.parse),
                 kind: item.kind, taskID: nil, readOnly: true, allDay: item.allDay,
                 sourceID: "calendar:\(item.sourceId ?? item.id)", sourceName: item.sourceName ?? "Calendar Subscription",
-                color: item.color, priority: nil
+                color: item.color, priority: nil,
+                description: item.description, location: item.location, timeZone: item.timeZone
             )
         }
         return (taskItems + focusItems + imported).filter {
@@ -165,10 +166,10 @@ struct CalendarView: View {
                 Section {
                     ScrollView(.horizontal, showsIndicators: true) {
                         HStack(spacing: 0) {
-                            Color.clear.frame(width: 190)
+                            Color.clear.frame(width: 142)
                             ForEach(slots) { slot in columnHeader(slot) }
                         }
-                        .frame(width: 190 + width, alignment: .leading)
+                        .frame(width: 142 + width, alignment: .leading)
                     }
                     .frame(height: 58)
                 } header: { EmptyView() }
@@ -224,26 +225,23 @@ struct CalendarView: View {
 
     private func groupRow(_ group: CalendarGroup, slots: [CalendarSlot], width: CGFloat) -> some View {
         let timedItems = group.items.filter { !$0.allDay }
-        let timedLanes = Dictionary(uniqueKeysWithValues: zip(timedItems.map(\.id), calendarOverlapLanes(timedItems)))
-        let laneHeight: CGFloat = 74
-        let laneCount = max(0, (timedLanes.values.max() ?? -1) + 1)
-        let rowHeight = max(112, 40 + CGFloat(max(0, laneCount - 1)) * laneHeight + 72)
+        let (timedTops, rowHeight) = computeDynamicItemTops(items: timedItems, zoom: zoom, rangeFrom: range.from)
         return ScrollView(.horizontal, showsIndicators: true) {
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(group.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(iTuTheme.ink)
                     Text("\(group.items.count) items").font(.system(size: 10, design: .monospaced)).foregroundStyle(iTuTheme.inkFaint)
                 }
-                .padding(.horizontal, 14).frame(width: 190, height: rowHeight, alignment: .leading)
+                .padding(.horizontal, 14).frame(width: 142, height: rowHeight, alignment: .leading)
                 .background(iTuTheme.surface)
                 .overlay(alignment: .trailing) { Rectangle().fill(iTuTheme.border).frame(width: 1) }
                 ZStack(alignment: .topLeading) {
                     gridLines(slots: slots, height: rowHeight)
-                    ForEach(group.items) { item in timelineItem(item, slots: slots, lane: timedLanes[item.id] ?? 0) }
+                    ForEach(group.items) { item in timelineItem(item, slots: slots, topY: timedTops[item.id] ?? 10) }
                 }
                 .frame(width: width, height: rowHeight, alignment: .topLeading)
             }
-            .frame(width: 190 + width, alignment: .leading)
+            .frame(width: 142 + width, alignment: .leading)
         }
         .frame(height: rowHeight)
         .background(iTuTheme.surfaceMuted)
@@ -252,7 +250,7 @@ struct CalendarView: View {
             provider.loadObject(ofClass: NSString.self) { object, _ in
                 guard let id = object as? NSString else { return }
                 let taskID = String(id)
-                let dropX = location.x - 190
+                let dropX = location.x - 142
                 Task { @MainActor in scheduleTask(id: taskID, at: dropDate(x: dropX)) }
             }
             return true
@@ -271,20 +269,62 @@ struct CalendarView: View {
         .overlay(alignment: .top) { Rectangle().fill(iTuTheme.borderSoft).frame(height: 1) }
     }
 
-    private func timelineItem(_ item: CalendarItem, slots: [CalendarSlot], lane: Int = 0) -> some View {
+    private func timelineItem(_ item: CalendarItem, slots: [CalendarSlot], topY: CGFloat = 40) -> some View {
         let x = item.allDay ? 8 : xPosition(item.start)
         let width = itemWidth(item)
         let color = itemColor(item)
-        let label = HStack(spacing: 5) {
-            if item.kind == "TASK_DUE" { Circle().fill(.white).frame(width: 6, height: 6) }
-            Text(item.title).font(.system(size: 10, weight: .semibold)).lineLimit(1)
+        let hasDuration = !item.allDay && item.end != nil
+        let sameDay = hasDuration && Calendar.current.isDate(item.start, inSameDayAs: item.end!)
+
+        let label = VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 5) {
+                if item.kind == "TASK_DUE" { Circle().fill(color).frame(width: 5, height: 5) }
+                Text(item.title)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+            }
+            if !item.allDay {
+                if let end = item.end {
+                    if sameDay {
+                        Text("\(formatSingleTime(item.start)) – \(formatSingleTime(end))")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.75))
+                            .lineLimit(1)
+                    } else {
+                        HStack(spacing: 4) {
+                            Text(formatSingleTime(item.start))
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.75))
+                                .lineLimit(1)
+                            Spacer(minLength: 8)
+                            Text(formatSingleTime(end))
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.75))
+                                .lineLimit(1)
+                        }
+                    }
+                } else {
+                    Text(formatSingleTime(item.start))
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(1)
+                }
+            }
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 7)
-        .frame(width: width, height: item.allDay ? 24 : max(24, min(70, itemDuration(item) * 1.2)), alignment: .leading)
-        .background(color.opacity(item.kind == "TASK_DUE" ? 0.92 : 0.82))
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(color.opacity(0.65), lineWidth: 1) }
+        .padding(.leading, 12)
+        .padding(.trailing, 10)
+        .padding(.vertical, 6)
+        .frame(width: width, height: item.allDay ? 26 : 48, alignment: .leading)
+        .background(color.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(color.opacity(0.4), lineWidth: 1) }
+        .overlay(alignment: .leading) {
+            UnevenRoundedRectangle(topLeadingRadius: 9, bottomLeadingRadius: 9, bottomTrailingRadius: 0, topTrailingRadius: 0)
+                .fill(color)
+                .frame(width: 3)
+        }
+        .shadow(color: .black.opacity(0.18), radius: 3, x: 0, y: 1)
         .contentShape(Rectangle())
 
         return Group {
@@ -303,7 +343,7 @@ struct CalendarView: View {
                     .accessibilityLabel(item.title)
             }
         }
-        .offset(x: x, y: item.allDay ? 8 : 40 + CGFloat(lane) * 74)
+        .offset(x: x, y: item.allDay ? 8 : topY)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: x)
     }
 
@@ -373,15 +413,79 @@ struct CalendarView: View {
     }
 
     private func detailCard(_ item: CalendarItem) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label(item.kind == "FOCUS_SESSION" ? "Focus session" : "Calendar subscription", systemImage: item.kind == "FOCUS_SESSION" ? "timer" : "calendar")
-                .font(.system(size: 11, weight: .semibold)).foregroundStyle(itemColor(item))
-            Text(item.title).font(.system(size: 16, weight: .semibold))
-            Text("\(item.start.formatted(date: .abbreviated, time: .shortened)) – \((item.end ?? item.start).formatted(date: .omitted, time: .shortened))")
-                .font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim)
-            Text("Read-only").font(.system(size: 10, design: .monospaced)).foregroundStyle(iTuTheme.inkFaint)
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            VStack(alignment: .leading, spacing: 4) {
+                Label(item.kind == "FOCUS_SESSION" ? "Focus session" : item.sourceName ?? "Calendar subscription",
+                      systemImage: item.kind == "FOCUS_SESSION" ? "timer" : "calendar")
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(itemColor(item))
+                Text(item.title).font(.system(size: 15, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 10)
+
+            Divider().padding(.horizontal, 14)
+
+            // When row
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "clock").font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim).frame(width: 14)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(item.start.formatted(.dateTime.weekday(.wide).month(.wide).day())).font(.system(size: 12, weight: .medium))
+                    if item.allDay {
+                        Text("All day").font(.system(size: 11)).foregroundStyle(iTuTheme.inkDim)
+                    } else {
+                        let endStr = (item.end ?? item.start)
+                        HStack(spacing: 0) {
+                            Text("\(formatSingleTime(item.start)) – \(formatSingleTime(endStr))").font(.system(size: 11)).foregroundStyle(iTuTheme.inkDim)
+                            if let tz = item.timeZone, tz != TimeZone.current.identifier {
+                                Text(tz).font(.system(size: 9, design: .monospaced)).foregroundStyle(iTuTheme.inkFaint)
+                                    .padding(.horizontal, 4).padding(.vertical, 1)
+                                    .background(iTuTheme.surfaceMuted).clipShape(RoundedRectangle(cornerRadius: 3))
+                                    .padding(.leading, 5)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+
+            // Location row
+            if let loc = item.location, !loc.isEmpty {
+                Divider().padding(.horizontal, 14)
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "mappin").font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim).frame(width: 14)
+                    Text(loc).font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 8)
+            }
+
+            // Description row
+            if let desc = item.description, !desc.isEmpty {
+                let lines = desc.components(separatedBy: CharacterSet.newlines)
+                    .flatMap { $0.components(separatedBy: "\\n") }
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                if !lines.isEmpty {
+                    Divider().padding(.horizontal, 14)
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "text.alignleft").font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim).frame(width: 14)
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                                Text(line).font(.system(size: 12)).foregroundStyle(iTuTheme.ink).fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                }
+            }
+
+            Divider().padding(.horizontal, 14)
+
+            // Footer
+            Text("Read-only · synced from external calendar")
+                .font(.system(size: 9, design: .monospaced)).foregroundStyle(iTuTheme.inkFaint)
+                .padding(.horizontal, 14).padding(.vertical, 8)
         }
-        .padding(16).frame(width: 250, alignment: .leading).background(iTuTheme.surface)
+        .frame(width: 260, alignment: .leading).background(iTuTheme.surface)
     }
 
     private var arrangeableTasks: [ProductivityTask] {
@@ -522,17 +626,104 @@ struct CalendarView: View {
     }
 }
 
-private func calendarOverlapLanes(_ items: [CalendarItem]) -> [Int] {
-    var laneEnds: [Date] = []
-    return items.map { item in
-        let end = item.end ?? item.start.addingTimeInterval(1800)
-        if let lane = laneEnds.firstIndex(where: { $0 <= item.start }) {
-            laneEnds[lane] = end
-            return lane
+private func calendarOverlapLanes(_ items: [CalendarItem], zoom: CalendarZoom, rangeFrom: Date) -> [Int] {
+    func itemBounds(_ item: CalendarItem) -> (left: CGFloat, right: CGFloat) {
+        let elapsed = item.start.timeIntervalSince(rangeFrom)
+        let left: CGFloat
+        let width: CGFloat
+        if zoom == .day {
+            left = CGFloat(max(0, elapsed / 3_600)) * zoom.slotWidth
+            let durationHours = max(0.25, CGFloat((item.end ?? item.start.addingTimeInterval(1800)).timeIntervalSince(item.start) / 3_600))
+            width = max(64, durationHours * zoom.slotWidth)
+        } else {
+            let days = max(0, Calendar.current.dateComponents([.day], from: rangeFrom, to: item.start).day ?? 0)
+            left = CGFloat(days) * zoom.slotWidth
+            let spanDays = max(1, Calendar.current.dateComponents([.day], from: item.start, to: item.end ?? item.start).day ?? 1)
+            width = max(54, CGFloat(spanDays) * zoom.slotWidth - 12)
         }
-        laneEnds.append(end)
-        return laneEnds.count - 1
+        return (left, left + width)
     }
+
+    let minHorizontalGap: CGFloat = 0
+    let bounds = items.map(itemBounds)
+    let sortedIndices = items.indices.sorted { lhs, rhs in
+        if bounds[lhs].left != bounds[rhs].left { return bounds[lhs].left < bounds[rhs].left }
+        return bounds[lhs].right < bounds[rhs].right
+    }
+
+    var lanes = Array(repeating: 0, count: items.count)
+    var laneEndsX: [CGFloat] = []
+
+    for index in sortedIndices {
+        let rect = bounds[index]
+        if let lane = laneEndsX.firstIndex(where: { $0 + minHorizontalGap <= rect.left }) {
+            laneEndsX[lane] = rect.right
+            lanes[index] = lane
+        } else {
+            lanes[index] = laneEndsX.count
+            laneEndsX.append(rect.right)
+        }
+    }
+    return lanes
+}
+
+private func computeDynamicItemTops(
+    items: [CalendarItem],
+    zoom: CalendarZoom,
+    rangeFrom: Date,
+    baseTop: CGFloat = 10,
+    gap: CGFloat = 7
+) -> (tops: [String: CGFloat], rowHeight: CGFloat) {
+    func itemRect(_ item: CalendarItem) -> (left: CGFloat, right: CGFloat, height: CGFloat) {
+        let elapsed = item.start.timeIntervalSince(rangeFrom)
+        let left: CGFloat
+        let width: CGFloat
+        if zoom == .day {
+            left = CGFloat(max(0, elapsed / 3_600)) * zoom.slotWidth
+            let durationHours = max(0.25, CGFloat((item.end ?? item.start.addingTimeInterval(1800)).timeIntervalSince(item.start) / 3_600))
+            width = max(64, durationHours * zoom.slotWidth)
+        } else {
+            let days = max(0, Calendar.current.dateComponents([.day], from: rangeFrom, to: item.start).day ?? 0)
+            left = CGFloat(days) * zoom.slotWidth
+            let spanDays = max(1, Calendar.current.dateComponents([.day], from: item.start, to: item.end ?? item.start).day ?? 1)
+            width = max(54, CGFloat(spanDays) * zoom.slotWidth - 12)
+        }
+        let height: CGFloat = item.allDay ? 26 : 48
+        return (left, left + width, height)
+    }
+
+    let rects = items.map(itemRect)
+    let lanes = calendarOverlapLanes(items, zoom: zoom, rangeFrom: rangeFrom)
+    let count = items.count
+    var itemTops = Array(repeating: baseTop, count: count)
+
+    let sortedIndices = items.indices.sorted { lanes[$0] < lanes[$1] }
+
+    for i in sortedIndices {
+        let laneI = lanes[i]
+        let rectI = rects[i]
+        var maxY = baseTop
+        for j in 0..<count {
+            if lanes[j] < laneI {
+                let rectJ = rects[j]
+                if rectI.left < rectJ.right && rectI.right > rectJ.left {
+                    let bottomJ = itemTops[j] + rectJ.height + gap
+                    if bottomJ > maxY { maxY = bottomJ }
+                }
+            }
+        }
+        itemTops[i] = maxY
+    }
+
+    var dict: [String: CGFloat] = [:]
+    var maxBottom: CGFloat = baseTop
+    for (index, item) in items.enumerated() {
+        dict[item.id] = itemTops[index]
+        let bottom = itemTops[index] + rects[index].height
+        if bottom > maxBottom { maxBottom = bottom }
+    }
+    let calculatedRowHeight = max(90, maxBottom + 16)
+    return (dict, calculatedRowHeight)
 }
 
 private enum CalendarZoom: String, CaseIterable, Identifiable {
@@ -569,9 +760,22 @@ private struct CalendarSlot: Identifiable { let id: Int; let date: Date; let tit
 private struct CalendarGroup: Identifiable { let id: String; let title: String; var items: [CalendarItem] = [] }
 private struct CalendarItem: Identifiable {
     let id: String; let title: String; let start: Date; let end: Date?; let kind: String; let taskID: String?; let readOnly: Bool; let allDay: Bool; let sourceID: String?; let sourceName: String?; let color: String?; let priority: String?
+    var description: String? = nil
+    var location: String? = nil
+    var timeZone: String? = nil
 }
 private enum CalendarKind: String, CaseIterable, Identifiable {
     case taskDuration = "TASK_DURATION", taskDue = "TASK_DUE", focus = "FOCUS_SESSION", external = "EXTERNAL_EVENT"
     var id: String { rawValue }
     var title: String { switch self { case .taskDuration: "Tasks"; case .taskDue: "Due Dates"; case .focus: "Focus Sessions"; case .external: "External Events" } }
+}
+
+private func formatSingleTime(_ date: Date) -> String {
+    let cal = Calendar.current
+    let components = cal.dateComponents([.hour, .minute], from: date)
+    let hour = components.hour ?? 0
+    let min = components.minute ?? 0
+    let ampm = hour >= 12 ? "PM" : "AM"
+    let formattedHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
+    return String(format: "%d:%02d %@", formattedHour, min, ampm)
 }

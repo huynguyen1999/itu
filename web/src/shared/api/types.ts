@@ -513,7 +513,11 @@ export type CalendarTimelineItem = {
   status?: string | null;
   taskId?: string | null;
   priority?: TaskPriority | null;
+  description?: string | null;
+  location?: string | null;
+  timeZone?: string | null;
 };
+
 
 export type ExternalCalendar = {
   id: string;
