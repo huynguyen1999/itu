@@ -9,6 +9,7 @@ import {
   updateJournalTemplate,
 } from './journalMutations';
 import type { JournalEntryKind } from './journal.types';
+import { getJournalWeekRange } from './journalDate';
 
 describe('Journal Web Feature', () => {
   afterEach(() => {
@@ -40,6 +41,12 @@ describe('Journal Web Feature', () => {
     expect(retainedKinds).toEqual(['NOTE', 'WEEKLY_REVIEW']);
     expect(removedExpenseKind).toBe('EXPENSE');
     expect(removedWorkoutKind).toBe('WORKOUT');
+  });
+
+  it('uses the configured local week start for weekly reviews', () => {
+    const date = new Date(2026, 7, 12, 12);
+    expect(getJournalWeekRange(date, 'MONDAY')).toEqual({ start: '2026-08-10', end: '2026-08-16' });
+    expect(getJournalWeekRange(date, 'SUNDAY')).toEqual({ start: '2026-08-09', end: '2026-08-15' });
   });
 
   it('uploads queued attachments without overriding the browser multipart boundary', async () => {

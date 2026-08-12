@@ -360,9 +360,7 @@ struct TaskListView: View {
     }
 
     private func todayDueDate() -> String {
-        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-        components.hour = 18
-        let date = Calendar.current.date(from: components) ?? Date()
+        let date = model.settingsStore.taskDefaults.dateByApplyingDefaultDueTime(to: Date())
         return ISO8601DateFormatter().string(from: date)
     }
 }

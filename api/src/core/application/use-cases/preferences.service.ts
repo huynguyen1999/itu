@@ -3,6 +3,7 @@ import { PrismaService } from '@infrastructure/persistence/prisma/prisma.service
 
 export interface TaskPreferences {
   defaultDate: 'NONE' | 'TODAY' | 'TOMORROW';
+  defaultDueTime: string;
   defaultPriority: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
   defaultTaskListId: string;
 }
@@ -80,6 +81,15 @@ export interface UsagePreferences {
   excludedBundleIds: string[];
 }
 
+export type CalendarTimelineKind = 'TASK_DURATION' | 'TASK_DUE' | 'FOCUS_SESSION' | 'EXTERNAL_EVENT';
+
+export interface CalendarPreferences {
+  zoom: 'DAY' | 'WEEK' | 'MONTH';
+  visibleKinds: CalendarTimelineKind[];
+  showCompleted: boolean;
+  collapsedGroupIds: string[];
+}
+
 export const MAX_EXCLUDED_BUNDLE_IDS = 100;
 export const MAX_EXCLUDED_BUNDLE_ID_LENGTH = 255;
 
@@ -95,10 +105,12 @@ export interface AllUserPreferences {
   budget: BudgetPreferences;
   gym: GymPreferences;
   usage: UsagePreferences;
+  calendar: CalendarPreferences;
 }
 
 export const DEFAULT_TASK_PREFERENCES: TaskPreferences = {
   defaultDate: 'NONE',
+  defaultDueTime: '21:00',
   defaultPriority: 'NONE',
   defaultTaskListId: '',
 };
@@ -176,6 +188,31 @@ export const DEFAULT_USAGE_PREFERENCES: UsagePreferences = {
   excludedBundleIds: [],
 };
 
+export const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
+  zoom: 'WEEK',
+  visibleKinds: ['TASK_DURATION', 'TASK_DUE', 'FOCUS_SESSION', 'EXTERNAL_EVENT'],
+  showCompleted: true,
+  collapsedGroupIds: [],
+};
+
+export function validateCalendarPreferences(input: Partial<CalendarPreferences>): CalendarPreferences {
+  const updated = { ...DEFAULT_CALENDAR_PREFERENCES, ...input };
+  const kinds: CalendarTimelineKind[] = ['TASK_DURATION', 'TASK_DUE', 'FOCUS_SESSION', 'EXTERNAL_EVENT'];
+  if (!['DAY', 'WEEK', 'MONTH'].includes(updated.zoom)) throw new BadRequestException('zoom must be DAY, WEEK, or MONTH');
+  if (!Array.isArray(updated.visibleKinds) || updated.visibleKinds.some((kind) => !kinds.includes(kind))) {
+    throw new BadRequestException('visibleKinds must contain supported calendar timeline kinds');
+  }
+  if (new Set(updated.visibleKinds).size !== updated.visibleKinds.length) {
+    throw new BadRequestException('visibleKinds must not contain duplicates');
+  }
+  if (typeof updated.showCompleted !== 'boolean') throw new BadRequestException('showCompleted must be a boolean');
+  if (!Array.isArray(updated.collapsedGroupIds) || updated.collapsedGroupIds.length > 100 || updated.collapsedGroupIds.some((id) => typeof id !== 'string' || id.trim().length === 0 || id.trim().length > 255)) {
+    throw new BadRequestException('collapsedGroupIds must contain at most 100 non-empty strings');
+  }
+  updated.collapsedGroupIds = Array.from(new Set(updated.collapsedGroupIds.map((id) => id.trim())));
+  return updated;
+}
+
 @Injectable()
 export class PreferencesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -196,13 +233,21 @@ export class PreferencesService {
     const budget = { ...DEFAULT_BUDGET_PREFERENCES, ...((record?.budgetPreferences as Partial<BudgetPreferences>) || (record?.moneyPreferences as Partial<MoneyPreferences>) || {}) };
     const gym = { ...DEFAULT_GYM_PREFERENCES, ...((record?.gymPreferences as Partial<GymPreferences>) || {}) };
     const usage = { ...DEFAULT_USAGE_PREFERENCES, ...((record?.usagePreferences as Partial<UsagePreferences>) || {}) };
+    const calendar = {
+      ...DEFAULT_CALENDAR_PREFERENCES,
+      ...((record?.calendarPreferences as Partial<CalendarPreferences>) || {}),
+    };
 
-    return { tasks, focus, habits, matrix, growth, learn, journal, money, budget, gym, usage };
+    return { tasks, focus, habits, matrix, growth, learn, journal, money, budget, gym, usage, calendar };
   }
 
   async updateTaskPreferences(userId: string, patch: Partial<TaskPreferences>): Promise<TaskPreferences> {
     const current = await this.getPreferences(userId);
     const updated = { ...current.tasks, ...patch };
+    const [hours, minutes] = updated.defaultDueTime.split(':').map(Number);
+    if (!/^\d{2}:\d{2}$/.test(updated.defaultDueTime) || hours > 23 || minutes > 59) {
+      throw new BadRequestException('defaultDueTime must be a valid HH:MM time');
+    }
     await this.prisma.userPreferences.upsert({
       where: { userId },
       create: { userId, taskPreferences: updated as any },
@@ -349,5 +394,20 @@ export class PreferencesService {
       update: { usagePreferences: updated as any },
     });
     return updated;
+  }
+
+  async updateCalendarPreferences(userId: string, patch: Partial<CalendarPreferences>): Promise<CalendarPreferences> {
+    const current = await this.getPreferences(userId);
+    const updated = validateCalendarPreferences({ ...current.calendar, ...patch });
+    await this.prisma.userPreferences.upsert({
+      where: { userId },
+      create: { userId, calendarPreferences: updated as any },
+      update: { calendarPreferences: updated as any },
+    });
+    return updated;
+  }
+
+  async getCalendarPreferences(userId: string): Promise<CalendarPreferences> {
+    return (await this.getPreferences(userId)).calendar;
   }
 }

@@ -35,6 +35,22 @@ export function normalizeTrackedUrl(value) {
   }
 }
 
+export function normalizeIconUrl(value) {
+  if (typeof value !== "string" || value.length === 0 || value.length > 2048) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    const normalizedUrl = url.toString();
+    return normalizedUrl.length <= 2048 ? normalizedUrl : null;
+  } catch {
+    return null;
+  }
+}
+
 export function normalizeApiBaseUrl(value) {
   try {
     const url = new URL(value);
@@ -47,9 +63,10 @@ export function normalizeApiBaseUrl(value) {
 
 export function stateForTab(tab) {
   const normalized = tab && normalizeTrackedUrl(tab.url);
-  if (!normalized) return { hostname: null, url: null, title: "", incognito: Boolean(tab?.incognito) };
+  if (!normalized) return { hostname: null, url: null, iconUrl: null, title: "", incognito: Boolean(tab?.incognito) };
   return {
     ...normalized,
+    iconUrl: normalizeIconUrl(tab.favIconUrl),
     title: String(tab.title ?? "").slice(0, 500),
     incognito: Boolean(tab.incognito)
   };
@@ -85,14 +102,20 @@ export function createSession(state, startedAt, endedAt, id = globalThis.crypto?
     id, startedAt, endedAt, activeSeconds, localDate: localDate(startedAt),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     browserBundleId: BROWSER_BUNDLE_ID, browserDisplayName: BROWSER_DISPLAY_NAME,
-    hostname: state.hostname, url: state.url, title: state.title ?? "", incognito: Boolean(state.incognito)
+    hostname: state.hostname, url: state.url, iconUrl: state.iconUrl ?? null, title: state.title ?? "", incognito: Boolean(state.incognito)
   };
 }
 
 export function mergeAdjacentSession(previous, next) {
   if (!sameSession(previous, next) || next.startedAt < previous.endedAt || next.startedAt - previous.endedAt > SESSION_MERGE_GAP_MS) return null;
   const endedAt = Math.max(previous.endedAt, next.endedAt);
-  return { ...previous, endedAt, activeSeconds: Math.min(86_400, previous.activeSeconds + next.activeSeconds), title: next.title || previous.title };
+  return {
+    ...previous,
+    endedAt,
+    activeSeconds: Math.min(86_400, previous.activeSeconds + next.activeSeconds),
+    iconUrl: next.iconUrl || previous.iconUrl || null,
+    title: next.title || previous.title
+  };
 }
 
 export function projectAggregates(sessions) {

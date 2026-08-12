@@ -46,6 +46,15 @@ export function TaskDefaultsPopover({
               <option value="TOMORROW">Tomorrow</option>
             </select>
           </FeatureSettingsRow>
+          <FeatureSettingsRow label="Default due time">
+            <input
+              aria-label="Default due time"
+              type="time"
+              value={preferences.defaultDueTime}
+              onChange={(e) => onChange?.({ defaultDueTime: e.target.value })}
+              className="h-8 rounded-md border bg-background px-2 text-xs"
+            />
+          </FeatureSettingsRow>
           <FeatureSettingsRow label="Default priority">
             <select
               value={preferences.defaultPriority}

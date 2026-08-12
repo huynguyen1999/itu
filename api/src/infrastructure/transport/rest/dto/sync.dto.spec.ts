@@ -62,4 +62,22 @@ describe('SyncRequestDto', () => {
     });
     expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
   });
+
+  it('accepts singleton preference entity ids used by the clients', async () => {
+    const dto = plainToInstance(SyncRequestDto, {
+      deviceId: 'device-123456',
+      clientInstanceId: 'client-123456',
+      mutations: [
+        {
+          id: 'mutation-123456',
+          kind: 'calendarpreferences.update',
+          entityId: 'calendar',
+          payload: { showCompleted: false },
+          occurredAt: '2026-07-25T10:00:00.000Z',
+        },
+      ],
+    });
+
+    expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
+  });
 });

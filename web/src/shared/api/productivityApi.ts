@@ -9,6 +9,8 @@ import type {
   TaskList,
   TaskSection,
   TaskTag,
+  CalendarTimelineItem,
+  ExternalCalendar,
 } from './types';
 import type { ApiClientContext } from './apiContext';
 
@@ -93,6 +95,31 @@ export function createProductivityApi(ctx: ApiClientContext) {
       });
       return ctx.request<CursorPage<ProductivityTask>>(`/productivity/tasks${search.size ? `?${search}` : ''}`);
     },
+    getTask(id: string) {
+      return ctx.request<ProductivityTask>(`/productivity/tasks/${id}`);
+    },
+    calendarTimeline(from: string, to: string) {
+      const search = new URLSearchParams({ from, to });
+      return ctx.request<{ from: string; to: string; items: CalendarTimelineItem[] }>(`/calendar/timeline?${search}`);
+    },
+    calendarSources() {
+      return ctx.request<ExternalCalendar[]>('/calendar/sources');
+    },
+    calendarGoogleConnect() {
+      return ctx.request<{ url: string }>('/calendar/google/connect');
+    },
+    createIcsCalendar(data: { url: string; name?: string }) {
+      return ctx.request<ExternalCalendar>('/calendar/sources/ics', { method: 'POST', body: JSON.stringify(data) });
+    },
+    refreshCalendarSource(id: string) {
+      return ctx.request<ExternalCalendar | ExternalCalendar[]>(`/calendar/sources/${id}/refresh`, { method: 'POST' });
+    },
+    updateCalendarSource(id: string, data: { visible?: boolean; color?: string }) {
+      return ctx.request(`/calendar/sources/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+    },
+    deleteCalendarSource(id: string) {
+      return ctx.request<void>(`/calendar/sources/${id}`, { method: 'DELETE' });
+    },
     taskMatrix() {
       return ctx.request<Record<string, ProductivityTask[]>>('/productivity/tasks/matrix');
     },
@@ -168,8 +195,26 @@ export function createProductivityApi(ctx: ApiClientContext) {
               : 'ARCHIVED';
       return this.updateTask(id, { status });
     },
-    createTaskReminder(id: string, data: { remindAt: string; persistent?: boolean }) {
+    createTaskReminder(
+      id: string,
+      data: {
+        type?: 'ABSOLUTE' | 'RELATIVE';
+        remindAt?: string;
+        relativeTo?: 'DUE_AT' | 'SCHEDULE_START_AT';
+        offsetMinutes?: number;
+        calendarDayOffset?: number;
+        timeOfDayMinutes?: number;
+        timeZone?: string;
+        persistent?: boolean;
+      },
+    ) {
       return ctx.request(`/productivity/tasks/${id}/reminders`, { method: 'POST', body: JSON.stringify(data) });
+    },
+    updateTaskReminder(id: string, data: { remindAt: string }) {
+      return ctx.request(`/productivity/task-reminders/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+    },
+    dismissTaskReminder(id: string) {
+      return ctx.request(`/productivity/task-reminders/${id}/dismiss`, { method: 'POST' });
     },
     notifications() {
       return ctx.request<AppNotification[]>('/productivity/notifications');

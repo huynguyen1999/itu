@@ -52,6 +52,7 @@ const QUERY_PREFIXES: Record<string, string[]> = {
   moneycategorybudget: ['budget'],
   budgettransaction: ['budget'],
   budgetpreferences: ['user-preferences'],
+  calendarpreferences: ['user-preferences'],
   gympreferences: ['user-preferences'],
 };
 
@@ -79,11 +80,14 @@ export function applySyncChanges(queryClient: QueryClient, response: SyncRespons
 }
 
 function applyOptimisticChange(queryClient: QueryClient, change: SyncResponse['changes'][number]): void {
-  if (change.entityType === 'budgetpreferences' || change.entityType === 'gympreferences') {
+  if (change.entityType === 'budgetpreferences' || change.entityType === 'gympreferences' || change.entityType === 'calendarpreferences') {
     queryClient.setQueryData(['user-preferences'], (current) => {
       if (!isRecord(current) || !isRecord(change.data)) return current;
-      const key = change.entityType === 'budgetpreferences' ? 'budget' : 'gym';
-      const next = { ...current, [key]: { ...(isRecord(current[key]) ? current[key] : {}), ...change.data } };
+      const key = change.entityType === 'budgetpreferences' ? 'budget' : change.entityType === 'gympreferences' ? 'gym' : 'calendar';
+      const incoming = key === 'calendar' && isRecord(change.data.calendarPreferences)
+        ? change.data.calendarPreferences
+        : change.data;
+      const next = { ...current, [key]: { ...(isRecord(current[key]) ? current[key] : {}), ...incoming } };
       if (key === 'budget') next.money = next.budget;
       return next;
     });

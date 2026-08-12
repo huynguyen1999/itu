@@ -108,7 +108,7 @@ export function GrowthPage({ tab = 'attributes' }: { tab?: GrowthTab }) {
             kicker="Personal growth"
             title="Growth"
             description="Build useful skills, strengthen core attributes, and turn completed work into visible progress."
-            className="px-8 pt-4"
+            className="px-4 pt-4 sm:px-6 lg:px-8"
           >
             {needsOnboarding && (
               <Button onClick={() => setShowOnboarding(true)} size="sm" className="gap-2">

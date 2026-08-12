@@ -21,6 +21,7 @@ import { BudgetModule } from './features/budget/budget.module';
 import { GymModule } from './features/gym/gym.module';
 import { PublicModule } from './infrastructure/public/public.module';
 import { UsageModule } from './features/usage/usage.module';
+import { CalendarModule } from './features/calendar/calendar.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { UsageModule } from './features/usage/usage.module';
     BudgetModule,
     GymModule,
     UsageModule,
+    CalendarModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: DomainExceptionFilter },

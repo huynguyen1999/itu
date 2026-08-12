@@ -90,7 +90,7 @@ export function GymOverviewPage() {
 
       {/* Recent Workouts */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-2">
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <History className="w-4 h-4 text-emerald-500" />
             Recent Workouts
@@ -109,12 +109,12 @@ export function GymOverviewPage() {
             {overview.recentWorkouts.map((w: any) => (
               <Card
                 key={w.id}
-                className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer"
+                className="flex min-w-0 cursor-pointer items-start justify-between gap-3 p-4 transition-colors hover:bg-muted/30"
                 onClick={() => navigate(`/gym/workouts/${w.id}`)}
               >
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-xs text-foreground">{w.title || 'Workout'}</span>
+                    <span className="truncate text-xs font-semibold text-foreground">{w.title || 'Workout'}</span>
                     <span
                       className={`text-xs font-mono px-1.5 py-0.5 rounded ${
                         w.status === 'COMPLETED'
@@ -127,7 +127,7 @@ export function GymOverviewPage() {
                       {w.status}
                     </span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground font-mono">
+                  <p className="truncate text-[11px] font-mono text-muted-foreground">
                     {new Date(w.startedAt).toLocaleDateString()} &bull; {w.exercises.length} exercises &bull;{' '}
                     {w.durationMinutes || 0} min
                   </p>

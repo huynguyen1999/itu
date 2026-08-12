@@ -8,19 +8,34 @@
   </head>
   <body>
     <main class="activity-page">
-      <header class="topbar"><div class="brand-mark" aria-hidden="true">i</div><div><p class="eyebrow">Browser Activity</p><h1>Activity history</h1></div><p id="sync-status" class="status-pill">Local</p></header>
-      <section class="usage-card" aria-labelledby="range-heading">
-        <div class="section-heading"><div><p class="eyebrow">Usage history</p><h2 id="range-heading">Your browsing pattern</h2></div><div class="history-actions"><button id="clear-range" type="button">Clear range</button><button id="clear-all" type="button">Clear all</button><button id="reset-all" type="button">Reset all</button></div></div>
-        <div class="filters">
-          <label>Range<select id="range"><option value="today">Today</option><option value="7d">7D</option><option value="30d">30D</option><option value="90d">90D</option><option value="1y">1Y</option><option value="custom">Custom</option></select></label>
-          <label>Search<input id="search" type="search" placeholder="Title, domain, or URL"></label>
-          <label>Privacy<select id="private"><option value="all">All</option><option value="normal">Normal</option><option value="private">Private</option></select></label>
-          <label>Sync<select id="sync"><option value="all">All</option><option value="pending">Pending</option><option value="failed">Failed</option><option value="blocked">Blocked</option></select></label>
-          <label id="from-wrap" hidden>From<input id="from" type="date"></label><label id="to-wrap" hidden>To<input id="to" type="date"></label>
+      <header class="topbar history-topbar">
+        <a class="brand-lockup" href="popup.html" aria-label="Back to Browser Activity">
+          <div class="brand-mark" aria-hidden="true">i</div>
+          <div><p class="eyebrow">iTu · Browser Activity</p><h1>Activity history</h1></div>
+        </a>
+        <div class="history-topbar-meta"><span class="history-scope">Local history</span><p id="sync-status" class="status-pill">Local</p></div>
+      </header>
+      <section class="usage-card history-card" aria-labelledby="range-heading">
+        <div class="history-intro">
+          <div><p class="eyebrow">Usage history</p><h2 id="range-heading">Your browsing pattern</h2><p class="history-description">See where your attention went, then drill into the sessions behind it.</p></div>
+          <div class="history-metric"><span class="metric-label">Active in view</span><strong id="range-total">0m</strong><span id="summary" class="history-summary"></span></div>
         </div>
-        <p id="summary" class="usage-subtitle"></p><p id="sync-diagnostic" class="detail-summary"></p>
-        <div id="trend" class="trend" aria-label="Daily activity trend"></div><div id="domain-donut" class="pie-chart" role="img" aria-label="Domain composition"><div class="pie-center"><strong>Domains</strong></div></div>
-        <div class="history-grid"><section><h3>Domains</h3><ul id="domains" class="domain-list"></ul></section><section><h3>Sessions</h3><ul id="sessions" class="detail-list"></ul></section></div>
+        <div class="history-toolbar">
+          <div class="filters" aria-label="Activity filters">
+            <label><span>Range</span><select id="range"><option value="today">Today</option><option value="7d">7D</option><option value="30d">30D</option><option value="90d">90D</option><option value="1y">1Y</option><option value="custom">Custom</option></select></label>
+            <label><span>Search</span><input id="search" type="search" placeholder="Title, domain, or URL"></label>
+            <label><span>Privacy</span><select id="private"><option value="all">All</option><option value="normal">Normal</option><option value="private">Private</option></select></label>
+            <label><span>Sync</span><select id="sync"><option value="all">All</option><option value="pending">Pending</option><option value="failed">Failed</option><option value="blocked">Blocked</option></select></label>
+            <label id="from-wrap" hidden><span>From</span><input id="from" type="date"></label><label id="to-wrap" hidden><span>To</span><input id="to" type="date"></label>
+          </div>
+          <div class="history-actions"><button id="clear-range" class="button-secondary" type="button">Clear range</button><button id="clear-all" class="button-secondary" type="button">Clear all</button><button id="reset-all" class="button-danger" type="button">Reset all</button></div>
+        </div>
+        <div class="history-status-row"><p id="sync-diagnostic" class="detail-summary"></p></div>
+        <div class="history-overview">
+          <div class="trend-block"><div class="panel-heading"><div><p class="panel-kicker">Activity trend</p><h3>Time across the selected range</h3></div><span class="trend-hint">Hover a bar for details</span></div><div id="trend" class="trend" aria-label="Daily activity trend"></div></div>
+          <div class="donut-block"><div id="domain-donut" class="pie-chart" role="img" aria-label="Domain composition"><div class="pie-center"><strong id="donut-total">0m</strong><span>in view</span></div></div><div><p class="panel-kicker">Domain mix</p><p class="donut-copy">Your most active sites, grouped by domain.</p></div></div>
+        </div>
+        <div class="history-grid"><section class="history-panel"><div class="panel-heading"><div><p class="panel-kicker">Breakdown</p><h3>Domains</h3></div><span id="domain-count" class="panel-count"></span></div><ul id="domains" class="domain-list"></ul></section><section class="history-panel"><div class="panel-heading"><div><p class="panel-kicker">Timeline</p><h3>Sessions</h3></div><span id="session-count" class="panel-count"></span></div><ul id="sessions" class="detail-list"></ul></section></div>
       </section>
       <p id="data-management" class="privacy">Local data: estimating…</p>
       <p class="privacy">Raw activity remains in this browser until you clear it. “Clear range” preserves connection settings; “Reset all” removes local history and connection settings. Remote history is not deleted by either action.</p>

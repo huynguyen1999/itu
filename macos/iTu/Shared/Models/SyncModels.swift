@@ -344,6 +344,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
     var journalTemplates: [JournalTemplateModel] = []
     var journalRevisionsByEntryID: [String: [JournalEntryRevisionModel]] = [:]
     var journalPreferences: JournalPreferencesModel = JournalPreferencesModel()
+    var calendarPreferences: CalendarPreferencesModel = CalendarPreferencesModel()
     var pendingJournalAttachments: [String: Data] = [:]
     var pendingJournalAttachmentMetadata: [String: JournalPendingAttachment] = [:]
 
@@ -390,6 +391,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         case budgetCategories, budgetPeriods, budgetTransactions, gymExercises, gymWorkouts, budgetPreferences, gymPreferences
         case pendingGymExerciseImages
         case journalNotes, journalTags, journalTemplates, journalRevisionsByEntryID, journalPreferences, pendingJournalAttachments, pendingJournalAttachmentMetadata
+        case calendarPreferences
     }
 
     init() {}
@@ -448,6 +450,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         journalTemplates = try values.decodeIfPresent([JournalTemplateModel].self, forKey: .journalTemplates) ?? []
         journalRevisionsByEntryID = try values.decodeIfPresent([String: [JournalEntryRevisionModel]].self, forKey: .journalRevisionsByEntryID) ?? [:]
         journalPreferences = try values.decodeIfPresent(JournalPreferencesModel.self, forKey: .journalPreferences) ?? JournalPreferencesModel()
+        calendarPreferences = try values.decodeIfPresent(CalendarPreferencesModel.self, forKey: .calendarPreferences) ?? CalendarPreferencesModel()
         pendingJournalAttachments = try values.decodeIfPresent([String: Data].self, forKey: .pendingJournalAttachments) ?? [:]
         pendingJournalAttachmentMetadata = try values.decodeIfPresent([String: JournalPendingAttachment].self, forKey: .pendingJournalAttachmentMetadata) ?? [:]
     }

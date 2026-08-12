@@ -13,6 +13,7 @@ import { Label } from '@/shared/ui/label';
 import { AlertCircle, Eye, Keyboard, LibraryBig, LoaderCircle, PlayCircle, SkipForward } from 'lucide-react';
 import { useAuth } from '@/shared/auth/AuthProvider';
 import { createUlid } from '@/shared/sync/syncIdentity';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 const grades = [
   { value: 'AGAIN', label: 'Again', shortcut: '1', className: 'border-red-200 text-red-700 hover:bg-red-50' },
@@ -109,15 +110,22 @@ export function ReviewPage() {
 
   if (sessionId && !current && due.isSuccess) {
     return (
-      <AiFeedbackPanel
-        sessionId={sessionId}
-        canUseAi={canUseAi && gradedCount > 0}
-        emptySession={gradedCount === 0}
-        reviewedCount={gradedCount}
-        onFinish={() => {
-          navigate('/');
-        }}
-      />
+      <div className="space-y-5">
+        <PageHeader
+          kicker="Learning"
+          title="Review complete"
+          description={`${gradedCount} card${gradedCount === 1 ? '' : 's'} reviewed in this session.`}
+        />
+        <AiFeedbackPanel
+          sessionId={sessionId}
+          canUseAi={canUseAi && gradedCount > 0}
+          emptySession={gradedCount === 0}
+          reviewedCount={gradedCount}
+          onFinish={() => {
+            navigate('/');
+          }}
+        />
+      </div>
     );
   }
 
@@ -190,6 +198,11 @@ export function ReviewPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 pb-12 pt-1 animate-in fade-in duration-300">
+      <PageHeader
+        kicker="Learning"
+        title="Review"
+        description="Recall the answer, reveal it when ready, then grade the card."
+      />
       <div className="flex items-center gap-3 px-1">
         <span className="shrink-0 text-sm font-medium text-slate-500">
           Card {index + 1} of {due.data?.length}
@@ -355,19 +368,22 @@ function ReviewStateCard({
   footer?: string;
 }) {
   return (
-    <div className="flex min-h-[65vh] items-center justify-center animate-in fade-in duration-500">
-      <Card className="w-full max-w-md border-slate-200 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-        <CardContent className="space-y-6 p-7 text-center sm:p-9">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">{icon}</div>
-          <div className="space-y-2">
-            {eyebrow && <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">{eyebrow}</p>}
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">{title}</h1>
-            <p className="mx-auto max-w-sm text-sm leading-6 text-muted-foreground">{description}</p>
-          </div>
-          {action}
-          {footer && <p className="text-xs text-slate-400">{footer}</p>}
-        </CardContent>
-      </Card>
+    <div className="space-y-5">
+      <PageHeader kicker="Learning" title="Review" description="A focused session for strengthening what you know." />
+      <div className="flex min-h-[65vh] items-center justify-center animate-in fade-in duration-500">
+        <Card className="w-full max-w-md border-slate-200 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+          <CardContent className="space-y-6 p-7 text-center sm:p-9">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">{icon}</div>
+            <div className="space-y-2">
+              {eyebrow && <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">{eyebrow}</p>}
+              <h2 className="text-3xl font-bold tracking-tight text-slate-900">{title}</h2>
+              <p className="mx-auto max-w-sm text-sm leading-6 text-muted-foreground">{description}</p>
+            </div>
+            {action}
+            {footer && <p className="text-xs text-slate-400">{footer}</p>}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

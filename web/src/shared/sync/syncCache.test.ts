@@ -9,6 +9,37 @@ import {
 } from './syncCache';
 
 describe('applySyncChanges', () => {
+  it('unwraps nested calendar preferences from a remotely synced preferences row', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['user-preferences'], {
+      calendar: { zoom: 'WEEK', visibleKinds: ['TASK_DURATION'], showCompleted: true, collapsedGroupIds: [] },
+    });
+
+    applySyncChanges(queryClient, {
+      acknowledgedMutationIds: [],
+      cursor: '',
+      conflicts: [],
+      changes: [{
+        entityType: 'calendarpreferences',
+        entityId: 'calendar',
+        deleted: false,
+        data: {
+          id: 'preferences-row',
+          calendarPreferences: {
+            zoom: 'MONTH',
+            visibleKinds: ['TASK_DUE', 'EXTERNAL_EVENT'],
+            showCompleted: false,
+            collapsedGroupIds: ['project:inbox'],
+          },
+        },
+      }],
+    });
+
+    expect(queryClient.getQueryData(['user-preferences'])).toEqual({
+      calendar: { zoom: 'MONTH', visibleKinds: ['TASK_DUE', 'EXTERNAL_EVENT'], showCompleted: false, collapsedGroupIds: ['project:inbox'] },
+    });
+  });
+
   it('normalizes a remotely-created workout exercise with an empty set list', () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(['gym', 'workout', 'workout-1'], { id: 'workout-1', exercises: [] });

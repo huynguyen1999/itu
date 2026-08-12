@@ -1,10 +1,11 @@
 import { useForm } from 'react-hook-form';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
 import { Textarea } from '@/shared/ui/textarea';
+import { DatePickerPopover } from '@/shared/ui/DatePickerPopover';
 
 interface TaskComposerFormValues {
   title: string;
@@ -19,7 +20,6 @@ interface TaskComposerFormValues {
 }
 
 export function TaskComposer({ onCreated }: { onCreated?: () => void }) {
-  const queryClient = useQueryClient();
   const taskLists = useQuery({ queryKey: ['task-lists'], queryFn: () => api.taskLists() });
   const tags = useQuery({ queryKey: ['task-tags'], queryFn: () => api.taskTags() });
 
@@ -38,6 +38,7 @@ export function TaskComposer({ onCreated }: { onCreated?: () => void }) {
   });
 
   const title = watch('title');
+  const dueAt = watch('dueAt');
   const selectedTagIds = watch('tagIds');
 
   const create = useMutation({
@@ -57,8 +58,7 @@ export function TaskComposer({ onCreated }: { onCreated?: () => void }) {
       }
       return task;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['/productivity/tasks'] });
+    onSuccess: () => {
       reset();
       onCreated?.();
     },
@@ -105,10 +105,10 @@ export function TaskComposer({ onCreated }: { onCreated?: () => void }) {
             <option value="HIGH">High</option>
           </select>
         </label>
-        <label className="grid gap-2 text-sm font-medium">
-          Due
-          <Input type="datetime-local" {...register('dueAt')} />
-        </label>
+        <div className="grid gap-2 text-sm font-medium">
+          <span>Due</span>
+          <DatePickerPopover value={dueAt ? new Date(dueAt).toISOString() : null} onChange={(value) => setValue('dueAt', value ?? '')} />
+        </div>
         <label className="grid gap-2 text-sm font-medium">
           Reminder
           <Input type="datetime-local" {...register('remindAt')} />

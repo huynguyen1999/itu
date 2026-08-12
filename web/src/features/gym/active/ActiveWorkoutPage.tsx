@@ -537,47 +537,46 @@ export function ActiveWorkoutPage() {
           onClose={() => setRestTimerSeconds(null)}
         />
       )}
-      <div className="flex flex-col gap-4 border-b border-border/60 pb-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">Active workout</p>
-            <Input
-              value={title}
-              onChange={(event) => {
-                setTitle(event.target.value);
-                persistTitle(event.target.value);
-              }}
-              aria-label="Workout title"
-              className="mt-1 h-auto max-w-xl border-0 bg-transparent px-0 text-xl font-bold shadow-none focus-visible:ring-0"
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground" aria-live="polite">
-              {saveStatus}
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground" aria-label="Workout summary">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <Input
+            value={title}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              persistTitle(event.target.value);
+            }}
+            aria-label="Workout title"
+            className="h-auto max-w-xl border-0 bg-transparent px-0 text-xl font-bold shadow-none focus-visible:ring-0"
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground" aria-live="polite">
+            {saveStatus}
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground" aria-label="Workout summary">
               {elapsedLabel} elapsed · {finishSummary.exercises} exercises · {finishSummary.completedSets} completed
               sets · {formatVolume(finishSummary.volume, prefs.weightUnit)}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" onClick={finish} disabled={finishWorkout.isPending}>
-              <StopCircle className="h-3.5 w-3.5" />
-              {finishWorkout.isPending ? 'Finishing…' : 'Finish workout'}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="icon" aria-label="Workout actions">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={discard}>
-                  <Trash2 className="h-4 w-4" />
-                  Discard workout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" onClick={finish} disabled={finishWorkout.isPending}>
+            <StopCircle className="h-3.5 w-3.5" />
+            {finishWorkout.isPending ? 'Finishing…' : 'Finish workout'}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="icon" aria-label="Workout actions">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={discard}>
+                <Trash2 className="h-4 w-4" />
+                Discard workout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+      <div className="space-y-3">
         {workoutConflicts.map((conflict) => (
           <div
             key={conflict.mutationId}

@@ -6,7 +6,7 @@ export function useCreateBudgetTransaction() {
   return useMutation({
     mutationFn: (data: any) => api.createBudgetTransaction(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['budget'] });
+      queryClient.invalidateQueries({ queryKey: ['budget'], refetchType: 'none' });
     },
   });
 }
@@ -16,7 +16,7 @@ export function useUpdateBudgetTransaction() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => api.updateBudgetTransaction(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['budget'] });
+      queryClient.invalidateQueries({ queryKey: ['budget'], refetchType: 'none' });
     },
   });
 }
@@ -26,7 +26,7 @@ export function useDeleteBudgetTransaction() {
   return useMutation({
     mutationFn: (id: string) => api.deleteBudgetTransaction(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['budget'] });
+      queryClient.invalidateQueries({ queryKey: ['budget'], refetchType: 'none' });
     },
   });
 }

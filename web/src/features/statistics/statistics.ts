@@ -30,6 +30,7 @@ export interface UsageStackPoint {
 export interface WebsiteUsageSlice {
   hostname: string;
   activeSeconds: number;
+  iconUrl?: string | null;
 }
 
 export type WebsitePrivacyFilter = 'all' | 'normal' | 'private';
@@ -39,6 +40,7 @@ export interface WebsiteUrlView {
   hostname: string;
   activeSeconds: number;
   latestTitle: string | null;
+  iconUrl?: string | null;
   isPrivate: boolean;
   visitCount: number;
 }
@@ -48,7 +50,11 @@ export function selectWebsiteUsageSlices(
   limit = 7,
 ): WebsiteUsageSlice[] {
   const domains = [...(summary?.hostnames ?? summary?.topHostnames ?? [])]
-    .map((domain) => ({ hostname: domain.hostname, activeSeconds: finiteNumber(domain.activeSeconds) }))
+    .map((domain) => ({
+      hostname: domain.hostname,
+      activeSeconds: finiteNumber(domain.activeSeconds),
+      ...(domain.iconUrl ? { iconUrl: domain.iconUrl } : {}),
+    }))
     .filter((domain) => domain.activeSeconds > 0)
     .sort((a, b) => b.activeSeconds - a.activeSeconds || a.hostname.localeCompare(b.hostname));
   const top = domains.slice(0, limit);
@@ -68,7 +74,14 @@ export function websiteDomains(
 ): WebsiteUsageSlice[] {
   const query = search.trim().toLocaleLowerCase();
   const totals = new Map<string, number>();
-  sessions.forEach((session) => totals.set(session.hostname, (totals.get(session.hostname) ?? 0) + finiteNumber(session.activeSeconds)));
+  const icons = new Map<string, { iconUrl: string; endedAt: string }>();
+  sessions.forEach((session) => {
+    totals.set(session.hostname, (totals.get(session.hostname) ?? 0) + finiteNumber(session.activeSeconds));
+    if (session.iconUrl) {
+      const current = icons.get(session.hostname);
+      if (!current || session.endedAt > current.endedAt) icons.set(session.hostname, { iconUrl: session.iconUrl, endedAt: session.endedAt });
+    }
+  });
   const visibleDetailKeys = new Set(
     sessions
       .filter((session) => session.url)
@@ -87,7 +100,11 @@ export function websiteDomains(
         )
       );
     })
-    .map(([hostname, activeSeconds]) => ({ hostname, activeSeconds }))
+    .map(([hostname, activeSeconds]) => ({
+      hostname,
+      activeSeconds,
+      ...(icons.get(hostname)?.iconUrl ? { iconUrl: icons.get(hostname)?.iconUrl } : {}),
+    }))
     .sort((a, b) => b.activeSeconds - a.activeSeconds || a.hostname.localeCompare(b.hostname));
 }
 

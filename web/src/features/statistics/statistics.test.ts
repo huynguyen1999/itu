@@ -60,6 +60,7 @@ describe('statistics helpers', () => {
         hostname: 'docs.example.com',
         activeSeconds: 120,
         latestTitle: 'Guide',
+        iconUrl: 'https://docs.example.com/favicon.png',
         isPrivate: false,
       },
       {
@@ -118,6 +119,7 @@ describe('statistics helpers', () => {
     });
     expect(websiteUrls(websiteSummary, websiteSessions, 'docs.example.com', 'Guide')[0]).toMatchObject({
       latestTitle: 'Guide',
+      iconUrl: 'https://docs.example.com/favicon.png',
       visitCount: 1,
     });
   });
@@ -127,6 +129,18 @@ describe('statistics helpers', () => {
       { hostname: 'docs.example.com', activeSeconds: 180 },
     ]);
     expect(websiteUrls(websiteSummary, websiteSessions, 'docs.example.com', 'docs.example.com')).toHaveLength(2);
+  });
+
+  it('uses the latest session icon for a website domain', () => {
+    const sessions = websiteSessions.map((session, index) => ({
+      ...session,
+      iconUrl: index === 0 ? 'https://docs.example.com/old-icon.png' : 'https://docs.example.com/icon.png',
+    }));
+
+    expect(websiteDomains(websiteSummary, sessions, '')[0]).toMatchObject({
+      hostname: 'docs.example.com',
+      iconUrl: 'https://docs.example.com/icon.png',
+    });
   });
 
   it('groups website domains into top slices and Other', () => {

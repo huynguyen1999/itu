@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, ChevronRight, History, Medal, Trash2, TrendingUp } from 'lucide-react';
+import { Activity, ChevronRight, Medal, Trash2, TrendingUp } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useGymWorkouts, type GymWorkout, type GymWorkoutSet } from '../gymQueries';
 import { useDeleteGymWorkout } from '../gymMutations';
@@ -73,14 +73,7 @@ export function WorkoutHistoryPage() {
           </p>
         </Card>
       )}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-base font-semibold">
-            <History className="h-4 w-4 text-emerald-500" />
-            Workout history
-          </h1>
-          <p className="mt-1 text-xs text-muted-foreground">Completed sessions, progress, and personal bests.</p>
-        </div>
+      <div className="flex justify-end">
         <div className="flex rounded-md border p-0.5">
           <Button
             type="button"

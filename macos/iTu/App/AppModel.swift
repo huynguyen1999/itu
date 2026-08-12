@@ -9,6 +9,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case completed
     case matrix
     case focus
+    case calendar
     case habits
     case statistics
     case journal
@@ -33,6 +34,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .completed: "Completed"
         case .matrix: "Matrix"
         case .focus: "Focus"
+        case .calendar: "Calendar"
         case .habits: "Habits"
         case .statistics: "Statistics"
         case .journal: "Journal"
@@ -57,6 +59,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .completed: "checkmark.circle"
         case .matrix: "square.grid.2x2"
         case .focus: "timer"
+        case .calendar: "calendar"
         case .habits: "repeat"
         case .statistics: "chart.bar"
         case .journal: "book.closed"
@@ -257,6 +260,7 @@ final class AppModel {
     var journalTemplates: [JournalTemplateModel] = []
     var journalRevisionsByEntryID: [String: [JournalEntryRevisionModel]] = [:]
     var journalPreferences = JournalPreferencesModel()
+    var calendarPreferences = CalendarPreferencesModel()
     var usageStatistics: UsageStatistics?
     var websiteUsageStatistics: WebsiteUsageStatistics?
     var localUsageSummaries: [UsageSummary] = []
@@ -455,6 +459,7 @@ final class AppModel {
         journalTemplates = snapshot.journalTemplates.filter { $0.archivedAt == nil }
         journalRevisionsByEntryID = snapshot.journalRevisionsByEntryID
         journalPreferences = snapshot.journalPreferences
+        calendarPreferences = snapshot.calendarPreferences
         settingsStore.journalDefaultEditorMode = journalPreferences.defaultEditorMode.uppercased() == "EDIT" ? "SOURCE" : journalPreferences.defaultEditorMode
         settingsStore.journalAutoCreateDailyNote = journalPreferences.autoCreateDailyNote
         settingsStore.journalAutoOpenTodayNote = journalPreferences.autoOpenTodayNote

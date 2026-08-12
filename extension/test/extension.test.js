@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createSession, mergeAdjacentSession, normalizeApiBaseUrl, normalizeTrackedUrl, projectAggregates, stateForTab } from "../activity.js";
+import { createSession, mergeAdjacentSession, normalizeApiBaseUrl, normalizeIconUrl, normalizeTrackedUrl, projectAggregates, stateForTab } from "../activity.js";
 import { createController } from "../service-worker.js";
 
 const extensionDirectory = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -11,16 +11,19 @@ const extensionDirectory = path.dirname(path.dirname(fileURLToPath(import.meta.u
 test("normalizes credentials, query and fragments while retaining the path", () => {
   assert.deepEqual(normalizeTrackedUrl("https://user:secret@Example.com/path?q=1#section"), { hostname: "example.com", url: "https://example.com/path" });
   assert.equal(normalizeTrackedUrl("file:///tmp/note"), null);
-  assert.deepEqual(stateForTab({ url: "https://example.com/private", title: "Private", incognito: true }), { hostname: "example.com", url: "https://example.com/private", title: "Private", incognito: true });
+  assert.deepEqual(stateForTab({ url: "https://example.com/private", title: "Private", favIconUrl: "https://cdn.example.com/icon.png?cache=1", incognito: true }), { hostname: "example.com", url: "https://example.com/private", iconUrl: "https://cdn.example.com/icon.png", title: "Private", incognito: true });
+  assert.equal(normalizeIconUrl("data:image/png;base64,abc"), null);
+  assert.equal(normalizeIconUrl("https://cdn.example.com/icon.png?secret=1#hash"), "https://cdn.example.com/icon.png");
 });
 
 test("creates stable sessions and merges only adjacent matching privacy/browser rows", () => {
-  const state = { hostname: "example.com", url: "https://example.com/path", title: "Page", incognito: false };
+  const state = { hostname: "example.com", url: "https://example.com/path", iconUrl: "https://example.com/icon.png", title: "Page", incognito: false };
   const first = createSession(state, 0, 4_000, "stable");
   assert.equal(first.id, "stable");
-  const merged = mergeAdjacentSession(first, createSession({ ...state, title: "Updated" }, 4_000, 9_000, "other"));
+  const merged = mergeAdjacentSession(first, createSession({ ...state, iconUrl: null, title: "Updated" }, 4_000, 9_000, "other"));
   assert.equal(merged.activeSeconds, 9);
   assert.equal(merged.title, "Updated");
+  assert.equal(merged.iconUrl, "https://example.com/icon.png");
   assert.equal(mergeAdjacentSession(createSession(state, 0, 60_000, "long"), createSession(state, 60_000, 120_000, "long-2")).activeSeconds, 120);
   assert.equal(mergeAdjacentSession(first, createSession({ ...state, incognito: true }, 4_000, 9_000, "other")), null);
   assert.equal(createSession(state, 0, 2_999, "short"), null);

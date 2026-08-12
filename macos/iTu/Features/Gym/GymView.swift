@@ -17,6 +17,7 @@ struct GymView: View {
     @State private var newExerciseImageMimeType = "image/jpeg"
     @State private var isSelectingExerciseImage = false
     @State private var isCreatingExercise = false
+    @State private var showingExerciseForm = false
     @State private var exerciseError: String?
     @State private var deleteWorkoutID: String?
     @State private var deleteExerciseID: String?
@@ -40,6 +41,7 @@ struct GymView: View {
     @State private var focusedSetID: String?
     @State private var showingGymSettings = false
     @State private var showingFinishConfirmation = false
+    @State private var historyFilter = "COMPLETED"
 
     private var visibleGymWorkouts: [WorkoutModel] {
         model.gymWorkouts.filter { $0.deletedAt == nil }
@@ -54,13 +56,42 @@ struct GymView: View {
             ?? model.gymOverview?.recentWorkouts.first { $0.deletedAt == nil && ["IN_PROGRESS", "ACTIVE"].contains($0.status) }
     }
 
+    private var completedGymWorkouts: [WorkoutModel] {
+        visibleGymWorkouts.filter { $0.status == "COMPLETED" }
+    }
+
+    private var historyWorkouts: [WorkoutModel] {
+        historyFilter == "COMPLETED" ? completedGymWorkouts : visibleGymWorkouts
+    }
+
+    private var historyCompletedSets: [WorkoutSetModel] {
+        completedGymWorkouts.flatMap { workout in
+            (workout.exercises ?? []).flatMap { $0.sets ?? [] }.filter { $0.completedAt != nil }
+        }
+    }
+
+    private var historyBestWeight: Double? {
+        historyCompletedSets.compactMap(\.weight).max()
+    }
+
+    private var historyEstimated1RM: Double? {
+        historyCompletedSets.map { ($0.weight ?? 0) * (1 + Double($0.reps ?? 0) / 30) }.max()
+    }
+
+    private var historyVolumeTrend: [Double] {
+        Array(completedGymWorkouts.prefix(7).reversed()).map { workoutVolume(for: $0) }
+    }
+
+    private func workoutVolume(for workout: WorkoutModel) -> Double {
+        let sets = (workout.exercises ?? []).flatMap { $0.sets ?? [] }.filter { $0.completedAt != nil }
+        return sets.reduce(0) { $0 + ($1.weight ?? 0) * Double($1.reps ?? 0) }
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             secondaryRail
 
             VStack(alignment: .leading, spacing: 0) {
-                header
-
                 if isLoading {
                     VStack(spacing: 10) {
                         ProgressView()
@@ -69,6 +100,7 @@ struct GymView: View {
                             .foregroundStyle(iTuTheme.inkDim)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .iTuPinnedHeader { header }
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
@@ -84,6 +116,7 @@ struct GymView: View {
                         }
                         .padding(24)
                     }
+                    .iTuPinnedHeader { header }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -528,15 +561,72 @@ struct GymView: View {
     @ViewBuilder
     private var gymHistorySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Workout History")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(iTuTheme.ink)
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Workout History")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(iTuTheme.ink)
+                    Text("Completed sessions, progress, and personal bests.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.inkDim)
+                }
+                Spacer()
+                Picker("History filter", selection: $historyFilter) {
+                    Text("Completed").tag("COMPLETED")
+                    Text("All sessions").tag("ALL")
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 190)
+            }
 
-            if visibleGymWorkouts.isEmpty {
-                emptyState("No workouts in history.")
+            HStack(spacing: 10) {
+                metricCard(title: "COMPLETED", value: "\(completedGymWorkouts.count)", color: iTuTheme.teal)
+                metricCard(title: "LOGGED SETS", value: "\(historyCompletedSets.count)", color: iTuTheme.mint)
+                metricCard(title: "BEST WEIGHT", value: historyBestWeight.map(formatWeight) ?? "—", color: iTuTheme.amber)
+                metricCard(title: "ESTIMATED 1RM", value: historyEstimated1RM.map { formatWeight($0) } ?? "—", color: iTuTheme.coral)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Volume trend")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Completed set volume across recent sessions.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(iTuTheme.inkDim)
+                    }
+                    Spacer()
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .foregroundStyle(iTuTheme.teal)
+                }
+                if historyVolumeTrend.isEmpty {
+                    Text("Complete a workout to see your trend.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.inkDim)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 24)
+                } else {
+                    let maxVolume = max(historyVolumeTrend.max() ?? 1, 1)
+                    HStack(alignment: .bottom, spacing: 8) {
+                        ForEach(Array(historyVolumeTrend.enumerated()), id: \.offset) { _, volume in
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(iTuTheme.teal.opacity(0.72))
+                                .frame(maxWidth: .infinity, minHeight: 8, maxHeight: CGFloat(max(8, (volume / maxVolume) * 74)))
+                        }
+                    }
+                    .frame(height: 82, alignment: .bottom)
+                }
+            }
+            .padding(14)
+            .background(iTuTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(iTuTheme.border, lineWidth: 1))
+
+            if historyWorkouts.isEmpty {
+                emptyState("No workouts in this view yet.")
             } else {
                 VStack(spacing: 8) {
-                    ForEach(visibleGymWorkouts) { workout in
+                    ForEach(historyWorkouts) { workout in
                         workoutRow(workout)
                     }
                 }
@@ -552,12 +642,24 @@ struct GymView: View {
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(iTuTheme.ink)
                 Spacer()
-                    Text("\(visibleGymExercises.count) \(visibleGymExercises.count == 1 ? "exercise" : "exercises")")
+                Text("\(visibleGymExercises.count) \(visibleGymExercises.count == 1 ? "exercise" : "exercises")")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .foregroundStyle(iTuTheme.inkDim)
+                if showingExerciseForm {
+                    Button("Cancel") {
+                        resetNewExerciseForm()
+                    }
+                    .buttonStyle(iTuSecondaryButtonStyle(height: 30))
+                } else {
+                    Button("Add exercise") {
+                        showingExerciseForm = true
+                    }
+                    .buttonStyle(iTuPrimaryButtonStyle(height: 30))
+                }
             }
 
-            VStack(alignment: .leading, spacing: 16) {
+            if showingExerciseForm {
+                VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 8) {
                     Image(systemName: "figure.strengthtraining.traditional")
                         .font(.system(size: 15, weight: .semibold))
@@ -677,16 +779,12 @@ struct GymView: View {
                                     .background(iTuTheme.mintTint)
                                     .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                             } else {
-                                Text("Required")
-                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                                    .foregroundStyle(iTuTheme.coral)
+                                Text("Optional")
+                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(iTuTheme.inkDim)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(iTuTheme.coral.opacity(0.12))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                            .stroke(iTuTheme.coral.opacity(0.28), lineWidth: 1)
-                                    )
+                                    .background(iTuTheme.canvas)
                                     .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                             }
                         }
@@ -718,6 +816,10 @@ struct GymView: View {
 
                     Spacer()
 
+                    Button("Cancel") { resetNewExerciseForm() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
                     Button(isCreatingExercise ? "Creating…" : "Create exercise") {
                         createExercise()
                     }
@@ -725,11 +827,12 @@ struct GymView: View {
                     .tint(iTuTheme.teal)
                     .disabled(newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreatingExercise)
                 }
-            }
+                }
             .padding(20)
             .background(iTuTheme.surface)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(iTuTheme.border, lineWidth: 1))
+            }
 
             if visibleGymExercises.isEmpty {
                 emptyExerciseLibraryState
@@ -902,17 +1005,23 @@ struct GymView: View {
                 mimeType: newExerciseImageMimeType
             )
             if created {
-                newExerciseName = ""
-                newExerciseDescription = ""
-                newExerciseEquipment = ""
-                newExerciseMuscleGroup = ""
-                newExerciseImageData = nil
-                newExerciseImageName = ""
+                resetNewExerciseForm()
             } else {
                 exerciseError = "The exercise could not be saved with its image. Please try again."
             }
             isCreatingExercise = false
         }
+    }
+
+    private func resetNewExerciseForm() {
+        newExerciseName = ""
+        newExerciseDescription = ""
+        newExerciseEquipment = ""
+        newExerciseMuscleGroup = ""
+        newExerciseImageData = nil
+        newExerciseImageName = ""
+        exerciseError = nil
+        showingExerciseForm = false
     }
 
     private func reload() async {

@@ -250,6 +250,7 @@ extension OfflineStore {
         }
         try applyBudgetGymChanges(changes)
         try applyJournalChanges(changes)
+        try applyCalendarChanges(changes)
         reapplyPendingJournalMutations()
         try reapplyPendingTaskMutations(optimisticTasksByID: optimisticTasksByID)
         try reapplyPendingTaskListMutations(optimisticByID: optimisticTaskListsByID)

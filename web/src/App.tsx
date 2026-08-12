@@ -21,6 +21,7 @@ import { GymWorkspace } from './features/gym/GymWorkspace';
 import { PlanningProvider } from './features/planning/PlanningContext';
 import { GrowthRewardReceiptHost } from './features/growth/components/growth-reward-receipt';
 import { ConflictsPage, NotificationsPage } from './features/system';
+import { CalendarPage } from './features/calendar/CalendarPage';
 
 import { Brain } from 'lucide-react';
 
@@ -63,7 +64,7 @@ export function App() {
           <Route path="/journal/money" element={<Navigate to="/budget" replace />} />
           <Route path="/journal/money/transactions" element={<Navigate to="/budget/transactions" replace />} />
           <Route path="/journal/money/budgets" element={<Navigate to="/budget/budgets" replace />} />
-          <Route path="/journal/money/calendar" element={<Navigate to="/budget/calendar" replace />} />
+          <Route path="/journal/money/calendar" element={<Navigate to="/budget" replace />} />
           <Route path="/journal/gym" element={<Navigate to="/gym" replace />} />
           <Route path="/journal/gym/history" element={<Navigate to="/gym/history" replace />} />
           <Route path="/journal/gym/exercises" element={<Navigate to="/gym/exercises" replace />} />
@@ -77,6 +78,7 @@ export function App() {
           <Route path="/upcoming" element={<PlanningPage view="upcoming" />} />
           <Route path="/matrix" element={<MatrixPage />} />
           <Route path="/focus" element={<FocusPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/habits" element={<HabitsPage />} />
           <Route path="/growth" element={<Navigate to="/growth/attributes" replace />} />
           <Route path="/growth/attributes" element={<GrowthPage tab="attributes" />} />

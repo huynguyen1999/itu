@@ -98,6 +98,39 @@ struct StatisticsView: View {
         return model.statisticsCalendar.filter { $0.date >= customFromKey && $0.date <= customToKey }
     }
 
+    private var trendCalendar: [StudyCalendarDayDTO] {
+        guard displaySettings.grouping != .day else { return visibleCalendar }
+        let grouped = Dictionary(grouping: visibleCalendar) { bucketKey(for: $0.date) }
+        return grouped.map { key, days in
+            StudyCalendarDayDTO(
+                date: key,
+                sessions: days.reduce(0) { $0 + $1.sessions },
+                focusSessions: days.reduce(0) { $0 + $1.focusSessions },
+                reviews: days.reduce(0) { $0 + $1.reviews },
+                correct: days.reduce(0) { $0 + $1.correct },
+                completedTasks: days.reduce(0) { $0 + $1.completedTasks },
+                focusedMinutes: days.reduce(0) { $0 + $1.focusedMinutes },
+                cardsCreated: days.reduce(0) { $0 + $1.cardsCreated }
+            )
+        }
+        .sorted { $0.date < $1.date }
+    }
+
+    private func bucketKey(for value: String) -> String {
+        guard let date = Self.dayFormatter.date(from: value) else { return value }
+        let calendar = Calendar.current
+        let bucket: Date
+        switch displaySettings.grouping {
+        case .day:
+            bucket = date
+        case .week:
+            bucket = calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? date
+        case .month:
+            bucket = calendar.dateInterval(of: .month, for: date)?.start ?? date
+        }
+        return Self.dateKey(bucket)
+    }
+
     private var selectedRangeLabel: String {
         let from = timeRange == "Custom" ? customFromDate : Calendar.current.date(byAdding: .day, value: -((selectedDayCount ?? 30) - 1), to: Date()) ?? Date()
         let to = timeRange == "Custom" ? customToDate : Date()
@@ -131,6 +164,10 @@ struct StatisticsView: View {
     private var websiteURLDetails: [WebsiteUsageURLDetail] {
         guard let stats = model.websiteUsageStatistics else { return [] }
         return StatisticsDisplayHelpers.filteredWebsiteDetails(stats.urlDetails, filter: websitePrivacyFilter)
+    }
+
+    private var websiteTotalSeconds: Int {
+        websiteDomains.reduce(0) { $0 + $1.activeSeconds }
     }
 
     private func websiteSessions(for detail: WebsiteUsageURLDetail) -> [WebsiteUsageSession] {
@@ -306,14 +343,14 @@ struct StatisticsView: View {
             trendCard(
                 title: "Task Completion Trend",
                 summary: "\(completedTasksCount) completed in this period",
-                values: visibleCalendar.map { TrendItem(id: "tasks-\($0.date)", label: $0.date, value: $0.completedTasks) },
+                values: trendCalendar.map { TrendItem(id: "tasks-\($0.date)", label: $0.date, value: $0.completedTasks) },
                 valueLabel: "Tasks",
                 color: iTuTheme.teal
             )
             trendCard(
                 title: "Focus Duration Trend",
                 summary: "\(focusTimeText) across focus sessions",
-                values: visibleCalendar.map { TrendItem(id: "focus-\($0.date)", label: $0.date, value: $0.focusedMinutes) },
+                values: trendCalendar.map { TrendItem(id: "focus-\($0.date)", label: $0.date, value: $0.focusedMinutes) },
                 valueLabel: "Minutes",
                 color: Color.blue
             )
@@ -456,78 +493,18 @@ struct StatisticsView: View {
                 ProgressView("Loading website activity…")
                     .frame(maxWidth: .infinity, minHeight: 100)
             } else if !websiteDomains.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(websiteDomains) { domain in
-                        if domain.hostname == "Other" {
-                            websiteDomainRow(domain)
-                        } else {
-                        DisclosureGroup {
-                            let details = websiteURLDetails.filter { $0.hostname == domain.hostname }
-                            if details.isEmpty {
-                                Text("No URL details available for this domain.")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(iTuTheme.inkDim)
-                                    .padding(.vertical, 8)
-                            } else {
-                                VStack(spacing: 0) {
-                                    ForEach(details) { detail in
-                                        DisclosureGroup {
-                                            let sessions = websiteSessions(for: detail)
-                                            if sessions.isEmpty {
-                                                Text("No session visits available.")
-                                                    .font(.system(size: 11))
-                                                    .foregroundStyle(iTuTheme.inkDim)
-                                                    .padding(.vertical, 6)
-                                            } else {
-                                                VStack(spacing: 6) {
-                                                    ForEach(sessions) { session in
-                                                        HStack(alignment: .top, spacing: 8) {
-                                                            VStack(alignment: .leading, spacing: 2) {
-                                                                Text("\(sessionStart(session.startedAt)) – \(sessionEnd(session.endedAt))")
-                                                                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                                                Text("Visit \(formatDuration(session.activeSeconds))")
-                                                                    .font(.system(size: 10))
-                                                                    .foregroundStyle(iTuTheme.inkDim)
-                                                            }
-                                                            Spacer()
-                                                            if session.isPrivate { privateBadge }
-                                                        }
-                                                        .padding(.vertical, 4)
-                                                    }
-                                                }
-                                                .padding(.leading, 12)
-                                            }
-                                        } label: {
-                                            HStack(spacing: 8) {
-                                                VStack(alignment: .leading, spacing: 2) {
-                                                    Text(StatisticsDisplayHelpers.websiteTitle(detail))
-                                                        .font(.system(size: 12, weight: .medium))
-                                                        .lineLimit(1)
-                                                    Text(detail.url)
-                                                        .font(.system(size: 10))
-                                                        .foregroundStyle(iTuTheme.inkDim)
-                                                        .lineLimit(1)
-                                                }
-                                                Spacer()
-                                                Text(formatDuration(detail.activeSeconds))
-                                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                                                    .foregroundStyle(iTuTheme.inkDim)
-                                                Text("\(websiteSessions(for: detail).count) visits")
-                                                    .font(.system(size: 10))
-                                                    .foregroundStyle(iTuTheme.inkDim)
-                                                if detail.isPrivate { privateBadge }
-                                            }
-                                        }
-                                        .padding(.vertical, 6)
-                                        .overlay(alignment: .bottom) { Divider() }
-                                    }
-                                }
-                                .padding(.leading, 12)
-                            }
-                        } label: { websiteDomainRow(domain) }
-                            .padding(.vertical, 8)
-                            .overlay(alignment: .bottom) { Divider() }
-                        }
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 20) {
+                        websiteDonutChart
+                            .frame(width: 250)
+                        Divider()
+                        websiteDomainList
+                            .frame(maxWidth: .infinity)
+                    }
+                    VStack(spacing: 18) {
+                        websiteDonutChart
+                        Divider()
+                        websiteDomainList
                     }
                 }
                 if let error = model.websiteUsageError {
@@ -551,22 +528,159 @@ struct StatisticsView: View {
         .iTuPanel(radius: 14)
     }
 
-    private func websiteDomainRow(_ domain: StatisticsWebsiteSlice) -> some View {
+    private var websiteDonutChart: some View {
+        ZStack {
+            Chart {
+                ForEach(Array(websiteDomains.enumerated()), id: \.element.id) { index, domain in
+                    SectorMark(
+                        angle: .value("Active time", domain.activeSeconds),
+                        innerRadius: .ratio(0.58),
+                        angularInset: 2
+                    )
+                    .foregroundStyle(usageColors[index % usageColors.count])
+                }
+            }
+            .chartLegend(.hidden)
+
+            VStack(spacing: 4) {
+                Text(formatDuration(websiteTotalSeconds))
+                    .font(.system(size: 18, weight: .bold, design: .monospaced))
+                    .foregroundStyle(iTuTheme.ink)
+                Text("active time")
+                    .font(.system(size: 11))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+        }
+        .frame(height: 250)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Website activity by domain")
+        .accessibilityValue("\(formatDuration(websiteTotalSeconds)) active time")
+    }
+
+    private var websiteDomainList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(websiteDomains.enumerated()), id: \.element.id) { index, domain in
+                if domain.hostname == "Other" {
+                    websiteDomainRow(domain, color: usageColors[index % usageColors.count])
+                } else {
+                    DisclosureGroup {
+                        let details = websiteURLDetails.filter { $0.hostname == domain.hostname }
+                        if details.isEmpty {
+                            Text("No URL details available for this domain.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(iTuTheme.inkDim)
+                                .padding(.vertical, 8)
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(details) { detail in
+                                    DisclosureGroup {
+                                        let sessions = websiteSessions(for: detail)
+                                        if sessions.isEmpty {
+                                            Text("No session visits available.")
+                                                .font(.system(size: 11))
+                                                .foregroundStyle(iTuTheme.inkDim)
+                                                .padding(.vertical, 6)
+                                        } else {
+                                            VStack(spacing: 6) {
+                                                ForEach(sessions) { session in
+                                                    HStack(alignment: .top, spacing: 8) {
+                                                        VStack(alignment: .leading, spacing: 2) {
+                                                            Text("\(sessionStart(session.startedAt)) – \(sessionEnd(session.endedAt))")
+                                                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                                            Text("Visit \(formatDuration(session.activeSeconds))")
+                                                                .font(.system(size: 10))
+                                                                .foregroundStyle(iTuTheme.inkDim)
+                                                        }
+                                                        Spacer()
+                                                        if session.isPrivate { privateBadge }
+                                                    }
+                                                    .padding(.vertical, 4)
+                                                }
+                                            }
+                                            .padding(.leading, 12)
+                                        }
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            websiteFavicon(detail.iconUrl)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(StatisticsDisplayHelpers.websiteTitle(detail))
+                                                    .font(.system(size: 12, weight: .medium))
+                                                    .lineLimit(1)
+                                                Text(detail.url)
+                                                    .font(.system(size: 10))
+                                                    .foregroundStyle(iTuTheme.inkDim)
+                                                    .lineLimit(1)
+                                            }
+                                            Spacer()
+                                            Text(formatDuration(detail.activeSeconds))
+                                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                                .foregroundStyle(iTuTheme.inkDim)
+                                            Text("\(websiteSessions(for: detail).count) visits")
+                                                .font(.system(size: 10))
+                                                .foregroundStyle(iTuTheme.inkDim)
+                                            if detail.isPrivate { privateBadge }
+                                        }
+                                    }
+                                    .padding(.vertical, 6)
+                                    .overlay(alignment: .bottom) { Divider() }
+                                }
+                            }
+                            .padding(.leading, 12)
+                        }
+                    } label: {
+                        websiteDomainRow(domain, color: usageColors[index % usageColors.count])
+                    }
+                    .padding(.vertical, 8)
+                    .overlay(alignment: .bottom) { Divider() }
+                }
+            }
+        }
+    }
+
+    private func websiteDomainRow(_ domain: StatisticsWebsiteSlice, color: Color) -> some View {
         HStack(spacing: 12) {
-            Text(String(domain.hostname.first ?? "?"))
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .frame(width: 30, height: 30)
-                .background(iTuTheme.teal)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            Circle()
+                .fill(color)
+                .frame(width: 12, height: 12)
             Text(domain.hostname)
                 .font(.system(size: 12, weight: .medium))
                 .lineLimit(1)
             Spacer()
-            Text(formatDuration(domain.activeSeconds))
+            Text("\(websitePercent(domain))% · \(formatDuration(domain.activeSeconds))")
                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 .foregroundStyle(iTuTheme.inkDim)
         }
+    }
+
+    private func websitePercent(_ domain: StatisticsWebsiteSlice) -> Int {
+        guard websiteTotalSeconds > 0 else { return 0 }
+        return Int((Double(domain.activeSeconds) / Double(websiteTotalSeconds) * 100).rounded())
+    }
+
+    @ViewBuilder
+    private func websiteFavicon(_ source: String?, size: CGFloat = 22) -> some View {
+        if let source, let url = URL(string: source), ["http", "https"].contains(url.scheme?.lowercased()) {
+            AsyncImage(url: url) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFit()
+                } else {
+                    websiteFaviconFallback(size: size)
+                }
+            }
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        } else {
+            websiteFaviconFallback(size: size)
+        }
+    }
+
+    private func websiteFaviconFallback(size: CGFloat) -> some View {
+        Image(systemName: "globe")
+            .font(.system(size: size * 0.62))
+            .foregroundStyle(iTuTheme.inkDim)
+            .frame(width: size, height: size)
+            .background(iTuTheme.surfaceMuted)
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
     }
 
     private var privateBadge: some View {
@@ -689,16 +803,19 @@ struct StatisticsView: View {
         valueLabel: String,
         color: Color
     ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let chartValues = displaySettings.showZeroValueSeries ? values : values.filter { $0.value > 0 }
+        return VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(iTuTheme.ink)
-            Text(summary)
-                .font(.system(size: 11))
-                .foregroundStyle(iTuTheme.inkDim)
+            if displaySettings.showTrendComparison {
+                Text(summary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
 
-            if values.contains(where: { $0.value > 0 }) {
-                Chart(values) { item in
+            if chartValues.contains(where: { $0.value > 0 }) {
+                Chart(chartValues) { item in
                     AreaMark(
                         x: .value("Day", item.label),
                         y: .value(valueLabel, item.value)
@@ -734,9 +851,14 @@ struct StatisticsView: View {
     }
 
     private var growthTrendItems: [TrendItem] {
-        (model.growthStatistics?.trend ?? [])
+        let filtered = (model.growthStatistics?.trend ?? [])
             .filter { timeRange != "Custom" || ($0.date >= customFromKey && $0.date <= customToKey) }
-            .map { TrendItem(id: "xp-\($0.date)", label: $0.date, value: $0.xp) }
+        guard displaySettings.grouping != .day else {
+            return filtered.map { TrendItem(id: "xp-\($0.date)", label: $0.date, value: $0.xp) }
+        }
+        return Dictionary(grouping: filtered) { bucketKey(for: $0.date) }
+            .map { key, points in TrendItem(id: "xp-\(key)", label: key, value: points.reduce(0) { $0 + $1.xp }) }
+            .sorted { $0.label < $1.label }
     }
 
     private var attributeDistributionSection: some View {
@@ -1039,7 +1161,7 @@ private struct StatisticsSettingsPopover: View {
     var body: some View {
         let settings = model.settingsStore
         FeatureSettingsPopoverShell(title: "Statistics settings") {
-            FeatureSettingsSection(title: "Display") {
+            FeatureSettingsSection(title: "Period & Grouping") {
                 FeatureSettingsRow(label: "Default range") {
                     Picker("", selection: Binding(
                         get: { settings.statisticsDisplaySettings.defaultRange },
@@ -1054,6 +1176,32 @@ private struct StatisticsSettingsPopover: View {
                     .pickerStyle(.menu)
                     .accessibilityLabel("Default statistics range")
                 }
+                FeatureSettingsRow(label: "Grouping") {
+                    Picker("", selection: Binding(
+                        get: { settings.statisticsDisplaySettings.grouping },
+                        set: { settings.statisticsDisplaySettings.grouping = $0 }
+                    )) {
+                        ForEach(StatisticsGrouping.allCases) { grouping in
+                            Text(grouping.label).tag(grouping)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityLabel("Statistics grouping")
+                }
+            }
+
+            FeatureSettingsSection(title: "Display Preferences") {
+                Toggle("Show trend comparison", isOn: Binding(
+                    get: { settings.statisticsDisplaySettings.showTrendComparison },
+                    set: { settings.statisticsDisplaySettings.showTrendComparison = $0 }
+                ))
+                Toggle("Show zero-value series", isOn: Binding(
+                    get: { settings.statisticsDisplaySettings.showZeroValueSeries },
+                    set: { settings.statisticsDisplaySettings.showZeroValueSeries = $0 }
+                ))
+            }
+
+            FeatureSettingsSection(title: "Usage detail (this device)") {
                 Toggle("Show app usage", isOn: Binding(
                     get: { settings.statisticsDisplaySettings.showAppUsage },
                     set: { settings.statisticsDisplaySettings.showAppUsage = $0 }

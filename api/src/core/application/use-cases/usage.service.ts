@@ -44,6 +44,7 @@ export interface WebsiteActivitySessionInput {
   browserDisplayName: string;
   hostname: string;
   url: string;
+  iconUrl?: string | null;
   pageTitle?: string | null;
   isPrivate: boolean;
   timezone: string;
@@ -517,6 +518,7 @@ export class UsageService {
         const browserDisplayName = requireText(session.browserDisplayName, 'browserDisplayName');
         const hostname = normalizeHostname(session.hostname);
         const url = normalizeActivityUrl(session.url, hostname);
+        const iconUrl = normalizeActivityIconUrl(session.iconUrl);
         const pageTitle = sanitizePageTitle(session.pageTitle);
         const timezone = requireTimezone(session.timezone);
         if (typeof session.isPrivate !== 'boolean') throw new Error('isPrivate must be a boolean');
@@ -530,6 +532,7 @@ export class UsageService {
           activeSeconds,
           hostname,
           url,
+          iconUrl,
           pageTitle,
           isPrivate: session.isPrivate,
           timezone,
@@ -563,6 +566,8 @@ export class UsageService {
       activeSeconds: number;
       latestTitle: string | null;
       latestAt: number;
+      iconUrl: string | null;
+      latestIconAt: number;
       isPrivate: boolean;
     }>();
     const daily = new Map<string, number>();
@@ -577,6 +582,8 @@ export class UsageService {
           activeSeconds: 0,
           latestTitle: null,
           latestAt: 0,
+          iconUrl: null,
+          latestIconAt: 0,
           isPrivate: row.isPrivate,
         };
         detail.activeSeconds += row.activeSeconds;
@@ -585,6 +592,10 @@ export class UsageService {
         if (at >= detail.latestAt && (row.pageTitle !== null || detail.latestTitle === null)) {
           detail.latestAt = at;
           detail.latestTitle = row.pageTitle;
+        }
+        if (row.iconUrl && at >= detail.latestIconAt) {
+          detail.latestIconAt = at;
+          detail.iconUrl = row.iconUrl;
         }
         byUrl.set(key, detail);
       }
@@ -600,7 +611,7 @@ export class UsageService {
       topHostnames: hostnames.slice(0, 10),
       urlDetails: [...byUrl.values()]
         .sort((a, b) => b.activeSeconds - a.activeSeconds)
-        .map(({ latestAt: _latestAt, ...detail }) => detail),
+        .map(({ latestAt: _latestAt, latestIconAt: _latestIconAt, ...detail }) => detail),
       daily: [...daily.entries()].map(([localDate, activeSeconds]) => ({ localDate, activeSeconds })),
       sessions: rows.map((row) => ({
         id: row.id,
@@ -613,6 +624,7 @@ export class UsageService {
         hostname: row.hostname,
         localDate: row.localDate,
         url: row.url,
+        iconUrl: row.iconUrl ?? null,
         pageTitle: row.pageTitle,
         isPrivate: row.isPrivate,
         timezone: row.timezone,
@@ -801,6 +813,22 @@ function normalizeActivityUrl(value: unknown, hostname: string): string {
     return url.toString();
   } catch {
     throw new Error('url must be a valid HTTP(S) URL matching hostname');
+  }
+}
+
+function normalizeActivityIconUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 2048) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    url.username = '';
+    url.password = '';
+    url.search = '';
+    url.hash = '';
+    const normalized = url.toString();
+    return normalized.length <= 2048 ? normalized : null;
+  } catch {
+    return null;
   }
 }
 

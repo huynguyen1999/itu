@@ -298,5 +298,23 @@ extension AppModel {
         }
     }
 
+    func updateTaskReminder(id: String, remindAt: String) async {
+        do {
+            try await apiClient.updateTaskReminder(id: id, remindAt: remindAt)
+            await loadServerState()
+        } catch {
+            errorMessage = "Could not update task reminder: \(error.localizedDescription)"
+        }
+    }
+
+    func removeTaskReminder(id: String) async {
+        do {
+            try await apiClient.dismissTaskReminder(id: id)
+            await loadServerState()
+        } catch {
+            errorMessage = "Could not remove task reminder: \(error.localizedDescription)"
+        }
+    }
+
 
 }

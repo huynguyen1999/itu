@@ -10,6 +10,7 @@ import {
 import { JournalEditor } from './components/JournalEditor';
 import { getLocalTodayDateString } from './journalDate';
 import type { JournalEntry, JournalEntryKind } from './journal.types';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 interface JournalDraftLocationState {
   isNew?: boolean;
@@ -136,14 +137,20 @@ export function JournalEntryPage() {
 
   return (
     <div className="space-y-4">
-      <button
-        type="button"
-        onClick={() => navigate('/journal')}
-        className="inline-flex min-h-9 items-center gap-2 rounded-[var(--itu-radius-s)] px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      <PageHeader
+        kicker={initialKind === 'WEEKLY_REVIEW' ? 'Weekly writing' : 'Daily writing'}
+        title={existingEntry?.title || initialTitle || (initialKind === 'WEEKLY_REVIEW' ? 'Weekly review' : 'Untitled note')}
+        description={existingEntry?.entryDate?.slice(0, 10) || initialEntryDate}
       >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to Journal
-      </button>
+        <button
+          type="button"
+          onClick={() => navigate('/journal')}
+          className="inline-flex min-h-9 items-center gap-2 rounded-[var(--itu-radius-s)] px-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--itu-teal-400)] focus-visible:ring-offset-0"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Back to Journal
+        </button>
+      </PageHeader>
 
       {deleteError && (
         <div

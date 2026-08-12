@@ -401,6 +401,14 @@ actor APIClient {
         }
     }
 
+    func fetchCalendarTimeline(from: Date, to: Date) async throws -> [CalendarTimelineItem] {
+        let formatter = ISO8601DateFormatter()
+        let fromValue = formatter.string(from: from).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? formatter.string(from: from)
+        let toValue = formatter.string(from: to).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? formatter.string(from: to)
+        let response: CalendarTimelineResponse = try await request(path: "/calendar/timeline?from=\(fromValue)&to=\(toValue)")
+        return response.items
+    }
+
     func fetchTaskLists() async throws -> [TaskListModel] {
         try await request(path: "/productivity/task-lists")
     }
@@ -845,6 +853,14 @@ actor APIClient {
         let _: TaskReminderModel = try await request(
             path: "/productivity/task-reminders/\(id)/snooze",
             method: "POST",
+            body: ["remindAt": .string(remindAt)] as [String: JSONValue]
+        )
+    }
+
+    func updateTaskReminder(id: String, remindAt: String) async throws {
+        let _: TaskReminderModel = try await request(
+            path: "/productivity/task-reminders/\(id)",
+            method: "PATCH",
             body: ["remindAt": .string(remindAt)] as [String: JSONValue]
         )
     }

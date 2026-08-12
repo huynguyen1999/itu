@@ -11,6 +11,7 @@ struct iTuPinnedHeaderModifier<Header: View>: ViewModifier {
         content.safeAreaInset(edge: .top, spacing: 0) {
             header
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .background(iTuTheme.canvas)
                 .overlay(alignment: .bottom) {
                     Rectangle()
                         .fill(Color.white.opacity(0.12))

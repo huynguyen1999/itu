@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Calendar,
@@ -15,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { api } from '@/shared/api/client';
+import { getStoredTaskPreferences } from '@/shared/api/preferencesApi';
 import type { ProductivityTask, TaskPriority, TaskStatus } from '@/shared/api/types';
 import { DatePickerPopover } from '@/shared/ui/DatePickerPopover';
 import { useUndoStack, useUndoToast } from '@/shared/hooks/useUndoStack';
@@ -65,6 +66,24 @@ export function TaskContextMenu({ task, position, onClose, onOpenDetail }: TaskC
         undoToast.show(undoAction);
       }
     },
+  });
+
+  const createReminder = useMutation({
+    mutationFn: (reminder: Parameters<NonNullable<ComponentProps<typeof DatePickerPopover>['onReminderCreate']>>[0]) => {
+      if (!task) throw new Error('No task selected');
+      return api.createTaskReminder(task.id, reminder);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  });
+
+  const updateReminder = useMutation({
+    mutationFn: ({ id, remindAt }: { id: string; remindAt: string }) => api.updateTaskReminder(id, { remindAt }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  });
+
+  const removeReminder = useMutation({
+    mutationFn: (id: string) => api.dismissTaskReminder(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
   });
 
   const deleteTask = useMutation({
@@ -220,9 +239,7 @@ export function TaskContextMenu({ task, position, onClose, onOpenDetail }: TaskC
                 title="Today"
                 aria-label="Today"
                 onClick={() => {
-                  const d = new Date();
-                  d.setHours(18, 0, 0, 0);
-                  setDueDate(d);
+                  setDueDate(defaultDueDate(0));
                 }}
                 className="flex h-7 w-full items-center justify-center rounded-md bg-amber-500/10 hover:bg-amber-500/20 transition-colors text-amber-600 dark:text-amber-400 font-medium"
               >
@@ -239,10 +256,7 @@ export function TaskContextMenu({ task, position, onClose, onOpenDetail }: TaskC
                 title="Tomorrow"
                 aria-label="Tomorrow"
                 onClick={() => {
-                  const d = new Date();
-                  d.setDate(d.getDate() + 1);
-                  d.setHours(9, 0, 0, 0);
-                  setDueDate(d);
+                  setDueDate(defaultDueDate(1));
                 }}
                 className="flex h-7 w-full items-center justify-center rounded-md bg-orange-500/10 hover:bg-orange-500/20 transition-colors text-orange-600 dark:text-orange-400 font-medium"
               >
@@ -259,10 +273,7 @@ export function TaskContextMenu({ task, position, onClose, onOpenDetail }: TaskC
                 title="Next Week"
                 aria-label="Next Week"
                 onClick={() => {
-                  const d = new Date();
-                  d.setDate(d.getDate() + 7);
-                  d.setHours(9, 0, 0, 0);
-                  setDueDate(d);
+                  setDueDate(defaultDueDate(7));
                 }}
                 className="flex h-7 w-full items-center justify-center rounded-md bg-blue-500/10 hover:bg-blue-500/20 transition-colors text-blue-600 dark:text-blue-400 font-medium"
               >
@@ -277,6 +288,11 @@ export function TaskContextMenu({ task, position, onClose, onOpenDetail }: TaskC
               <DatePickerPopover
                 value={task.dueAt}
                 align="end"
+                reminders={task.reminders}
+                remindersOpenByDefault
+                onReminderCreate={(reminder) => createReminder.mutate(reminder)}
+                onReminderUpdate={(id, remindAt) => updateReminder.mutate({ id, remindAt })}
+                onReminderRemove={(id) => removeReminder.mutate(id)}
                 onChange={(isoStr) => {
                   if (isoStr) {
                     setDueDate(new Date(isoStr));
@@ -463,4 +479,12 @@ export function TaskContextMenu({ task, position, onClose, onOpenDetail }: TaskC
 
 export function taskDueDatePatch(value: string | null): { dueAt: string | null } {
   return { dueAt: value };
+}
+
+function defaultDueDate(daysToAdd: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysToAdd);
+  const [hours, minutes] = getStoredTaskPreferences().defaultDueTime.split(':').map(Number);
+  date.setHours(Number.isFinite(hours) ? hours : 21, Number.isFinite(minutes) ? minutes : 0, 0, 0);
+  return date;
 }

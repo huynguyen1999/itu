@@ -205,8 +205,8 @@ export function ExerciseLibraryPage() {
   return (
     <div className="space-y-4">
       {/* Header bar */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full min-w-0 sm:max-w-xs sm:flex-1">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             type="search"
@@ -217,8 +217,8 @@ export function ExerciseLibraryPage() {
           />
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-xs text-muted-foreground">
+        <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
+          <span className="shrink-0 font-mono text-xs text-muted-foreground">
             {exercises.length} {exercises.length === 1 ? 'exercise' : 'exercises'}
           </span>
           <Button
@@ -351,9 +351,9 @@ export function ExerciseLibraryPage() {
       )}
 
       {/* Main Split Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Left List */}
-        <div className="md:col-span-5 space-y-2 max-h-[600px] overflow-y-auto pr-1">
+        <div className="space-y-2 pr-1 lg:col-span-5 lg:max-h-[600px] lg:overflow-y-auto">
           {isLoading ? (
             <div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Loading exercises...</div>
           ) : filtered.length === 0 ? (
@@ -382,7 +382,7 @@ export function ExerciseLibraryPage() {
         </div>
 
         {/* Right Inspector */}
-        <div className="md:col-span-7">
+        <div className="lg:col-span-7">
           {selectedEx ? (
             <ExerciseInspector exercise={selectedEx} />
           ) : (
@@ -474,8 +474,8 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
 
   return (
     <Card className="p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <h3 className="text-base font-bold text-foreground">{exercise.name}</h3>
           <p className="text-xs text-muted-foreground">
             {exercise.primaryMuscleGroup || 'General'} &bull; {exercise.equipment || 'Bodyweight'}
@@ -635,7 +635,7 @@ function ExerciseInspector({ exercise }: { exercise: any }) {
               <p className="text-xs text-muted-foreground italic">No workout history recorded yet for this exercise.</p>
             ) : (
               <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="grid grid-cols-1 gap-3 text-center sm:grid-cols-3">
                   <div className="p-2.5 bg-muted/40 rounded-xl border border-border/50">
                     <span className="text-[10px] text-muted-foreground uppercase font-mono">Heaviest Weight</span>
                     <p className="text-sm font-bold font-mono text-foreground mt-0.5">

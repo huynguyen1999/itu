@@ -235,7 +235,6 @@ export function MatrixPage() {
       setQuickPriority(getStoredTaskDefaults().priority);
       setNewTaskQuadrant(null);
       setShowNewTaskDialog(false);
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 

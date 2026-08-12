@@ -1,5 +1,6 @@
 import { PrismaSyncBudgetGym } from './prisma-sync-budget-gym';
 import { GymWorkoutStatus } from '@prisma/client';
+import { InvalidSyncMutationException } from '@core/domain/exceptions';
 
 describe('PrismaSyncBudgetGym', () => {
   it('registers canonical and compatibility mutation names', () => {
@@ -36,6 +37,48 @@ describe('PrismaSyncBudgetGym', () => {
     } as any;
     await handler.applyMutation(tx, 'u1', { id: 'm1', kind: 'budgetpreferences.upsert', entityId: 'u1', payload: { preferences: { currency: 'VND' } } } as any);
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ update: { budgetPreferences: { theme: 'dark', currency: 'VND' } } }));
+  });
+
+  it('merges calendar preference patches and emits a sync change', async () => {
+    const handler = new PrismaSyncBudgetGym();
+    const upsert = jest.fn().mockResolvedValue({ userId: 'u1', calendarPreferences: { zoom: 'DAY' } });
+    const tx = {
+      userPreferences: {
+        findUnique: jest.fn().mockResolvedValue({ userId: 'u1', calendarPreferences: { zoom: 'WEEK' } }),
+        upsert,
+      },
+      syncChange: { create: jest.fn() },
+    } as any;
+
+    await handler.applyMutation(tx, 'u1', {
+      id: 'm-calendar', kind: 'calendarpreferences.update', entityId: 'u1',
+      payload: { preferences: { zoom: 'DAY' } },
+    } as any);
+
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+      update: { calendarPreferences: expect.objectContaining({ zoom: 'DAY' }) },
+    }));
+    expect(tx.syncChange.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ entityType: 'calendarpreferences', entityId: 'u1', operation: 'UPSERT' }),
+    }));
+  });
+
+  it('rejects invalid calendar preference mutations before persistence', async () => {
+    const handler = new PrismaSyncBudgetGym();
+    const upsert = jest.fn();
+    const tx = {
+      userPreferences: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert,
+      },
+      syncChange: { create: jest.fn() },
+    } as any;
+
+    await expect(handler.applyMutation(tx, 'u1', {
+      id: 'm-invalid-calendar', kind: 'calendarpreferences.update', entityId: 'u1',
+      payload: { preferences: { zoom: 'INVALID' } },
+    } as any)).rejects.toBeInstanceOf(InvalidSyncMutationException);
+    expect(upsert).not.toHaveBeenCalled();
   });
 
   it('restores a budget transaction and emits an upsert change', async () => {

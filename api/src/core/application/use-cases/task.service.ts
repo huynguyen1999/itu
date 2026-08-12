@@ -177,6 +177,10 @@ export class TaskService {
     return this.repo.createReminder(userId, taskId, input);
   }
 
+  async updateReminder(userId: string, id: string, input: any) {
+    return this.repo.updateReminder(userId, id, input);
+  }
+
   async reminderAction(userId: string, id: string, action: 'snooze' | 'dismiss', remindAt?: string) {
     return this.repo.reminderAction(userId, id, action, remindAt);
   }

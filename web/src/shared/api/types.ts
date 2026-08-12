@@ -388,6 +388,12 @@ export interface TaskSection {
 export interface TaskReminder {
   id: string;
   remindAt: string;
+  type?: 'ABSOLUTE' | 'RELATIVE';
+  relativeTo?: 'DUE_AT' | 'SCHEDULE_START_AT' | null;
+  offsetMinutes?: number | null;
+  calendarDayOffset?: number | null;
+  timeOfDayMinutes?: number | null;
+  timeZone?: string | null;
   status: 'SCHEDULED' | 'SNOOZED' | 'DISMISSED' | 'DELIVERED' | 'CANCELED';
   persistent: boolean;
 }
@@ -445,8 +451,8 @@ export interface TaskInput {
   priority?: TaskPriority;
   important?: boolean;
   urgentOverride?: boolean | null;
-  scheduledStartAt?: string;
-  scheduledEndAt?: string;
+  scheduledStartAt?: string | null;
+  scheduledEndAt?: string | null;
   dueAt?: string | null;
   estimatedMinutes?: number;
   recurrenceRule?: string;
@@ -491,6 +497,34 @@ export interface FocusSession {
   version: number;
   preset?: FocusPreset | null;
 }
+
+export type CalendarTimelineItem = {
+  id: string;
+  kind: 'TASK_DURATION' | 'TASK_DUE' | 'FOCUS_SESSION' | 'EXTERNAL_EVENT';
+  title: string;
+  startAt: string;
+  endAt?: string | null;
+  allDay?: boolean;
+  dueAt?: string | null;
+  sourceId?: string | null;
+  sourceName?: string | null;
+  color?: string | null;
+  readOnly: boolean;
+  status?: string | null;
+  taskId?: string | null;
+  priority?: TaskPriority | null;
+};
+
+export type ExternalCalendar = {
+  id: string;
+  provider: 'GOOGLE' | 'ICS';
+  name: string;
+  url?: string | null;
+  color: string;
+  visible: boolean;
+  lastSuccessfulSyncAt?: string | null;
+  lastError?: string | null;
+};
 
 export type FocusMutationResponse = FocusSession & { growthReceipt?: GrowthAwardReceipt | null };
 

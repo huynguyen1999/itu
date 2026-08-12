@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CornerDownRight, Flag, ListTodo, Plus, Play, Trash2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
-import type { ProductivityTask, TaskPriority } from '@/shared/api/types';
+import type { ProductivityTask, TaskPriority, TaskReminder } from '@/shared/api/types';
 import { DatePickerPopover } from '@/shared/ui/DatePickerPopover';
 import { Button } from '@/shared/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogOverlay, DialogPortal } from '@/shared/ui/dialog';
@@ -13,6 +13,13 @@ import { UndoToast } from '@/shared/ui/UndoToast';
 import { GrowthRewardEditor, type GrowthRewardEditorHandle } from '@/shared/ui/GrowthRewardEditor';
 import { nextTaskStatus, taskStatusLabel } from '../utils/taskStatus';
 import { inboxTaskListId, selectableTaskLists } from '../utils/taskLists';
+import {
+  createReminderDraft,
+  queueReminderRemove,
+  queueReminderUpdate,
+  type PendingReminderChange,
+  type ReminderCreateInput,
+} from '../utils/taskReminderDraft';
 
 export function TaskDetailModal({
   task,
@@ -31,9 +38,14 @@ export function TaskDetailModal({
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('NONE');
   const [dueAt, setDueAt] = useState('');
+  const [scheduledStartAt, setScheduledStartAt] = useState<string | null>(null);
+  const [scheduledEndAt, setScheduledEndAt] = useState<string | null>(null);
   const [estimate, setEstimate] = useState('');
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [taskListId, setTaskListId] = useState<string | null>(null);
+  const [reminderDrafts, setReminderDrafts] = useState<TaskReminder[]>([]);
+  const [pendingReminderChanges, setPendingReminderChanges] = useState<PendingReminderChange[]>([]);
+  const nextDraftReminderId = useRef(0);
   const growthEditorRef = useRef<GrowthRewardEditorHandle>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -50,10 +62,16 @@ export function TaskDetailModal({
       setDescription(task.descriptionMarkdown ?? '');
       setPriority(task.priority ?? 'NONE');
       setDueAt(toLocalInput(task.dueAt));
+      setScheduledStartAt(task.scheduledStartAt ?? null);
+      setScheduledEndAt(task.scheduledEndAt ?? null);
       setEstimate(task.estimatedMinutes ? String(task.estimatedMinutes) : '');
       setTaskListId(task.taskListId ?? task.projectId ?? null);
+      setReminderDrafts(
+        task.reminders.filter((reminder) => reminder.status === 'SCHEDULED' || reminder.status === 'SNOOZED'),
+      );
+      setPendingReminderChanges([]);
     }
-  }, [task]);
+  }, [task?.id, isOpen]);
 
   const saveTask = useMutation({
     mutationFn: (overrides?: any) => {
@@ -64,6 +82,8 @@ export function TaskDetailModal({
         descriptionMarkdown: patch.descriptionMarkdown ?? description,
         priority: patch.priority ?? priority,
         dueAt: patch.dueAt !== undefined ? patch.dueAt : dueAt ? new Date(dueAt).toISOString() : undefined,
+        scheduledStartAt: patch.scheduledStartAt !== undefined ? patch.scheduledStartAt : scheduledStartAt,
+        scheduledEndAt: patch.scheduledEndAt !== undefined ? patch.scheduledEndAt : scheduledEndAt,
         estimatedMinutes: patch.estimatedMinutes !== undefined ? patch.estimatedMinutes : Number(estimate) || undefined,
         taskListId: patch.taskListId !== undefined ? patch.taskListId : taskListId,
         version: task.version,
@@ -154,6 +174,7 @@ export function TaskDetailModal({
 
   if (!task) return null;
 
+  const selectedTask = task;
   const isDone = task.status === 'COMPLETED';
 
   async function handleSave(event?: FormEvent) {
@@ -164,6 +185,12 @@ export function TaskDetailModal({
     try {
       await growthEditorRef.current?.savePendingChanges();
       await saveTask.mutateAsync(undefined);
+      for (const change of pendingReminderChanges) {
+        if (change.kind === 'create') await api.createTaskReminder(selectedTask.id, change.input);
+        if (change.kind === 'update') await api.updateTaskReminder(change.id, { remindAt: change.remindAt });
+        if (change.kind === 'remove') await api.dismissTaskReminder(change.id);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
       onClose();
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Failed to save task.');
@@ -172,13 +199,40 @@ export function TaskDetailModal({
     }
   }
 
+  function stageReminderCreate(input: ReminderCreateInput) {
+    const id = `draft-reminder-${nextDraftReminderId.current++}`;
+    const fallbackRemindAt =
+      input.relativeTo === 'SCHEDULE_START_AT'
+        ? scheduledStartAt
+        : dueAt
+          ? new Date(dueAt).toISOString()
+          : (selectedTask.dueAt ?? scheduledStartAt);
+    setReminderDrafts((current) => [
+      ...current,
+      createReminderDraft(id, input, fallbackRemindAt ?? new Date().toISOString()),
+    ]);
+    setPendingReminderChanges((current) => [...current, { kind: 'create', draftId: id, input }]);
+  }
+
+  function stageReminderUpdate(id: string, remindAt: string) {
+    setReminderDrafts((current) =>
+      current.map((reminder) => (reminder.id === id ? { ...reminder, remindAt } : reminder)),
+    );
+    setPendingReminderChanges((current) => queueReminderUpdate(current, id, remindAt));
+  }
+
+  function stageReminderRemove(id: string) {
+    setReminderDrafts((current) => current.filter((reminder) => reminder.id !== id));
+    setPendingReminderChanges((current) => queueReminderRemove(current, id));
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogPortal>
         <DialogOverlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm animate-in fade-in-0" />
         <DialogContent
           hideCloseButton
-          className="fixed left-[50%] top-[50%] z-50 flex h-[calc(100dvh-2rem)] max-h-[calc(100dvh-2rem)] w-full max-w-xl translate-x-[-50%] translate-y-[-50%] flex-col border bg-card p-0 text-card-foreground shadow-2xl rounded-2xl overflow-hidden duration-200"
+          className="fixed left-[50%] top-[50%] z-50 flex h-auto min-h-[18rem] max-h-[90dvh] w-full max-w-xl translate-x-[-50%] translate-y-[-50%] flex-col border bg-card p-0 text-card-foreground shadow-2xl rounded-2xl overflow-hidden duration-200"
         >
           <DialogTitle className="sr-only">Edit Task: {task.title}</DialogTitle>
 
@@ -226,6 +280,17 @@ export function TaskDetailModal({
                   setDueAt(iso ? toLocalInput(iso) : '');
                   saveTask.mutate({ dueAt: iso ?? null });
                 }}
+                scheduledStartAt={scheduledStartAt}
+                scheduledEndAt={scheduledEndAt}
+                onScheduleChange={(startAt, endAt) => {
+                  setScheduledStartAt(startAt);
+                  setScheduledEndAt(endAt);
+                  saveTask.mutate({ scheduledStartAt: startAt, scheduledEndAt: endAt });
+                }}
+                reminders={reminderDrafts}
+                onReminderCreate={stageReminderCreate}
+                onReminderUpdate={stageReminderUpdate}
+                onReminderRemove={stageReminderRemove}
               />
             </div>
 

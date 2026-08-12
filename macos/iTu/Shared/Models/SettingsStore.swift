@@ -69,8 +69,8 @@ enum DefaultTaskDate: String, Codable, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .none: "No date"
-        case .today: "Today at 6:00 PM"
-        case .tomorrow: "Tomorrow at 6:00 PM"
+        case .today: "Today"
+        case .tomorrow: "Tomorrow"
         }
     }
 }
@@ -97,6 +97,15 @@ struct TaskDefaultsSettings: Codable, Equatable {
     var priority: TaskPriority = .none
     var taskListId: String = ""
     var defaultEstimatedMinutes: Int? = nil
+
+    func dateByApplyingDefaultDueTime(to date: Date, calendar: Calendar = .current) -> Date {
+        var components = calendar.dateComponents([.year, .month, .day], from: date)
+        let time = defaultDueTime.split(separator: ":").compactMap { Int($0) }
+        components.hour = time.count == 2 && (0...23).contains(time[0]) ? time[0] : 18
+        components.minute = time.count == 2 && (0...59).contains(time[1]) ? time[1] : 0
+        components.second = 0
+        return calendar.date(from: components) ?? date
+    }
 }
 
 enum MenuBarDisplayMode: String, Codable, CaseIterable, Identifiable, Hashable {
@@ -289,8 +298,20 @@ enum StatisticsChartDensity: String, Codable, CaseIterable, Identifiable {
     var label: String { rawValue.capitalized }
 }
 
+enum StatisticsGrouping: String, Codable, CaseIterable, Identifiable {
+    case day = "DAY"
+    case week = "WEEK"
+    case month = "MONTH"
+
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+}
+
 struct StatisticsDisplaySettings: Codable, Equatable {
     var defaultRange = "30 Days"
+    var grouping: StatisticsGrouping = .day
+    var showTrendComparison = true
+    var showZeroValueSeries = false
     var showAppUsage = true
     var showWebsiteUsage = true
     var showEngagement = true
@@ -307,6 +328,9 @@ struct StatisticsDisplaySettings: Codable, Equatable {
 
     init(
         defaultRange: String = "30 Days",
+        grouping: StatisticsGrouping = .day,
+        showTrendComparison: Bool = true,
+        showZeroValueSeries: Bool = false,
         showAppUsage: Bool = true,
         showWebsiteUsage: Bool = true,
         showEngagement: Bool = true,
@@ -315,6 +339,9 @@ struct StatisticsDisplaySettings: Codable, Equatable {
         chartDensity: StatisticsChartDensity = .comfortable
     ) {
         self.defaultRange = ["Today", "7 Days", "30 Days", "90 Days", "365 Days"].contains(defaultRange) ? defaultRange : "30 Days"
+        self.grouping = grouping
+        self.showTrendComparison = showTrendComparison
+        self.showZeroValueSeries = showZeroValueSeries
         self.showAppUsage = showAppUsage
         self.showWebsiteUsage = showWebsiteUsage
         self.showEngagement = showEngagement
@@ -327,6 +354,9 @@ struct StatisticsDisplaySettings: Codable, Equatable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
             defaultRange: try values.decodeIfPresent(String.self, forKey: .defaultRange) ?? "30 Days",
+            grouping: try values.decodeIfPresent(StatisticsGrouping.self, forKey: .grouping) ?? .day,
+            showTrendComparison: try values.decodeIfPresent(Bool.self, forKey: .showTrendComparison) ?? true,
+            showZeroValueSeries: try values.decodeIfPresent(Bool.self, forKey: .showZeroValueSeries) ?? false,
             showAppUsage: try values.decodeIfPresent(Bool.self, forKey: .showAppUsage) ?? true,
             showWebsiteUsage: try values.decodeIfPresent(Bool.self, forKey: .showWebsiteUsage) ?? true,
             showEngagement: try values.decodeIfPresent(Bool.self, forKey: .showEngagement) ?? true,
@@ -337,7 +367,7 @@ struct StatisticsDisplaySettings: Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case defaultRange, showAppUsage, showWebsiteUsage, showEngagement, topAppsCount, websiteSliceCount, chartDensity
+        case defaultRange, grouping, showTrendComparison, showZeroValueSeries, showAppUsage, showWebsiteUsage, showEngagement, topAppsCount, websiteSliceCount, chartDensity
     }
 }
 

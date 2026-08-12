@@ -6,6 +6,7 @@ import { MarkdownPreview } from '../../shared/markdown/MarkdownPreview';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 export function SessionHistoryPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -25,11 +26,11 @@ export function SessionHistoryPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div>
-        <p className="text-sm font-medium text-primary">Study archive</p>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Session history</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Browse completed sessions and saved AI feedback.</p>
-      </div>
+      <PageHeader
+        kicker="Study archive"
+        title="Session history"
+        description="Browse completed sessions and saved AI feedback."
+      />
 
       <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
         <Card>

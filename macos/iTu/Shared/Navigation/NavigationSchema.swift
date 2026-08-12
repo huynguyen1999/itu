@@ -17,7 +17,8 @@ enum NavigationSchema {
             NavigationEntry(id: "home", title: "Home", systemImage: "house", destination: .home),
             NavigationEntry(id: "plan", title: "Plan", systemImage: "checkmark.square", destination: .inbox),
             NavigationEntry(id: "matrix", title: "Matrix", systemImage: "square.grid.2x2", destination: .matrix),
-            NavigationEntry(id: "focus", title: "Focus", systemImage: "scope", destination: .focus)
+            NavigationEntry(id: "focus", title: "Focus", systemImage: "scope", destination: .focus),
+            NavigationEntry(id: "calendar", title: "Calendar", systemImage: "calendar", destination: .calendar)
         ]),
         NavigationGroup(id: "tracking", title: "Tracking", entries: [
             NavigationEntry(id: "habits", title: "Habits", systemImage: "repeat", destination: .habits),

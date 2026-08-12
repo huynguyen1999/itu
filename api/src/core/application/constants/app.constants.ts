@@ -1,5 +1,6 @@
 export const CONFIG_KEYS = {
   aiProvider: 'AI_PROVIDER',
+  apiOrigin: 'API_ORIGIN',
   geminiApiKey: 'GEMINI_API_KEY',
   geminiModel: 'GEMINI_MODEL',
   geminiVisionModel: 'GEMINI_VISION_MODEL',
@@ -148,6 +149,7 @@ export const REST_ROUTES = {
   taskCancel: 'tasks/:id/cancel',
   taskArchive: 'tasks/:id/archive',
   taskReminders: 'tasks/:id/reminders',
+  taskReminderById: 'task-reminders/:id',
   taskReminderSnooze: 'task-reminders/:id/snooze',
   taskReminderDismiss: 'task-reminders/:id/dismiss',
   notifications: 'notifications',

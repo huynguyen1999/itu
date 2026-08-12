@@ -13,11 +13,6 @@ export function shiftBudgetPeriod(period: string, offset: number): string {
   return `${nextYear}-${String(nextMonth).padStart(2, '0')}`;
 }
 
-export function budgetDay(instant: string | Date): number {
-  const day = new Intl.DateTimeFormat('en-US', { timeZone: BUDGET_TIME_ZONE, day: '2-digit' }).format(new Date(instant));
-  return Number(day);
-}
-
 export function currentBudgetDateTimeInput(date = new Date()): string {
   const value = new Intl.DateTimeFormat('sv-SE', {
     timeZone: BUDGET_TIME_ZONE,

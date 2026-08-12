@@ -3,6 +3,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { WeeklyReviewPage } from './WeeklyReviewPage';
 
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: undefined }),
+}));
+
 vi.mock('../journalQueries', () => ({
   useJournalEntry: () => ({ data: undefined, isLoading: false }),
   useWeeklySummary: () => ({ data: undefined }),

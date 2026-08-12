@@ -1,4 +1,4 @@
-import { BookOpen, FileText, Plus, Search, Sparkles, CloudOff, RefreshCw, TriangleAlert, Check } from 'lucide-react';
+import { FileText, Plus, Search, Sparkles, CloudOff, RefreshCw, TriangleAlert, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useJournalEntries, useJournalTemplates } from './journalQueries';
 import { JournalEntryCard } from './components/JournalEntryCard';
@@ -6,6 +6,7 @@ import { createUlid } from '../../shared/sync/syncIdentity';
 import { getLocalTodayDateString, formatDateStringToLocalDisplay } from './journalDate';
 import { useSync } from '@/shared/sync/SyncProvider';
 import { Button } from '@/shared/ui/button';
+import { PageHeader } from '@/shared/ui/PageHeader';
 import type { JournalEntryKind } from './journal.types';
 
 interface JournalDashboardProps {
@@ -64,20 +65,11 @@ export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 pb-12">
-      <header className="itu-page-header-sticky flex flex-col gap-5 rounded-[var(--itu-radius-l)] border border-border/60 p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
-        <div className="min-w-0 space-y-2">
-          <p className="flex items-center gap-2 text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-primary">
-            <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-            Daily writing
-          </p>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Make a little room.
-          </h1>
-          <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-            A quiet place for the day as it is. Write freely first; organize it when you are ready.
-          </p>
-        </div>
-
+      <PageHeader
+        kicker="Daily writing"
+        title="Make a little room."
+        description="A quiet place for the day as it is. Write freely first; organize it when you are ready."
+      >
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <SyncStatus phase={syncPresentation.phase} label={syncPresentation.label} />
           <Button variant="outline" size="sm" onClick={() => navigate('/journal/notes')} className="gap-1.5">
@@ -89,7 +81,7 @@ export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
             New note
           </Button>
         </div>
-      </header>
+      </PageHeader>
 
       <section aria-labelledby="journal-today" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_250px]">
         <div className="itu-gradient-card overflow-hidden rounded-[var(--itu-radius-l)] border-none p-6 shadow-[var(--itu-shadow-card)] sm:p-8">

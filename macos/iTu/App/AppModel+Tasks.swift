@@ -182,6 +182,23 @@ extension AppModel {
         await editTask(task, edits: edits)
     }
 
+    func updateTaskSchedule(_ task: ProductivityTask, dueAt: String?, scheduledStartAt: String?, scheduledEndAt: String?) async {
+        await editTask(task, edits: TaskEdits(
+            title: task.title,
+            descriptionMarkdown: task.descriptionMarkdown,
+            priority: task.priority,
+            important: task.important,
+            dueAt: dueAt,
+            estimatedMinutes: task.estimatedMinutes,
+            scheduledStartAt: scheduledStartAt,
+            scheduledEndAt: scheduledEndAt,
+            recurrenceRule: task.recurrenceRule,
+            taskListId: task.taskListId,
+            sectionId: task.sectionId,
+            tagIds: modelTagIds(for: task)
+        ))
+    }
+
     private func modelTagIds(for task: ProductivityTask) -> [String] {
         tagIdsByTaskID[task.id] ?? []
     }

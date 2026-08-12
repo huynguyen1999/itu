@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { budgetDateTimeInputToIso, currentBudgetPeriod, shiftBudgetPeriod } from './budgetPeriod';
 
-describe('budget calendar rules', () => {
+describe('budget period rules', () => {
   it('uses UTC+7 for month boundaries', () => {
     expect(currentBudgetPeriod(new Date('2026-07-31T17:30:00.000Z'))).toBe('2026-08');
   });

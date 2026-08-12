@@ -6,6 +6,7 @@ import { JournalEntryCard } from './components/JournalEntryCard';
 import type { JournalEntryKind } from './journal.types';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 export function JournalSearchPage() {
   const navigate = useNavigate();
@@ -50,19 +51,20 @@ export function JournalSearchPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 pb-20">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/journal')} className="gap-1 px-2">
-          <ArrowLeft className="h-4 w-4" />
-          Back to Journal
-        </Button>
-
-        {hasActiveFilters && (
-          <Button type="button" variant="link" size="sm" onClick={clearFilters} className="gap-1 text-destructive">
-            <X className="h-3.5 w-3.5" />
-            Clear Filters
+      <PageHeader kicker="Journal" title="Search notes" description="Find entries by title, content, tags, or date.">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/journal')} className="gap-1 px-2">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Journal
           </Button>
-        )}
-      </div>
+          {hasActiveFilters && (
+            <Button type="button" variant="link" size="sm" onClick={clearFilters} className="gap-1 text-destructive">
+              <X className="h-3.5 w-3.5" />
+              Clear Filters
+            </Button>
+          )}
+        </div>
+      </PageHeader>
 
       <Card>
         <CardContent className="space-y-4 p-4 sm:p-5">

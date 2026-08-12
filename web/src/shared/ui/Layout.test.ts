@@ -22,6 +22,7 @@ describe('workspace navigation', () => {
         { id: 'plan', to: '/plan' },
         { id: 'matrix', to: '/matrix' },
         { id: 'focus', to: '/focus' },
+        { id: 'calendar', to: '/calendar' },
       ],
       [
         { id: 'habits', to: '/habits' },
@@ -42,12 +43,13 @@ describe('workspace navigation', () => {
         { id: 'settings', to: '/settings' },
       ],
     ]);
-    expect(workspaceNavigation).toHaveLength(16);
-    expect(workspaceNavigation.slice(0, 5).map((entry) => entry.id)).toEqual([
+    expect(workspaceNavigation).toHaveLength(17);
+    expect(workspaceNavigation.slice(0, 6).map((entry) => entry.id)).toEqual([
       'home',
       'plan',
       'matrix',
       'focus',
+      'calendar',
       'habits',
     ]);
   });

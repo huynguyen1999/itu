@@ -6,7 +6,10 @@ import { JournalEntryPage } from './JournalEntryPage';
 import { NotePage } from './components/NotePage';
 import { JournalSearchPage } from './JournalSearchPage';
 import { WeeklyReviewPage } from './weekly/WeeklyReviewPage';
+import { WeeklyReviewsPage } from './weekly/WeeklyReviewsPage';
 import { TemplateEditor } from './components/TemplateEditor';
+import { useJournalEntries } from './journalQueries';
+import { getLocalTodayDateString } from './journalDate';
 
 export function JournalWorkspace() {
   const navigate = useNavigate();
@@ -35,9 +38,10 @@ export function JournalWorkspace() {
         <div className="itu-journal-content__inner">
           <Routes>
             <Route index element={<JournalDashboard />} />
-            <Route path="daily" element={<NotePage isDaily={true} />} />
+            <Route path="daily" element={<DailyNoteRoute />} />
             <Route path="daily/:date" element={<NotePage isDaily={true} />} />
-            <Route path="weekly" element={<WeeklyReviewPage />} />
+            <Route path="weekly" element={<WeeklyReviewsPage />} />
+            <Route path="weekly/new" element={<WeeklyReviewPage />} />
             <Route path="weekly/:entryId" element={<WeeklyReviewPage />} />
 
             <Route path="notes" element={<JournalSearchPage />} />
@@ -50,6 +54,20 @@ export function JournalWorkspace() {
       </section>
     </div>
   );
+}
+
+function DailyNoteRoute() {
+  const navigate = useNavigate();
+  const today = getLocalTodayDateString();
+  const { data: notes = [], isLoading } = useJournalEntries({ kind: 'NOTE' });
+
+  useEffect(() => {
+    if (isLoading) return;
+    const todayNote = notes.find((note) => note.entryDate.startsWith(today));
+    navigate(todayNote ? `/journal/notes/${todayNote.id}` : `/journal/daily/${today}`, { replace: true });
+  }, [isLoading, navigate, notes, today]);
+
+  return <div className="flex min-h-64 items-center justify-center text-sm text-muted-foreground" role="status">Opening today’s note…</div>;
 }
 
 function useStoredNumber(key: string, fallback: number) {

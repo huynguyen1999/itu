@@ -11,6 +11,12 @@ struct TaskContextMenuPopoverView: View {
     @State private var showsDatePickerPopover = false
     @State private var customDueDate: Date = Date()
     @State private var customHasDate = false
+    @State private var customHasSchedule = false
+    @State private var customScheduleStart = Date()
+    @State private var customScheduleEnd = Date()
+    @State private var customReminderDate = Date()
+    @State private var customHasReminder = false
+    @State private var hoveredDateHelp: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -60,14 +66,32 @@ struct TaskContextMenuPopoverView: View {
                     ) {
                         customDueDate = initialCustomDate
                         customHasDate = task.dueAt != nil
+                        customHasSchedule = task.scheduledStartAt != nil && task.scheduledEndAt != nil
+                        customScheduleStart = task.scheduledStartAt.flatMap(parseISO8601Date) ?? customDueDate
+                        customScheduleEnd = task.scheduledEndAt.flatMap(parseISO8601Date) ?? (Calendar.current.date(byAdding: .hour, value: 1, to: customScheduleStart) ?? customScheduleStart)
+                        let reminder = activeReminder
+                        customReminderDate = reminder.flatMap { parseISO8601Date($0.remindAt) } ?? customDueDate
+                        customHasReminder = reminder != nil
                         showsDatePickerPopover.toggle()
                     }
                     .popover(isPresented: $showsDatePickerPopover, arrowEdge: .bottom) {
                         TaskDueDatePickerView(
                             date: $customDueDate,
                             hasDate: $customHasDate,
+                            hasSchedule: $customHasSchedule,
+                            scheduledStartDate: $customScheduleStart,
+                            scheduledEndDate: $customScheduleEnd,
+                            reminderDate: $customReminderDate,
+                            hasReminder: $customHasReminder,
                             onDone: {
-                                setDueDate(customHasDate ? ISO8601DateFormatter().string(from: customDueDate) : nil)
+                                let formatter = ISO8601DateFormatter()
+                                setDueDate(
+                                    customHasDate ? formatter.string(from: customDueDate) : nil,
+                                    scheduledStartAt: customHasSchedule ? formatter.string(from: customScheduleStart) : nil,
+                                    scheduledEndAt: customHasSchedule ? formatter.string(from: customScheduleEnd) : nil,
+                                    replaceSchedule: true
+                                )
+                                saveReminderSelection(formatter: formatter)
                                 showsDatePickerPopover = false
                             }
                         )
@@ -213,6 +237,10 @@ struct TaskContextMenuPopoverView: View {
         return Date()
     }
 
+    private var activeReminder: TaskReminderModel? {
+        task.reminders?.first(where: { $0.status == "SCHEDULED" || $0.status == "SNOOZED" })
+    }
+
     private func parseISO8601Date(_ dateStr: String) -> Date? {
         let formatter = ISO8601DateFormatter()
         if let date = formatter.date(from: dateStr) {
@@ -240,14 +268,16 @@ struct TaskContextMenuPopoverView: View {
         onDismiss()
     }
 
-    private func setDueDate(_ dueAt: String?) {
+    private func setDueDate(_ dueAt: String?, scheduledStartAt: String? = nil, scheduledEndAt: String? = nil, replaceSchedule: Bool = false) {
         let edits = TaskEdits(
             title: task.title,
             descriptionMarkdown: task.descriptionMarkdown,
             priority: task.priority,
             important: task.important,
             dueAt: dueAt,
-            estimatedMinutes: task.estimatedMinutes
+            estimatedMinutes: task.estimatedMinutes,
+            scheduledStartAt: replaceSchedule ? scheduledStartAt : task.scheduledStartAt,
+            scheduledEndAt: replaceSchedule ? scheduledEndAt : task.scheduledEndAt
         )
         Task { await model.editTask(task, edits: edits) }
         onDismiss()
@@ -263,24 +293,35 @@ struct TaskContextMenuPopoverView: View {
         onDismiss()
     }
 
+    private func saveReminderSelection(formatter: ISO8601DateFormatter) {
+        if customHasReminder {
+            let remindAt = formatter.string(from: customReminderDate)
+            if let reminder = activeReminder {
+                Task { await model.updateTaskReminder(id: reminder.id, remindAt: remindAt) }
+            } else {
+                Task { await model.createTaskReminder(taskId: task.id, remindAt: remindAt) }
+            }
+        } else if let reminder = activeReminder {
+            Task { await model.removeTaskReminder(id: reminder.id) }
+        }
+    }
+
     private func todayDate() -> String {
-        var comp = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-        comp.hour = 18
-        return ISO8601DateFormatter().string(from: Calendar.current.date(from: comp) ?? Date())
+        defaultDueDate(offset: 0)
     }
 
     private func tomorrowDate() -> String {
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-        var comp = Calendar.current.dateComponents([.year, .month, .day], from: tomorrow)
-        comp.hour = 9
-        return ISO8601DateFormatter().string(from: Calendar.current.date(from: comp) ?? tomorrow)
+        defaultDueDate(offset: 1)
     }
 
     private func nextWeekDate() -> String {
-        let nextWeek = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
-        var comp = Calendar.current.dateComponents([.year, .month, .day], from: nextWeek)
-        comp.hour = 9
-        return ISO8601DateFormatter().string(from: Calendar.current.date(from: comp) ?? nextWeek)
+        defaultDueDate(offset: 7)
+    }
+
+    private func defaultDueDate(offset: Int) -> String {
+        let date = Calendar.current.date(byAdding: .day, value: offset, to: Date()) ?? Date()
+        let dueDate = model.settingsStore.taskDefaults.dateByApplyingDefaultDueTime(to: date)
+        return ISO8601DateFormatter().string(from: dueDate)
     }
 
     @ViewBuilder
@@ -322,6 +363,25 @@ struct TaskContextMenuPopoverView: View {
         .disabled(isDisabled)
         .pointingHandCursor()
         .help(help)
+        .accessibilityLabel(help)
+        .overlay(alignment: .top) {
+            if hoveredDateHelp == help {
+                Text(help)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(iTuTheme.surface)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(iTuTheme.ink)
+                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    .fixedSize()
+                    .offset(y: -25)
+                    .allowsHitTesting(false)
+                    .zIndex(1)
+            }
+        }
+        .onHover { isHovering in
+            hoveredDateHelp = isHovering ? help : nil
+        }
     }
 
     @ViewBuilder

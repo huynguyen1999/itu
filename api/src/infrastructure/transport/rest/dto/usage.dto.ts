@@ -204,6 +204,10 @@ export class WebsiteActivitySessionDto {
 
   @IsOptional()
   @IsString()
+  iconUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
   @Length(1, 512)
   pageTitle?: string | null;
 

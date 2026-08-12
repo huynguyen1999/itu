@@ -78,7 +78,8 @@ export function createController(api, dependencies = {}) {
     await store.put("syncOutbox", { ...(existing ?? {}), id: `session:${session.id}`, sessionId: session.id, payload: {
       id: session.id, startedAt: new Date(session.startedAt).toISOString(), endedAt: new Date(session.endedAt).toISOString(),
       browserBundleId: session.browserBundleId, browserDisplayName: session.browserDisplayName, hostname: session.hostname,
-      url: session.url, pageTitle: session.title || null, isPrivate: Boolean(session.incognito), timezone: session.timezone
+      url: session.url, iconUrl: session.iconUrl || null, pageTitle: session.title || null,
+      isPrivate: Boolean(session.incognito), timezone: session.timezone
     }, state: existing?.state ?? "PENDING", attempts: existing?.attempts ?? 0, nextAttemptAt: existing?.nextAttemptAt ?? 0, updatedAt: now() });
   }
 

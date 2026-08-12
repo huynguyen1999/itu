@@ -6,7 +6,8 @@ import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { TransactionQuickAdd } from './TransactionQuickAdd';
-import { Plus, Trash2, Edit2, ArrowUpRight, ArrowDownRight, Tag } from 'lucide-react';
+import { CategoryIcon } from '../budgetCategoryIcons';
+import { Plus, Trash2, Edit2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
 export function TransactionsPage() {
@@ -152,60 +153,74 @@ export function TransactionsPage() {
             No transactions found. Add your first transaction above!
           </Card>
         ) : (
-          transactions.map((tx: any) => (
-            <Card
-              key={tx.id}
-              className="p-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs shrink-0 ${
-                    tx.type === 'INCOME' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
-                  }`}
-                >
-                  {tx.type === 'INCOME' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-                </div>
+          transactions.map((tx: any) => {
+            const category = categories.find((item: any) => item.id === tx.categoryId);
+            return (
+              <Card
+                key={tx.id}
+                className="flex items-center justify-between gap-4 p-3 transition-colors hover:bg-muted/30"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs ${
+                      tx.type === 'INCOME' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
+                    }`}
+                  >
+                    {tx.type === 'INCOME' ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                  </div>
 
-                <div className="min-w-0 space-y-0.5">
-                  <p className="text-xs font-semibold truncate text-foreground">
-                    {tx.merchant || tx.category || 'Transaction'}
-                  </p>
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Tag className="w-3 h-3" />
-                      {tx.category}
-                    </span>
-                    <span>&bull;</span>
-                    <span className="font-mono">{new Date(tx.transactionAt).toLocaleDateString()}</span>
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="truncate text-xs font-semibold text-foreground">
+                      {tx.merchant || tx.category || 'Transaction'}
+                    </p>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <span className="flex min-w-0 items-center gap-1">
+                        <CategoryIcon
+                          name={category?.icon || category?.name || tx.category}
+                          color={category?.color}
+                          className="h-3.5 w-3.5 shrink-0"
+                        />
+                        <span className="truncate">{category?.name || tx.category || 'Uncategorized'}</span>
+                      </span>
+                      <span aria-hidden="true">&bull;</span>
+                      <span className="font-mono">{new Date(tx.transactionAt).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-3">
-                <span
-                  className={`font-mono text-xs font-bold ${
-                    tx.type === 'INCOME' ? 'text-emerald-500' : 'text-foreground'
-                  }`}
-                >
-                  {tx.type === 'INCOME' ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}
-                </span>
-
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingTx(tx)}>
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => setDeleteTarget(tx)}
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={`font-mono text-xs font-bold ${
+                      tx.type === 'INCOME' ? 'text-emerald-500' : 'text-foreground'
+                    }`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                    {tx.type === 'INCOME' ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}
+                  </span>
+
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setEditingTx(tx)}
+                      aria-label={`Edit ${tx.merchant || tx.category || 'transaction'}`}
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteTarget(tx)}
+                      aria-label={`Move ${tx.merchant || tx.category || 'transaction'} to Trash`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </Card>
-          ))
+              </Card>
+            );
+          })
         )}
       </div>
 

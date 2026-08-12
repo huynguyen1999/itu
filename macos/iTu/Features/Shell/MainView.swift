@@ -122,6 +122,11 @@ struct MainView: View {
                     FocusView()
                 }
             }
+            if retainedDestinations.contains(.calendar) || model.selectedSection == .calendar {
+                retainedDestination(isVisible: model.selectedSection == .calendar) {
+                    CalendarView()
+                }
+            }
             if retainedDestinations.contains(.habits) || model.selectedSection == .habits {
                 retainedDestination(isVisible: model.selectedSection == .habits) {
                     HabitsView()
@@ -147,6 +152,8 @@ struct MainView: View {
             retainedDestinations.insert(.statistics)
         case .focus:
             retainedDestinations.insert(.focus)
+        case .calendar:
+            retainedDestinations.insert(.calendar)
         case .habits:
             retainedDestinations.insert(.habits)
         default:
@@ -194,7 +201,7 @@ struct MainView: View {
             ProfileView()
         case .settings:
             SettingsView()
-        case .home, .today, .inbox, .completed, .matrix, .statistics, .focus, .habits:
+        case .home, .today, .inbox, .completed, .matrix, .statistics, .focus, .calendar, .habits:
             EmptyView()
         }
     }
@@ -221,6 +228,7 @@ struct MainView: View {
         case matrix
         case statistics
         case focus
+        case calendar
         case habits
     }
 }
@@ -789,7 +797,7 @@ private extension AppSection {
 
     var isRetainedDestination: Bool {
         switch self {
-        case .home, .today, .inbox, .completed, .matrix, .statistics, .focus, .habits:
+        case .home, .today, .inbox, .completed, .matrix, .statistics, .focus, .calendar, .habits:
             true
         default:
             false

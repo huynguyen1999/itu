@@ -18,6 +18,7 @@ export const SYNC_KINDS = {
     restore: 'budgettransaction.restore',
   },
   budgetPreferences: { update: 'budgetpreferences.update' },
+  calendarPreferences: { update: 'calendarpreferences.update' },
   exerciseDefinition: {
     create: 'exercisedefinition.create',
     update: 'exercisedefinition.update',

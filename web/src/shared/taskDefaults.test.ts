@@ -30,4 +30,9 @@ describe('applyTaskDefaults', () => {
       dueAt: '2026-07-25T10:00:00.000Z',
     });
   });
+
+  it('uses 21:00 for date presets', () => {
+    const result = applyTaskDefaults({ title: 'Task' }, { ...defaults, date: 'TOMORROW' });
+    expect(new Date(result.dueAt!).getHours()).toBe(21);
+  });
 });

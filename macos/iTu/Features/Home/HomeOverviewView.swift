@@ -66,6 +66,8 @@ struct HomeOverviewView: View {
                 .foregroundStyle(iTuTheme.inkDim)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 18)
     }
 
     // MARK: - Level & Today Activity Hero Card (Left Column)
@@ -474,9 +476,7 @@ struct HomeOverviewView: View {
         quickDescription = ""
         quickPriority = .none
 
-        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-        components.hour = 18
-        let date = Calendar.current.date(from: components) ?? Date()
+        let date = model.settingsStore.taskDefaults.dateByApplyingDefaultDueTime(to: Date())
         let dueAt = ISO8601DateFormatter().string(from: date)
 
         Task {

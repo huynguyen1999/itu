@@ -125,11 +125,11 @@ struct UpcomingView: View {
         let title = newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
         newTaskTitle = ""
-        var comp = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-        comp.hour = 18
-        let todayAt18 = ISO8601DateFormatter().string(from: Calendar.current.date(from: comp) ?? Date())
+        let todayDueDate = ISO8601DateFormatter().string(
+            from: model.settingsStore.taskDefaults.dateByApplyingDefaultDueTime(to: Date())
+        )
         Task {
-            await model.createTask(title: title, dueAt: todayAt18)
+            await model.createTask(title: title, dueAt: todayDueDate)
         }
     }
 

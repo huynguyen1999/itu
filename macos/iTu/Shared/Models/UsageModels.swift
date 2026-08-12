@@ -380,6 +380,7 @@ struct WebsiteUsageURLDetail: Codable, Equatable, Sendable, Identifiable {
     let hostname: String
     let activeSeconds: Int
     let latestTitle: String?
+    let iconUrl: String? = nil
     let isPrivate: Bool
 
     var id: String { "\(isPrivate ? "private" : "normal")|\(url)" }
@@ -396,6 +397,7 @@ struct WebsiteUsageSession: Codable, Equatable, Sendable, Identifiable {
     let activeSeconds: Int
     let hostname: String
     let url: String?
+    let iconUrl: String? = nil
     let pageTitle: String?
     let isPrivate: Bool
     let timezone: String

@@ -13,6 +13,7 @@ import {
   DEFAULT_LEARN_PREFERENCES,
   DEFAULT_JOURNAL_PREFERENCES,
   DEFAULT_USAGE_PREFERENCES,
+  DEFAULT_CALENDAR_PREFERENCES,
 } from '@core/application/use-cases/preferences.service';
 import { PrismaService } from '@infrastructure/persistence/prisma/prisma.service';
 import { AuthGuard } from '../guards/auth.guard';
@@ -64,6 +65,7 @@ describe('PreferencesController', () => {
       budget: DEFAULT_BUDGET_PREFERENCES,
       gym: DEFAULT_GYM_PREFERENCES,
       usage: DEFAULT_USAGE_PREFERENCES,
+      calendar: DEFAULT_CALENDAR_PREFERENCES,
     });
     expect(mockPrisma.userPreferences.findUnique).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
@@ -82,6 +84,11 @@ describe('PreferencesController', () => {
     expect(result.defaultDate).toBe('TODAY');
     expect(result.defaultPriority).toBe('HIGH');
     expect(mockPrisma.userPreferences.upsert).toHaveBeenCalled();
+  });
+
+  it('should return calendar defaults', async () => {
+    mockPrisma.userPreferences.findUnique.mockResolvedValue(null);
+    await expect(controller.getCalendarPreferences({ user: { sub: 'user-1' } } as any)).resolves.toEqual(DEFAULT_CALENDAR_PREFERENCES);
   });
 
   it('should update focus preferences', async () => {

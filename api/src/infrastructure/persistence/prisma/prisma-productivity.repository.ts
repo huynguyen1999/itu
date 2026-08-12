@@ -2,13 +2,28 @@ import { Injectable } from '@nestjs/common';
 import { IProductivityRepository } from '@core/application/ports/out/repositories.port';
 import { PrismaService } from './prisma.service';
 import { createUlid } from './ulid';
-import { GrowthSourceType, Prisma, ReminderStatus, ScheduledJobStatus, TaskStatus } from '@prisma/client';
+import {
+  GrowthSourceType,
+  Prisma,
+  ReminderRelativeTo,
+  ReminderStatus,
+  ReminderType,
+  ScheduledJobStatus,
+  ScheduledJobType,
+  TaskStatus,
+} from '@prisma/client';
 import { DomainException, EntityNotFoundException } from '@core/domain/exceptions';
 import { REWARD_PRESETS } from '@core/application/use-cases/growth-reward-presets';
 import { ensureStarterSkills } from '@core/application/use-cases/ensure-starter-skills';
 import { awardGrowthActivityWithReceipt, reverseGrowthActivity } from '@core/application/use-cases/growth-awards';
 import { PrismaProductivityHabits } from './prisma-productivity-habits';
 import { ONBOARDING_STATE, TASK_VIEW_FILTERS } from '@core/application/constants/productivity.constants';
+import {
+  calculateRelativeReminderAt,
+  parseTaskDate,
+  resolveReminderAnchor,
+  validateTaskSchedule,
+} from '@core/application/use-cases/task-date-rules';
 
 @Injectable()
 export class PrismaProductivityRepository implements IProductivityRepository {
@@ -181,13 +196,32 @@ export class PrismaProductivityRepository implements IProductivityRepository {
           where.AND = [searchCondition];
         }
       }
+
+      if (filter.from || filter.to) {
+        const from = filter.from ? new Date(filter.from) : undefined;
+        const to = filter.to ? new Date(filter.to) : undefined;
+        if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) {
+          throw new Error('Invalid calendar range');
+        }
+        const range = {
+          ...(from ? { gte: from } : {}),
+          ...(to ? { lte: to } : {}),
+        };
+        const scheduledOverlap: Prisma.TaskWhereInput = {
+          ...(to ? { scheduledStartAt: { lte: to } } : {}),
+          ...(from ? { scheduledEndAt: { gte: from } } : {}),
+        };
+        where.AND = [...((where.AND as Prisma.TaskWhereInput[]) ?? []), {
+          OR: [scheduledOverlap, { dueAt: range }],
+        }];
+      }
     }
 
     const take = filter?.limit ? Math.min(filter.limit, 100) : 50;
 
     const items = await this.db.task.findMany({
       where,
-      include: { tags: { include: { tag: true } }, reminders: true },
+      include: { taskList: { select: { id: true, title: true, color: true } }, tags: { include: { tag: true } }, reminders: true },
       orderBy: [{ createdAt: 'desc' }, { sortOrder: 'desc' }, { id: 'desc' }],
       take: take + 1,
       ...(filter?.cursor && { cursor: { id: filter.cursor }, skip: 1 }),
@@ -210,6 +244,10 @@ export class PrismaProductivityRepository implements IProductivityRepository {
 
   async createTask(userId: string, data: any) {
     return this.db.$transaction(async (tx) => {
+      const scheduledStartAt = parseTaskDate(data.scheduledStartAt);
+      const scheduledEndAt = parseTaskDate(data.scheduledEndAt);
+      const dueAt = parseTaskDate(data.dueAt);
+      validateTaskSchedule({ scheduledStartAt, scheduledEndAt });
       const tagIds: string[] = Array.isArray(data.tagIds)
         ? Array.from(
             new Set<string>(data.tagIds.filter((tagId: unknown): tagId is string => typeof tagId === 'string')),
@@ -233,9 +271,16 @@ export class PrismaProductivityRepository implements IProductivityRepository {
           descriptionMarkdown: data.descriptionMarkdown ?? '',
           taskListId: data.taskListId,
           sectionId: data.sectionId,
+          parentId: data.parentId,
           priority: data.priority,
           important: data.important,
-          dueAt: data.dueAt ? new Date(data.dueAt) : undefined,
+          urgentOverride: data.urgentOverride ?? null,
+          scheduledStartAt: scheduledStartAt ?? null,
+          scheduledEndAt: scheduledEndAt ?? null,
+          dueAt: dueAt ?? null,
+          estimatedMinutes: data.estimatedMinutes ?? null,
+          recurrenceRule: data.recurrenceRule ?? null,
+          status: data.status ?? TaskStatus.INBOX,
           sortOrder,
           tags: tagIds.length ? { createMany: { data: tagIds.map((tagId) => ({ tagId })) } } : undefined,
         },
@@ -397,7 +442,19 @@ export class PrismaProductivityRepository implements IProductivityRepository {
       if (expectedVersion !== undefined && expectedVersion !== existing.version) {
         throw new DomainException('Task has changed; refresh before retrying');
       }
-      const { version: _version, ...taskData } = data;
+      const scheduledStartAt = data.scheduledStartAt === undefined ? existing.scheduledStartAt : parseTaskDate(data.scheduledStartAt);
+      const scheduledEndAt = data.scheduledEndAt === undefined ? existing.scheduledEndAt : parseTaskDate(data.scheduledEndAt);
+      const dueAt = data.dueAt === undefined ? existing.dueAt : parseTaskDate(data.dueAt);
+      validateTaskSchedule({ scheduledStartAt, scheduledEndAt });
+      const { version: _version, tagIds, projectId: _projectId, ...input } = data;
+      const taskData: Prisma.TaskUncheckedUpdateInput = {};
+      for (const field of ['title', 'descriptionMarkdown', 'taskListId', 'sectionId', 'parentId', 'priority', 'important', 'urgentOverride', 'estimatedMinutes', 'recurrenceRule', 'status', 'sortOrder'] as const) {
+        if (field in input) taskData[field] = input[field];
+      }
+      if (data.scheduledStartAt !== undefined) taskData.scheduledStartAt = scheduledStartAt;
+      if (data.scheduledEndAt !== undefined) taskData.scheduledEndAt = scheduledEndAt;
+      if (data.dueAt !== undefined) taskData.dueAt = dueAt;
+      if (data.status !== undefined) taskData.completedAt = data.status === TaskStatus.COMPLETED ? new Date() : null;
       let updated;
       if (expectedVersion !== undefined) {
         const result = await tx.task.updateMany({ where: { id, userId, version: expectedVersion }, data: { ...taskData, version: { increment: 1 } } });
@@ -406,6 +463,16 @@ export class PrismaProductivityRepository implements IProductivityRepository {
         if (!updated) return null;
       } else {
         updated = await tx.task.update({ where: { id }, data: { ...taskData, version: { increment: 1 } } });
+      }
+      if (tagIds !== undefined) {
+        const nextTagIds: string[] = Array.isArray(tagIds) ? [...new Set(tagIds.filter((tagId): tagId is string => typeof tagId === 'string'))] : [];
+        const ownedTags = await tx.taskTag.count({ where: { userId, id: { in: nextTagIds } } });
+        if (ownedTags !== nextTagIds.length) throw new DomainException('Task contains an unavailable tag', 'INVALID_TASK_TAG', 400);
+        await tx.taskTagAssignment.deleteMany({ where: { taskId: id } });
+        if (nextTagIds.length) await tx.taskTagAssignment.createMany({ data: nextTagIds.map((tagId) => ({ taskId: id, tagId })) });
+      }
+      if (data.dueAt !== undefined || data.scheduledStartAt !== undefined) {
+        await this.rescheduleRelativeReminders(tx, userId, id, { dueAt, scheduledStartAt: updated.scheduledStartAt });
       }
       let growthReceipt = null;
       if (existing.status !== TaskStatus.COMPLETED && updated.status === TaskStatus.COMPLETED) {
@@ -419,16 +486,20 @@ export class PrismaProductivityRepository implements IProductivityRepository {
       } else if (existing.status === TaskStatus.COMPLETED && updated.status !== TaskStatus.COMPLETED) {
         await reverseGrowthActivity(tx, userId, GrowthSourceType.TASK, updated.id, updated.title);
       }
+      const result = await tx.task.findUniqueOrThrow({
+        where: { id: updated.id },
+        include: { tags: { include: { tag: true } }, reminders: true },
+      });
       await tx.syncChange.create({
         data: {
           userId,
           entityType: 'task',
           entityId: updated.id,
           operation: 'UPSERT',
-          data: updated as unknown as Prisma.InputJsonValue,
+          data: result as unknown as Prisma.InputJsonValue,
         },
       });
-      return { ...updated, growthReceipt };
+      return { ...result, growthReceipt };
     });
   }
 
@@ -673,15 +744,30 @@ export class PrismaProductivityRepository implements IProductivityRepository {
     ) {
       throw new DomainException('Reminders require an active task', 'TASK_NOT_ACTIVE', 422);
     }
+    const type = input.type === 'RELATIVE' || input.relativeTo || input.offsetMinutes !== undefined || input.calendarDayOffset !== undefined || input.timeOfDayMinutes !== undefined
+      ? ReminderType.RELATIVE
+      : ReminderType.ABSOLUTE;
+    const relativeTo = type === ReminderType.RELATIVE
+      ? (input.relativeTo ?? (task.dueAt ? ReminderRelativeTo.DUE_AT : ReminderRelativeTo.SCHEDULE_START_AT))
+      : null;
+    const remindAt = type === ReminderType.RELATIVE
+      ? calculateRelativeReminderAt(task, {
+          relativeTo,
+          offsetMinutes: input.offsetMinutes,
+          calendarDayOffset: input.calendarDayOffset,
+          timeOfDayMinutes: input.timeOfDayMinutes,
+          timeZone: input.timeZone,
+        })
+      : parseTaskDate(input.remindAt);
+    if (!remindAt) throw new DomainException('Absolute reminders require a reminder time', 'REMINDER_TIME_REQUIRED', 400);
     const reminderId = createUlid();
     const jobId = createUlid();
-    const remindAt = new Date(input.remindAt);
     return this.db.$transaction(async (tx) => {
       await tx.scheduledJob.create({
         data: {
           id: jobId,
           userId,
-          type: 'TASK_REMINDER' as any,
+          type: ScheduledJobType.TASK_REMINDER,
           payload: { reminderId },
           runAt: remindAt,
         },
@@ -691,12 +777,103 @@ export class PrismaProductivityRepository implements IProductivityRepository {
           id: reminderId,
           userId,
           taskId,
+          type,
           remindAt,
+          relativeTo,
+          offsetMinutes: input.offsetMinutes ?? null,
+          calendarDayOffset: input.calendarDayOffset ?? null,
+          timeOfDayMinutes: input.timeOfDayMinutes ?? null,
+          timeZone: input.timeZone ?? null,
           persistent: input.persistent,
           scheduledJobId: jobId,
         },
       });
     });
+  }
+
+  async updateReminder(userId: string, id: string, input: { remindAt: string }) {
+    const reminder = await this.db.taskReminder.findFirst({ where: { id, userId } });
+    if (!reminder) throw new EntityNotFoundException('Reminder', id);
+    const remindAt = parseTaskDate(input.remindAt);
+    if (!remindAt) throw new DomainException('Reminder time is required', 'REMINDER_TIME_REQUIRED', 400);
+    const jobId = createUlid();
+
+    return this.db.$transaction(async (tx) => {
+      if (reminder.scheduledJobId) {
+        await tx.scheduledJob.updateMany({
+          where: {
+            id: reminder.scheduledJobId,
+            status: { notIn: [ScheduledJobStatus.COMPLETED, ScheduledJobStatus.CANCELED] },
+          },
+          data: { status: ScheduledJobStatus.CANCELED },
+        });
+      }
+      await tx.scheduledJob.create({
+        data: {
+          id: jobId,
+          userId,
+          type: ScheduledJobType.TASK_REMINDER,
+          payload: { reminderId: id },
+          runAt: remindAt,
+        },
+      });
+      return tx.taskReminder.update({
+        where: { id },
+        data: {
+          type: ReminderType.ABSOLUTE,
+          remindAt,
+          relativeTo: null,
+          offsetMinutes: null,
+          calendarDayOffset: null,
+          timeOfDayMinutes: null,
+          timeZone: null,
+          status: ReminderStatus.SCHEDULED,
+          scheduledJobId: jobId,
+        },
+      });
+    });
+  }
+
+  private async rescheduleRelativeReminders(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    taskId: string,
+    task: { dueAt?: Date | null; scheduledStartAt?: Date | null },
+  ): Promise<void> {
+    const reminders = await tx.taskReminder.findMany({
+      where: {
+        userId,
+        taskId,
+        type: ReminderType.RELATIVE,
+        status: { in: [ReminderStatus.SCHEDULED, ReminderStatus.SNOOZED] },
+        deliveredAt: null,
+      },
+    });
+    for (const reminder of reminders) {
+      const anchor = resolveReminderAnchor(task, reminder.relativeTo);
+      if (!anchor) {
+        if (reminder.scheduledJobId) {
+          await tx.scheduledJob.updateMany({ where: { id: reminder.scheduledJobId }, data: { status: ScheduledJobStatus.CANCELED } });
+        }
+        await tx.taskReminder.update({ where: { id: reminder.id }, data: { status: ReminderStatus.CANCELED } });
+        continue;
+      }
+      const remindAt = calculateRelativeReminderAt(task, reminder);
+      if (reminder.scheduledJobId) {
+        await tx.scheduledJob.updateMany({
+          where: { id: reminder.scheduledJobId, status: { notIn: [ScheduledJobStatus.COMPLETED, ScheduledJobStatus.CANCELED] } },
+          data: { status: ScheduledJobStatus.CANCELED },
+        });
+      }
+      const jobId = createUlid();
+      await tx.scheduledJob.create({
+        data: { id: jobId, userId, type: ScheduledJobType.TASK_REMINDER, payload: { reminderId: reminder.id }, runAt: remindAt },
+      });
+      await tx.taskReminder.update({
+        where: { id: reminder.id },
+        data: { remindAt, scheduledJobId: jobId, status: ReminderStatus.SCHEDULED },
+      });
+    }
   }
 
   async reminderAction(userId: string, id: string, action: 'snooze' | 'dismiss', remindAt?: string) {
@@ -721,7 +898,7 @@ export class PrismaProductivityRepository implements IProductivityRepository {
         data: {
           id: newJobId,
           userId,
-          type: 'TASK_REMINDER' as any,
+          type: ScheduledJobType.TASK_REMINDER,
           payload: { reminderId: id },
           runAt: nextRemindAt,
         },

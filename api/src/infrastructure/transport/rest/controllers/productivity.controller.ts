@@ -32,6 +32,7 @@ import {
   UpdateTaskListDto,
   UpdateTaskDto,
   UpdateTaskSectionDto,
+  UpdateReminderDto,
 } from '../dto/productivity.dto';
 import { CursorPageQueryDto } from '../dto/pagination.dto';
 
@@ -118,6 +119,11 @@ export class ProductivityController {
     return this.tasksService.createTask(req.user.sub, dto);
   }
 
+  @Get(REST_ROUTES.taskById)
+  getTask(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.tasksService.findTaskById(req.user.sub, id);
+  }
+
   @Post(REST_ROUTES.taskReorder)
   reorderTasks(@Req() req: AuthenticatedRequest, @Body() dto: ReorderTasksDto) {
     return this.tasksService.reorderTasks(req.user.sub, dto.taskIds);
@@ -156,6 +162,11 @@ export class ProductivityController {
   @Post(REST_ROUTES.taskReminders)
   createReminder(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: CreateReminderDto) {
     return this.tasksService.createReminder(req.user.sub, id, dto);
+  }
+
+  @Patch(REST_ROUTES.taskReminderById)
+  updateReminder(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateReminderDto) {
+    return this.tasksService.updateReminder(req.user.sub, id, dto);
   }
 
   @Post(REST_ROUTES.taskReminderSnooze)

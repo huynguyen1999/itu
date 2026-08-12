@@ -1,5 +1,13 @@
 # Project Progress
 
+## Completed deployment: unified Calendar timeline
+
+- Web and macOS now use a source-grouped row timeline for Tasks, Due Dates, Focus Sessions, and Calendar Subscription events, with an hourly Day axis and date-based Week/Month axes.
+- Tasks retain editing, moving, resizing, and Arrange Tasks; Focus Sessions and Calendar Subscription events are read-only. All-day milestones, source colors, stable source ordering, keyboard controls, and responsive states are aligned across clients.
+- Server-backed `CalendarPreferences` sync Day/Week/Month zoom, visible item kinds, completed visibility, and collapsed source groups through the existing offline Sync path. Sync input is validated and remote nested preference changes are applied correctly on both clients.
+- Verification passed: API focused Calendar/preferences/Sync tests and typecheck; Web full 50-file/238-test gate, typecheck, production build, 35 final focused tests, and a clean Impeccable detector; signed macOS build plus focused CalendarParityTests 2/2; independent cross-client contract review found no remaining Calendar defects.
+- The additive `20260812130000_calendar_preferences` migration remains undeployed. Browser visual QA was not run. The full signed macOS suite still has unrelated existing Usage Tracking, navigation parity, and Journal parity failures.
+
 ## Completed deployment: Website Activity session history
 
 - The Chromium extension now stores indefinite local Website Activity Sessions in IndexedDB, incrementally maintains daily URL/domain projections, migrates old `totals` as legacy aggregates without fabricated timestamps, and uses a durable session outbox.

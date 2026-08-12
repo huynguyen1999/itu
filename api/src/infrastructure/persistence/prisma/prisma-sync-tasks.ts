@@ -3,6 +3,11 @@ import {
   GrowthScalingMode,
   GrowthSourceType,
   Prisma,
+  ReminderRelativeTo,
+  ReminderStatus,
+  ReminderType,
+  ScheduledJobStatus,
+  ScheduledJobType,
   TaskPriority,
   TaskStatus,
 } from '@prisma/client';
@@ -22,6 +27,12 @@ import {
   stale,
   stringArray,
 } from './prisma-sync.helpers';
+import {
+  calculateRelativeReminderAt,
+  parseTaskDate,
+  resolveReminderAnchor,
+  validateTaskSchedule,
+} from '@core/application/use-cases/task-date-rules';
 export { conflictingSyncFields } from './prisma-sync.helpers';
 
 
@@ -43,6 +54,10 @@ export class PrismaSyncTasks {
           const ownedTags = await tx.taskTag.count({ where: { userId, id: { in: tagIds } } });
           if (ownedTags !== tagIds.length) throw new InvalidSyncMutationException('Task contains an unavailable tag');
         }
+        const dueAt = parseTaskDate(optionalString(payload, 'dueAt')) ?? null;
+        const scheduledStartAt = parseTaskDate(optionalString(payload, 'scheduledStartAt')) ?? null;
+        const scheduledEndAt = parseTaskDate(optionalString(payload, 'scheduledEndAt')) ?? null;
+        validateTaskSchedule({ dueAt, scheduledStartAt, scheduledEndAt });
         const task = await tx.task.upsert({
           where: { id: mutation.entityId },
           create: {
@@ -57,9 +72,9 @@ export class PrismaSyncTasks {
             important: typeof payload.important === 'boolean' ? payload.important : false,
             urgentOverride: typeof payload.urgentOverride === 'boolean' ? payload.urgentOverride : null,
             status: payload.status ? enumValue(TaskStatus, payload.status, 'status') : TaskStatus.INBOX,
-            dueAt: payload.dueAt ? new Date(payload.dueAt as string) : null,
-            scheduledStartAt: payload.scheduledStartAt ? new Date(payload.scheduledStartAt as string) : null,
-            scheduledEndAt: payload.scheduledEndAt ? new Date(payload.scheduledEndAt as string) : null,
+            dueAt,
+            scheduledStartAt,
+            scheduledEndAt,
             estimatedMinutes: typeof payload.estimatedMinutes === 'number' ? payload.estimatedMinutes : null,
             recurrenceRule: optionalString(payload, 'recurrenceRule'),
             sortOrder: typeof payload.sortOrder === 'number' ? payload.sortOrder : 0,
@@ -80,6 +95,10 @@ export class PrismaSyncTasks {
         if (!task) return notFound(mutation, 'task');
         const conflict = fieldConflict(mutation, 'task', task);
         if (conflict) return conflict;
+        const dueAt = payload.dueAt === undefined ? task.dueAt : parseTaskDate(optionalString(payload, 'dueAt')) ?? null;
+        const scheduledStartAt = payload.scheduledStartAt === undefined ? task.scheduledStartAt : parseTaskDate(optionalString(payload, 'scheduledStartAt')) ?? null;
+        const scheduledEndAt = payload.scheduledEndAt === undefined ? task.scheduledEndAt : parseTaskDate(optionalString(payload, 'scheduledEndAt')) ?? null;
+        validateTaskSchedule({ dueAt, scheduledStartAt, scheduledEndAt });
         if (payload.tagIds !== undefined) {
           const tagIds = stringArray(payload, 'tagIds');
           const ownedTags = await tx.taskTag.count({ where: { userId, id: { in: tagIds } } });
@@ -110,19 +129,9 @@ export class PrismaSyncTasks {
                   ? payload.urgentOverride
                   : null,
             status: payload.status === undefined ? task.status : enumValue(TaskStatus, payload.status, 'status'),
-            dueAt: payload.dueAt === undefined ? task.dueAt : payload.dueAt ? new Date(payload.dueAt as string) : null,
-            scheduledStartAt:
-              payload.scheduledStartAt === undefined
-                ? task.scheduledStartAt
-                : payload.scheduledStartAt
-                  ? new Date(payload.scheduledStartAt as string)
-                  : null,
-            scheduledEndAt:
-              payload.scheduledEndAt === undefined
-                ? task.scheduledEndAt
-                : payload.scheduledEndAt
-                  ? new Date(payload.scheduledEndAt as string)
-                  : null,
+            dueAt,
+            scheduledStartAt,
+            scheduledEndAt,
             estimatedMinutes:
               payload.estimatedMinutes === undefined
                 ? task.estimatedMinutes
@@ -137,6 +146,9 @@ export class PrismaSyncTasks {
             version: { increment: 1 },
           },
         });
+        if (payload.dueAt !== undefined || payload.scheduledStartAt !== undefined) {
+          await this.rescheduleRelativeReminders(tx, userId, task.id, { dueAt, scheduledStartAt });
+        }
         if (task.status !== TaskStatus.COMPLETED && updated.status === TaskStatus.COMPLETED) {
           const receipt = await awardGrowthActivityWithReceipt(tx, userId, GrowthSourceType.TASK, task.id, task.title);
           if (receipt) outcome.growthReceipt = receipt;
@@ -196,6 +208,48 @@ export class PrismaSyncTasks {
       }
       default:
         return undefined;
+    }
+  }
+
+  private async rescheduleRelativeReminders(
+    tx: Tx,
+    userId: string,
+    taskId: string,
+    task: { dueAt: Date | null; scheduledStartAt: Date | null },
+  ): Promise<void> {
+    const reminders = await tx.taskReminder.findMany({
+      where: {
+        userId,
+        taskId,
+        type: ReminderType.RELATIVE,
+        status: { in: [ReminderStatus.SCHEDULED, ReminderStatus.SNOOZED] },
+        deliveredAt: null,
+      },
+    });
+    for (const reminder of reminders) {
+      const anchor = resolveReminderAnchor(task, reminder.relativeTo as ReminderRelativeTo | null);
+      if (!anchor) {
+        if (reminder.scheduledJobId) {
+          await tx.scheduledJob.updateMany({ where: { id: reminder.scheduledJobId }, data: { status: ScheduledJobStatus.CANCELED } });
+        }
+        await tx.taskReminder.update({ where: { id: reminder.id }, data: { status: ReminderStatus.CANCELED } });
+        continue;
+      }
+      const remindAt = calculateRelativeReminderAt(task, reminder);
+      if (reminder.scheduledJobId) {
+        await tx.scheduledJob.updateMany({
+          where: { id: reminder.scheduledJobId, status: { notIn: [ScheduledJobStatus.COMPLETED, ScheduledJobStatus.CANCELED] } },
+          data: { status: ScheduledJobStatus.CANCELED },
+        });
+      }
+      const jobId = createUlid();
+      await tx.scheduledJob.create({
+        data: { id: jobId, userId, type: ScheduledJobType.TASK_REMINDER, payload: { reminderId: reminder.id }, runAt: remindAt },
+      });
+      await tx.taskReminder.update({
+        where: { id: reminder.id },
+        data: { remindAt, scheduledJobId: jobId, status: ReminderStatus.SCHEDULED },
+      });
     }
   }
 
@@ -298,4 +352,3 @@ export class PrismaSyncTasks {
   }
 
 }
-

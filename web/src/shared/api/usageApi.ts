@@ -11,6 +11,7 @@ export interface WebsiteUrlDetail {
   hostname: string;
   activeSeconds: number;
   latestTitle: string | null;
+  iconUrl?: string | null;
   isPrivate: boolean;
 }
 
@@ -24,6 +25,7 @@ export interface WebsiteActivitySession {
   activeSeconds: number;
   hostname: string;
   url: string | null;
+  iconUrl?: string | null;
   pageTitle: string | null;
   isPrivate: boolean;
   timezone: string;

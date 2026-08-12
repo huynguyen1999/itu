@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 const learningActions = [
   {
@@ -42,13 +43,11 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8 animate-in fade-in duration-500">
-      <header className="itu-page-header-sticky border-b pb-7">
-        <p className="itu-eyebrow">Learning workspace</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-[-0.035em] text-foreground sm:text-4xl">Overview</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Choose the next learning action without losing your place in reports or charts.
-        </p>
-      </header>
+      <PageHeader
+        kicker="Learning workspace"
+        title="Overview"
+        description="Choose the next learning action without losing your place in reports or charts."
+      />
 
       <Card className="itu-gradient-card overflow-hidden border-none shadow-xl">
         <CardContent className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">

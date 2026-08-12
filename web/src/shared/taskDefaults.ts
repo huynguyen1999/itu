@@ -1,4 +1,5 @@
 import type { TaskInput, TaskPriority } from './api/types';
+import { getStoredTaskPreferences } from './api/preferencesApi';
 
 export type DefaultTaskDate = 'NONE' | 'TODAY' | 'TOMORROW';
 
@@ -42,6 +43,7 @@ function defaultDueAt(date: DefaultTaskDate): string | undefined {
   if (date === 'NONE') return undefined;
   const due = new Date();
   if (date === 'TOMORROW') due.setDate(due.getDate() + 1);
-  due.setHours(18, 0, 0, 0);
+  const [hours, minutes] = getStoredTaskPreferences().defaultDueTime.split(':').map(Number);
+  due.setHours(Number.isFinite(hours) ? hours : 21, Number.isFinite(minutes) ? minutes : 0, 0, 0);
   return due.toISOString();
 }

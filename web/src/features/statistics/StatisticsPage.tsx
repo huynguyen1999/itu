@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BookOpenCheck,
@@ -876,8 +876,10 @@ function WebsiteUsageSection({
   const [search, setSearch] = useState('');
   const [selectedHostname, setSelectedHostname] = useState<string | null>(null);
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [showAllDomains, setShowAllDomains] = useState(false);
   const privacySessions = useMemo(() => filterWebsiteSessions(summary?.sessions ?? [], filter), [summary, filter]);
   const domains = useMemo(() => websiteDomains(summary, privacySessions, search), [summary, privacySessions, search]);
+  const visibleDomains = showAllDomains ? domains : domains.slice(0, 5);
   const filteredTotalActiveSeconds = domains.reduce((total, domain) => total + domain.activeSeconds, 0);
   const selectedDomain = selectedHostname && domains.some((domain) => domain.hostname === selectedHostname)
     ? selectedHostname
@@ -897,6 +899,7 @@ function WebsiteUsageSection({
 
   function selectDomain(hostname: string) {
     if (hostname === 'Other') return;
+    if (!showAllDomains && !visibleDomains.some((domain) => domain.hostname === hostname)) setShowAllDomains(true);
     setSelectedHostname((current) => (current === hostname ? null : hostname));
     setSelectedUrl(null);
   }
@@ -905,6 +908,7 @@ function WebsiteUsageSection({
     setFilter(next);
     setSelectedHostname(null);
     setSelectedUrl(null);
+    setShowAllDomains(false);
   }
 
   return (
@@ -1031,7 +1035,7 @@ function WebsiteUsageSection({
               </ResponsiveContainer>
             </div>
             <div className="min-w-0 space-y-2" aria-label="Website domains">
-              {domains.map((domain, index) => {
+              {visibleDomains.map((domain, index) => {
                 const selected = selectedDomain === domain.hostname;
                 const percent = Math.round((domain.activeSeconds / filteredTotalActiveSeconds) * 100);
                 return (
@@ -1048,11 +1052,7 @@ function WebsiteUsageSection({
                     }
                     disabled={domain.hostname === 'Other'}
                   >
-                    <span
-                      className="h-3 w-3 shrink-0 rounded-full"
-                      style={{ backgroundColor: websiteColors[index % websiteColors.length] }}
-                      aria-hidden="true"
-                    />
+                    <WebsiteFavicon src={domain.iconUrl} />
                     <span className="min-w-0 flex-1 truncate text-sm font-medium" title={domain.hostname}>
                       {domain.hostname}
                     </span>
@@ -1062,6 +1062,18 @@ function WebsiteUsageSection({
                   </button>
                 );
               })}
+              {domains.length > 5 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs"
+                  aria-expanded={showAllDomains}
+                  onClick={() => setShowAllDomains((current) => !current)}
+                >
+                  {showAllDomains ? 'Show less' : `See more (${domains.length - 5})`}
+                </Button>
+              ) : null}
             </div>
             {selectedDomain ? (
               <div className="border-t border-[var(--itu-border-soft)] pt-4 lg:col-span-2" aria-live="polite">
@@ -1088,7 +1100,7 @@ function WebsiteUsageSection({
                         onClick={() => setSelectedUrl((current) => (current === item.url ? null : item.url))}
                         aria-pressed={selectedUrl === item.url}
                       >
-                        <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <WebsiteFavicon src={item.iconUrl} />
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center gap-2">
                             <span className="truncate text-xs font-semibold" title={item.latestTitle ?? item.url}>
@@ -1113,6 +1125,7 @@ function WebsiteUsageSection({
                   <div className="mt-4 rounded-[var(--itu-radius-s)] border border-[var(--itu-border-soft)] bg-[var(--itu-surface-2)] p-3">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
+                        <WebsiteFavicon src={selectedDetail.iconUrl} />
                         <h4 className="truncate text-xs font-semibold" title={selectedDetail.url}>
                           {selectedDetail.latestTitle?.trim() || formatWebsitePath(selectedDetail.url)}
                         </h4>
@@ -1180,6 +1193,42 @@ function AppUsageIcon({ name, color }: { name: string; color: string }) {
       {name.trim().charAt(0).toLocaleUpperCase() || '?'}
     </span>
   );
+}
+
+function WebsiteFavicon({ src }: { src?: string | null }) {
+  const [failed, setFailed] = useState(false);
+  const safeSrc = websiteIconSource(src);
+
+  useEffect(() => setFailed(false), [safeSrc]);
+
+  if (!safeSrc || failed) {
+    return (
+      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-[4px] bg-muted text-muted-foreground" aria-hidden="true">
+        <Globe2 className="h-3.5 w-3.5" />
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={safeSrc}
+      alt=""
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      className="h-5 w-5 shrink-0 rounded-[4px] object-contain"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function websiteIconSource(value?: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function validateCustomRange(range: StatisticsDateRange, earliest: string, latest: string) {

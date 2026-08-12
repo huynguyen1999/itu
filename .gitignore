@@ -27,5 +27,6 @@ coverage/
 .idea/
 .codex
 .impeccable
+.playwright-cli
 .roo
 plans/

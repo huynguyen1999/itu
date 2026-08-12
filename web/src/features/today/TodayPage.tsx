@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Bell, Calendar, Check, Clock3, FileText, Flag, List, LoaderCircle, Plus, Sprout } from 'lucide-react';
 import { api } from '@/shared/api/client';
@@ -26,7 +26,6 @@ import { HomeOverview } from '../dashboard/HomeOverview';
 import { HabitDetail, HabitIconBadge } from '../habits';
 
 export function TodayPage() {
-  const queryClient = useQueryClient();
   const [todaySettings, setTodaySettings] = useState<TodaySettings>(DEFAULT_TODAY_SETTINGS);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null);
@@ -125,7 +124,6 @@ export function TodayPage() {
       setQuickPriority(getStoredTaskDefaults().priority);
       setQuickTaskListId('');
       setQuickTagIds([]);
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 

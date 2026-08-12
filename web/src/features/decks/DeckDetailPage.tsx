@@ -34,6 +34,7 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useAuth } from '@/shared/auth/AuthProvider';
 import { DeckStylePicker, getDeckStyle } from './utils/deckStyles';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/ui/dropdown-menu';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 type PendingCardImage = {
   side: 'PROMPT' | 'ANSWER';
@@ -323,6 +324,11 @@ export function DeckDetailPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      <PageHeader
+        kicker="Learn"
+        title={deck?.title || 'Deck details'}
+        description={deck?.description || 'Manage flashcards and study material.'}
+      />
       <div
         className={`relative overflow-hidden rounded-2xl border p-5 shadow-sm sm:p-7 ${deck ? getDeckStyle(deck.icon, deck.color).color.softClass : 'bg-card'}`}
       >
@@ -403,16 +409,12 @@ export function DeckDetailPage() {
                     })()}
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                        {deck?.title || 'Deck Details'}
-                      </h1>
                       {deck?.isDefault && (
                         <span className="rounded-full bg-background/80 px-2.5 py-1 text-xs font-semibold text-muted-foreground">
                           Default
                         </span>
                       )}
                     </div>
-                    {deck?.description && <p className="text-muted-foreground mt-1">{deck.description}</p>}
                     {statsQuery.data && (
                       <p className="mt-2 text-sm font-medium text-muted-foreground">
                         {statsQuery.data.totalCards} cards ·{' '}

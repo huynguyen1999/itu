@@ -15,6 +15,8 @@ import { JournalMarkdownEditor, SaveStatus } from './JournalMarkdownEditor';
 import { Button } from '@/shared/ui/button';
 import { createUlid } from '@/shared/sync/syncIdentity';
 import type { JournalEntry } from '../journal.types';
+import { getLocalTodayDateString } from '../journalDate';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 interface NotePageProps {
   isDaily?: boolean;
@@ -26,7 +28,7 @@ export function NotePage({ isDaily = false }: NotePageProps) {
   const [searchParams] = useSearchParams();
 
   const isNew = !entryId && !date;
-  const initialDate = date || searchParams.get('date') || new Date().toISOString().split('T')[0];
+  const initialDate = date || searchParams.get('date') || getLocalTodayDateString();
 
   const { data: existingEntry, isLoading } = useJournalEntry(entryId || '', isNew || Boolean(date));
 
@@ -53,7 +55,7 @@ export function NotePage({ isDaily = false }: NotePageProps) {
       setTitle(existingEntry.title);
       setContentMarkdown(existingEntry.contentMarkdown || '');
       setEntryDate(
-        existingEntry.entryDate ? new Date(existingEntry.entryDate).toISOString().split('T')[0] : initialDate,
+        existingEntry.entryDate ? existingEntry.entryDate.slice(0, 10) : initialDate,
       );
       setSelectedTagIds(existingEntry.tags?.map((t) => t.id) || []);
       activeEntryRef.current = existingEntry;
@@ -145,27 +147,23 @@ export function NotePage({ isDaily = false }: NotePageProps) {
   }) as JournalEntry;
 
   return (
-    <div className="flex h-full min-h-[calc(100vh-4rem)] flex-col bg-background lg:flex-row">
+    <div className="itu-page-canvas flex h-full min-h-[calc(100vh-4rem)] flex-col lg:flex-row">
       {/* Main Document Workspace */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-        {/* Top Header / Bar */}
-        <header className="itu-page-header-sticky flex items-center justify-between border-b border-border/60 px-6 py-3">
-          <div className="flex items-center gap-3">
+        <PageHeader
+          kicker={isDaily ? 'Daily writing' : 'Journal'}
+          title={isDaily ? 'Daily note' : 'Note'}
+          description={entryDate}
+        >
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              aria-label="Back to previous page"
-              className="rounded-[var(--itu-radius-s)] p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--itu-radius-s)] px-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--itu-teal-400)] focus-visible:ring-offset-0"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Back</span>
             </button>
-
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              {isDaily ? 'Daily Note' : 'Note'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setShowInspector(!showInspector)}
@@ -174,8 +172,8 @@ export function NotePage({ isDaily = false }: NotePageProps) {
               aria-controls="note-inspector"
               className={`rounded-[var(--itu-radius-s)] border p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                 showInspector
-                  ? 'border-primary/40 bg-primary/10 text-primary'
-                  : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+                ? 'border-[var(--itu-teal-400)]/60 bg-white/15 text-[var(--itu-teal-400)]'
+                  : 'border-white/20 text-white/70 hover:text-white hover:bg-white/10'
               }`}
               title="Toggle Inspector"
             >
@@ -189,7 +187,7 @@ export function NotePage({ isDaily = false }: NotePageProps) {
                 aria-label="Open note actions"
                 aria-expanded={showMenu}
                 aria-haspopup="menu"
-                className="rounded-[var(--itu-radius-s)] border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="rounded-[var(--itu-radius-s)] border border-white/20 p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--itu-teal-400)] focus-visible:ring-offset-0"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
@@ -229,7 +227,7 @@ export function NotePage({ isDaily = false }: NotePageProps) {
               )}
             </div>
           </div>
-        </header>
+        </PageHeader>
 
         {/* Document Canvas (No Card Soup!) */}
         <main className="flex-1 max-w-3xl w-full mx-auto px-6 py-8 space-y-6">

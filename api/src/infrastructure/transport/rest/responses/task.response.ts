@@ -34,6 +34,12 @@ export class TaskSectionResponse {
 export class TaskReminderResponse {
   @ApiProperty() id!: string;
   @ApiProperty() remindAt!: string;
+  @ApiProperty({ enum: ['ABSOLUTE', 'RELATIVE'] }) type!: string;
+  @ApiPropertyOptional({ enum: ['DUE_AT', 'SCHEDULE_START_AT'], nullable: true }) relativeTo?: string | null;
+  @ApiPropertyOptional({ nullable: true }) offsetMinutes?: number | null;
+  @ApiPropertyOptional({ nullable: true }) calendarDayOffset?: number | null;
+  @ApiPropertyOptional({ nullable: true }) timeOfDayMinutes?: number | null;
+  @ApiPropertyOptional({ nullable: true }) timeZone?: string | null;
   @ApiProperty({ enum: ['SCHEDULED', 'SNOOZED', 'DISMISSED', 'DELIVERED', 'CANCELED'] }) status!: string;
   @ApiProperty() persistent!: boolean;
 }

@@ -22,7 +22,7 @@ export class SyncMutationDto {
   kind!: string;
 
   @IsString()
-  @Length(10, 80)
+  @Length(3, 80)
   entityId!: string;
 
   @IsOptional()

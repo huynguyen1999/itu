@@ -12,6 +12,7 @@ import {
 } from './JournalSettingsPopover';
 import type { JournalPreferences } from '@/shared/api/preferencesApi';
 import { useJournalEntries } from './journalQueries';
+import { getLocalTodayDateString } from './journalDate';
 
 export function JournalOverviewPage() {
   const navigate = useNavigate();
@@ -27,7 +28,7 @@ export function JournalOverviewPage() {
   });
   const { data: entries = [], isLoading } = useJournalEntries();
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalTodayDateString();
   const activeEntries = entries.filter((entry) => !entry.deletedAt);
   const dailyNote = activeEntries.find((e) => e.kind === 'NOTE' && e.entryDate === todayStr);
   const notes = activeEntries.filter((entry) => entry.kind === 'NOTE' || entry.kind === 'WEEKLY_REVIEW');

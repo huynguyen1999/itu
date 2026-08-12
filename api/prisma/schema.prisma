@@ -11,6 +11,17 @@ enum OAuthProvider {
   GOOGLE
 }
 
+enum CalendarProvider {
+  GOOGLE
+  ICS
+}
+
+enum CalendarConnectionStatus {
+  CONNECTED
+  ERROR
+  DISCONNECTED
+}
+
 enum CardType {
   BASIC
   REVERSE
@@ -100,6 +111,16 @@ enum ReminderStatus {
   DISMISSED
   DELIVERED
   CANCELED
+}
+
+enum ReminderType {
+  ABSOLUTE
+  RELATIVE
+}
+
+enum ReminderRelativeTo {
+  DUE_AT
+  SCHEDULE_START_AT
 }
 
 enum FocusMode {
@@ -314,6 +335,9 @@ model User {
   websiteUsageSummaries       WebsiteUsageSummary[]
   websiteActivitySessions     WebsiteActivitySession[]
   browserExtensionCredential  BrowserExtensionCredential?
+  calendarConnections         CalendarConnection[]
+  externalCalendars           ExternalCalendar[]
+  externalCalendarEvents      ExternalCalendarEvent[]
 }
 
 model UserPreferences {
@@ -329,6 +353,7 @@ model UserPreferences {
   budgetPreferences  Json     @default("{}")
   gymPreferences     Json     @default("{}")
   usagePreferences   Json     @default("{}")
+  calendarPreferences Json     @default("{}")
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -493,6 +518,7 @@ model WebsiteActivitySession {
   activeSeconds     Int
   hostname          String
   url               String    @db.Text
+  iconUrl           String?   @db.Text
   pageTitle         String?   @db.Text
   isPrivate         Boolean   @default(false)
   timezone          String
@@ -868,7 +894,13 @@ model TaskReminder {
   id             String         @id
   userId         String
   taskId         String
+  type           ReminderType   @default(ABSOLUTE)
   remindAt       DateTime
+  relativeTo     ReminderRelativeTo?
+  offsetMinutes  Int?
+  calendarDayOffset Int?
+  timeOfDayMinutes Int?
+  timeZone       String?
   status         ReminderStatus @default(SCHEDULED)
   persistent     Boolean        @default(false)
   snoozedFrom    DateTime?
@@ -881,7 +913,83 @@ model TaskReminder {
   notification   Notification?
 
   @@index([userId, status, remindAt])
+  @@index([remindAt, status])
   @@index([taskId])
+}
+
+model CalendarConnection {
+  id                 String                   @id
+  userId             String
+  provider           CalendarProvider
+  accountEmail       String?
+  encryptedRefreshToken String?
+  accessTokenExpiresAt DateTime?
+  status             CalendarConnectionStatus @default(CONNECTED)
+  lastError          String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calendars          ExternalCalendar[]
+
+  @@index([userId])
+  @@unique([userId, provider, accountEmail])
+}
+
+model ExternalCalendar {
+  id                   String              @id
+  userId               String
+  connectionId         String?
+  provider             CalendarProvider
+  providerCalendarId   String?
+  name                 String
+  url                  String?
+  color                String              @default("BLUE")
+  visible              Boolean             @default(true)
+  syncToken            String?
+  etag                 String?
+  lastModified         String?
+  lastFetchedAt        DateTime?
+  lastSuccessfulSyncAt DateTime?
+  lastError            String?
+  channelId            String?
+  resourceId           String?
+  channelExpiration    DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection           CalendarConnection? @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  events               ExternalCalendarEvent[]
+
+  @@index([userId])
+  @@index([connectionId])
+  @@unique([connectionId, providerCalendarId])
+}
+
+model ExternalCalendarEvent {
+  id             String           @id
+  userId         String
+  calendarId     String
+  externalId     String
+  recurrenceId   String?
+  title          String
+  description    String?
+  location       String?
+  startAt        DateTime
+  endAt          DateTime?
+  allDay         Boolean          @default(false)
+  timeZone       String?
+  status         String           @default("CONFIRMED")
+  etag           String?
+  readOnly       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calendar       ExternalCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+
+  @@unique([calendarId, externalId, recurrenceId])
+  @@index([startAt])
+  @@index([endAt])
+  @@index([calendarId])
 }
 
 model Notification {

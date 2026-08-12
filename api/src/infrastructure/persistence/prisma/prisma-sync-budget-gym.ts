@@ -5,6 +5,7 @@ import { Tx, recordSyncChange } from './prisma-sync-mutation.shared';
 import { assertClientId, enumValue, fieldConflict, notFound, optionalString, requiredString, stale } from './prisma-sync.helpers';
 import { createUlid } from './ulid';
 import { SyncMergeResolver } from './sync-merge-resolver';
+import { validateCalendarPreferences } from '@core/application/use-cases/preferences.service';
 
 const BUDGET_KINDS = ['budgettransaction.create', 'budgettransaction.update', 'budgettransaction.delete', 'budgettransaction.restore', 'budget_transaction.create', 'budget_transaction.update', 'budget_transaction.delete', 'budget_transaction.restore'];
 const GYM_KINDS = ['gymworkout.create', 'gymworkout.update', 'gymworkout.delete', 'gymworkout.restore', 'gym_workout.create', 'gym_workout.update', 'gym_workout.delete', 'gym_workout.restore'];
@@ -26,6 +27,8 @@ const PREFERENCE_KINDS = [
   'gympreferences.update',
   'journalpreferences.upsert',
   'journalpreferences.update',
+  'calendarpreferences.upsert',
+  'calendarpreferences.update',
 ];
 const MONEY_GYM_KINDS = [
   'moneycategory.create', 'moneycategory.reorder', 'moneycategory.update', 'moneycategory.delete',
@@ -58,13 +61,23 @@ export class PrismaSyncBudgetGym {
       ? 'gymPreferences'
       : mutation.kind.startsWith('journal')
         ? 'journalPreferences'
-        : 'budgetPreferences';
+        : mutation.kind.startsWith('calendar')
+          ? 'calendarPreferences'
+          : 'budgetPreferences';
     const value = mutation.payload.preferences ?? mutation.payload.value ?? mutation.payload;
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new InvalidSyncMutationException('Preferences payload must be an object');
     const current = await tx.userPreferences.findUnique({ where: { userId } });
     const existing = current?.[key] && typeof current[key] === 'object' && !Array.isArray(current[key]) ? current[key] as Record<string, unknown> : {};
     const merged = { ...existing, ...(value as Record<string, unknown>) };
-    const record = await tx.userPreferences.upsert({ where: { userId }, create: { userId, [key]: merged as Prisma.InputJsonValue }, update: { [key]: merged as Prisma.InputJsonValue } });
+    let normalized: object = merged;
+    if (key === 'calendarPreferences') {
+      try {
+        normalized = validateCalendarPreferences(merged as any);
+      } catch (error) {
+        throw new InvalidSyncMutationException(error instanceof Error ? error.message : 'Invalid calendar preferences');
+      }
+    }
+    const record = await tx.userPreferences.upsert({ where: { userId }, create: { userId, [key]: normalized as Prisma.InputJsonValue }, update: { [key]: normalized as Prisma.InputJsonValue } });
     await recordSyncChange(tx, userId, key.toLowerCase(), userId, 'UPSERT', record);
     return null;
   }

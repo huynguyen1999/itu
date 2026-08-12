@@ -160,6 +160,9 @@ struct TaskEditorView: View {
                     TaskDueDatePickerView(
                         date: $dueDate,
                         hasDate: $hasDueDate,
+                        hasSchedule: $hasSchedule,
+                        scheduledStartDate: $scheduledStartDate,
+                        scheduledEndDate: $scheduledEndDate,
                         onDone: { showsDatePickerPopover = false }
                     )
                 }
@@ -771,8 +774,14 @@ struct TaskEditorDraft: Equatable {
 }
 
 struct TaskDueDatePickerView: View {
+    @Environment(AppModel.self) private var model
     @Binding var date: Date
     @Binding var hasDate: Bool
+    @Binding var hasSchedule: Bool
+    @Binding var scheduledStartDate: Date
+    @Binding var scheduledEndDate: Date
+    let reminderDate: Binding<Date>?
+    let hasReminder: Binding<Bool>?
     let onDone: () -> Void
 
     @State private var displayedMonth: Date
@@ -816,9 +825,23 @@ struct TaskDueDatePickerView: View {
         return calendar.date(byAdding: .day, value: -leadingDays, to: monthStart)!
     }
 
-    init(date: Binding<Date>, hasDate: Binding<Bool>, onDone: @escaping () -> Void) {
+    init(
+        date: Binding<Date>,
+        hasDate: Binding<Bool>,
+        hasSchedule: Binding<Bool>,
+        scheduledStartDate: Binding<Date>,
+        scheduledEndDate: Binding<Date>,
+        reminderDate: Binding<Date>? = nil,
+        hasReminder: Binding<Bool>? = nil,
+        onDone: @escaping () -> Void
+    ) {
         _date = date
         _hasDate = hasDate
+        _hasSchedule = hasSchedule
+        _scheduledStartDate = scheduledStartDate
+        _scheduledEndDate = scheduledEndDate
+        self.reminderDate = reminderDate
+        self.hasReminder = hasReminder
         self.onDone = onDone
 
         var calendar = Calendar.current
@@ -881,6 +904,36 @@ struct TaskDueDatePickerView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
+            if let reminderDate, let hasReminder {
+                Divider().overlay(Color.white.opacity(0.12))
+
+                Toggle("Reminder", isOn: hasReminder)
+                    .toggleStyle(.switch)
+                    .font(.system(size: 12))
+
+                if hasReminder.wrappedValue {
+                    DatePicker("Reminder time", selection: reminderDate, displayedComponents: [.date, .hourAndMinute])
+                        .datePickerStyle(.field)
+                }
+            }
+
+            Toggle("Duration", isOn: $hasSchedule)
+                .toggleStyle(.switch)
+                .font(.system(size: 12))
+                .onChange(of: hasSchedule) { _, enabled in
+                    if enabled {
+                        scheduledStartDate = date
+                        scheduledEndDate = Calendar.current.date(byAdding: .hour, value: 1, to: date) ?? date
+                    }
+                }
+
+            if hasSchedule {
+                DatePicker("Start", selection: $scheduledStartDate)
+                    .datePickerStyle(.field)
+                DatePicker("End", selection: $scheduledEndDate, in: scheduledStartDate...)
+                    .datePickerStyle(.field)
+            }
+
             HStack(spacing: 10) {
                 if hasDate {
                     Button("Remove") {
@@ -911,12 +964,14 @@ struct TaskDueDatePickerView: View {
         let isCurrentMonth = calendar.isDate(day, equalTo: displayedMonth, toGranularity: .month)
 
         Button {
-            date = calendar.date(
-                bySettingHour: calendar.component(.hour, from: date),
-                minute: calendar.component(.minute, from: date),
-                second: 0,
-                of: day
-            ) ?? day
+            date = hasDate
+                ? calendar.date(
+                    bySettingHour: calendar.component(.hour, from: date),
+                    minute: calendar.component(.minute, from: date),
+                    second: 0,
+                    of: day
+                ) ?? day
+                : model.settingsStore.taskDefaults.dateByApplyingDefaultDueTime(to: day)
             hasDate = true
         } label: {
             Text(calendar.component(.day, from: day), format: .number)

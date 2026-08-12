@@ -11,11 +11,13 @@ import {
   type MoneyPreferences,
   type GymPreferences,
   type UsagePreferences,
+  type CalendarPreferences,
+  type CalendarTimelineKind,
 } from '@core/application/use-cases/preferences.service';
 import { AuthGuard } from '../guards/auth.guard';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
 import { ApiOperation, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
-import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
+import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
 import {
   MAX_EXCLUDED_BUNDLE_IDS,
   MAX_EXCLUDED_BUNDLE_ID_LENGTH,
@@ -63,6 +65,33 @@ export class UpdateUsagePreferencesDto implements Partial<UsagePreferences> {
   @IsString({ each: true })
   @Length(1, MAX_EXCLUDED_BUNDLE_ID_LENGTH, { each: true })
   excludedBundleIds?: string[];
+}
+
+const CALENDAR_KINDS: CalendarTimelineKind[] = ['TASK_DURATION', 'TASK_DUE', 'FOCUS_SESSION', 'EXTERNAL_EVENT'];
+
+export class UpdateCalendarPreferencesDto implements Partial<CalendarPreferences> {
+  @IsOptional()
+  @IsEnum(['DAY', 'WEEK', 'MONTH'])
+  zoom?: CalendarPreferences['zoom'];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(CALENDAR_KINDS.length)
+  @IsEnum(CALENDAR_KINDS, { each: true })
+  visibleKinds?: CalendarTimelineKind[];
+
+  @IsOptional()
+  @IsBoolean()
+  showCompleted?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @Length(1, 255, { each: true })
+  collapsedGroupIds?: string[];
 }
 
 @ApiTags('Preferences')
@@ -141,5 +170,17 @@ export class PreferencesController {
   @Patch('usage')
   updateUsagePreferences(@Req() req: AuthenticatedRequest, @Body() patch: UpdateUsagePreferencesDto) {
     return this.preferencesService.updateUsagePreferences(req.user.sub, patch);
+  }
+
+  @ApiOperation({ operationId: 'getCalendarPreferences' })
+  @Get('calendar')
+  getCalendarPreferences(@Req() req: AuthenticatedRequest) {
+    return this.preferencesService.getCalendarPreferences(req.user.sub);
+  }
+
+  @ApiOperation({ operationId: 'updateCalendarPreferences' })
+  @Patch('calendar')
+  updateCalendarPreferences(@Req() req: AuthenticatedRequest, @Body() patch: UpdateCalendarPreferencesDto) {
+    return this.preferencesService.updateCalendarPreferences(req.user.sub, patch);
   }
 }

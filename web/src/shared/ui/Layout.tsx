@@ -72,6 +72,7 @@ export const workspaceNavigationGroups: readonly WorkspaceNavigationGroup[] = [
       { id: 'plan', to: '/plan', label: 'Plan', icon: CheckSquare2, end: false },
       { id: 'matrix', to: '/matrix', label: 'Matrix', icon: Grid2X2, end: false },
       { id: 'focus', to: '/focus', label: 'Focus', icon: Focus, end: false },
+      { id: 'calendar', to: '/calendar', label: 'Calendar', icon: CalendarDays, end: false },
     ],
   },
   {

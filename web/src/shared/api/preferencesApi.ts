@@ -1,8 +1,10 @@
 import type { ApiClientContext } from './apiContext';
 import { SYNC_KINDS } from '../sync/syncKinds';
+import type { CalendarTimelineItem } from './types';
 
 export interface TaskPreferences {
   defaultDate: 'NONE' | 'TODAY' | 'TOMORROW';
+  defaultDueTime: string;
   defaultPriority: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
   defaultTaskListId: string;
 }
@@ -85,6 +87,13 @@ export interface UsagePreferences {
   excludedBundleIds: string[];
 }
 
+export interface CalendarPreferences {
+  zoom: 'DAY' | 'WEEK' | 'MONTH';
+  visibleKinds: CalendarTimelineItem['kind'][];
+  showCompleted: boolean;
+  collapsedGroupIds: string[];
+}
+
 export interface UserPreferencesResponse {
   tasks: TaskPreferences;
   focus: FocusPreferences;
@@ -97,10 +106,12 @@ export interface UserPreferencesResponse {
   budget: BudgetPreferences;
   gym: GymPreferences;
   usage: UsagePreferences;
+  calendar: CalendarPreferences;
 }
 
 export const DEFAULT_TASK_PREFERENCES: TaskPreferences = {
   defaultDate: 'NONE',
+  defaultDueTime: '21:00',
   defaultPriority: 'NONE',
   defaultTaskListId: '',
 };
@@ -181,6 +192,13 @@ export const DEFAULT_USAGE_PREFERENCES: UsagePreferences = {
   excludedBundleIds: [],
 };
 
+export const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
+  zoom: 'WEEK',
+  visibleKinds: ['TASK_DURATION', 'TASK_DUE', 'FOCUS_SESSION', 'EXTERNAL_EVENT'],
+  showCompleted: true,
+  collapsedGroupIds: [],
+};
+
 const STORAGE_KEY = 'itu_user_preferences_v2';
 
 function getLocalPreferences(): UserPreferencesResponse {
@@ -199,6 +217,7 @@ function getLocalPreferences(): UserPreferencesResponse {
         budget: DEFAULT_MONEY_PREFERENCES,
         gym: DEFAULT_GYM_PREFERENCES,
         usage: DEFAULT_USAGE_PREFERENCES,
+        calendar: DEFAULT_CALENDAR_PREFERENCES,
       };
     }
     const parsed = JSON.parse(raw);
@@ -215,6 +234,7 @@ function getLocalPreferences(): UserPreferencesResponse {
       budget: moneyPref,
       gym: { ...DEFAULT_GYM_PREFERENCES, ...(parsed.gym || {}) },
       usage: { ...DEFAULT_USAGE_PREFERENCES, ...(parsed.usage || {}) },
+      calendar: { ...DEFAULT_CALENDAR_PREFERENCES, ...(parsed.calendar || {}) },
     };
   } catch {
     return {
@@ -229,8 +249,13 @@ function getLocalPreferences(): UserPreferencesResponse {
       budget: DEFAULT_MONEY_PREFERENCES,
       gym: DEFAULT_GYM_PREFERENCES,
       usage: DEFAULT_USAGE_PREFERENCES,
+      calendar: DEFAULT_CALENDAR_PREFERENCES,
     };
   }
+}
+
+export function getStoredTaskPreferences(): TaskPreferences {
+  return getLocalPreferences().tasks;
 }
 
 function saveLocalPreferences(prefs: UserPreferencesResponse) {
@@ -254,6 +279,7 @@ export interface PreferencesApi {
   updateBudgetPreferences(patch: Partial<BudgetPreferences>): Promise<BudgetPreferences>;
   updateGymPreferences(patch: Partial<GymPreferences>): Promise<GymPreferences>;
   updateUsagePreferences(patch: Partial<UsagePreferences>): Promise<UsagePreferences>;
+  updateCalendarPreferences(patch: Partial<CalendarPreferences>): Promise<CalendarPreferences>;
 }
 
 export function createPreferencesApi(context: ApiClientContext): PreferencesApi {
@@ -430,6 +456,29 @@ export function createPreferencesApi(context: ApiClientContext): PreferencesApi 
       } catch {
         return updated;
       }
+    },
+    async updateCalendarPreferences(patch: Partial<CalendarPreferences>) {
+      const local = getLocalPreferences();
+      const updated = { ...local.calendar, ...patch };
+      saveLocalPreferences({ ...local, calendar: updated });
+      return context.offlineMutation(
+        {
+          kind: SYNC_KINDS.calendarPreferences.update,
+          entityId: 'calendar',
+          payload: patch,
+          optimistic: { id: 'calendar', ...updated } as unknown as CalendarPreferences,
+        },
+        async () => {
+          try {
+            return await context.request<CalendarPreferences>('/preferences/calendar', {
+              method: 'PATCH',
+              body: JSON.stringify(patch),
+            });
+          } catch {
+            return updated;
+          }
+        },
+      );
     },
   };
 }

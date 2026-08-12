@@ -10,7 +10,7 @@ describe('PrismaUsageRepository website activity sessions', () => {
     await expect(repo.ingestWebsiteActivitySessions('user-1', [{
       id: 'session-1', installationId: 'install-1', browserBundleId: 'chrome', browserDisplayName: 'Chrome',
       startedAt: new Date('2026-08-11T10:00:00Z'), endedAt: new Date('2026-08-11T10:01:00Z'), activeSeconds: 60,
-      hostname: 'example.com', url: 'https://example.com/', pageTitle: null, isPrivate: false, timezone: 'UTC',
+      hostname: 'example.com', url: 'https://example.com/', iconUrl: null, pageTitle: null, isPrivate: false, timezone: 'UTC',
     }])).resolves.toEqual(['session-1']);
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
       where: { installationId_id: { installationId: 'install-1', id: 'session-1' } },
@@ -27,7 +27,7 @@ describe('PrismaUsageRepository website activity sessions', () => {
     const repo = new PrismaUsageRepository(prisma);
     const base = {
       id: 'session-1', installationId: 'install-1', browserBundleId: 'chrome', browserDisplayName: 'Chrome',
-      startedAt: new Date('2026-08-11T10:00:00Z'), hostname: 'example.com', url: 'https://example.com/', pageTitle: 'Old', isPrivate: false, timezone: 'UTC',
+      startedAt: new Date('2026-08-11T10:00:00Z'), hostname: 'example.com', url: 'https://example.com/', iconUrl: null, pageTitle: 'Old', isPrivate: false, timezone: 'UTC',
     };
     await repo.ingestWebsiteActivitySessions('user-1', [{ ...base, endedAt: new Date('2026-08-11T10:01:00Z'), activeSeconds: 60 }]);
     await repo.ingestWebsiteActivitySessions('user-1', [{ ...base, endedAt: new Date('2026-08-11T10:02:00Z'), activeSeconds: 120, pageTitle: 'New' }]);

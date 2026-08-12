@@ -88,7 +88,9 @@ export class TaskQueryDto {
   @IsOptional() @IsEnum(TaskStatus) status?: TaskStatus;
   @IsOptional() @IsString() q?: string;
   @IsOptional() @IsString() cursor?: string;
-  @IsOptional() @IsInt() @Min(1) @Max(100) limit?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
 }
 
 export class ReorderTasksDto {
@@ -96,8 +98,18 @@ export class ReorderTasksDto {
 }
 
 export class CreateReminderDto {
-  @IsDateString() remindAt!: string;
+  @IsOptional() @IsDateString() remindAt?: string;
+  @IsOptional() @IsEnum(['ABSOLUTE', 'RELATIVE']) type?: 'ABSOLUTE' | 'RELATIVE';
+  @IsOptional() @IsEnum(['DUE_AT', 'SCHEDULE_START_AT']) relativeTo?: 'DUE_AT' | 'SCHEDULE_START_AT';
+  @IsOptional() @IsInt() @Min(-100000) @Max(100000) offsetMinutes?: number;
+  @IsOptional() @IsInt() @Min(-3650) @Max(3650) calendarDayOffset?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(1439) timeOfDayMinutes?: number;
+  @IsOptional() @IsString() @MaxLength(80) timeZone?: string;
   @IsOptional() @IsBoolean() persistent?: boolean;
+}
+
+export class UpdateReminderDto {
+  @IsDateString() remindAt!: string;
 }
 
 export class SnoozeReminderDto {

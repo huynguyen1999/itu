@@ -72,13 +72,108 @@
     position: sticky;
     top: 0;
     z-index: 20;
-    background: inherit;
+    align-self: flex-start;
+    width: 100%;
+    overflow: visible;
+    border-bottom: 1px solid rgb(255 255 255 / 0.12);
+    background: var(--itu-gradient-deep);
+    color: #edf3f0;
+  }
+
+  .itu-page-header-sticky::before {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: var(--itu-glow-mint-subtle);
+    content: '';
+    pointer-events: none;
+  }
+
+  .itu-page-header-sticky > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .itu-page-header-sticky__row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem 1.125rem;
+  }
+
+  .itu-page-header-sticky__content {
+    max-width: 75ch;
+  }
+
+  .itu-page-header-sticky__kicker {
+    color: var(--itu-teal-400);
+  }
+
+  .itu-page-header-sticky__title {
+    margin-top: 0.25rem;
+    color: #f4faf7;
+    font-size: 1.75rem;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    overflow-wrap: anywhere;
+  }
+
+  .itu-page-header-sticky__description {
+    margin-top: 0.5rem;
+    color: rgb(237 243 240 / 0.72);
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+
+  .itu-page-header-sticky__actions {
+    color: #f4faf7;
+  }
+
+  .itu-page-header-sticky__actions :is(button, a):focus-visible {
+    outline: 2px solid var(--itu-teal-400);
+    outline-offset: 2px;
+  }
+
+  .itu-page-header-sticky__title input {
+    color: #f4faf7;
+  }
+
+  .itu-page-header-sticky__actions > :is(button, a) {
+    flex-shrink: 0;
+  }
+
+  .itu-page-header-sticky__actions .text-foreground,
+  .itu-page-header-sticky__actions .text-muted-foreground {
+    color: rgb(237 243 240 / 0.78);
+  }
+
+  .itu-page-header-sticky__actions .hover\:text-foreground:hover,
+  .itu-page-header-sticky__actions .hover\:text-slate-900:hover {
+    color: #f4faf7;
+  }
+
+  .itu-page-header-sticky__actions .text-primary {
+    color: var(--itu-teal-400);
+  }
+
+  .itu-page-header-sticky__actions .border-input,
+  .itu-page-header-sticky__actions .border-border {
+    border-color: rgb(255 255 255 / 0.2);
+    background: rgb(255 255 255 / 0.08);
+    color: #f4faf7;
+  }
+
+  .itu-page-header-sticky__actions .border-input:hover,
+  .itu-page-header-sticky__actions .border-border:hover {
+    border-color: rgb(255 255 255 / 0.4);
+    background: rgb(255 255 255 / 0.14);
+    color: #f4faf7;
   }
 
   .itu-page-header-sticky__controls {
-    border-bottom: 1px solid rgb(255 255 255 / 0.1);
-    padding-bottom: 1rem;
-    background: inherit;
+    padding: 0 1.5rem 1rem;
+    color: #edf3f0;
   }
 
   .itu-learn-content .itu-page-header-sticky,
@@ -945,7 +1040,7 @@
   }
 
   .itu-learn-workspace {
-    @apply grid h-full min-h-screen bg-background;
+    @apply grid h-full min-h-screen min-w-0 bg-background;
     grid-template-columns: var(--itu-learn-sidebar-width, 240px) minmax(0, 1fr);
   }
 
@@ -986,7 +1081,7 @@
   }
 
   .itu-learn-content {
-    @apply relative min-h-0 min-w-0 overflow-y-auto;
+    @apply relative h-full min-h-0 min-w-0 overflow-y-auto;
   }
 
   .itu-learn-content__inner {
@@ -998,7 +1093,7 @@
   }
 
   .itu-journal-workspace {
-    @apply grid h-full min-h-screen bg-background;
+    @apply grid h-full min-h-screen min-w-0 bg-background;
     grid-template-columns: var(--itu-journal-sidebar-width, 240px) minmax(0, 1fr);
   }
 
@@ -1043,7 +1138,7 @@
   }
 
   .itu-journal-content {
-    @apply relative min-h-0 min-w-0 overflow-y-auto;
+    @apply relative h-full min-h-0 min-w-0 overflow-y-auto;
   }
 
   .itu-journal-content__inner {
@@ -1531,6 +1626,20 @@
 @media (max-width: 767px) {
   .itu-page-header-sticky {
     top: 3.5rem;
+  }
+
+  .itu-page-header-sticky__row {
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .itu-page-header-sticky__actions {
+    align-self: flex-start;
+  }
+
+  .itu-page-header-sticky__controls {
+    padding: 0 1rem 0.75rem;
   }
 
   .itu-learn-workspace {
@@ -2768,12 +2877,16 @@
 
 .growth-workspace {
   --itu-sidebar-width: 240px;
+  height: 100%;
+  min-width: 0;
   min-height: 100%;
   background: var(--itu-page-background);
 }
 
 .growth-main {
   display: block;
+  height: 100%;
+  min-width: 0;
   overflow-y: auto;
   border-right: 0;
   background: transparent;
@@ -3088,7 +3201,9 @@ body :is(.border-slate-200, .border-slate-100) {
 @media (max-width: 1279px) {
   .growth-workspace {
     display: flex;
-    min-height: 100vh;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
     flex-direction: column;
   }
 
@@ -3099,6 +3214,7 @@ body :is(.border-slate-200, .border-slate-100) {
     display: flex;
     width: 100%;
     height: auto;
+    flex: none;
     min-width: 0;
     max-width: 100vw;
     flex-direction: row;
@@ -3128,11 +3244,13 @@ body :is(.border-slate-200, .border-slate-100) {
 
   .growth-rail .itu-section-rail__nav {
     display: flex;
-    min-width: max-content;
-    flex: none;
+    min-width: 0;
+    flex: 1 1 auto;
     align-items: center;
     gap: 6px;
-    overflow: visible;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
     border: 0;
     padding: 0;
   }
@@ -3147,6 +3265,8 @@ body :is(.border-slate-200, .border-slate-100) {
 
   .growth-main {
     min-height: 0;
+    width: 100%;
+    height: auto;
     flex: 1;
   }
 }
@@ -3373,8 +3493,24 @@ body :is(.border-slate-200, .border-slate-100) {
   }
 
   .growth-account-summary {
+    margin-inline: 16px;
     width: auto;
     max-width: none;
+  }
+
+  .growth-content {
+    padding-inline: 16px;
+  }
+}
+
+/* Gym uses the horizontal subnav until there is room for both rails. */
+.gym-layout__rail {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .gym-layout__rail {
+    display: flex;
   }
 }
 
@@ -3385,6 +3521,13 @@ body :is(.border-slate-200, .border-slate-100) {
 
   #main-content {
     padding-inline: 16px;
+  }
+
+  .itu-learn-content,
+  .itu-journal-content,
+  .growth-main {
+    height: auto;
+    overflow: visible;
   }
 
   .itu-today,

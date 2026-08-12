@@ -27,6 +27,7 @@ describe('Website Activity Sessions', () => {
           browserDisplayName: 'Chrome',
           hostname: 'Example.COM',
           url: 'https://example.com/path?secret=1#fragment',
+          iconUrl: 'https://cdn.example.com/favicon.png?cache=1#icon',
           pageTitle: '  Hello\nWorld  ',
           isPrivate: false,
           timezone: 'UTC',
@@ -47,8 +48,24 @@ describe('Website Activity Sessions', () => {
 
     expect(result).toEqual({ accepted: ['session-1'], rejected: [{ id: 'bad', reason: expect.stringContaining('duration') }] });
     expect(repo.ingestWebsiteActivitySessions).toHaveBeenCalledWith('user-1', [expect.objectContaining({
-      id: 'session-1', activeSeconds: 65, hostname: 'example.com', url: 'https://example.com/path', pageTitle: 'Hello World',
+      id: 'session-1', activeSeconds: 65, hostname: 'example.com', url: 'https://example.com/path', iconUrl: 'https://cdn.example.com/favicon.png', pageTitle: 'Hello World',
     })]);
+  });
+
+  it('drops malformed favicon URLs without rejecting the activity session', async () => {
+    repo.ingestWebsiteActivitySessions.mockResolvedValue(['session-icon']);
+    const result = await new UsageService(repo).ingestWebsiteActivitySessions('user-1', {
+      installationId: 'install-1',
+      sessions: [{
+        id: 'session-icon', startedAt: '2026-08-11T10:00:00.000Z', endedAt: '2026-08-11T10:01:00.000Z',
+        browserBundleId: 'chrome', browserDisplayName: 'Chrome', hostname: 'example.com',
+        url: 'https://example.com/path', iconUrl: 'data:image/png;base64,not-stored', pageTitle: null,
+        isPrivate: false, timezone: 'UTC',
+      }],
+    });
+
+    expect(result).toEqual({ accepted: ['session-icon'], rejected: [] });
+    expect(repo.ingestWebsiteActivitySessions).toHaveBeenCalledWith('user-1', [expect.objectContaining({ iconUrl: null })]);
   });
 
   it('rejects duplicate IDs and URLs from another hostname without dropping valid private rows', async () => {
@@ -116,13 +133,13 @@ describe('Website Activity Sessions', () => {
       {
         id: 'session-1', installationId: 'install-1', browserBundleId: 'chrome', browserDisplayName: 'Chrome',
         startedAt: new Date('2026-08-11T10:00:00.000Z'), endedAt: new Date('2026-08-11T10:01:00.000Z'),
-        activeSeconds: 60, hostname: 'example.com', url: 'https://example.com/path/', pageTitle: 'Latest', isPrivate: true, timezone: 'UTC', userId: 'user-1',
+        activeSeconds: 60, hostname: 'example.com', url: 'https://example.com/path/', iconUrl: 'https://example.com/icon.png', pageTitle: 'Latest', isPrivate: true, timezone: 'UTC', userId: 'user-1',
         createdAt: new Date('2026-08-11T10:01:01.000Z'),
       },
     ]);
     const result = await new UsageService(repo).getWebsiteStatistics('user-1', '2026-08-11', '2026-08-11');
     expect(result.totalActiveSeconds).toBe(60);
-    expect(result.urlDetails).toEqual([{ url: 'https://example.com/path/', hostname: 'example.com', activeSeconds: 60, latestTitle: 'Latest', isPrivate: true }]);
+    expect(result.urlDetails).toEqual([{ url: 'https://example.com/path/', hostname: 'example.com', activeSeconds: 60, latestTitle: 'Latest', iconUrl: 'https://example.com/icon.png', isPrivate: true }]);
     expect(result.sessions[0]).toMatchObject({ id: 'session-1', activeSeconds: 60, isPrivate: true });
   });
 

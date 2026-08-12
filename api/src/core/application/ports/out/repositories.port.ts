@@ -262,6 +262,7 @@ export interface WebsiteActivitySessionRecord {
   activeSeconds: number;
   hostname: string;
   url: string;
+  iconUrl: string | null;
   pageTitle: string | null;
   isPrivate: boolean;
   timezone: string;
@@ -278,6 +279,7 @@ export interface WebsiteActivitySessionWrite {
   activeSeconds: number;
   hostname: string;
   url: string;
+  iconUrl?: string | null;
   pageTitle: string | null;
   isPrivate: boolean;
   timezone: string;
@@ -347,6 +349,7 @@ export interface IProductivityRepository {
   restoreTask(userId: string, id: string): Promise<any | null>;
   reorderTasks(userId: string, taskIds: string[]): Promise<any>;
   createReminder(userId: string, taskId: string, data: any): Promise<any>;
+  updateReminder(userId: string, id: string, data: any): Promise<any>;
   reminderAction(userId: string, id: string, action: 'snooze' | 'dismiss', remindAt?: string): Promise<any>;
 
   // Focus Presets, Sessions & Time Blocks

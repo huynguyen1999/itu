@@ -18,18 +18,22 @@ export function PageHeader({
   return (
     <div className="itu-page-header-sticky">
       <header
-        className={`flex flex-col gap-3 pb-4 ${stickyControls ? 'border-b-0' : 'border-b border-border/60'} sm:flex-row sm:items-end sm:justify-between ${className}`.trim()}
+        className={`itu-page-header-sticky__row flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between ${className}`.trim()}
       >
-        <div className="min-w-0 space-y-0.5">
+        <div className="itu-page-header-sticky__content min-w-0 space-y-0.5">
           {kicker && (
-            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground/70 select-none">
+            <p className="itu-page-header-sticky__kicker text-[11px] font-mono font-bold uppercase tracking-wider select-none">
               {kicker}
             </p>
           )}
-          <h1 className="text-2xl font-bold tracking-tight text-foreground truncate font-display">{title}</h1>
-          {description && <p className="text-xs text-muted-foreground leading-normal mt-1">{description}</p>}
+          <h1 className="itu-page-header-sticky__title font-display">{title}</h1>
+          {description && <p className="itu-page-header-sticky__description">{description}</p>}
         </div>
-        {children && <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">{children}</div>}
+        {children && (
+          <div className="itu-page-header-sticky__actions flex items-center gap-2 shrink-0 self-start sm:self-auto">
+            {children}
+          </div>
+        )}
       </header>
       {stickyControls && <div className="itu-page-header-sticky__controls">{stickyControls}</div>}
     </div>

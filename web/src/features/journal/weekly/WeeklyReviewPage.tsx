@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   Calendar,
   CheckCircle2,
@@ -16,12 +17,16 @@ import { useJournalEntry, useWeeklySummary } from '../journalQueries';
 import { useCreateJournalEntryMutation, useUpdateJournalEntryMutation } from '../journalMutations';
 import { JournalMarkdownEditor } from '../components/JournalMarkdownEditor';
 import { createUlid } from '@/shared/sync/syncIdentity';
+import { api } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { getJournalWeekRange } from '../journalDate';
 
 export function WeeklyReviewPage() {
   const { entryId } = useParams();
   const isNew = !entryId || entryId === 'new';
+  const preferencesQuery = useQuery({ queryKey: ['user-preferences'], queryFn: () => api.getPreferences() });
   const {
     data: existingEntry,
     isLoading: isEntryLoading,
@@ -35,17 +40,18 @@ export function WeeklyReviewPage() {
   const [id] = useState(entryId || createUlid());
   const [title, setTitle] = useState('Weekly Review — Week 32');
 
-  const [periodStart, setPeriodStart] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - date.getDay() + 1);
-    return date.toISOString().split('T')[0];
-  });
+  const initialRange = getJournalWeekRange(new Date(), 'MONDAY');
+  const [periodStart, setPeriodStart] = useState(initialRange.start);
+  const [periodEnd, setPeriodEnd] = useState(initialRange.end);
 
-  const [periodEnd, setPeriodEnd] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - date.getDay() + 7);
-    return date.toISOString().split('T')[0];
-  });
+  useEffect(() => {
+    if (!isNew || !preferencesQuery.data?.journal.weekStartDay) return;
+    const range = getJournalWeekRange(new Date(), preferencesQuery.data.journal.weekStartDay);
+    if (periodStart === initialRange.start && periodEnd === initialRange.end) {
+      setPeriodStart(range.start);
+      setPeriodEnd(range.end);
+    }
+  }, [initialRange.end, initialRange.start, isNew, periodEnd, periodStart, preferencesQuery.data?.journal.weekStartDay]);
 
   const {
     data: weeklyMetrics,
@@ -141,12 +147,11 @@ export function WeeklyReviewPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 pb-20" aria-busy={isSaving}>
-      <header className="itu-page-header-sticky flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--itu-radius-s)] border border-primary/25 bg-primary/10 text-primary">
-            <Calendar className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
+      <PageHeader
+        kicker="Weekly writing"
+        title={
+          <span className="flex min-w-0 items-center gap-2">
+            <Calendar className="h-5 w-5 shrink-0" aria-hidden="true" />
             <label className="sr-only" htmlFor="weekly-review-title">
               Weekly review title
             </label>
@@ -155,12 +160,12 @@ export function WeeklyReviewPage() {
               type="text"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              className="w-full bg-transparent text-2xl font-bold tracking-tight text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-3xl"
+              className="min-w-0 flex-1 bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-[var(--itu-teal-400)]"
             />
-            <p className="text-xs text-muted-foreground">Reflection & Tiny Experiments</p>
-          </div>
-        </div>
-
+          </span>
+        }
+        description="Reflection & Tiny Experiments"
+      >
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="flex min-h-10 items-center gap-1.5 rounded-[var(--itu-radius-s)] border border-input bg-background px-3 text-xs text-foreground">
             <label className="sr-only" htmlFor="weekly-period-start">
@@ -191,7 +196,7 @@ export function WeeklyReviewPage() {
             {isSaving ? 'Saving…' : 'Save Review'}
           </Button>
         </div>
-      </header>
+      </PageHeader>
 
       {createMutation.isError || updateMutation.isError ? (
         <p className="text-sm text-destructive" role="alert">
