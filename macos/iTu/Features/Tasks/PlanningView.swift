@@ -6,8 +6,10 @@ struct PlanningView: View {
     @Environment(\.showPlanRailBinding) private var showPlanRailBinding
     let section: AppSection
 
-    @State private var searchText = ""
+    @State private var searchDraft = ""
+    @State private var committedSearch = ""
     @State private var searchExpanded = false
+    @FocusState private var searchFocused: Bool
     @State private var showGroupAndSortPopover = false
     @State private var showViewOptionsPopover = false
 
@@ -31,13 +33,40 @@ struct PlanningView: View {
             } else {
                 TaskListView(
                     section: section,
-                    filterQuery: searchText,
+                    filterQuery: committedSearch,
                     taskListId: model.selectedTaskListId
                 )
             }
         }
         .onAppear {
             model.settingsStore.lastPlanningView = planningViewKey
+        }
+        .overlay {
+            Button("") { focusSearch() }
+                .keyboardShortcut("f", modifiers: .command)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+        }
+    }
+
+    private func commitSearch() {
+        committedSearch = searchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func clearSearch() {
+        searchDraft = ""
+        committedSearch = ""
+        searchFocused = false
+    }
+
+    private func focusSearch() {
+        // ponytail: layoutMode heuristic for compact toolbar; opens the popover in
+        // narrow windows, plain focus elsewhere. Covers Cmd+F in both layouts.
+        if layoutMode == .narrow {
+            searchExpanded = true
+            DispatchQueue.main.async { searchFocused = true }
+        } else {
+            searchFocused = true
         }
     }
 
@@ -54,20 +83,31 @@ struct PlanningView: View {
 
             // Search field — unconstrained width, grows with available space
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
-                    .foregroundStyle(iTuTheme.inkFaint)
-                TextField("Search tasks…", text: $searchText)
+                Button { commitSearch() } label: {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                }
+                .buttonStyle(.plain)
+                .help("Search")
+                TextField("Search tasks…", text: $searchDraft)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .frame(minWidth: 80, idealWidth: 160, maxWidth: 200)
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: {
+                    .focused($searchFocused)
+                    .onSubmit { commitSearch() }
+                    .onKeyPress(.escape) {
+                        clearSearch()
+                        return .handled
+                    }
+                if !searchDraft.isEmpty || !committedSearch.isEmpty {
+                    Button { clearSearch() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 11))
                             .foregroundStyle(iTuTheme.inkFaint)
                     }
                     .buttonStyle(.plain)
+                    .help("Clear search")
                 }
             }
             .padding(.horizontal, 10)
@@ -95,12 +135,13 @@ struct PlanningView: View {
             // Search collapsed to icon; tap expands a popover or inline field
             Button {
                 withAnimation(.easeOut(duration: 0.15)) { searchExpanded.toggle() }
+                commitSearch()
             } label: {
-                Image(systemName: searchText.isEmpty ? "magnifyingglass" : "magnifyingglass.circle.fill")
+                Image(systemName: committedSearch.isEmpty ? "magnifyingglass" : "magnifyingglass.circle.fill")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(searchText.isEmpty ? iTuTheme.inkDim : iTuTheme.teal)
+                    .foregroundStyle(committedSearch.isEmpty ? iTuTheme.inkDim : iTuTheme.teal)
                     .frame(width: 32, height: 32)
-                    .background(searchText.isEmpty ? iTuTheme.surface : iTuTheme.mintTint)
+                    .background(committedSearch.isEmpty ? iTuTheme.surface : iTuTheme.mintTint)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -115,17 +156,24 @@ struct PlanningView: View {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 12))
                         .foregroundStyle(iTuTheme.inkFaint)
-                    TextField("Search tasks…", text: $searchText)
+                    TextField("Search tasks…", text: $searchDraft)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13))
                         .frame(width: 220)
-                    if !searchText.isEmpty {
-                        Button { searchText = "" } label: {
+                        .focused($searchFocused)
+                        .onSubmit { commitSearch() }
+                        .onKeyPress(.escape) {
+                            clearSearch()
+                            return .handled
+                        }
+                    if !searchDraft.isEmpty || !committedSearch.isEmpty {
+                        Button { clearSearch() } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 11))
                                 .foregroundStyle(iTuTheme.inkFaint)
                         }
                         .buttonStyle(.plain)
+                        .help("Clear search")
                     }
                 }
                 .padding(.horizontal, 12)

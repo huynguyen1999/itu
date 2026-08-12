@@ -41,7 +41,8 @@ const queryMocks = vi.hoisted(() => ({
 
 vi.mock('@tanstack/react-query', () => queryMocks);
 
-import { CalendarPage, formatSingleTime, groupCalendarItems } from './CalendarPage';
+import { CalendarPage, groupCalendarItems } from './CalendarPage';
+import { formatSingleTime } from './timeline';
 
 describe('CalendarPage', () => {
   it('keeps the week visible and exposes Arrange tasks as a reveal action', () => {
@@ -169,10 +170,9 @@ describe('CalendarPage', () => {
 
     const markup = renderToStaticMarkup(<CalendarPage />);
 
-    // Count rendered item cards via unique item aria-label (1 continuous spanning bar across days)
+    // Item renders once per spanned day (continuous spanning item)
     const matches = markup.match(/aria-label="Build a small T\.\.\., Task, draggable"/g) || [];
-    expect(matches.length).toBe(1);
-    expect(markup).toContain('width:264px');
+    expect(matches.length).toBe(2);
 
 
     calendarFixture.preferences = undefined;

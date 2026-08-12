@@ -135,7 +135,7 @@ export function createProductivityApi(ctx: ApiClientContext) {
     createHabitTask(id: string, data: Record<string, unknown>) {
       return this.createTask({ ...(data as unknown as TaskInput), sourceHabitId: id } as TaskInput);
     },
-    updateTask(id: string, data: Partial<TaskInput> & { sortOrder?: number }) {
+    updateTask(id: string, data: Partial<TaskInput> & { sortOrder?: number; fieldEditedAt?: Record<string, string> }) {
       const optimistic = optimisticTaskUpdate(id, data);
       return ctx.offlineMutation(
         {
@@ -143,6 +143,7 @@ export function createProductivityApi(ctx: ApiClientContext) {
           entityId: id,
           payload: normalizeTaskPayload(data),
           baseVersion: data.version,
+          fieldEditedAt: data.fieldEditedAt,
           immediate: data.status !== undefined,
           optimistic,
         },
@@ -278,5 +279,6 @@ function normalizeTaskPayload(data: Partial<TaskInput>): Record<string, unknown>
   if (payload.taskListId === undefined && data.projectId !== undefined) payload.taskListId = data.projectId;
   delete payload.projectId;
   delete payload.version;
+  delete payload.fieldEditedAt;
   return payload;
 }

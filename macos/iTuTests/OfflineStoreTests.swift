@@ -345,6 +345,48 @@ final class OfflineStoreTests: XCTestCase {
         XCTAssertEqual(update.payload["scheduledEndAt"]?.stringValue, "2026-08-01T09:30:00Z")
     }
 
+    func testScheduleEditsCarryFieldClocksAndCoalesce() async throws {
+        let store = OfflineStore(accountID: "test-user", baseURL: temporaryDirectory)
+        _ = try await store.load()
+        let (task, created) = try await store.createTask(title: "Scheduled task")
+        _ = created
+        _ = try await store.editTask(
+            id: task.id,
+            edits: TaskEdits(
+                title: task.title,
+                descriptionMarkdown: task.descriptionMarkdown,
+                priority: task.priority,
+                important: task.important,
+                dueAt: task.dueAt,
+                estimatedMinutes: task.estimatedMinutes,
+                scheduledStartAt: "2026-08-01T09:00:00Z",
+                scheduledEndAt: "2026-08-01T10:00:00Z"
+            )
+        )
+        let second = try await store.editTask(
+            id: task.id,
+            edits: TaskEdits(
+                title: task.title,
+                descriptionMarkdown: task.descriptionMarkdown,
+                priority: task.priority,
+                important: task.important,
+                dueAt: task.dueAt,
+                estimatedMinutes: task.estimatedMinutes,
+                scheduledStartAt: "2026-08-01T08:30:00Z",
+                scheduledEndAt: "2026-08-01T11:00:00Z"
+            )
+        )
+
+        let scheduleUpdates = second.mutations.filter { $0.kind == "task.update" && $0.payload["scheduledStartAt"] != nil }
+        XCTAssertEqual(scheduleUpdates.count, 1)
+        let mutation = try XCTUnwrap(scheduleUpdates.first)
+        XCTAssertEqual(mutation.payload["scheduledStartAt"]?.stringValue, "2026-08-01T08:30:00Z")
+        XCTAssertEqual(mutation.payload["scheduledEndAt"]?.stringValue, "2026-08-01T11:00:00Z")
+        XCTAssertTrue(mutation.baseValues?["scheduledStartAt"] == .null)
+        XCTAssertEqual(mutation.fieldEditedAt?["scheduledStartAt"], mutation.fieldEditedAt?["scheduledEndAt"])
+        XCTAssertNotNil(mutation.fieldEditedAt?["scheduledStartAt"])
+    }
+
     func testTaskMetadataAssignmentPersistsSectionAndTagsInUpdateMutation() async throws {
         let store = OfflineStore(accountID: "test-user", baseURL: temporaryDirectory)
         _ = try await store.load()

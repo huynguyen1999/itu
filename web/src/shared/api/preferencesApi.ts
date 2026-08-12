@@ -92,6 +92,7 @@ export interface CalendarPreferences {
   visibleKinds: CalendarTimelineItem['kind'][];
   showCompleted: boolean;
   collapsedGroupIds: string[];
+  weekStart: 'SYSTEM' | 'SUNDAY' | 'MONDAY';
 }
 
 export interface UserPreferencesResponse {
@@ -197,6 +198,7 @@ export const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
   visibleKinds: ['TASK_DURATION', 'TASK_DUE', 'FOCUS_SESSION', 'EXTERNAL_EVENT'],
   showCompleted: true,
   collapsedGroupIds: [],
+  weekStart: 'SYSTEM',
 };
 
 const STORAGE_KEY = 'itu_user_preferences_v2';

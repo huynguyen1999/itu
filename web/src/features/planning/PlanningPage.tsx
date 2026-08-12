@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   Plus,
   Printer,
+  Search,
   Settings,
   Trash2,
   X,
@@ -74,13 +75,15 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
   const { push } = useUndoStack();
   const undoToast = useUndoToast();
   const planning = usePlanning();
+  const { selectedTaskList, setSelectedTaskList, selectedTag, setSelectedTag, searchQuery, setSearchQuery } = planning;
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(() => new Set());
   const [contextMenu, setContextMenu] = useState<{
     task: ProductivityTask;
     position: { x: number; y: number };
   } | null>(null);
-  const [searchInput, setSearchInput] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [searchDraft, setSearchDraft] = useState(searchQuery);
   const [quickTask, setQuickTask] = useState('');
   const [quickDueAt, setQuickDueAt] = useState('');
   const [quickPriority, setQuickPriority] = useState<TaskPriority>(() => getStoredTaskDefaults().priority);
@@ -95,7 +98,6 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [allTasksData, setAllTasksData] = useState<ProductivityTask[]>([]);
 
-  const { selectedTaskList, setSelectedTaskList, selectedTag, setSelectedTag, searchQuery, setSearchQuery } = planning;
   const selectedProject = selectedTaskList;
   const setSelectedProject = setSelectedTaskList;
   const { sortMode, groupMode, displayMode, hideCompleted, hideDetails, collapsedGroups } = viewSettings;
@@ -107,6 +109,32 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
   useEffect(() => {
     savePlanningViewSettings(view, viewSettings);
   }, [view, viewSettings]);
+
+  useEffect(() => {
+    setSearchDraft(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  function commitSearch() {
+    setSearchQuery(searchDraft.trim());
+  }
+
+  function clearSearch() {
+    setSearchDraft('');
+    setSearchQuery('');
+    searchRef.current?.blur();
+  }
 
   const effectiveView = selectedTaskList || selectedTag || view === 'inbox' ? 'all' : view;
   const tasks = useInfiniteQuery({
@@ -349,6 +377,38 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
               setViewSettings((settings) => ({ ...settings, groupMode: 'section' }));
             }}
           />
+          <div className="relative w-56">
+            <button
+              type="button"
+              onClick={commitSearch}
+              aria-label="Search tasks"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+            <Input
+              ref={searchRef}
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitSearch();
+                if (e.key === 'Escape') clearSearch();
+              }}
+              placeholder="Search tasks…"
+              aria-label="Search tasks"
+              className="h-9 pl-9 pr-8"
+            />
+            {searchDraft || searchQuery ? (
+              <button
+                type="button"
+                onClick={clearSearch}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
           <FeatureSettingsButton title="Plan settings">
             <PlanSettingsPopover
               taskPreferences={userPreferences.data?.tasks}

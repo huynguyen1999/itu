@@ -293,6 +293,12 @@ extension OfflineStore {
         state.tasks[index].sectionId = edits.sectionId
         state.tagIdsByTaskID[id] = edits.tagIds
         state.tasks[index].version += 1
+        let now = ISO8601DateFormatter().string(from: Date())
+        var fieldEditedAt: [String: String]?
+        for field in ["dueAt", "scheduledStartAt", "scheduledEndAt"] where payload[field] != nil {
+            if fieldEditedAt == nil { fieldEditedAt = [:] }
+            fieldEditedAt?[field] = now
+        }
         appendMutation(
             SyncMutation(
                 id: ULID.generate(),
@@ -301,7 +307,8 @@ extension OfflineStore {
                 baseVersion: original.version,
                 baseValues: baseValues,
                 payload: payload,
-                occurredAt: ISO8601DateFormatter().string(from: Date())
+                fieldEditedAt: fieldEditedAt,
+                occurredAt: now
             )
         )
         try persist()

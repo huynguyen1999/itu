@@ -88,6 +88,7 @@ export interface CalendarPreferences {
   visibleKinds: CalendarTimelineKind[];
   showCompleted: boolean;
   collapsedGroupIds: string[];
+  weekStart: 'SYSTEM' | 'SUNDAY' | 'MONDAY';
 }
 
 export const MAX_EXCLUDED_BUNDLE_IDS = 100;
@@ -193,6 +194,7 @@ export const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
   visibleKinds: ['TASK_DURATION', 'TASK_DUE', 'FOCUS_SESSION', 'EXTERNAL_EVENT'],
   showCompleted: true,
   collapsedGroupIds: [],
+  weekStart: 'SYSTEM',
 };
 
 export function validateCalendarPreferences(input: Partial<CalendarPreferences>): CalendarPreferences {
@@ -206,6 +208,7 @@ export function validateCalendarPreferences(input: Partial<CalendarPreferences>)
     throw new BadRequestException('visibleKinds must not contain duplicates');
   }
   if (typeof updated.showCompleted !== 'boolean') throw new BadRequestException('showCompleted must be a boolean');
+  if (!['SYSTEM', 'SUNDAY', 'MONDAY'].includes(updated.weekStart)) throw new BadRequestException('weekStart must be SYSTEM, SUNDAY, or MONDAY');
   if (!Array.isArray(updated.collapsedGroupIds) || updated.collapsedGroupIds.length > 100 || updated.collapsedGroupIds.some((id) => typeof id !== 'string' || id.trim().length === 0 || id.trim().length > 255)) {
     throw new BadRequestException('collapsedGroupIds must contain at most 100 non-empty strings');
   }

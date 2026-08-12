@@ -12,6 +12,7 @@ import {
   TaskStatus,
 } from '@prisma/client';
 import { SyncConflict, SyncMutation } from '@core/application/ports/in/sync-use-case.port';
+import { ExistingFieldClock, SyncMergeResolver } from './sync-merge-resolver';
 import { InvalidSyncMutationException } from '@core/domain/exceptions';
 import { createUlid } from './ulid';
 import { awardGrowthActivityWithReceipt, reverseGrowthActivity } from '@core/application/use-cases/growth-awards';
@@ -37,6 +38,7 @@ export { conflictingSyncFields } from './prisma-sync.helpers';
 
 
 export class PrismaSyncTasks {
+  private readonly mergeResolver = new SyncMergeResolver();
   readonly kinds: readonly string[] = ["task.create","task.update","task.delete","task.restore","task.reorder"];
   async applyMutation(
     tx: Tx,
@@ -93,11 +95,25 @@ export class PrismaSyncTasks {
           include: { tags: { include: { tag: true } } },
         });
         if (!task) return notFound(mutation, 'task');
-        const conflict = fieldConflict(mutation, 'task', task);
-        if (conflict) return conflict;
-        const dueAt = payload.dueAt === undefined ? task.dueAt : parseTaskDate(optionalString(payload, 'dueAt')) ?? null;
-        const scheduledStartAt = payload.scheduledStartAt === undefined ? task.scheduledStartAt : parseTaskDate(optionalString(payload, 'scheduledStartAt')) ?? null;
-        const scheduledEndAt = payload.scheduledEndAt === undefined ? task.scheduledEndAt : parseTaskDate(optionalString(payload, 'scheduledEndAt')) ?? null;
+        const scheduleResolution = await this.resolveScheduleClocks(tx, userId, mutation, task);
+        const clockedFields = scheduleResolution.clockedFields;
+        const remainingPayload = Object.fromEntries(
+          Object.entries(payload).filter(([field]) => !clockedFields.has(field)),
+        );
+        if (Object.keys(remainingPayload).length > 0) {
+          const conflict = fieldConflict({ ...mutation, payload: remainingPayload }, 'task', task);
+          if (conflict) return conflict;
+        }
+        const resolved = scheduleResolution.values;
+        const dueAt = resolved.dueAt !== undefined
+          ? resolved.dueAt
+          : payload.dueAt === undefined ? task.dueAt : parseTaskDate(optionalString(payload, 'dueAt')) ?? null;
+        const scheduledStartAt = resolved.scheduledStartAt !== undefined
+          ? resolved.scheduledStartAt
+          : payload.scheduledStartAt === undefined ? task.scheduledStartAt : parseTaskDate(optionalString(payload, 'scheduledStartAt')) ?? null;
+        const scheduledEndAt = resolved.scheduledEndAt !== undefined
+          ? resolved.scheduledEndAt
+          : payload.scheduledEndAt === undefined ? task.scheduledEndAt : parseTaskDate(optionalString(payload, 'scheduledEndAt')) ?? null;
         validateTaskSchedule({ dueAt, scheduledStartAt, scheduledEndAt });
         if (payload.tagIds !== undefined) {
           const tagIds = stringArray(payload, 'tagIds');
@@ -146,6 +162,13 @@ export class PrismaSyncTasks {
             version: { increment: 1 },
           },
         });
+        for (const clock of scheduleResolution.clocks) {
+          await tx.syncFieldClock.upsert({
+            where: { userId_entityType_entityId_fieldName: { userId, entityType: 'task', entityId: task.id, fieldName: clock.fieldName } },
+            create: { userId, entityType: 'task', entityId: task.id, fieldName: clock.fieldName, editedAt: clock.editedAt, deviceId: mutation.serverDeviceId ?? 'server', mutationId: mutation.id },
+            update: { editedAt: clock.editedAt, deviceId: mutation.serverDeviceId ?? 'server', mutationId: mutation.id },
+          });
+        }
         if (payload.dueAt !== undefined || payload.scheduledStartAt !== undefined) {
           await this.rescheduleRelativeReminders(tx, userId, task.id, { dueAt, scheduledStartAt });
         }
@@ -209,6 +232,97 @@ export class PrismaSyncTasks {
       default:
         return undefined;
     }
+  }
+
+  private async resolveScheduleClocks(
+    tx: Tx,
+    userId: string,
+    mutation: SyncMutation,
+    task: Record<string, unknown>,
+  ): Promise<{
+    clockedFields: Set<string>;
+    values: Record<string, Date | null>;
+    clocks: Array<{ fieldName: string; editedAt: Date }>;
+  }> {
+    const payload = mutation.payload;
+    const editedAt = mutation.fieldEditedAt ?? {};
+    const clockedFields = new Set<string>();
+    if (editedAt.dueAt !== undefined && payload.dueAt !== undefined) clockedFields.add('dueAt');
+    const startTime = editedAt.scheduledStartAt;
+    const endTime = editedAt.scheduledEndAt;
+    const startClocked = startTime !== undefined && payload.scheduledStartAt !== undefined;
+    const endClocked = endTime !== undefined && payload.scheduledEndAt !== undefined;
+    if (startClocked || endClocked) {
+      if (startClocked && endClocked && startTime !== endTime) {
+        throw new InvalidSyncMutationException('scheduledStartAt and scheduledEndAt must share one edit timestamp');
+      }
+      clockedFields.add('scheduledStartAt');
+      clockedFields.add('scheduledEndAt');
+    }
+    if (clockedFields.size === 0) return { clockedFields, values: {}, clocks: [] };
+
+    const clockRows = await tx.syncFieldClock.findMany({
+      where: { userId, entityType: 'task', entityId: mutation.entityId, fieldName: { in: [...clockedFields] } },
+    });
+    const clockMap = new Map(clockRows.map((row) => [row.fieldName, row]));
+
+    const unitPayload: Record<string, unknown> = {};
+    const unitEditedAt: Record<string, string> = {};
+    const unitClocks: ExistingFieldClock[] = [];
+    const addUnit = (field: string, value: unknown, timestamp: string, clock?: { editedAt: Date; deviceId: string; mutationId: string }) => {
+      unitPayload[field] = value;
+      unitEditedAt[field] = timestamp;
+      if (clock) unitClocks.push({ fieldName: field, editedAt: clock.editedAt, deviceId: clock.deviceId, mutationId: clock.mutationId });
+    };
+
+    if (clockedFields.has('dueAt')) {
+      addUnit('dueAt', payload.dueAt, editedAt.dueAt as string, clockMap.get('dueAt'));
+    }
+    if (clockedFields.has('scheduledStartAt')) {
+      const startClock = clockMap.get('scheduledStartAt');
+      const endClock = clockMap.get('scheduledEndAt');
+      const serverClock =
+        startClock && endClock
+          ? (startClock.editedAt.getTime() >= endClock.editedAt.getTime() ? startClock : endClock)
+          : (startClock ?? endClock);
+      addUnit(
+        'scheduledRange',
+        {
+          scheduledStartAt: payload.scheduledStartAt ?? task.scheduledStartAt,
+          scheduledEndAt: payload.scheduledEndAt ?? task.scheduledEndAt,
+        },
+        startTime ?? endTime,
+        serverClock,
+      );
+    }
+
+    const result = this.mergeResolver.resolveMutationFields(
+      { ...mutation, payload: unitPayload, fieldEditedAt: unitEditedAt },
+      'task',
+      unitClocks,
+      { dueAt: task.dueAt, scheduledRange: { scheduledStartAt: task.scheduledStartAt, scheduledEndAt: task.scheduledEndAt } },
+      mutation.serverDeviceId ?? 'server',
+    );
+
+    const values: Record<string, Date | null> = {};
+    const clocks: Array<{ fieldName: string; editedAt: Date }> = [];
+    for (const [field, value] of Object.entries(result.resolvedPayload)) {
+      if (field === 'scheduledRange') {
+        const range = value as { scheduledStartAt: unknown; scheduledEndAt: unknown };
+        values.scheduledStartAt = parseTaskDate(range.scheduledStartAt as Date | string | null) ?? null;
+        values.scheduledEndAt = parseTaskDate(range.scheduledEndAt as Date | string | null) ?? null;
+        const rangeClock = result.updatedClocks.find((entry) => entry.fieldName === 'scheduledRange');
+        if (rangeClock) {
+          clocks.push({ fieldName: 'scheduledStartAt', editedAt: rangeClock.editedAt });
+          clocks.push({ fieldName: 'scheduledEndAt', editedAt: rangeClock.editedAt });
+        }
+      } else {
+        values[field] = parseTaskDate(value as Date | string | null) ?? null;
+        const unitClock = result.updatedClocks.find((entry) => entry.fieldName === field);
+        if (unitClock) clocks.push(unitClock);
+      }
+    }
+    return { clockedFields, values, clocks };
   }
 
   private async rescheduleRelativeReminders(

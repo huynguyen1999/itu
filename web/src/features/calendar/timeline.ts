@@ -85,7 +85,7 @@ export function timelineItemColor(kind: TimelineItemKind, sourceColor?: string |
   return 'var(--itu-teal-600)';
 }
 
-export function visibleRange(anchor: Date, zoom: TimelineZoom): { from: Date; to: Date } {
+export function visibleRange(anchor: Date, zoom: TimelineZoom, firstDayOfWeek: 0 | 1 = 1): { from: Date; to: Date } {
   const from = new Date(anchor);
   from.setHours(0, 0, 0, 0);
   if (zoom === 'DAY') {
@@ -94,8 +94,9 @@ export function visibleRange(anchor: Date, zoom: TimelineZoom): { from: Date; to
     return { from, to };
   }
   if (zoom === 'WEEK') {
-    const day = from.getDay() || 7;
-    from.setDate(from.getDate() - day + 1);
+    const day = from.getDay();
+    const offset = (day - firstDayOfWeek + 7) % 7;
+    from.setDate(from.getDate() - offset);
     const to = new Date(from);
     to.setDate(to.getDate() + 7);
     return { from, to };
@@ -271,4 +272,13 @@ export function computeDynamicItemTops(
 
   const maxBottom = tops.reduce((max, top, i) => Math.max(max, top + items[i].height), baseTop);
   return { tops, maxBottom };
+}
+
+export function formatSingleTime(dateInput: Date | string): string {
+  const date = new Date(dateInput);
+  const hour = date.getHours();
+  const min = date.getMinutes();
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const formattedHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${formattedHour}:${min.toString().padStart(2, '0')} ${ampm}`;
 }

@@ -41,6 +41,45 @@ describe('coalesceMutation', () => {
     });
   });
 
+  it('coalesces repeated duration edits into one update with one merged clock per field', () => {
+    const first: ClientSyncMutation = {
+      id: 'mutation-resize-1',
+      kind: 'task.update',
+      entityId: 'task-1',
+      baseVersion: 5,
+      baseValues: { scheduledStartAt: '2026-08-10T09:00:00.000Z', scheduledEndAt: '2026-08-10T10:00:00.000Z' },
+      payload: { scheduledStartAt: '2026-08-10T09:00:00.000Z', scheduledEndAt: '2026-08-10T10:30:00.000Z' },
+      fieldEditedAt: {
+        scheduledStartAt: '2026-08-10T09:00:01.000Z',
+        scheduledEndAt: '2026-08-10T09:00:01.000Z',
+      },
+      occurredAt: '2026-08-10T09:00:01.000Z',
+    };
+    const last: ClientSyncMutation = {
+      ...first,
+      id: 'mutation-resize-3',
+      baseValues: { scheduledStartAt: '2026-08-10T09:00:00.000Z', scheduledEndAt: '2026-08-10T11:00:00.000Z' },
+      payload: { scheduledStartAt: '2026-08-10T08:30:00.000Z', scheduledEndAt: '2026-08-10T11:00:00.000Z' },
+      fieldEditedAt: {
+        scheduledStartAt: '2026-08-10T09:00:03.000Z',
+        scheduledEndAt: '2026-08-10T09:00:03.000Z',
+      },
+      occurredAt: '2026-08-10T09:00:03.000Z',
+    };
+
+    const result = coalesceMutation([first], last);
+
+    expect(result.replacedId).toBe('mutation-resize-1');
+    expect(result.mutation.payload).toEqual({
+      scheduledStartAt: '2026-08-10T08:30:00.000Z',
+      scheduledEndAt: '2026-08-10T11:00:00.000Z',
+    });
+    expect(result.mutation.baseVersion).toBe(5);
+    expect(result.mutation.baseValues).toEqual(first.baseValues);
+    expect(result.mutation.fieldEditedAt).toEqual(last.fieldEditedAt);
+    expect(result.mutation.occurredAt).toBe(first.occurredAt);
+  });
+
   it('folds an update into a pending create without changing operation order', () => {
     const create = { ...base, kind: 'task.create', baseVersion: undefined };
     const result = coalesceMutation([create], {

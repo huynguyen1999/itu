@@ -3,7 +3,7 @@ import type { GrowthAwardReceipt } from '../api/types';
 import type { SyncResponse } from './syncQueue';
 
 const QUERY_PREFIXES: Record<string, string[]> = {
-  task: ['tasks', 'trash', 'study-calendar', 'dashboard'],
+  task: ['tasks', 'calendar', 'trash', 'study-calendar', 'dashboard'],
   tasklist: ['task-lists', 'projects'],
   deck: ['deck', 'decks', 'dashboard', 'trash', 'study-calendar'],
   card: ['cards', 'deck', 'decks', 'deck-stats', 'due', 'dashboard', 'trash', 'study-calendar'],
@@ -365,7 +365,7 @@ function applyCompleteChange(
   if (change.entityType === 'task') {
     updateTaskQueries(queryClient, change);
     // task-lists carries per-list open-task counts used by the planning sidebar.
-    ['trash', 'study-calendar', 'dashboard', 'task-lists'].forEach((prefix) => fallbackPrefixes.add(prefix));
+    ['trash', 'calendar', 'study-calendar', 'dashboard', 'task-lists'].forEach((prefix) => fallbackPrefixes.add(prefix));
     return;
   }
   if (change.entityType === 'tasklist') {

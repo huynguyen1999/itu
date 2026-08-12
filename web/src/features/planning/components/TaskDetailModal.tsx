@@ -73,21 +73,43 @@ export function TaskDetailModal({
     }
   }, [task?.id, isOpen]);
 
+  function changedValue(next: string | null | undefined, snapshot: string | null | undefined) {
+    const n = next ?? null;
+    const s = snapshot ?? null;
+    if (n === s) return false;
+    if (n && s) return new Date(n).getTime() !== new Date(s).getTime();
+    return true;
+  }
+
   const saveTask = useMutation({
-    mutationFn: (overrides?: any) => {
+    mutationFn: () => {
       if (!task) throw new Error('No task selected');
-      const patch = overrides || {};
-      return api.updateTask(task.id, {
-        title: (patch.title ?? title).trim(),
-        descriptionMarkdown: patch.descriptionMarkdown ?? description,
-        priority: patch.priority ?? priority,
-        dueAt: patch.dueAt !== undefined ? patch.dueAt : dueAt ? new Date(dueAt).toISOString() : undefined,
-        scheduledStartAt: patch.scheduledStartAt !== undefined ? patch.scheduledStartAt : scheduledStartAt,
-        scheduledEndAt: patch.scheduledEndAt !== undefined ? patch.scheduledEndAt : scheduledEndAt,
-        estimatedMinutes: patch.estimatedMinutes !== undefined ? patch.estimatedMinutes : Number(estimate) || undefined,
-        taskListId: patch.taskListId !== undefined ? patch.taskListId : taskListId,
-        version: task.version,
-      });
+      const patch: Record<string, unknown> = { version: task.version };
+      const fieldEditedAt: Record<string, string> = {};
+      const editedAt = new Date().toISOString();
+
+      const nextTitle = title.trim();
+      if (nextTitle !== task.title) patch.title = nextTitle;
+      if (description !== task.descriptionMarkdown) patch.descriptionMarkdown = description;
+      if (priority !== task.priority) patch.priority = priority;
+      const nextDueAt = dueAt ? new Date(dueAt).toISOString() : null;
+      if (changedValue(nextDueAt, task.dueAt)) {
+        patch.dueAt = nextDueAt;
+        fieldEditedAt.dueAt = editedAt;
+      }
+      const nextStart = scheduledStartAt ?? null;
+      const nextEnd = scheduledEndAt ?? null;
+      if (changedValue(nextStart, task.scheduledStartAt) || changedValue(nextEnd, task.scheduledEndAt)) {
+        patch.scheduledStartAt = nextStart;
+        patch.scheduledEndAt = nextEnd;
+        fieldEditedAt.scheduledStartAt = editedAt;
+        fieldEditedAt.scheduledEndAt = editedAt;
+      }
+      const nextEstimate = estimate ? Number(estimate) : undefined;
+      if ((nextEstimate ?? null) !== (task.estimatedMinutes ?? null)) patch.estimatedMinutes = nextEstimate;
+      if (taskListId !== (task.taskListId ?? task.projectId ?? null)) patch.taskListId = taskListId;
+      if (Object.keys(fieldEditedAt).length > 0) patch.fieldEditedAt = fieldEditedAt;
+      return api.updateTask(task.id, patch);
     },
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -184,13 +206,12 @@ export function TaskDetailModal({
     setSaveError(null);
     try {
       await growthEditorRef.current?.savePendingChanges();
-      await saveTask.mutateAsync(undefined);
+      await saveTask.mutateAsync();
       for (const change of pendingReminderChanges) {
         if (change.kind === 'create') await api.createTaskReminder(selectedTask.id, change.input);
         if (change.kind === 'update') await api.updateTaskReminder(change.id, { remindAt: change.remindAt });
         if (change.kind === 'remove') await api.dismissTaskReminder(change.id);
       }
-      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
       onClose();
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Failed to save task.');
@@ -279,14 +300,12 @@ export function TaskDetailModal({
                 value={dueAt ? new Date(dueAt).toISOString() : task.dueAt}
                 onChange={(iso) => {
                   setDueAt(iso ? toLocalInput(iso) : '');
-                  saveTask.mutate({ dueAt: iso ?? null });
                 }}
                 scheduledStartAt={scheduledStartAt}
                 scheduledEndAt={scheduledEndAt}
                 onScheduleChange={(startAt, endAt) => {
                   setScheduledStartAt(startAt);
                   setScheduledEndAt(endAt);
-                  saveTask.mutate({ scheduledStartAt: startAt, scheduledEndAt: endAt });
                 }}
                 reminders={reminderDrafts}
                 onReminderCreate={stageReminderCreate}
@@ -323,7 +342,6 @@ export function TaskDetailModal({
                       key={p}
                       onSelect={() => {
                         setPriority(p);
-                        saveTask.mutate({ priority: p });
                       }}
                       className="flex items-center gap-2 text-xs font-medium cursor-pointer"
                     >
@@ -523,7 +541,6 @@ export function TaskDetailModal({
                 <DropdownMenuItem
                   onSelect={() => {
                     setTaskListId(inboxListId);
-                    saveTask.mutate({ taskListId: inboxListId });
                   }}
                   className="text-xs cursor-pointer"
                 >
@@ -534,7 +551,6 @@ export function TaskDetailModal({
                     key={p.id}
                     onSelect={() => {
                       setTaskListId(p.id);
-                      saveTask.mutate({ taskListId: p.id });
                     }}
                     className="text-xs cursor-pointer truncate"
                   >
