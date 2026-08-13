@@ -1,4 +1,5 @@
 import { AiCredentialStatus } from '@core/domain/enums';
+import { DomainException } from '@core/domain/exceptions';
 
 export const DEFAULT_GEMINI_COOLDOWN_MS = 60_000;
 
@@ -7,12 +8,12 @@ export type GeminiErrorClassification = {
   retryAfterMs?: number;
 };
 
-export class GeminiProviderError extends Error {
+export class GeminiProviderError extends DomainException {
   constructor(
     message: string,
     public readonly code = 'GEMINI_PROVIDER_ERROR',
   ) {
-    super(message);
+    super(message, code, code === 'GEMINI_NOT_CONFIGURED' ? 422 : 502);
     this.name = 'GeminiProviderError';
   }
 }

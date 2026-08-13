@@ -38,6 +38,7 @@ export interface JournalWeeklyReview {
   aiGeneratedAt?: string | null;
   aiPromptVersion?: string | null;
   aiSourceEntryVersion?: number | null;
+  aiInputFingerprint?: string | null;
   summarySnapshot: {
     tasks?: { completed: number };
     focus?: { minutes: number; sessions: number };
@@ -63,6 +64,7 @@ export interface JournalDailyReview {
   aiGeneratedAt?: string | null;
   aiPromptVersion?: string | null;
   aiSourceEntryVersion?: number | null;
+  aiInputFingerprint?: string | null;
 }
 
 export interface ReviewInsightsResult {

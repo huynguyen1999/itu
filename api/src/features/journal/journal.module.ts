@@ -7,11 +7,13 @@ import { AuthModule } from '@features/auth/auth.module';
 import { PersistenceModule } from '@infrastructure/persistence/persistence.module';
 import { MediaModule } from '@infrastructure/media/media.module';
 import { ReviewContextBuilder } from '@core/application/use-cases/review-context.builder';
+import { ReviewInsightsService } from '@core/application/use-cases/review-insights.service';
+import { AiProviderModule } from '@infrastructure/ai/ai-provider.module';
 
 @Module({
-  imports: [AuthModule, PersistenceModule, MediaModule],
+  imports: [AuthModule, PersistenceModule, MediaModule, AiProviderModule],
   controllers: [JournalController, PreferencesController],
-  providers: [JournalService, PreferencesService, ReviewContextBuilder],
-  exports: [JournalService, PreferencesService, ReviewContextBuilder],
+  providers: [JournalService, PreferencesService, ReviewContextBuilder, ReviewInsightsService],
+  exports: [JournalService, PreferencesService, ReviewContextBuilder, ReviewInsightsService],
 })
 export class JournalModule {}

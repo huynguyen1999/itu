@@ -254,10 +254,9 @@ export function createDeckStudyApi(ctx: ApiClientContext) {
         () => ctx.request<AiJob>(`/ai/session-feedback/${sessionId}`, { method: 'POST' }),
       );
     },
-    requestReviewInsights(entryId: string, expectedVersion: number) {
-      return ctx.request<AiJob>('/ai/review-insights', {
+    generateReviewInsights(entryId: string) {
+      return ctx.request<Record<string, unknown>>(`/journal/entries/${entryId}/ai-insights`, {
         method: 'POST',
-        body: JSON.stringify({ entryId, expectedVersion }),
       });
     },
     sessionFeedback(sessionId: string) {

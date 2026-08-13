@@ -80,7 +80,7 @@ final class SyncCoordinator {
         periodicTask?.cancel()
         periodicTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(300))
+                try? await Task.sleep(for: .seconds(15))
                 guard !Task.isCancelled else { return }
                 guard let self, self.isActive, self.generation == runGeneration else { return }
                 await periodicAction()

@@ -1841,6 +1841,7 @@ model JournalWeeklyReview {
   aiGeneratedAt DateTime?
   aiPromptVersion String?
   aiSourceEntryVersion Int?
+  aiInputFingerprint String?
   entry           JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([periodStart, periodEnd])
@@ -1859,6 +1860,7 @@ model JournalDailyReview {
   aiGeneratedAt        DateTime?
   aiPromptVersion      String?
   aiSourceEntryVersion Int?
+  aiInputFingerprint   String?
   entry                JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([periodDate])

@@ -166,6 +166,7 @@ private struct DestinationLifecycle<Content: View>: View {
         let _ = AppPerformanceSignposts.emitDestinationBody(sectionName: section.rawValue)
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityIdentifier(section == .matrix || (section.isPlanningSection && model.planningViewMode == .matrix) ? "itu.destination.matrix" : section.isPlanningSection ? "itu.destination.plan" : "itu.destination.\(section.rawValue)")
             .onAppear {
                 AppPerformanceSignposts.emitDestinationAppeared(sectionName: section.rawValue)
                 AppPerformanceSignposts.recordDestinationMounted()

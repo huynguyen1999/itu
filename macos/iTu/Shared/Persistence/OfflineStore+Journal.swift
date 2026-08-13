@@ -185,7 +185,7 @@ extension OfflineStore {
                   let index = state.journalNotes.firstIndex(where: { $0.id == entryID }) else { continue }
             state.journalNotes[index].attachments.removeAll { $0.id == mutation.entityId }
         }
-        for mutation in state.mutations where mutation.kind.hasPrefix("journal.") {
+        for mutation in state.mutations where mutation.kind.hasPrefix("journal.") || mutation.kind == "journal_revision.restore" {
             let targetID = mutation.kind == "journal_revision.restore" ? (mutation.payload["entryId"]?.stringValue ?? mutation.entityId) : mutation.entityId
             guard let index = state.journalNotes.firstIndex(where: { $0.id == targetID }) else { continue }
             switch mutation.kind {
@@ -222,7 +222,8 @@ extension OfflineStore {
                         aiGenerationJobId: existing?.aiGenerationJobId,
                         aiGeneratedAt: existing?.aiGeneratedAt,
                         aiPromptVersion: existing?.aiPromptVersion,
-                        aiSourceEntryVersion: existing?.aiSourceEntryVersion
+                        aiSourceEntryVersion: existing?.aiSourceEntryVersion,
+                        aiInputFingerprint: existing?.aiInputFingerprint
                     )
                 }
                 if case let .object(fields)? = mutation.payload["dailyReview"] {
@@ -242,7 +243,8 @@ extension OfflineStore {
                         aiGenerationJobId: existing?.aiGenerationJobId,
                         aiGeneratedAt: existing?.aiGeneratedAt,
                         aiPromptVersion: existing?.aiPromptVersion,
-                        aiSourceEntryVersion: existing?.aiSourceEntryVersion
+                        aiSourceEntryVersion: existing?.aiSourceEntryVersion,
+                        aiInputFingerprint: existing?.aiInputFingerprint
                     )
                 }
                 state.journalNotes[index].version = max(state.journalNotes[index].version, (mutation.baseVersion ?? state.journalNotes[index].version) + 1)

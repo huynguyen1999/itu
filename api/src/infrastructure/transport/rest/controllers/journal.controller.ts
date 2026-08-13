@@ -18,6 +18,7 @@ import { REST_ROUTES } from '@core/application/constants/app.constants';
 import { TOKENS } from '@core/application/constants/tokens';
 import type { IMediaStorage } from '@core/application/ports/out/services.port';
 import { JournalService } from '@core/application/use-cases/journal/journal.service';
+import { ReviewInsightsService } from '@core/application/use-cases/review-insights.service';
 import { AuthGuard } from '../guards/auth.guard';
 import {
   CreateJournalEntryDto,
@@ -39,6 +40,7 @@ import { hcmcDateOnly } from '@core/application/utils/calendar';
 export class JournalController {
   constructor(
     private readonly journalService: JournalService,
+    private readonly reviewInsightsService: ReviewInsightsService,
     @Inject(TOKENS.MEDIA_STORAGE) private readonly mediaStorage: IMediaStorage,
   ) {}
 
@@ -57,6 +59,11 @@ export class JournalController {
   @Get('entries/:id')
   getEntry(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.journalService.getEntry(req.user.sub, id);
+  }
+
+  @Post('entries/:id/ai-insights')
+  generateAiInsights(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.reviewInsightsService.generate(req.user.sub, id);
   }
 
   @Post('entries')

@@ -59,4 +59,35 @@ final class PlanningProjectorTests: XCTestCase {
         XCTAssertEqual(store.planningSettings(for: .all).groupMode, .project)
         XCTAssertEqual(store.planningSettings(for: .today).groupMode, .time)
     }
+
+    func testRenderProjectionSortsAndPartitionsOnce() {
+        var completed = ProductivityTask.optimistic(id: "completed", title: "Completed")
+        completed.status = .completed
+        let active = ProductivityTask.optimistic(id: "active", title: "Active")
+
+        let projection = PlanningTaskProjector.render(
+            tasks: [completed, active],
+            section: .inbox,
+            settings: PlanningViewSettings(sortMode: .title),
+            hideCompleted: false
+        )
+
+        XCTAssertEqual(projection.allTasks.map(\.id), ["active", "completed"])
+        XCTAssertEqual(projection.activeGroups.flatMap(\.tasks).map(\.id), ["active"])
+        XCTAssertEqual(projection.completedTasks.map(\.id), ["completed"])
+    }
+
+    func testMatrixProjectionClassifiesAndPartitionsTasks() {
+        let importantUrgent = ProductivityTask.optimistic(id: "q1", title: "First", priority: .high, important: true, urgentOverride: true)
+        let important = ProductivityTask.optimistic(id: "q2", title: "Later", priority: .high, important: true, urgentOverride: false)
+        var canceled = ProductivityTask.optimistic(id: "q3", title: "Canceled", urgentOverride: true)
+        canceled.status = .canceled
+
+        let projection = MatrixProjection.build(tasks: [important, canceled, importantUrgent], settings: MatrixSettings(), query: "", priorityFilter: nil)
+
+        XCTAssertEqual(projection[.q1].activeTasks.map(\.id), ["q1"])
+        XCTAssertEqual(projection[.q2].activeTasks.map(\.id), ["q2"])
+        XCTAssertEqual(projection[.q3].canceledTasks.map(\.id), ["q3"])
+        XCTAssertEqual(projection.mappedCount, 2)
+    }
 }

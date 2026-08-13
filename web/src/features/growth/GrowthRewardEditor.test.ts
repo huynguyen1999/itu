@@ -5,7 +5,7 @@ import {
   defaultGrowthWeights,
   growthAwardsUseSharedXp,
   growthRewardValueIsSelected,
-} from './GrowthRewardEditor';
+} from '@/shared/ui/GrowthRewardEditor';
 
 describe('Growth reward shared XP mode', () => {
   it('starts shared for equal rewards and switches to per-entry for different values', () => {

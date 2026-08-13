@@ -495,6 +495,10 @@ struct JournalView: View {
                     isGeneratingReviewInsights = true
                     reviewAiMessage = nil
                     Task {
+                        guard await saveNow() else {
+                            isGeneratingReviewInsights = false
+                            return
+                        }
                         reviewAiMessage = await model.generateReviewInsights(entryID: selectedNoteID)
                         isGeneratingReviewInsights = false
                     }
@@ -502,6 +506,10 @@ struct JournalView: View {
                 .buttonStyle(iTuSecondaryButtonStyle(height: 34))
                 .disabled(isGeneratingReviewInsights || isSaving)
                 if let reviewAiMessage { Text(reviewAiMessage).font(.system(size: 11)).foregroundStyle(iTuTheme.inkDim) }
+            }
+            if selectedReviewAiStale {
+                Text("Your review changed since these insights were generated. Regenerate to analyze the latest version.")
+                    .font(.system(size: 11)).foregroundStyle(iTuTheme.coral)
             }
             if let output = selectedReviewAiOutput {
                 VStack(alignment: .leading, spacing: 5) {
@@ -755,6 +763,31 @@ struct JournalView: View {
         return ReviewAiDisplay(headline: headline, summary: summary, insights: insights)
     }
 
+    private var selectedReviewAiStale: Bool {
+        guard let selectedNoteID,
+              let note = model.currentSnapshot.journalNotes.first(where: { $0.id == selectedNoteID }) else { return false }
+        if let review = note.dailyReview {
+            return review.aiInsightsSnapshot != nil && (
+                review.aiSourceEntryVersion != note.version ||
+                review.wentWellMarkdown != reviewWentWell ||
+                review.frictionMarkdown != reviewFriction ||
+                review.learnedMarkdown != reviewLearned ||
+                review.contextMarkdown != reviewDifferent ||
+                reviewSummary != review.summarySnapshot
+            )
+        }
+        guard let review = note.weeklyReview else { return false }
+        return review.aiInsightsSnapshot != nil && (
+            review.aiSourceEntryVersion != note.version ||
+            review.wentWellMarkdown != reviewWentWell ||
+            review.frictionMarkdown != reviewFriction ||
+            review.learnedMarkdown != reviewLearned ||
+            review.differentFromLastWeekMarkdown != reviewDifferent ||
+            review.nextWeekMarkdown != reviewNextWeek ||
+            reviewSummary != review.summarySnapshot
+        )
+    }
+
     private var recentNotes: [JournalNoteModel] { Array(model.journalNotes.prefix(6)) }
 
     private var filteredNotes: [JournalNoteModel] {
@@ -837,32 +870,36 @@ struct JournalView: View {
     }
 
     private func save() {
+        Task { _ = await saveNow() }
+    }
+
+    @discardableResult
+    private func saveNow() async -> Bool {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty || !trimmedContent.isEmpty else { return }
+        guard !trimmedTitle.isEmpty || !trimmedContent.isEmpty else { return false }
         isSaving = true
         saveError = nil
-        Task {
-            let saved: JournalNoteModel?
-            if isWeeklyReview {
-                let review = JournalWeeklyReviewModel(entryId: selectedNoteID ?? "", periodStart: reviewPeriodStart, periodEnd: reviewPeriodEnd, summarySnapshot: reviewSummary, wentWellMarkdown: reviewWentWell.isEmpty ? nil : reviewWentWell, frictionMarkdown: reviewFriction.isEmpty ? nil : reviewFriction, learnedMarkdown: reviewLearned.isEmpty ? nil : reviewLearned, differentFromLastWeekMarkdown: reviewDifferent.isEmpty ? nil : reviewDifferent, nextWeekMarkdown: reviewNextWeek.isEmpty ? nil : reviewNextWeek, experimentSnapshot: nil)
-                let combined = [reviewWentWell, reviewFriction, reviewLearned, reviewDifferent, reviewNextWeek].filter { !$0.isEmpty }.joined(separator: "\n\n")
-                saved = await model.saveWeeklyReview(id: selectedNoteID, title: trimmedTitle.isEmpty ? "Weekly review" : trimmedTitle, contentMarkdown: combined.isEmpty ? content : combined, entryDate: reviewPeriodStart, review: review, tagIds: Array(selectedTagIDs))
-            } else if isDailyReview {
-                let daily = JournalDailyReviewModel(entryId: selectedNoteID ?? "", periodDate: entryDate, summarySnapshot: reviewSummary, wentWellMarkdown: reviewWentWell.isEmpty ? nil : reviewWentWell, frictionMarkdown: reviewFriction.isEmpty ? nil : reviewFriction, learnedMarkdown: reviewLearned.isEmpty ? nil : reviewLearned, contextMarkdown: reviewDifferent.isEmpty ? nil : reviewDifferent)
-                saved = await model.saveDailyReview(id: selectedNoteID, title: trimmedTitle.isEmpty ? "Daily review" : trimmedTitle, contentMarkdown: content, entryDate: entryDate, review: daily, tagIds: Array(selectedTagIDs))
-            } else {
-                saved = await model.saveJournalNote(id: selectedNoteID, title: trimmedTitle.isEmpty ? "Untitled note" : trimmedTitle, contentMarkdown: content, entryDate: entryDate, tagIds: Array(selectedTagIDs))
-            }
-            if let saved {
-                selectedNoteID = saved.id
-                title = saved.title
-                loadError = nil
-            } else {
-                saveError = model.errorMessage ?? "The note could not be saved."
-            }
-            isSaving = false
+        let saved: JournalNoteModel?
+        if isWeeklyReview {
+            let review = JournalWeeklyReviewModel(entryId: selectedNoteID ?? "", periodStart: reviewPeriodStart, periodEnd: reviewPeriodEnd, summarySnapshot: reviewSummary, wentWellMarkdown: reviewWentWell.isEmpty ? nil : reviewWentWell, frictionMarkdown: reviewFriction.isEmpty ? nil : reviewFriction, learnedMarkdown: reviewLearned.isEmpty ? nil : reviewLearned, differentFromLastWeekMarkdown: reviewDifferent.isEmpty ? nil : reviewDifferent, nextWeekMarkdown: reviewNextWeek.isEmpty ? nil : reviewNextWeek, experimentSnapshot: nil)
+            let combined = [reviewWentWell, reviewFriction, reviewLearned, reviewDifferent, reviewNextWeek].filter { !$0.isEmpty }.joined(separator: "\n\n")
+            saved = await model.saveWeeklyReview(id: selectedNoteID, title: trimmedTitle.isEmpty ? "Weekly review" : trimmedTitle, contentMarkdown: combined.isEmpty ? content : combined, entryDate: reviewPeriodStart, review: review, tagIds: Array(selectedTagIDs))
+        } else if isDailyReview {
+            let daily = JournalDailyReviewModel(entryId: selectedNoteID ?? "", periodDate: entryDate, summarySnapshot: reviewSummary, wentWellMarkdown: reviewWentWell.isEmpty ? nil : reviewWentWell, frictionMarkdown: reviewFriction.isEmpty ? nil : reviewFriction, learnedMarkdown: reviewLearned.isEmpty ? nil : reviewLearned, contextMarkdown: reviewDifferent.isEmpty ? nil : reviewDifferent)
+            saved = await model.saveDailyReview(id: selectedNoteID, title: trimmedTitle.isEmpty ? "Daily review" : trimmedTitle, contentMarkdown: content, entryDate: entryDate, review: daily, tagIds: Array(selectedTagIDs))
+        } else {
+            saved = await model.saveJournalNote(id: selectedNoteID, title: trimmedTitle.isEmpty ? "Untitled note" : trimmedTitle, contentMarkdown: content, entryDate: entryDate, tagIds: Array(selectedTagIDs))
         }
+        if let saved {
+            selectedNoteID = saved.id
+            title = saved.title
+            loadError = nil
+        } else {
+            saveError = model.errorMessage ?? "The note could not be saved."
+        }
+        isSaving = false
+        return saved != nil
     }
 
     private func loadWeeklySummary() async {

@@ -16,6 +16,17 @@ final class PlanningTests: XCTestCase {
         XCTAssertEqual(model.tasks(for: .inbox).map(\.id), [task.id])
     }
 
+    func testApplyingAuthoritativeEmptyTaskSnapshotClearsStaleTasks() {
+        let model = AppModel()
+        model.tasks = [ProductivityTask.optimistic(id: "01JTESTTASK000000000000004", title: "Deleted elsewhere")]
+
+        var snapshot = OfflineSnapshot()
+        snapshot.tasks = []
+        model.apply(snapshot)
+
+        XCTAssertTrue(model.tasks.isEmpty)
+    }
+
     func testCyclingTaskStatusInvalidatesPlanningProjection() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -67,7 +67,7 @@ export class PrismaSyncJournal {
         if (tagIds.length) await tx.journalTagAssignment.createMany({ data: tagIds.map((tagId: string) => ({ entryId: entry.id, tagId })) });
         if (snapshot.weeklyReview) {
           const wr = snapshot.weeklyReview;
-          await tx.journalWeeklyReview.upsert({ where: { entryId: entry.id }, create: { entryId: entry.id, periodStart: new Date(wr.periodStart), periodEnd: new Date(wr.periodEnd), summarySnapshot: wr.summarySnapshot ?? {}, wentWellMarkdown: wr.wentWellMarkdown ?? null, frictionMarkdown: wr.frictionMarkdown ?? null, learnedMarkdown: wr.learnedMarkdown ?? null, differentFromLastWeekMarkdown: wr.differentFromLastWeekMarkdown ?? null, nextWeekMarkdown: wr.nextWeekMarkdown ?? null, experimentSnapshot: wr.experimentSnapshot ?? null, comparisonSnapshot: wr.comparisonSnapshot ?? null, aiInsightsSnapshot: wr.aiInsightsSnapshot ?? null, aiGenerationJobId: wr.aiGenerationJobId ?? null, aiGeneratedAt: wr.aiGeneratedAt ? new Date(wr.aiGeneratedAt as string) : null, aiPromptVersion: wr.aiPromptVersion ?? null, aiSourceEntryVersion: typeof wr.aiSourceEntryVersion === 'number' ? wr.aiSourceEntryVersion : null }, update: { periodStart: new Date(wr.periodStart), periodEnd: new Date(wr.periodEnd), summarySnapshot: wr.summarySnapshot ?? {}, wentWellMarkdown: wr.wentWellMarkdown ?? null, frictionMarkdown: wr.frictionMarkdown ?? null, learnedMarkdown: wr.learnedMarkdown ?? null, differentFromLastWeekMarkdown: wr.differentFromLastWeekMarkdown ?? null, nextWeekMarkdown: wr.nextWeekMarkdown ?? null, experimentSnapshot: wr.experimentSnapshot ?? null, comparisonSnapshot: wr.comparisonSnapshot ?? null, aiInsightsSnapshot: wr.aiInsightsSnapshot ?? null, aiGenerationJobId: wr.aiGenerationJobId ?? null, aiGeneratedAt: wr.aiGeneratedAt ? new Date(wr.aiGeneratedAt as string) : null, aiPromptVersion: wr.aiPromptVersion ?? null, aiSourceEntryVersion: typeof wr.aiSourceEntryVersion === 'number' ? wr.aiSourceEntryVersion : null } });
+          await tx.journalWeeklyReview.upsert({ where: { entryId: entry.id }, create: { entryId: entry.id, periodStart: new Date(wr.periodStart), periodEnd: new Date(wr.periodEnd), summarySnapshot: wr.summarySnapshot ?? {}, wentWellMarkdown: wr.wentWellMarkdown ?? null, frictionMarkdown: wr.frictionMarkdown ?? null, learnedMarkdown: wr.learnedMarkdown ?? null, differentFromLastWeekMarkdown: wr.differentFromLastWeekMarkdown ?? null, nextWeekMarkdown: wr.nextWeekMarkdown ?? null, experimentSnapshot: wr.experimentSnapshot ?? null, comparisonSnapshot: wr.comparisonSnapshot ?? null, aiInsightsSnapshot: wr.aiInsightsSnapshot ?? null, aiGenerationJobId: wr.aiGenerationJobId ?? null, aiGeneratedAt: wr.aiGeneratedAt ? new Date(wr.aiGeneratedAt as string) : null, aiPromptVersion: wr.aiPromptVersion ?? null, aiSourceEntryVersion: typeof wr.aiSourceEntryVersion === 'number' ? wr.aiSourceEntryVersion : null, aiInputFingerprint: typeof wr.aiInputFingerprint === 'string' ? wr.aiInputFingerprint : null }, update: { periodStart: new Date(wr.periodStart), periodEnd: new Date(wr.periodEnd), summarySnapshot: wr.summarySnapshot ?? {}, wentWellMarkdown: wr.wentWellMarkdown ?? null, frictionMarkdown: wr.frictionMarkdown ?? null, learnedMarkdown: wr.learnedMarkdown ?? null, differentFromLastWeekMarkdown: wr.differentFromLastWeekMarkdown ?? null, nextWeekMarkdown: wr.nextWeekMarkdown ?? null, experimentSnapshot: wr.experimentSnapshot ?? null, comparisonSnapshot: wr.comparisonSnapshot ?? null, aiInsightsSnapshot: wr.aiInsightsSnapshot ?? null, aiGenerationJobId: wr.aiGenerationJobId ?? null, aiGeneratedAt: wr.aiGeneratedAt ? new Date(wr.aiGeneratedAt as string) : null, aiPromptVersion: wr.aiPromptVersion ?? null, aiSourceEntryVersion: typeof wr.aiSourceEntryVersion === 'number' ? wr.aiSourceEntryVersion : null, aiInputFingerprint: typeof wr.aiInputFingerprint === 'string' ? wr.aiInputFingerprint : null } });
         }
         if (snapshot.dailyReview && typeof snapshot.dailyReview === 'object') {
           const dr = snapshot.dailyReview as Record<string, unknown>;
@@ -81,6 +81,12 @@ export class PrismaSyncJournal {
               frictionMarkdown: optionalString(dr, 'frictionMarkdown'),
               learnedMarkdown: optionalString(dr, 'learnedMarkdown'),
               contextMarkdown: optionalString(dr, 'contextMarkdown'),
+              aiInsightsSnapshot: dr.aiInsightsSnapshot && typeof dr.aiInsightsSnapshot === 'object' ? dr.aiInsightsSnapshot : undefined,
+              aiGenerationJobId: optionalString(dr, 'aiGenerationJobId'),
+              aiGeneratedAt: dr.aiGeneratedAt ? new Date(dr.aiGeneratedAt as string) : null,
+              aiPromptVersion: optionalString(dr, 'aiPromptVersion'),
+              aiSourceEntryVersion: typeof dr.aiSourceEntryVersion === 'number' ? dr.aiSourceEntryVersion : null,
+              aiInputFingerprint: optionalString(dr, 'aiInputFingerprint'),
             },
             update: {
               periodDate: dr.periodDate ? new Date(dr.periodDate as string) : undefined,
@@ -89,6 +95,12 @@ export class PrismaSyncJournal {
               frictionMarkdown: dr.frictionMarkdown === undefined ? undefined : optionalString(dr, 'frictionMarkdown'),
               learnedMarkdown: dr.learnedMarkdown === undefined ? undefined : optionalString(dr, 'learnedMarkdown'),
               contextMarkdown: dr.contextMarkdown === undefined ? undefined : optionalString(dr, 'contextMarkdown'),
+              aiInsightsSnapshot: dr.aiInsightsSnapshot && typeof dr.aiInsightsSnapshot === 'object' ? dr.aiInsightsSnapshot : undefined,
+              aiGenerationJobId: dr.aiGenerationJobId === undefined ? undefined : optionalString(dr, 'aiGenerationJobId'),
+              aiGeneratedAt: dr.aiGeneratedAt === undefined ? undefined : (dr.aiGeneratedAt ? new Date(dr.aiGeneratedAt as string) : null),
+              aiPromptVersion: dr.aiPromptVersion === undefined ? undefined : optionalString(dr, 'aiPromptVersion'),
+              aiSourceEntryVersion: dr.aiSourceEntryVersion === undefined ? undefined : (typeof dr.aiSourceEntryVersion === 'number' ? dr.aiSourceEntryVersion : null),
+              aiInputFingerprint: dr.aiInputFingerprint === undefined ? undefined : optionalString(dr, 'aiInputFingerprint'),
             },
           });
         }

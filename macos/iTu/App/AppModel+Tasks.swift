@@ -6,6 +6,7 @@ extension AppModel {
         cachedTaskSections.removeAll(keepingCapacity: true)
         cachedHomeTodayTasks = nil
         cachedPlanningProjections.removeAll(keepingCapacity: true)
+        cachedPlanningRenderProjections.removeAll(keepingCapacity: true)
     }
 
     private func invalidateTaskProjectionsIfDayChanged() {
@@ -449,6 +450,35 @@ extension AppModel {
         }
         cachedPlanningProjections[key] = visible
         return visible
+    }
+
+    func planningRenderProjection(
+        for section: AppSection,
+        filterQuery: String,
+        taskListId: String?,
+        settings: PlanningViewSettings
+    ) -> PlanningRenderProjection {
+        invalidateTaskProjectionsIfDayChanged()
+        let query = filterQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let key = "\(section.rawValue)|\(taskListId ?? "")|\(query)|\(settings.sortMode.rawValue)|\(settings.groupMode.rawValue)|\(settings.hideCompleted)|\(hideCompletedTasks)"
+        if let cached = cachedPlanningRenderProjections[key] { return cached }
+
+        var visible = tasks(for: section)
+        if let taskListId { visible = visible.filter { $0.taskListId == taskListId } }
+        if !query.isEmpty { visible = visible.filter { $0.title.lowercased().contains(query) } }
+        let projection = PlanningTaskProjector.render(
+            tasks: visible,
+            section: section,
+            sections: sections,
+            lists: taskLists,
+            tags: tags,
+            tagIdsByTaskID: tagIdsByTaskID,
+            settings: settings,
+            hideCompleted: hideCompletedTasks || settings.hideCompleted,
+            archivedSkillIDs: archivedSkillIDs
+        )
+        cachedPlanningRenderProjections[key] = projection
+        return projection
     }
 
     /// Tasks shown in the Home "Today's tasks" section: tasks scheduled or due today

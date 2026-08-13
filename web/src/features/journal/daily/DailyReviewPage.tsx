@@ -11,7 +11,6 @@ import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { getLocalTodayDateString, formatDateStringToLocalDisplay } from '../journalDate';
-import type { AiJob } from '@/shared/api/types';
 import type { ReviewInsightsResult } from '../journal.types';
 
 export function DailyReviewPage() {
@@ -25,9 +24,9 @@ export function DailyReviewPage() {
   const updateMutation = useUpdateJournalEntryMutation();
   const [id] = useState(entryId || createUlid());
   const [reflection, setReflection] = useState({ wentWell: '', friction: '', learned: '', context: '' });
-  const [job, setJob] = useState<AiJob | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const { state: syncState, pendingMutations } = useSync();
+  const { state: syncState, pendingMutations, flush, syncQueue } = useSync();
   const reviewPending = pendingMutations.some(
     (mutation) => mutation.entityId === id && (mutation.kind === 'journal.create' || mutation.kind === 'journal.update'),
   );
@@ -41,23 +40,6 @@ export function DailyReviewPage() {
       context: entry.dailyReview.contextMarkdown || '',
     });
   }, [entry]);
-
-  useEffect(() => {
-    if (!job || job.status === 'COMPLETED' || job.status === 'FAILED') return;
-    let cancelled = false;
-    const poll = () => {
-      void api.job(job.id).then((data) => {
-        if (cancelled) return;
-        setAiError(null);
-        setJob(data);
-        if (data.status === 'COMPLETED') void refetchEntry();
-      }).catch((error) => {
-        if (!cancelled) setAiError(error instanceof Error ? `Job status: ${error.message}` : 'Job status could not be refreshed. Retrying…');
-      });
-    };
-    const timer = window.setInterval(poll, 1500);
-    return () => window.clearInterval(timer);
-  }, [job?.id, job?.status, refetchEntry]);
 
   const save = async () => {
     const payload = {
@@ -77,25 +59,35 @@ export function DailyReviewPage() {
   };
 
   const generate = async () => {
-    if (isNew || reviewPending || syncState.phase === 'offline') return;
+    if (isNew || isGenerating || syncState.phase === 'offline') return;
     setAiError(null);
+    setIsGenerating(true);
     try {
-      setJob(await api.requestReviewInsights(id, entry?.version || 1));
+      await save();
+      await flush();
+      if ((await syncQueue.listPendingMutations()).length) throw new Error('Sync your latest data before generating insights.');
+      await api.generateReviewInsights(id);
+      await refetchEntry();
     } catch (error) {
-      setAiError(error instanceof Error ? error.message : 'AI generation could not be started.');
+      setAiError(error instanceof Error ? error.message : 'AI generation failed.');
+    } finally {
+      setIsGenerating(false);
     }
   };
 
   if (isLoading) return <div className="flex min-h-64 items-center justify-center" role="status"><LoaderCircle className="h-4 w-4 motion-safe:animate-spin" /></div>;
-  const stale = job?.status === 'COMPLETED' && isRecord(job.output) && job.output.stale === true;
-  const result = (stale ? entry?.dailyReview?.aiInsightsSnapshot : job?.status === 'COMPLETED' && isRecord(job.output) ? job.output : entry?.dailyReview?.aiInsightsSnapshot) as ReviewInsightsResult | null | undefined;
-  const jobInProgress = job?.status === 'QUEUED' || job?.status === 'RUNNING';
+  const stale = Boolean(
+    entry?.dailyReview?.aiInsightsSnapshot
+      && (entry.dailyReview.aiSourceEntryVersion !== entry.version
+        || (summary?.metrics && JSON.stringify(summary.metrics) !== JSON.stringify(entry.dailyReview.summarySnapshot))),
+  );
+  const result = entry?.dailyReview?.aiInsightsSnapshot as ReviewInsightsResult | null | undefined;
   return (
     <div className="mx-auto w-full max-w-4xl space-y-5 pb-20">
       <PageHeader kicker="Daily review" title={<span className="flex items-center gap-2"><Calendar className="h-5 w-5" />Daily Review</span>} description={formatDateStringToLocalDisplay(date)}>
         <div className="flex gap-2">
           <Button type="button" variant="outline" onClick={() => void save()} disabled={createMutation.isPending || updateMutation.isPending}>Save Review</Button>
-          <Button type="button" onClick={() => void generate()} disabled={isNew || reviewPending || syncState.phase === 'offline' || jobInProgress} aria-busy={jobInProgress}><Sparkles className="h-4 w-4" />{job?.status === 'QUEUED' ? 'Queued…' : job?.status === 'RUNNING' ? 'Generating…' : 'Generate AI Insights'}</Button>
+          <Button type="button" onClick={() => void generate()} disabled={isNew || reviewPending || syncState.phase === 'offline' || isGenerating} aria-busy={isGenerating}><Sparkles className="h-4 w-4" />{isGenerating ? 'Generating…' : 'Generate AI Insights'}</Button>
         </div>
       </PageHeader>
       {reviewPending ? <p className="text-sm text-muted-foreground" role="status">Save Review and wait for sync before generating insights.</p> : null}
@@ -116,15 +108,10 @@ export function DailyReviewPage() {
         <Reflection label="Anything important the data doesn’t show?" value={reflection.context} onChange={(value) => setReflection({ ...reflection, context: value })} />
       </div>
       {aiError ? <p role="alert" className="text-sm text-destructive">{aiError}</p> : null}
-      {job?.status === 'FAILED' ? <p role="alert" className="text-sm text-destructive">{job.error || 'AI generation failed.'}</p> : null}
       {stale ? <p role="alert" className="text-sm text-destructive">Your reflections changed while these insights were generated. Regenerate to analyze the latest version.</p> : null}
-      <ReviewAiInsights result={result} job={job} />
+      <ReviewAiInsights result={result} isPending={isGenerating} />
     </div>
   );
-}
-
-function isRecord(value: unknown): value is Record<string, any> {
-  return typeof value === 'object' && value !== null;
 }
 
 function Reflection({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {

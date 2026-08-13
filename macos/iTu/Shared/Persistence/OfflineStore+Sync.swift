@@ -56,9 +56,15 @@ extension OfflineStore {
     ) throws -> OfflineSnapshot {
         let localCursor = state.cursor
         let incomingCursorIsNewer = Self.isCursorNewer(cursor, than: localCursor)
+        let acknowledged = Set(acknowledgedMutationIds)
+        var acknowledgedEntityIDs = Set<String>()
+        for mutation in state.mutations where acknowledged.contains(mutation.id) {
+            acknowledgedEntityIDs.insert(mutation.entityId)
+            if let entryID = mutation.payload["entryId"]?.stringValue { acknowledgedEntityIDs.insert(entryID) }
+        }
         let applicableChanges = changes.filter { change in
             guard let changeCursor = change.cursor else { return incomingCursorIsNewer }
-            return Self.isCursorNewer(String(changeCursor), than: localCursor)
+            return Self.isCursorNewer(String(changeCursor), than: localCursor) || acknowledgedEntityIDs.contains(change.entityId)
         }
         let orderedChanges = applicableChanges.sorted { left, right in
             switch (left.cursor, right.cursor) {
@@ -77,7 +83,6 @@ extension OfflineStore {
         )
         let optimisticTaskListsByID = Dictionary(uniqueKeysWithValues: state.taskLists.map { ($0.id, $0) })
         let optimisticMappingsBySkillID = state.growthAttributeMappings
-        let acknowledged = Set(acknowledgedMutationIds)
         state.mutations.removeAll { acknowledged.contains($0.id) }
         state.conflicts.removeAll { acknowledged.contains($0.mutationId) }
         var rebasedConflictIDs = Set<String>()

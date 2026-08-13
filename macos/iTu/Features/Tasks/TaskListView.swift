@@ -23,39 +23,11 @@ struct TaskListView: View {
 
     var body: some View {
         let settings = model.settingsStore.planningSettings(for: planningViewKey)
-        let archivedSkillIDs = Set(model.skills.filter { $0.archivedAt != nil }.map(\.id))
-
-        let allSectionTasks = model.planningTasks(for: section, filterQuery: filterQuery, taskListId: taskListId)
-        let pendingSectionTasks: [ProductivityTask]
-        let overdueTasks: [ProductivityTask]
-
-        if section == .today {
-            let startOfToday = Calendar.current.startOfDay(for: Date())
-            overdueTasks = allSectionTasks.filter { task in
-                guard ![.completed, .canceled, .archived].contains(task.status),
-                      let dateValue = task.scheduledStartAt ?? task.dueAt,
-                      let date = iTuDateSupport.parse(dateValue) else {
-                    return false
-                }
-                return date < startOfToday
-            }
-            let overdueIDs = Set(overdueTasks.map(\.id))
-            pendingSectionTasks = allSectionTasks.filter { ![.completed, .canceled].contains($0.status) && !overdueIDs.contains($0.id) }
-        } else {
-            overdueTasks = []
-            pendingSectionTasks = allSectionTasks.filter { ![.completed, .canceled].contains($0.status) }
-        }
-
-        let completedSectionTasks = allSectionTasks.filter { [.completed, .canceled].contains($0.status) }
-
-        let activeGroups = PlanningTaskProjector.project(
-            tasks: pendingSectionTasks,
-            sections: model.sections,
-            lists: model.taskLists,
-            tags: model.tags,
-            tagIdsByTaskID: model.tagIdsByTaskID,
-            settings: settings
-        )
+        let projection = model.planningRenderProjection(for: section, filterQuery: filterQuery, taskListId: taskListId, settings: settings)
+        let archivedSkillIDs = projection.archivedSkillIDs
+        let overdueTasks = projection.overdueTasks
+        let activeGroups = projection.activeGroups
+        let completedSectionTasks = projection.completedTasks
 
         return ScrollView {
             VStack(spacing: 20) {
@@ -79,7 +51,7 @@ struct TaskListView: View {
                         let groupId = "overdue-group"
                         taskGroupSection(
                             title: "Overdue",
-                            tasks: PlanningTaskProjector.sort(overdueTasks, by: settings.sortMode),
+                            tasks: overdueTasks,
                             archivedSkillIDs: archivedSkillIDs,
                             hideDetails: settings.hideDetails,
                             isExpanded: Binding(
@@ -145,7 +117,7 @@ struct TaskListView: View {
                         let groupId = "completed-wont-do"
                         taskGroupSection(
                             title: "Completed & Won’t Do",
-                            tasks: PlanningTaskProjector.sort(completedSectionTasks, by: settings.sortMode),
+                            tasks: completedSectionTasks,
                             archivedSkillIDs: archivedSkillIDs,
                             hideDetails: settings.hideDetails,
                             isExpanded: Binding(

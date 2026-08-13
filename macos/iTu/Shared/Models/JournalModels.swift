@@ -161,6 +161,7 @@ struct JournalWeeklyReviewModel: Codable, Sendable, Equatable {
     var aiGeneratedAt: String? = nil
     var aiPromptVersion: String? = nil
     var aiSourceEntryVersion: Int? = nil
+    var aiInputFingerprint: String? = nil
 }
 
 struct JournalDailyReviewModel: Codable, Sendable, Equatable {
@@ -176,6 +177,7 @@ struct JournalDailyReviewModel: Codable, Sendable, Equatable {
     var aiGeneratedAt: String?
     var aiPromptVersion: String?
     var aiSourceEntryVersion: Int?
+    var aiInputFingerprint: String? = nil
 }
 
 struct JournalAiJobModel: Codable, Sendable, Equatable {

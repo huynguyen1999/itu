@@ -416,6 +416,8 @@ final class AppModel {
     @ObservationIgnored var cachedTaskSections: [AppSection: [ProductivityTask]] = [:]
     @ObservationIgnored var cachedHomeTodayTasks: [ProductivityTask]?
     @ObservationIgnored var cachedPlanningProjections: [String: [ProductivityTask]] = [:]
+    @ObservationIgnored var cachedPlanningRenderProjections: [String: PlanningRenderProjection] = [:]
+    @ObservationIgnored var archivedSkillIDs: Set<String> = []
     @ObservationIgnored var cachedTaskProjectionDay: String?
     @ObservationIgnored private(set) var sessionGeneration = 0
 
@@ -500,19 +502,18 @@ final class AppModel {
 
     private func applyTaskProjection(_ snapshot: OfflineSnapshot, tasksChanged: Bool) {
         if tasksChanged {
-            if !snapshot.tasks.isEmpty || tasks.isEmpty {
-                tasks = snapshot.tasks
-            }
+            tasks = snapshot.tasks
             cachedTaskSections.removeAll(keepingCapacity: true)
             cachedHomeTodayTasks = nil
             cachedPlanningProjections.removeAll(keepingCapacity: true)
+            cachedPlanningRenderProjections.removeAll(keepingCapacity: true)
             cachedTaskProjectionDay = nil
         }
         if conflicts != snapshot.conflicts { conflicts = snapshot.conflicts }
-        if taskLists != snapshot.taskLists { taskLists = snapshot.taskLists }
-        if sections != snapshot.sections { sections = snapshot.sections }
-        if tags != snapshot.tags { tags = snapshot.tags }
-        if tagIdsByTaskID != snapshot.tagIdsByTaskID { tagIdsByTaskID = snapshot.tagIdsByTaskID }
+        if taskLists != snapshot.taskLists { taskLists = snapshot.taskLists; cachedPlanningRenderProjections.removeAll(keepingCapacity: true) }
+        if sections != snapshot.sections { sections = snapshot.sections; cachedPlanningRenderProjections.removeAll(keepingCapacity: true) }
+        if tags != snapshot.tags { tags = snapshot.tags; cachedPlanningRenderProjections.removeAll(keepingCapacity: true) }
+        if tagIdsByTaskID != snapshot.tagIdsByTaskID { tagIdsByTaskID = snapshot.tagIdsByTaskID; cachedPlanningRenderProjections.removeAll(keepingCapacity: true) }
     }
 
     private func applyHabitProjection(_ snapshot: OfflineSnapshot) {
@@ -541,8 +542,10 @@ final class AppModel {
             $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "general"
         }
         let skills = snapshot.skills.filter { $0.archivedAt == nil }
+        let archivedSkillIDs = Set(snapshot.skills.filter { $0.archivedAt != nil }.map(\.id))
         if self.attributes != attributes { self.attributes = attributes }
-        if self.skills != skills { self.skills = skills }
+        if self.skills != skills { self.skills = skills; cachedPlanningRenderProjections.removeAll(keepingCapacity: true) }
+        if self.archivedSkillIDs != archivedSkillIDs { self.archivedSkillIDs = archivedSkillIDs; cachedPlanningRenderProjections.removeAll(keepingCapacity: true) }
         if transactions != snapshot.transactions { transactions = snapshot.transactions }
         if shopItems != snapshot.shopItems { shopItems = snapshot.shopItems }
         if inventoryItems != snapshot.inventoryItems { inventoryItems = snapshot.inventoryItems }

@@ -76,7 +76,7 @@ type SyncChannelPayload =
 const FLUSH_DELAY_MS = 1500;
 const LEASE_DURATION_MS = 5000;
 const IMMEDIATE_LEASE_RETRY_MS = 50;
-const RECONCILE_INTERVAL_MS = 60_000;
+const RECONCILE_INTERVAL_MS = 15_000;
 const CHANNEL_NAME = 'itu-sync-v1';
 
 export class SyncQueue {

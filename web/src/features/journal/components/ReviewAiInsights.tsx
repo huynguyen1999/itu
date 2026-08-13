@@ -1,10 +1,10 @@
 import { LoaderCircle, Sparkles } from 'lucide-react';
 import type { ReviewInsightsResult } from '../journal.types';
-import type { AiJob } from '@/shared/api/types';
 import { Card, CardContent } from '@/shared/ui/card';
 
-export function ReviewAiInsights({ result, job }: { result?: ReviewInsightsResult | null; job?: AiJob | null }) {
-  const isPending = job?.status === 'QUEUED' || job?.status === 'RUNNING';
+export function ReviewAiInsights({ result, isPending = false, job }: { result?: ReviewInsightsResult | null; isPending?: boolean; job?: { id?: string; status: string } | null }) {
+  isPending ||= job?.status === 'QUEUED' || job?.status === 'RUNNING';
+  const isQueued = job?.status === 'QUEUED';
   const renderableResult = isReviewInsightsResult(result) ? result : null;
 
   return (
@@ -15,21 +15,14 @@ export function ReviewAiInsights({ result, job }: { result?: ReviewInsightsResul
             <LoaderCircle className="h-5 w-5 shrink-0 animate-spin text-primary" aria-hidden="true" />
             <div>
               <h2 className="text-sm font-semibold">
-                {job.status === 'QUEUED' ? 'AI insights queued' : 'Generating AI insights'}
+                {isQueued ? 'AI insights queued' : 'Generating AI insights'}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {job.status === 'QUEUED'
-                  ? 'Waiting for the review worker to start.'
-                  : 'Analyzing your saved activity and reflections.'}
+                {isQueued ? 'Waiting for the review worker to start.' : 'Analyzing your saved activity and reflections.'}
               </p>
             </div>
           </CardContent>
         </Card>
-      ) : null}
-      {job?.status === 'COMPLETED' && !renderableResult ? (
-        <p className="text-sm text-destructive" role="alert">
-          AI generation finished, but no insights were returned. Try generating again.
-        </p>
       ) : null}
       {!renderableResult ? null : (
         <Card>

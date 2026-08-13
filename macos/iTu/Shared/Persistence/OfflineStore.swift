@@ -98,6 +98,7 @@ actor OfflineStore {
         if migrated {
             try persist()
         }
+        reapplyPendingJournalMutations()
         
         lastPersistedMutationIDs = Set(state.mutations.map(\.id))
         return state

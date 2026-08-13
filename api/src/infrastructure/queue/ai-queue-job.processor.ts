@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { AI_ERRORS } from '@core/application/constants/app.constants';
 import { TOKENS } from '@core/application/constants/tokens';
@@ -95,6 +96,7 @@ export class AiQueueJobProcessor {
         context.metrics,
         context.previousPeriod?.comparison,
         output as unknown as Record<string, unknown>,
+        createHash('sha256').update(JSON.stringify(context)).digest('hex'),
       );
       if (!saved) {
         await this.jobs.markCompleted(jobId, { ...output, stale: true });

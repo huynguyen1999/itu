@@ -123,6 +123,8 @@ extension AppModel {
             cachedTaskSections.removeAll()
             cachedHomeTodayTasks = nil
             cachedPlanningProjections.removeAll()
+            cachedPlanningRenderProjections.removeAll()
+            archivedSkillIDs.removeAll()
             cachedTaskProjectionDay = nil
             habits = []
             habitOccurrences = []

@@ -24,7 +24,6 @@ import { PageHeader } from '@/shared/ui/PageHeader';
 import { getJournalWeekRange } from '../journalDate';
 import { ReviewAiInsights } from '../components/ReviewAiInsights';
 import { useSync } from '@/shared/sync/SyncProvider';
-import type { AiJob } from '@/shared/api/types';
 
 export function WeeklyReviewPage() {
   const { entryId } = useParams();
@@ -73,29 +72,12 @@ export function WeeklyReviewPage() {
   const [experimentAction, setExperimentAction] = useState('');
   const [experimentSuccess, setExperimentSuccess] = useState('');
   const [contentMarkdown, setContentMarkdown] = useState('');
-  const [job, setJob] = useState<AiJob | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const { state: syncState, pendingMutations } = useSync();
+  const { state: syncState, pendingMutations, flush, syncQueue } = useSync();
   const reviewPending = pendingMutations.some(
     (mutation) => mutation.entityId === id && (mutation.kind === 'journal.create' || mutation.kind === 'journal.update'),
   );
-
-  useEffect(() => {
-    if (!job || job.status === 'COMPLETED' || job.status === 'FAILED') return;
-    let cancelled = false;
-    const poll = () => {
-      void api.job(job.id).then((data) => {
-        if (cancelled) return;
-        setAiError(null);
-        setJob(data);
-        if (data.status === 'COMPLETED') void refetchEntry();
-      }).catch((error) => {
-        if (!cancelled) setAiError(error instanceof Error ? `Job status: ${error.message}` : 'Job status could not be refreshed. Retrying…');
-      });
-    };
-    const timer = window.setInterval(poll, 1500);
-    return () => window.clearInterval(timer);
-  }, [job?.id, job?.status, refetchEntry]);
 
   const tasksCompleted = weeklyMetrics?.tasks?.completed ?? 0;
   const focusMinutes = weeklyMetrics?.focus?.minutes ?? 0;
@@ -156,12 +138,19 @@ export function WeeklyReviewPage() {
   };
 
   const generate = async () => {
-    if (isNew || reviewPending || syncState.phase === 'offline') return;
+    if (isNew || isGenerating || syncState.phase === 'offline') return;
     setAiError(null);
+    setIsGenerating(true);
     try {
-      setJob(await api.requestReviewInsights(id, existingEntry?.version || 1));
+      await handleSave();
+      await flush();
+      if ((await syncQueue.listPendingMutations()).length) throw new Error('Sync your latest data before generating insights.');
+      await api.generateReviewInsights(id);
+      await refetchEntry();
     } catch (error) {
-      setAiError(error instanceof Error ? error.message : 'AI generation could not be started.');
+      setAiError(error instanceof Error ? error.message : 'AI generation failed.');
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -188,7 +177,12 @@ export function WeeklyReviewPage() {
   }
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
-  const jobInProgress = job?.status === 'QUEUED' || job?.status === 'RUNNING';
+  const currentContextMetrics = (weeklyMetrics as { reviewContext?: { metrics?: unknown } } | undefined)?.reviewContext?.metrics;
+  const stale = Boolean(
+    existingEntry?.weeklyReview?.aiInsightsSnapshot
+      && (existingEntry.weeklyReview.aiSourceEntryVersion !== existingEntry.version
+        || (currentContextMetrics && JSON.stringify(currentContextMetrics) !== JSON.stringify(existingEntry.weeklyReview.summarySnapshot))),
+  );
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 pb-20" aria-busy={isSaving}>
@@ -241,8 +235,8 @@ export function WeeklyReviewPage() {
             <Button type="button" onClick={() => void handleSave()} disabled={isSaving} className="w-full sm:w-auto">
               {isSaving ? 'Saving…' : 'Save Review'}
             </Button>
-            <Button type="button" variant="outline" onClick={() => void generate()} disabled={isNew || isSaving || reviewPending || syncState.phase === 'offline' || jobInProgress} aria-busy={jobInProgress}>
-              <Sparkles className="h-4 w-4" />{job?.status === 'QUEUED' ? 'Queued…' : job?.status === 'RUNNING' ? 'Generating…' : 'Generate AI Insights'}
+            <Button type="button" variant="outline" onClick={() => void generate()} disabled={isNew || isSaving || reviewPending || syncState.phase === 'offline' || isGenerating} aria-busy={isGenerating}>
+              <Sparkles className="h-4 w-4" />{isGenerating ? 'Generating…' : 'Generate AI Insights'}
             </Button>
           </div>
         </div>
@@ -408,15 +402,10 @@ export function WeeklyReviewPage() {
         />
       </section>
       {aiError ? <p role="alert" className="text-sm text-destructive">{aiError}</p> : null}
-      {job?.status === 'FAILED' ? <p role="alert" className="text-sm text-destructive">{job.error || 'AI generation failed.'}</p> : null}
-      {isRecord(job?.output) && job.output.stale === true ? <p role="alert" className="text-sm text-destructive">Your reflections changed while these insights were generated. Regenerate to analyze the latest version.</p> : null}
-      <ReviewAiInsights result={(isRecord(job?.output) && job.output.stale === true ? existingEntry?.weeklyReview?.aiInsightsSnapshot : job?.status === 'COMPLETED' && isRecord(job.output) ? job.output : existingEntry?.weeklyReview?.aiInsightsSnapshot) as any} job={job} />
+      {stale ? <p role="alert" className="text-sm text-destructive">Your reflections changed while these insights were generated. Regenerate to analyze the latest version.</p> : null}
+      <ReviewAiInsights result={existingEntry?.weeklyReview?.aiInsightsSnapshot as any} isPending={isGenerating} />
     </div>
   );
-}
-
-function isRecord(value: unknown): value is Record<string, any> {
-  return typeof value === 'object' && value !== null;
 }
 
 function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {

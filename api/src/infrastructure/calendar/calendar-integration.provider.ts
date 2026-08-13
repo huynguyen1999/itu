@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import ICAL from 'ical.js';
 import { CONFIG_KEYS, DEFAULT_URLS, GOOGLE_OAUTH } from '@core/application/constants/app.constants';
 import type {
@@ -13,6 +13,7 @@ import type {
 } from '@core/application/ports/out/calendar.port';
 import { createUlid } from '../persistence/prisma/ulid';
 import { fetchWithTimeout } from '../http/outbound-http';
+import { decryptAesGcm, encryptAesGcm } from '../security/aes-gcm';
 import { fetchCalendarText, validateCalendarUrl } from './ssrf-safe-fetch';
 
 const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
@@ -115,13 +116,19 @@ export class CalendarIntegrationProvider implements CalendarIntegrationPort {
     return {
       userId,
       accountEmail,
-      encryptedRefreshToken: token.refresh_token ? encrypt(token.refresh_token, this.secret()) : null,
+      encryptedRefreshToken: token.refresh_token ? encryptAesGcm(token.refresh_token, this.secret()) : null,
     };
   }
 
   async syncGoogleConnection(connection: CalendarConnectionRecord, sources: CalendarSourceRecord[]): Promise<CalendarGoogleSync> {
     if (!connection.encryptedRefreshToken) throw new BadRequestException('Google Calendar is not connected');
-    const token = await this.exchangeRefreshToken(decrypt(connection.encryptedRefreshToken, this.secret()));
+    let refreshToken: string;
+    try {
+      refreshToken = decryptAesGcm(connection.encryptedRefreshToken, this.secret());
+    } catch {
+      throw new ServiceUnavailableException('Stored Google Calendar credentials are invalid');
+    }
+    const token = await this.exchangeRefreshToken(refreshToken);
     const calendars = await this.googleJson<{ items?: GoogleCalendar[] }>(
       'https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader',
       token.access_token,
@@ -313,23 +320,4 @@ function googleDate(value?: GoogleEvent['start']) {
     return Number.isNaN(date.getTime()) ? null : { date, allDay: true, timeZone: value.timeZone };
   }
   return null;
-}
-
-function encrypt(value: string, secret: string): string {
-  const key = createHash('sha256').update(secret).digest();
-  const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', key, iv);
-  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
-  return [iv, cipher.getAuthTag(), encrypted].map((part) => part.toString('base64url')).join('.');
-}
-
-function decrypt(value: string, secret: string): string {
-  try {
-    const [iv, tag, encrypted] = value.split('.').map((part) => Buffer.from(part, 'base64url'));
-    const decipher = createDecipheriv('aes-256-gcm', createHash('sha256').update(secret).digest(), iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
-  } catch {
-    throw new ServiceUnavailableException('Stored Google Calendar credentials are invalid');
-  }
 }

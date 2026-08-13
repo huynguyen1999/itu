@@ -34,6 +34,7 @@ export interface CreateJournalEntryData {
     aiGeneratedAt?: Date | null;
     aiPromptVersion?: string | null;
     aiSourceEntryVersion?: number | null;
+    aiInputFingerprint?: string | null;
   };
   dailyReview?: {
     periodDate: Date;
@@ -47,6 +48,7 @@ export interface CreateJournalEntryData {
     aiGeneratedAt?: Date | null;
     aiPromptVersion?: string | null;
     aiSourceEntryVersion?: number | null;
+    aiInputFingerprint?: string | null;
   };
 }
 
@@ -73,6 +75,7 @@ export interface UpdateJournalEntryData {
     aiGeneratedAt?: Date | null;
     aiPromptVersion?: string | null;
     aiSourceEntryVersion?: number | null;
+    aiInputFingerprint?: string | null;
   };
   dailyReview?: Partial<CreateJournalEntryData['dailyReview']>;
 }
@@ -99,10 +102,11 @@ export interface IJournalRepository {
     userId: string,
     entryId: string,
     sourceEntryVersion: number,
-    jobId: string,
+    generationId: string | null,
     summarySnapshot: Record<string, unknown>,
     comparisonSnapshot: Record<string, unknown> | undefined,
     insightsSnapshot: Record<string, unknown>,
+    aiInputFingerprint: string,
   ): Promise<JournalEntryModel | null>;
   listRevisions(userId: string, entryId: string): Promise<JournalEntryRevisionModel[]>;
   restoreRevision(userId: string, entryId: string, revisionId: string): Promise<JournalEntryModel | null>;

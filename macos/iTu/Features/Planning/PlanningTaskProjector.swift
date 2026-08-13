@@ -12,7 +12,56 @@ struct PlanningTaskGroup: Identifiable, Sendable {
     }
 }
 
+struct PlanningRenderProjection: Sendable {
+    let allTasks: [ProductivityTask]
+    let overdueTasks: [ProductivityTask]
+    let activeGroups: [PlanningTaskGroup]
+    let completedTasks: [ProductivityTask]
+    let archivedSkillIDs: Set<String>
+}
+
 enum PlanningTaskProjector {
+    static func render(
+        tasks: [ProductivityTask],
+        section: AppSection,
+        sections: [TaskSectionModel] = [],
+        lists: [TaskListModel] = [],
+        tags: [TagModel] = [],
+        tagIdsByTaskID: [String: [String]] = [:],
+        settings: PlanningViewSettings,
+        hideCompleted: Bool,
+        archivedSkillIDs: Set<String> = []
+    ) -> PlanningRenderProjection {
+        let visible = hideCompleted
+            ? tasks.filter { $0.status != .completed && $0.status != .canceled }
+            : tasks
+        let sorted = sort(visible, by: settings.sortMode)
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        var overdue: [ProductivityTask] = []
+        var active: [ProductivityTask] = []
+        var completed: [ProductivityTask] = []
+        for task in sorted {
+            if task.status == .completed || task.status == .canceled {
+                completed.append(task)
+            } else if section == .today,
+                      task.status != .archived,
+                      let dateValue = task.scheduledStartAt ?? task.dueAt,
+                      let date = iTuDateSupport.parse(dateValue),
+                      date < startOfToday {
+                overdue.append(task)
+            } else {
+                active.append(task)
+            }
+        }
+        return PlanningRenderProjection(
+            allTasks: sorted,
+            overdueTasks: overdue,
+            activeGroups: group(active, by: settings.groupMode, sections: sections, lists: lists, tags: tags, tagIdsByTaskID: tagIdsByTaskID),
+            completedTasks: completed,
+            archivedSkillIDs: archivedSkillIDs
+        )
+    }
+
     static func project(
         tasks: [ProductivityTask],
         sections: [TaskSectionModel] = [],

@@ -18,26 +18,12 @@ struct EisenhowerMatrixView: View {
         let matrixSettings = model.settingsStore.matrixSettings
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let archivedSkillIDs = Set(model.skills.filter { $0.archivedAt != nil }.map(\.id))
-        let filteredTasks = model.tasks.filter { task in
-            guard task.deletedAt == nil, task.status != .archived else { return false }
-            if let priorityFilter, task.priority != priorityFilter { return false }
-            if !query.isEmpty {
-                guard task.title.lowercased().contains(query) else { return false }
-            }
-            return true
-        }
-        let allTasks = filteredTasks.sorted { left, right in
-            switch matrixSettings.sortOption {
-            case .manual:
-                return left.id < right.id
-            case .dueDate:
-                return (left.dueAt ?? "9999") < (right.dueAt ?? "9999")
-            case .priority:
-                return priorityRank(left.priority) < priorityRank(right.priority)
-            case .title:
-                return left.title.localizedCaseInsensitiveCompare(right.title) == .orderedAscending
-            }
-        }
+        let projection = MatrixProjection.build(
+            tasks: model.tasks,
+            settings: matrixSettings,
+            query: query,
+            priorityFilter: priorityFilter
+        )
 
         GeometryReader { proxy in
             let isNarrow = proxy.size.width < 700
@@ -98,7 +84,7 @@ struct EisenhowerMatrixView: View {
                         }
 
                         if !isNarrow {
-                            Text("\(allTasks.filter { $0.status != .completed && $0.status != .canceled }.count) mapped")
+                            Text("\(projection.mappedCount) mapped")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(iTuTheme.inkFaint)
                                 .lineLimit(1)
@@ -114,7 +100,7 @@ struct EisenhowerMatrixView: View {
                             ForEach(MatrixQuadrant.allCases) { quadrant in
                                 MatrixQuadrantCard(
                                     quadrant: quadrant,
-                                    tasks: tasksForQuadrant(quadrant, from: allTasks, settings: matrixSettings),
+                                    projection: projection[quadrant],
                                     archivedSkillIDs: archivedSkillIDs,
                                     onEditTask: { openTaskEditor($0) }
                                 )
@@ -129,12 +115,12 @@ struct EisenhowerMatrixView: View {
 
                     Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
                         GridRow {
-                            quadrantCard(.q1, tasks: allTasks, settings: matrixSettings, archivedSkillIDs: archivedSkillIDs, height: rowHeight)
-                            quadrantCard(.q2, tasks: allTasks, settings: matrixSettings, archivedSkillIDs: archivedSkillIDs, height: rowHeight)
+                            quadrantCard(.q1, projection: projection[.q1], archivedSkillIDs: archivedSkillIDs, height: rowHeight)
+                            quadrantCard(.q2, projection: projection[.q2], archivedSkillIDs: archivedSkillIDs, height: rowHeight)
                         }
                         GridRow {
-                            quadrantCard(.q3, tasks: allTasks, settings: matrixSettings, archivedSkillIDs: archivedSkillIDs, height: rowHeight)
-                            quadrantCard(.q4, tasks: allTasks, settings: matrixSettings, archivedSkillIDs: archivedSkillIDs, height: rowHeight)
+                            quadrantCard(.q3, projection: projection[.q3], archivedSkillIDs: archivedSkillIDs, height: rowHeight)
+                            quadrantCard(.q4, projection: projection[.q4], archivedSkillIDs: archivedSkillIDs, height: rowHeight)
                         }
                     }
                 }
@@ -156,20 +142,15 @@ struct EisenhowerMatrixView: View {
         model.presentedOverlay = .taskEditor(taskID: task.id)
     }
 
-    private func tasksForQuadrant(_ quadrant: MatrixQuadrant, from tasks: [ProductivityTask], settings: MatrixSettings) -> [ProductivityTask] {
-        tasks.filter { quadrant.matches(task: $0, settings: settings) }
-    }
-
     private func quadrantCard(
         _ quadrant: MatrixQuadrant,
-        tasks: [ProductivityTask],
-        settings: MatrixSettings,
+        projection: MatrixQuadrantProjection,
         archivedSkillIDs: Set<String>,
         height: CGFloat
     ) -> some View {
         MatrixQuadrantCard(
             quadrant: quadrant,
-            tasks: tasksForQuadrant(quadrant, from: tasks, settings: settings),
+            projection: projection,
             archivedSkillIDs: archivedSkillIDs,
             onEditTask: { openTaskEditor($0) }
         )
@@ -177,14 +158,6 @@ struct EisenhowerMatrixView: View {
         .frame(height: height)
     }
 
-    private func priorityRank(_ priority: TaskPriority) -> Int {
-        switch priority {
-        case .high: 0
-        case .medium: 1
-        case .low: 2
-        case .none: 3
-        }
-    }
 }
 
 private struct MatrixFilterPopover: View {
@@ -348,34 +321,101 @@ enum MatrixQuadrant: String, CaseIterable, Identifiable {
         }
     }
 
-    func matches(task: ProductivityTask, settings: MatrixSettings) -> Bool {
+    func classify(task: ProductivityTask, settings: MatrixSettings, now: Date = Date()) -> MatrixQuadrant {
         let isUrgent: Bool
         if settings.manualOverrideWins, let urgentOverride = task.urgentOverride {
             isUrgent = urgentOverride
         } else {
-            isUrgent = task.urgentOverride ?? (settings.urgentPriorities.contains(task.priority) || isDueWithin(task.dueAt, days: settings.urgentDueWithinDays))
+            isUrgent = task.urgentOverride ?? (settings.urgentPriorities.contains(task.priority) || isDueWithin(task.dueAt, days: settings.urgentDueWithinDays, now: now))
         }
-
         let isImportant = task.important || settings.importantPriorities.contains(task.priority)
-
-        switch self {
-        case .q1: return isImportant && isUrgent
-        case .q2: return isImportant && !isUrgent
-        case .q3: return !isImportant && isUrgent
-        case .q4: return !isImportant && !isUrgent
+        switch (isImportant, isUrgent) {
+        case (true, true): return .q1
+        case (true, false): return .q2
+        case (false, true): return .q3
+        case (false, false): return .q4
         }
     }
 
-    private func isDueWithin(_ dueAt: String?, days: Int) -> Bool {
+    func matches(task: ProductivityTask, settings: MatrixSettings) -> Bool {
+        classify(task: task, settings: settings) == self
+    }
+
+    private func isDueWithin(_ dueAt: String?, days: Int, now: Date) -> Bool {
         guard days > 0, let dueAt, let date = iTuDateSupport.parse(dueAt) else { return false }
-        return date <= Date().addingTimeInterval(Double(days) * 86_400)
+        return date <= now.addingTimeInterval(Double(days) * 86_400)
+    }
+}
+
+struct MatrixQuadrantProjection: Sendable {
+    var tasks: [ProductivityTask]
+    var activeTasks: [ProductivityTask]
+    var completedTasks: [ProductivityTask]
+    var canceledTasks: [ProductivityTask]
+}
+
+struct MatrixProjection: Sendable {
+    private let quadrants: [MatrixQuadrant: MatrixQuadrantProjection]
+
+    var mappedCount: Int {
+        quadrants.values.reduce(0) { $0 + $1.activeTasks.count }
+    }
+
+    subscript(quadrant: MatrixQuadrant) -> MatrixQuadrantProjection {
+        quadrants[quadrant] ?? MatrixQuadrantProjection(tasks: [], activeTasks: [], completedTasks: [], canceledTasks: [])
+    }
+
+    static func build(
+        tasks: [ProductivityTask],
+        settings: MatrixSettings,
+        query: String,
+        priorityFilter: TaskPriority?,
+        now: Date = Date()
+    ) -> MatrixProjection {
+        let filtered = tasks.filter { task in
+            guard task.deletedAt == nil, task.status != .archived else { return false }
+            if let priorityFilter, task.priority != priorityFilter { return false }
+            return query.isEmpty || task.title.lowercased().contains(query)
+        }
+        let sorted = filtered.sorted { left, right in
+            switch settings.sortOption {
+            case .manual: return left.id < right.id
+            case .dueDate: return (left.dueAt ?? "9999") < (right.dueAt ?? "9999")
+            case .priority: return priorityRank(left.priority) < priorityRank(right.priority)
+            case .title: return left.title.localizedCaseInsensitiveCompare(right.title) == .orderedAscending
+            }
+        }
+        var buckets = Dictionary(uniqueKeysWithValues: MatrixQuadrant.allCases.map {
+            ($0, MatrixQuadrantProjection(tasks: [], activeTasks: [], completedTasks: [], canceledTasks: []))
+        })
+        for task in sorted {
+            let quadrant = MatrixQuadrant.q1.classify(task: task, settings: settings, now: now)
+            var bucket = buckets[quadrant]!
+            bucket.tasks.append(task)
+            switch task.status {
+            case .completed: bucket.completedTasks.append(task)
+            case .canceled: bucket.canceledTasks.append(task)
+            default: bucket.activeTasks.append(task)
+            }
+            buckets[quadrant] = bucket
+        }
+        return MatrixProjection(quadrants: buckets)
+    }
+
+    private static func priorityRank(_ priority: TaskPriority) -> Int {
+        switch priority {
+        case .high: 0
+        case .medium: 1
+        case .low: 2
+        case .none: 3
+        }
     }
 }
 
 private struct MatrixQuadrantCard: View {
     @Environment(AppModel.self) private var model
     let quadrant: MatrixQuadrant
-    let tasks: [ProductivityTask]
+    let projection: MatrixQuadrantProjection
     let archivedSkillIDs: Set<String>
     let onEditTask: (ProductivityTask) -> Void
 
@@ -383,18 +423,6 @@ private struct MatrixQuadrantCard: View {
     @State private var isAdding = false
     @State private var showsCompleted = false
     @State private var showsWontDo = false
-
-    private var activeTasks: [ProductivityTask] {
-        tasks.filter { $0.status != .completed && $0.status != .canceled }
-    }
-
-    private var completedTasks: [ProductivityTask] {
-        tasks.filter { $0.status == .completed }
-    }
-
-    private var wontDoTasks: [ProductivityTask] {
-        tasks.filter { $0.status == .canceled }
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -419,7 +447,7 @@ private struct MatrixQuadrantCard: View {
                 Spacer()
 
                 HStack(spacing: 6) {
-                    Text("\(activeTasks.count)")
+                        Text("\(projection.activeTasks.count)")
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(quadrant.accentColor)
                         .padding(.horizontal, 8)
@@ -450,7 +478,7 @@ private struct MatrixQuadrantCard: View {
 
             // Flexible Content Area
             ZStack {
-                if activeTasks.isEmpty && completedTasks.isEmpty && wontDoTasks.isEmpty {
+                if projection.activeTasks.isEmpty && projection.completedTasks.isEmpty && projection.canceledTasks.isEmpty {
                     VStack(spacing: 6) {
                         Image(systemName: quadrant.iconName)
                             .font(.system(size: 20))
@@ -464,7 +492,7 @@ private struct MatrixQuadrantCard: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 8) {
-                            if activeTasks.isEmpty {
+                            if projection.activeTasks.isEmpty {
                                 VStack(spacing: 4) {
                                     Text("No active tasks")
                                         .font(.system(size: 12, weight: .medium))
@@ -473,20 +501,20 @@ private struct MatrixQuadrantCard: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
                             } else {
-                                ForEach(activeTasks) { task in
+                                ForEach(projection.activeTasks) { task in
                                     MatrixTaskRow(task: task, quadrant: quadrant, archivedSkillIDs: archivedSkillIDs, onEdit: { onEditTask(task) })
                                 }
                             }
 
                             resolvedTasks(
                                 title: "Completed",
-                                tasks: completedTasks,
+                                tasks: projection.completedTasks,
                                 isExpanded: $showsCompleted,
                                 color: iTuTheme.mint
                             )
                             resolvedTasks(
                                 title: "Won't do",
-                                tasks: wontDoTasks,
+                                tasks: projection.canceledTasks,
                                 isExpanded: $showsWontDo,
                                 color: iTuTheme.inkDim
                             )

@@ -134,25 +134,15 @@ extension AppModel {
 
     func generateReviewInsights(entryID: String) async -> String? {
         guard let entry = currentSnapshot.journalNotes.first(where: { $0.id == entryID }) else { return "Review not found." }
-        let hasPendingReviewMutation = currentSnapshot.mutations.contains { mutation in
-            mutation.entityId == entryID && (mutation.kind == "journal.create" || mutation.kind == "journal.update")
-        }
-        guard !hasPendingReviewMutation else { return "Save and wait for sync before generating insights." }
         guard syncPhase != .offline else { return "Review must be online before generating insights." }
+        if !currentSnapshot.mutations.isEmpty {
+            await synchronize()
+            guard currentSnapshot.mutations.isEmpty else { return "Save and wait for sync before generating insights." }
+        }
         do {
-            var job = try await apiClient.requestReviewInsights(entryID: entryID, expectedVersion: entry.version)
-            for _ in 0..<60 {
-                if job.status == "COMPLETED" {
-                    let stale: Bool
-                    if case let .object(fields)? = job.output { stale = fields["stale"]?.boolValue == true } else { stale = false }
-                    _ = await loadJournalNotesResult()
-                    return stale ? "Your reflections changed while these insights were generated. Regenerate to analyze the latest version." : nil
-                }
-                if job.status == "FAILED" { return job.error ?? "AI generation failed." }
-                try await Task.sleep(nanoseconds: 1_000_000_000)
-                job = try await apiClient.getAiJob(id: job.id)
-            }
-            return "AI generation is still running. Reopen the review to check again."
+            _ = try await apiClient.generateReviewInsights(entryID: entryID)
+            _ = await loadJournalNotesResult()
+            return nil
         } catch { return error.localizedDescription }
     }
 
