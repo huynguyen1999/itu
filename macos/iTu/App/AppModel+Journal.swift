@@ -139,22 +139,38 @@ extension AppModel {
 
     @MainActor
     func uploadPendingJournalAttachments() async {
-        let snapshot = await offlineStore.snapshot()
+        let runGeneration = sessionGeneration
+        let accountID = user?.id
+        let store = offlineStore
+        let snapshot = await store.snapshot()
         for (id, data) in snapshot.pendingJournalAttachments {
+            guard !Task.isCancelled,
+                  runGeneration == sessionGeneration,
+                  offlineStore === store,
+                  user?.id == accountID else { return }
             guard let metadata = snapshot.pendingJournalAttachmentMetadata[id], !metadata.entryId.isEmpty else {
                 errorMessage = "Attachment \(id) is missing its Journal entry."
                 continue
             }
             do {
                 let attachment = try await apiClient.uploadJournalAttachment(entryID: metadata.entryId, fileData: data, fileName: metadata.fileName, mimeType: metadata.mimeType, attachmentID: id)
-                let freshSnapshot = await offlineStore.snapshot()
+                guard !Task.isCancelled,
+                      runGeneration == sessionGeneration,
+                      offlineStore === store,
+                      user?.id == accountID else { return }
+                let freshSnapshot = await store.snapshot()
                 if var note = freshSnapshot.journalNotes.first(where: { $0.id == metadata.entryId }) {
                     note.attachments.removeAll { $0.id == attachment.id }
                     note.attachments.append(attachment)
-                    apply(try await offlineStore.replaceJournalNote(note))
+                    apply(try await store.replaceJournalNote(note))
                 }
-                apply(try await offlineStore.removeJournalAttachment(id: id))
+                guard !Task.isCancelled,
+                      runGeneration == sessionGeneration,
+                      offlineStore === store,
+                      user?.id == accountID else { return }
+                apply(try await store.removeJournalAttachment(id: id))
             } catch {
+                guard runGeneration == sessionGeneration, offlineStore === store, user?.id == accountID else { return }
                 errorMessage = "Attachment upload failed: \(error.localizedDescription)"
             }
         }

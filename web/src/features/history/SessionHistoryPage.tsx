@@ -23,6 +23,10 @@ export function SessionHistoryPage() {
     queryFn: () => api.sessionDetails(selectedId!),
     enabled: Boolean(selectedId),
   });
+  const detailCorrectRate = details.data?.reviewed
+    ? Math.round((details.data.correct / details.data.reviewed) * 100)
+    : 0;
+  const visibleNextSteps = details.data?.feedback?.nextSteps.filter((step) => !Number.isFinite(Number(step))) ?? [];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -97,7 +101,7 @@ export function SessionHistoryPage() {
             ) : (
               <div className="space-y-5">
                 <div className="grid gap-3 rounded-lg border bg-slate-50 p-4 sm:grid-cols-4">
-                  <Metric label="Remembered" value={`${details.data.correctRate}%`} />
+                  <Metric label="Remembered" value={`${detailCorrectRate}%`} />
                   <Metric label="Cards" value={`${details.data.reviewed}`} />
                   <Metric label="Correct" value={`${details.data.correct}`} />
                   <Metric label="Rating" value={`${details.data.rating ?? '-'}/10`} />
@@ -106,12 +110,16 @@ export function SessionHistoryPage() {
                 {details.data.feedback ? (
                   <div className="rounded-lg border bg-primary/5 p-4">
                     <p className="text-sm font-semibold text-primary">Saved AI feedback</p>
-                    <MarkdownPreview value={details.data.feedback.summary} className="prose-sm mt-2 text-slate-800" />
-                    {details.data.feedback.nextSteps.length > 0 && (
+                    {details.data.feedback.summary ? (
+                      <MarkdownPreview value={details.data.feedback.summary} className="prose-sm mt-2 text-slate-800" />
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground">No AI summary was saved for this session.</p>
+                    )}
+                    {visibleNextSteps.length > 0 && (
                       <div className="mt-4">
                         <p className="text-xs font-semibold uppercase text-slate-500">Next steps</p>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
-                          {details.data.feedback.nextSteps.map((step) => (
+                          {visibleNextSteps.map((step) => (
                             <li key={step}>{step}</li>
                           ))}
                         </ul>

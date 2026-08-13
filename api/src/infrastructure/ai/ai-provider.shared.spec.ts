@@ -1,6 +1,6 @@
 import { ReviewDirection, ReviewGrade } from '@core/domain/enums';
 import type { ReviewSessionInput } from '@core/application/ports/out/service-types.port';
-import { buildSessionSummaryPrompt, fallbackSessionFeedback } from './ai-provider.shared';
+import { buildSessionSummaryPrompt } from './ai-provider.shared';
 
 describe('AI provider shared prompts', () => {
   it('limits session summaries to 100 words and excludes user self-rating', () => {
@@ -10,13 +10,6 @@ describe('AI provider shared prompts', () => {
     expect(prompt).toContain("Do not mention or infer the learner's self-rating.");
     expect(prompt).not.toContain('Session rating');
     expect(prompt).not.toContain('8/10');
-  });
-
-  it('does not include user self-rating in fallback session feedback', () => {
-    const feedback = fallbackSessionFeedback(reviewInput());
-
-    expect(feedback.summary).not.toContain('rating');
-    expect(feedback.summary).not.toContain('8/10');
   });
 });
 

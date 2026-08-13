@@ -54,6 +54,57 @@ describe('offline-first productivity mutations', () => {
     });
   });
 
+  it('queues calendar schedule moves, resizes, and due writes through offline mutations', async () => {
+    const { client, mutations } = offlineClient();
+
+    await client.updateTask('scheduled-task', {
+      scheduledStartAt: '2026-08-12T09:00:00.000Z',
+      scheduledEndAt: '2026-08-12T10:30:00.000Z',
+      version: 4,
+    });
+    await client.updateTask('due-task', { dueAt: '2026-08-13T21:30:00.000Z', version: 5 });
+
+    expect(mutations).toEqual([
+      expect.objectContaining({
+        kind: 'task.update',
+        entityId: 'scheduled-task',
+        baseVersion: 4,
+        payload: {
+          scheduledStartAt: '2026-08-12T09:00:00.000Z',
+          scheduledEndAt: '2026-08-12T10:30:00.000Z',
+        },
+      }),
+      expect.objectContaining({
+        kind: 'task.update',
+        entityId: 'due-task',
+        baseVersion: 5,
+        payload: { dueAt: '2026-08-13T21:30:00.000Z' },
+      }),
+    ]);
+  });
+
+  it('queues calendar visibility, completion, and collapsed-group preferences offline', async () => {
+    const { client, mutations } = offlineClient();
+
+    await client.updateCalendarPreferences({
+      zoom: 'MONTH',
+      visibleKinds: ['TASK_DURATION', 'TASK_DUE'],
+      showCompleted: false,
+      collapsedGroupIds: ['project:inbox'],
+    });
+
+    expect(mutations[0]).toMatchObject({
+      kind: 'calendarpreferences.update',
+      entityId: 'calendar',
+      payload: {
+        zoom: 'MONTH',
+        visibleKinds: ['TASK_DURATION', 'TASK_DUE'],
+        showCompleted: false,
+        collapsedGroupIds: ['project:inbox'],
+      },
+    });
+  });
+
   it('queues focus actions and returns the local state immediately', async () => {
     const { client, mutations } = offlineClient();
 

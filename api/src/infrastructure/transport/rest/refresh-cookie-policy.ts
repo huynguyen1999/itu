@@ -1,3 +1,5 @@
+import { AUTH_CONSTANTS } from '@core/application/constants/app.constants';
+
 export interface RefreshCookiePolicy {
   httpOnly: true;
   secure: boolean;
@@ -14,7 +16,7 @@ export function refreshCookiePolicy(webOrigin: string | undefined, includeMaxAge
     secure,
     sameSite: secure ? 'none' : 'lax',
     path: '/',
-    ...(includeMaxAge ? { maxAge: 30 * 24 * 60 * 60 } : {}),
+    ...(includeMaxAge ? { maxAge: AUTH_CONSTANTS.refreshTokenTtlMs / 1000 } : {}),
   };
 }
 

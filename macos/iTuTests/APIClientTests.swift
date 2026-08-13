@@ -27,6 +27,109 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(session.refreshToken, "refresh-token")
     }
 
+    func testExpiredAccessTokenRefreshesAndRetriesOriginalRequest() async throws {
+        let path = "/productivity/tasks?limit=100"
+        prepareCachedSession()
+        StubURLProtocol.requests = []
+        StubURLProtocol.scriptedResponses = [
+            path: [
+                (401, Data("{\"code\":\"INVALID_CREDENTIALS\",\"message\":\"expired\"}".utf8)),
+                (200, emptyTasksPageData())
+            ],
+            "/auth/refresh": [(200, authSessionData(accessToken: "new-access", refreshToken: "new-refresh"))]
+        ]
+        defer { resetAuthTestState() }
+
+        _ = try await makeTestClient().fetchTasks()
+
+        XCTAssertEqual(StubURLProtocol.requests.map(\.path), [path, "/auth/refresh", path])
+        XCTAssertEqual(SessionCache.loadTokens().accessToken, "new-access")
+        XCTAssertEqual(SessionCache.loadTokens().refreshToken, "new-refresh")
+    }
+
+    func testParallelExpiredRequestsShareOneRefresh() async throws {
+        let path = "/productivity/tasks?limit=100"
+        prepareCachedSession()
+        StubURLProtocol.requests = []
+        StubURLProtocol.scriptedResponses = [
+            path: Array(repeating: (401, Data("{\"code\":\"INVALID_CREDENTIALS\"}".utf8)), count: 10)
+                + Array(repeating: (200, emptyTasksPageData()), count: 10),
+            "/auth/refresh": [(200, authSessionData(accessToken: "new-access", refreshToken: "new-refresh"))]
+        ]
+        defer { resetAuthTestState() }
+
+        let client = makeTestClient()
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<10 {
+                group.addTask { _ = try? await client.fetchTasks() }
+            }
+        }
+
+        XCTAssertEqual(StubURLProtocol.requests.filter { $0.path == "/auth/refresh" }.count, 1)
+        XCTAssertEqual(StubURLProtocol.requests.filter { $0.path == path }.count, 20)
+    }
+
+    func testOfflineRestoreKeepsCachedUser() async throws {
+        prepareCachedSession()
+        StubURLProtocol.errors = ["/auth/refresh": URLError(.notConnectedToInternet)]
+        defer { resetAuthTestState() }
+
+        let session = try await makeTestClient().restoreSession()
+
+        XCTAssertEqual(session.user.id, "user-1")
+        XCTAssertEqual(SessionCache.loadUser()?.id, "user-1")
+    }
+
+    func testServerFailureDuringRestoreKeepsCachedUser() async throws {
+        prepareCachedSession()
+        StubURLProtocol.scriptedResponses = [
+            "/auth/refresh": [(500, Data("{\"code\":\"SERVICE_UNAVAILABLE\"}".utf8))]
+        ]
+        defer { resetAuthTestState() }
+
+        let session = try await makeTestClient().restoreSession()
+
+        XCTAssertEqual(session.user.id, "user-1")
+        XCTAssertEqual(SessionCache.loadUser()?.id, "user-1")
+    }
+
+    func testTerminalRefreshFailureClearsCachedAuthentication() async throws {
+        prepareCachedSession()
+        StubURLProtocol.scriptedResponses = [
+            "/auth/refresh": [(401, Data("{\"code\":\"REFRESH_TOKEN_REVOKED\",\"message\":\"revoked\"}".utf8))]
+        ]
+        defer { resetAuthTestState() }
+
+        do {
+            _ = try await makeTestClient().restoreSession()
+            XCTFail("Expected terminal authentication failure")
+        } catch let error as APIError {
+            XCTAssertTrue(error.isTerminalAuthFailure)
+        }
+
+        XCTAssertNil(SessionCache.loadUser())
+        XCTAssertNil(SessionCache.loadTokens().refreshToken)
+    }
+
+    func testLostRefreshResponseCanRecoverOnTheNextAttempt() async throws {
+        prepareCachedSession()
+        StubURLProtocol.errors = ["/auth/refresh": URLError(.networkConnectionLost)]
+        defer { resetAuthTestState() }
+        let client = makeTestClient()
+
+        let offline = try await client.restoreSession()
+        XCTAssertEqual(offline.user.id, "user-1")
+
+        StubURLProtocol.errors = [:]
+        StubURLProtocol.scriptedResponses = [
+            "/auth/refresh": [(200, authSessionData(accessToken: "recovered-access", refreshToken: "recovered-refresh"))]
+        ]
+        let recovered = try await client.restoreSession()
+
+        XCTAssertEqual(recovered.user.id, "user-1")
+        XCTAssertEqual(SessionCache.loadTokens().refreshToken, "recovered-refresh")
+    }
+
     func testFetchTasksReadsAllCursorPages() async throws {
         let firstTask = ProductivityTask.optimistic(
             id: "01JTESTTASK000000000000001",
@@ -331,10 +434,69 @@ final class APIClientTests: XCTestCase {
             ],
         ])
     }
+
+    private func makeTestClient() -> APIClient {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        return APIClient(session: URLSession(configuration: configuration))
+    }
+
+    private func prepareCachedSession() {
+        SessionCache.clearUser()
+        SessionCache.saveUser(testUser)
+        SessionCache.saveTokens(accessToken: "expired-access", refreshToken: "old-refresh")
+    }
+
+    private func resetAuthTestState() {
+        SessionCache.clearUser()
+        StubURLProtocol.responses = [:]
+        StubURLProtocol.scriptedResponses = [:]
+        StubURLProtocol.errors = [:]
+        StubURLProtocol.requests = []
+    }
+
+    private var testUser: UserProfile {
+        UserProfile(
+            id: "user-1",
+            email: "user@example.com",
+            username: nil,
+            displayName: "Test User",
+            avatarUrl: nil,
+            roles: [],
+            permissions: []
+        )
+    }
+
+    private func authSessionData(accessToken: String, refreshToken: String) -> Data {
+        Data(
+            """
+            {
+              "user": {
+                "id": "user-1",
+                "email": "user@example.com",
+                "username": null,
+                "displayName": "Test User",
+                "avatarUrl": null,
+                "roles": [],
+                "permissions": []
+              },
+              "accessToken": "\(accessToken)",
+              "refreshToken": "\(refreshToken)"
+            }
+            """.utf8
+        )
+    }
+
+    private func emptyTasksPageData() -> Data {
+        Data("{\"data\":[],\"meta\":{\"hasNextPage\":false,\"nextCursor\":null}}".utf8)
+    }
 }
 
 private final class StubURLProtocol: URLProtocol {
+    nonisolated(unsafe) private static let stateLock = NSLock()
     nonisolated(unsafe) static var responses: [String: Data] = [:]
+    nonisolated(unsafe) static var scriptedResponses: [String: [(statusCode: Int, data: Data)]] = [:]
+    nonisolated(unsafe) static var errors: [String: URLError] = [:]
     nonisolated(unsafe) static var requests: [(path: String, method: String)] = []
     nonisolated(unsafe) static var requestBodies: [Data] = []
 
@@ -349,9 +511,9 @@ private final class StubURLProtocol: URLProtocol {
     override func startLoading() {
         let encodedPath = request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.percentEncodedPath } ?? request.url?.path ?? ""
         let key = encodedPath + (request.url?.query.map { "?\($0)" } ?? "")
-        Self.requests.append((key, request.httpMethod ?? "GET"))
+        var requestBody: Data?
         if let body = request.httpBody {
-            Self.requestBodies.append(body)
+            requestBody = body
         } else if let stream = request.httpBodyStream {
             stream.open()
             defer { stream.close() }
@@ -363,29 +525,39 @@ private final class StubURLProtocol: URLProtocol {
                 if count <= 0 { break }
                 body.append(buffer, count: count)
             }
-            Self.requestBodies.append(body)
+            requestBody = body
+        } else {
+            requestBody = nil
         }
-        guard let data = Self.responses[key] else {
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 404,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: Data("{}".utf8))
-            client?.urlProtocolDidFinishLoading(self)
+
+        Self.stateLock.lock()
+        Self.requests.append((key, request.httpMethod ?? "GET"))
+        if let requestBody { Self.requestBodies.append(requestBody) }
+        if let error = Self.errors[key] {
+            Self.stateLock.unlock()
+            client?.urlProtocol(self, didFailWithError: error)
             return
         }
 
+        let result: (statusCode: Int, data: Data)
+        if var queued = Self.scriptedResponses[key], !queued.isEmpty {
+            result = queued.removeFirst()
+            Self.scriptedResponses[key] = queued
+        } else if let data = Self.responses[key] {
+            result = (200, data)
+        } else {
+            result = (404, Data("{}".utf8))
+        }
+        Self.stateLock.unlock()
+
         let response = HTTPURLResponse(
             url: request.url!,
-            statusCode: 200,
+            statusCode: result.statusCode,
             httpVersion: nil,
             headerFields: ["Content-Type": "application/json"]
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocol(self, didLoad: result.data)
         client?.urlProtocolDidFinishLoading(self)
     }
 

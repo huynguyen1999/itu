@@ -1,4 +1,5 @@
 import { AuthService } from './auth.service';
+import { AUTH_ERROR_CODES } from '@core/application/constants/app.constants';
 import type {
   IOAuthHandoffRepository,
   IRefreshSessionRepository,
@@ -57,8 +58,9 @@ describe('AuthService', () => {
 
     refreshSessionsMock = {
       create: jest.fn().mockResolvedValue(undefined),
-      findActiveByHash: jest.fn(),
-      rotate: jest.fn().mockResolvedValue(undefined),
+      findByHash: jest.fn(),
+      rotate: jest.fn().mockResolvedValue(true),
+      recoverRotation: jest.fn().mockResolvedValue(true),
       revokeById: jest.fn().mockResolvedValue(undefined),
       revokeUserSessions: jest.fn().mockResolvedValue(undefined),
     };
@@ -224,6 +226,183 @@ describe('AuthService', () => {
           tokenHash: expect.any(String),
           expiresAt: expect.any(Date),
         }),
+      );
+    });
+  });
+
+  describe('refresh', () => {
+    const user: UserModel = {
+      id: 'user-1',
+      email: 'user@example.com',
+      createdAt: new Date(),
+    };
+
+    beforeEach(() => {
+      usersMock.findById.mockResolvedValue(user);
+      tokensMock.verifyRefreshToken.mockResolvedValue({ sub: user.id, email: user.email!, jti: 'session-1' });
+      tokensMock.signAccessToken.mockResolvedValue('next-access-token');
+      tokensMock.signRefreshToken.mockResolvedValue('next-refresh-token');
+      refreshSessionsMock.findByHash.mockResolvedValue({
+        id: 'session-1',
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 60_000),
+        revokedAt: null,
+        rotationGraceUntil: null,
+        rotationRecoveryUsedAt: null,
+      });
+    });
+
+    it('rotates the session and gives it a 180-day sliding expiration', async () => {
+      const before = Date.now();
+
+      await service.refresh('refresh-token');
+
+      const [, next] = refreshSessionsMock.rotate.mock.calls[0];
+      expect(next.expiresAt.getTime()).toBeGreaterThanOrEqual(before + 180 * 24 * 60 * 60 * 1000);
+      expect(next.expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + 180 * 24 * 60 * 60 * 1000);
+    });
+
+    it('returns a stable expired-token error', async () => {
+      tokensMock.verifyRefreshToken.mockRejectedValue(
+        Object.assign(new Error('expired'), { name: 'TokenExpiredError' }),
+      );
+
+      await expect(service.refresh('expired-token')).rejects.toMatchObject({
+        code: AUTH_ERROR_CODES.refreshTokenExpired,
+        status: 401,
+      });
+    });
+
+    it('recovers one replay of a just-rotated token without plaintext persistence', async () => {
+      refreshSessionsMock.findByHash.mockResolvedValue({
+        id: 'session-1',
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 60_000),
+        revokedAt: new Date(),
+        rotationGraceUntil: new Date(Date.now() + 60_000),
+        rotationRecoveryUsedAt: null,
+      });
+
+      await service.refresh('old-refresh-token');
+
+      expect(refreshSessionsMock.recoverRotation).toHaveBeenCalledWith(
+        'session-1',
+        expect.objectContaining({
+          tokenHash: expect.any(String),
+        }),
+      );
+      expect(refreshSessionsMock.rotate).not.toHaveBeenCalled();
+    });
+
+    it('rejects a rotated token after the grace period', async () => {
+      refreshSessionsMock.findByHash.mockResolvedValue({
+        id: 'session-1',
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 60_000),
+        revokedAt: new Date(),
+        rotationGraceUntil: new Date(Date.now() - 1),
+        rotationRecoveryUsedAt: null,
+      });
+
+      await expect(service.refresh('old-refresh-token')).rejects.toMatchObject({
+        code: AUTH_ERROR_CODES.refreshTokenRevoked,
+        status: 401,
+      });
+      expect(refreshSessionsMock.recoverRotation).not.toHaveBeenCalled();
+    });
+
+    it('rejects a replay that loses the single recovery claim', async () => {
+      refreshSessionsMock.findByHash.mockResolvedValue({
+        id: 'session-1',
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 60_000),
+        revokedAt: new Date(),
+        rotationGraceUntil: new Date(Date.now() + 60_000),
+        rotationRecoveryUsedAt: null,
+      });
+      refreshSessionsMock.recoverRotation.mockResolvedValue(false);
+
+      await expect(service.refresh('old-refresh-token')).rejects.toMatchObject({
+        code: AUTH_ERROR_CODES.refreshTokenRevoked,
+        status: 401,
+      });
+    });
+
+    it('rejects an invalid refresh token with a stable error', async () => {
+      refreshSessionsMock.findByHash.mockResolvedValue(null);
+
+      await expect(service.refresh('invalid-token')).rejects.toMatchObject({
+        code: AUTH_ERROR_CODES.refreshTokenInvalid,
+        status: 401,
+      });
+    });
+  });
+
+  describe('session invalidation', () => {
+    it('revokes every refresh session after a password change', async () => {
+      usersMock.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        passwordHash: 'old-hash',
+        createdAt: new Date(),
+      });
+      hasherMock.compare.mockResolvedValue(true);
+      hasherMock.hash.mockResolvedValue('new-hash');
+
+      await service.changePassword('user-1', { currentPassword: 'old', newPassword: 'new-password' });
+
+      expect(usersMock.updatePassword).toHaveBeenCalledWith('user-1', 'new-hash');
+      expect(refreshSessionsMock.revokeUserSessions).toHaveBeenCalledWith('user-1');
+    });
+
+    it('revokes only the refresh session presented to logout', async () => {
+      tokensMock.verifyRefreshToken.mockResolvedValue({ sub: 'user-1', email: 'user@example.com', jti: 'session-1' });
+
+      await service.logout('refresh-token');
+
+      expect(refreshSessionsMock.revokeById).toHaveBeenCalledWith('session-1');
+      expect(refreshSessionsMock.revokeUserSessions).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('OAuth handoff', () => {
+    it('does not persist issued tokens in the handoff payload', async () => {
+      tokensMock.verifyRefreshToken.mockResolvedValue({ sub: 'user-1', email: 'user@example.com', jti: 'session-1' });
+
+      await service.createOAuthHandoff({
+        user: {
+          id: 'user-1',
+          email: 'user@example.com',
+          username: null,
+          displayName: 'User',
+          roles: [],
+          permissions: [],
+        },
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+      });
+
+      expect(oauthHandoffsMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: { type: 'success', userId: 'user-1', refreshSessionId: 'session-1' },
+        }),
+      );
+      expect(JSON.stringify(oauthHandoffsMock.create.mock.calls[0][0].payload)).not.toContain('refresh-token');
+    });
+
+    it('revokes the provisional session and issues a fresh pair on exchange', async () => {
+      oauthHandoffsMock.consume.mockResolvedValue({
+        payload: { type: 'success', userId: 'user-1', refreshSessionId: 'session-1' },
+      });
+      usersMock.findById.mockResolvedValue({ id: 'user-1', email: 'user@example.com', createdAt: new Date() });
+      tokensMock.signAccessToken.mockResolvedValue('new-access-token');
+      tokensMock.signRefreshToken.mockResolvedValue('new-refresh-token');
+
+      const result = await service.exchangeOAuthHandoff('handoff-code');
+
+      expect(refreshSessionsMock.revokeById).toHaveBeenCalledWith('session-1');
+      expect(result).toEqual(
+        expect.objectContaining({ accessToken: 'new-access-token', refreshToken: 'new-refresh-token' }),
       );
     });
   });

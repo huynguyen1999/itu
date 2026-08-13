@@ -22,6 +22,7 @@ import {
   CreateAiFeedbackData,
   CreateOAuthHandoffData,
   CreateRefreshSessionData,
+  RefreshSessionRecord,
   CreateScheduledJobData,
   CreateCardData,
   CreateDeckData,
@@ -63,8 +64,9 @@ export interface IUserRepository {
 
 export interface IRefreshSessionRepository {
   create(data: CreateRefreshSessionData): Promise<void>;
-  findActiveByHash(tokenHash: string, now?: Date): Promise<{ id: string; userId: string } | null>;
-  rotate(sessionId: string, next: CreateRefreshSessionData): Promise<void>;
+  findByHash(tokenHash: string): Promise<RefreshSessionRecord | null>;
+  rotate(sessionId: string, next: CreateRefreshSessionData): Promise<boolean>;
+  recoverRotation(sessionId: string, next: CreateRefreshSessionData): Promise<boolean>;
   revokeById(sessionId: string): Promise<void>;
   revokeUserSessions(userId: string): Promise<void>;
 }

@@ -80,6 +80,7 @@ final class AccountHydrator: @unchecked Sendable {
         resource.journalNotes = await journalNotes
         resource.journalTags = await journalTags
         resource.journalTemplates = await journalTemplates
+        try Task.checkCancellation()
         let snapshot = try await offlineStore.applyHydration(resource)
         return AccountHydrationResult(
             snapshot: snapshot,

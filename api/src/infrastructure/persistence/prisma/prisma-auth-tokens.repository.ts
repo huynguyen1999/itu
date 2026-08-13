@@ -4,53 +4,87 @@ import {
   IRateLimitRepository,
   IRefreshSessionRepository,
 } from '@core/application/ports/out/repositories.port';
+import type { CreateRefreshSessionData, RefreshSessionRecord } from '@core/application/ports/out/repository-types.port';
+import type { OAuthHandoffPayload } from '@core/application/ports/out/repository-types.port';
 import { PrismaService } from './prisma.service';
+
+const ROTATION_GRACE_MS = 60_000;
 
 @Injectable()
 export class PrismaRefreshSessionRepository implements IRefreshSessionRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: { id: string; userId: string; tokenHash: string; expiresAt: Date }): Promise<void> {
+  async create(data: CreateRefreshSessionData): Promise<void> {
     await this.prisma.refreshSession.create({ data });
   }
 
-  async findActiveByHash(tokenHash: string, now = new Date()): Promise<{ id: string; userId: string } | null> {
-    const session = await this.prisma.refreshSession.findFirst({
-      where: {
-        tokenHash,
-        revokedAt: null,
-        expiresAt: { gt: now },
-        user: { deletedAt: null, deletionRequestedAt: null },
+  async findByHash(tokenHash: string): Promise<RefreshSessionRecord | null> {
+    return this.prisma.refreshSession.findUnique({
+      where: { tokenHash },
+      select: {
+        id: true,
+        userId: true,
+        expiresAt: true,
+        revokedAt: true,
+        rotationGraceUntil: true,
+        rotationRecoveryUsedAt: true,
       },
-      select: { id: true, userId: true },
     });
-    return session;
   }
 
-  async rotate(
-    sessionId: string,
-    next: { id: string; userId: string; tokenHash: string; expiresAt: Date },
-  ): Promise<void> {
-    await this.prisma.$transaction([
-      this.prisma.refreshSession.update({
-        where: { id: sessionId },
-        data: { revokedAt: new Date() },
-      }),
-      this.prisma.refreshSession.create({ data: next }),
-    ]);
+  async rotate(sessionId: string, next: CreateRefreshSessionData): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const result = await tx.refreshSession.updateMany({
+        where: { id: sessionId, revokedAt: null },
+        data: {
+          revokedAt: now,
+          rotationGraceUntil: new Date(now.getTime() + ROTATION_GRACE_MS),
+        },
+      });
+      if (result.count !== 1) return false;
+      await tx.refreshSession.create({ data: next });
+      return true;
+    });
+  }
+
+  async recoverRotation(sessionId: string, next: CreateRefreshSessionData): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const result = await tx.refreshSession.updateMany({
+        where: {
+          id: sessionId,
+          revokedAt: { not: null },
+          rotationGraceUntil: { gt: now },
+          rotationRecoveryUsedAt: null,
+        },
+        data: { rotationRecoveryUsedAt: now },
+      });
+      if (result.count !== 1) return false;
+      await tx.refreshSession.create({ data: next });
+      return true;
+    });
   }
 
   async revokeById(sessionId: string): Promise<void> {
     await this.prisma.refreshSession.updateMany({
-      where: { id: sessionId, revokedAt: null },
-      data: { revokedAt: new Date() },
+      where: { id: sessionId },
+      data: {
+        revokedAt: new Date(),
+        rotationGraceUntil: null,
+        rotationRecoveryUsedAt: new Date(),
+      },
     });
   }
 
   async revokeUserSessions(userId: string): Promise<void> {
     await this.prisma.refreshSession.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
+      where: { userId },
+      data: {
+        revokedAt: new Date(),
+        rotationGraceUntil: null,
+        rotationRecoveryUsedAt: new Date(),
+      },
     });
   }
 }
@@ -81,12 +115,7 @@ export class PrismaOAuthHandoffRepository implements IOAuthHandoffRepository {
     });
 
     return {
-      payload: handoff.payload as {
-        type: 'success' | 'register';
-        accessToken?: string;
-        refreshToken?: string;
-        registerToken?: string;
-      },
+      payload: handoff.payload as unknown as OAuthHandoffPayload,
     };
   }
 }

@@ -110,10 +110,19 @@ export interface CreateRefreshSessionData {
   expiresAt: Date;
 }
 
+export interface RefreshSessionRecord {
+  id: string;
+  userId: string;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  rotationGraceUntil: Date | null;
+  rotationRecoveryUsedAt: Date | null;
+}
+
 export interface OAuthHandoffPayload {
   type: 'success' | 'register';
-  accessToken?: string;
-  refreshToken?: string;
+  userId?: string;
+  refreshSessionId?: string;
   registerToken?: string;
 }
 

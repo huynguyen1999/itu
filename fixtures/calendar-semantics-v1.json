@@ -1,0 +1,301 @@
+{
+  "version": 1,
+  "timeZone": "UTC",
+  "dstTimeZone": "America/New_York",
+  "zoomRanges": {
+    "DAY": {
+      "anchor": "2026-08-12T12:00:00.000Z",
+      "from": "2026-08-12T00:00:00.000Z",
+      "to": "2026-08-13T00:00:00.000Z"
+    },
+    "WEEK": {
+      "anchor": "2026-08-12T12:00:00.000Z",
+      "from": "2026-08-10T00:00:00.000Z",
+      "to": "2026-08-17T00:00:00.000Z"
+    },
+    "MONTH": {
+      "anchor": "2026-08-12T12:00:00.000Z",
+      "from": "2026-08-01T00:00:00.000Z",
+      "to": "2026-09-01T00:00:00.000Z"
+    }
+  },
+  "preferences": {
+    "zoom": "WEEK",
+    "visibleKinds": ["TASK_DURATION", "TASK_DUE", "FOCUS_SESSION", "EXTERNAL_EVENT"],
+    "showCompleted": false,
+    "collapsedGroupIds": ["project:inbox", "calendar:calendar-hidden"]
+  },
+  "timelineRange": {
+    "from": "2026-08-12T00:00:00.000Z",
+    "to": "2026-08-13T00:00:00.000Z"
+  },
+  "tasks": [
+    {
+      "id": "task-due",
+      "title": "Due-only task",
+      "scheduledStartAt": null,
+      "scheduledEndAt": null,
+      "dueAt": "2026-08-12T09:00:00.000Z",
+      "taskListId": "project-inbox",
+      "taskList": { "title": "Inbox", "color": "TEAL" },
+      "priority": "LOW",
+      "status": "PLANNED",
+      "expected": {
+        "kind": "TASK_DUE",
+        "startAt": "2026-08-12T09:00:00.000Z",
+        "endAt": null,
+        "dueAt": "2026-08-12T09:00:00.000Z",
+        "allDay": true,
+        "readOnly": false,
+        "sourceId": null,
+        "sourceName": "Inbox",
+        "color": "TEAL",
+        "status": "PLANNED",
+        "priority": "LOW"
+      }
+    },
+    {
+      "id": "task-scheduled",
+      "title": "Scheduled task",
+      "scheduledStartAt": "2026-08-12T10:00:00.000Z",
+      "scheduledEndAt": "2026-08-12T11:00:00.000Z",
+      "dueAt": null,
+      "taskListId": "project-inbox",
+      "taskList": { "title": "Inbox", "color": "TEAL" },
+      "priority": "HIGH",
+      "status": "PLANNED",
+      "expected": {
+        "kind": "TASK_DURATION",
+        "startAt": "2026-08-12T10:00:00.000Z",
+        "endAt": "2026-08-12T11:00:00.000Z",
+        "dueAt": null,
+        "allDay": false,
+        "readOnly": false,
+        "sourceId": null,
+        "sourceName": "Inbox",
+        "color": "TEAL",
+        "status": "PLANNED",
+        "priority": "HIGH"
+      }
+    },
+    {
+      "id": "task-separate-due",
+      "title": "Scheduled task with separate Due Date",
+      "scheduledStartAt": "2026-08-12T13:00:00.000Z",
+      "scheduledEndAt": "2026-08-12T14:00:00.000Z",
+      "dueAt": "2026-08-12T16:00:00.000Z",
+      "taskListId": "project-deep-work",
+      "taskList": { "title": "Deep Work", "color": "BLUE" },
+      "priority": "MEDIUM",
+      "status": "IN_PROGRESS",
+      "expected": {
+        "kind": "TASK_DURATION",
+        "startAt": "2026-08-12T13:00:00.000Z",
+        "endAt": "2026-08-12T14:00:00.000Z",
+        "dueAt": "2026-08-12T16:00:00.000Z",
+        "allDay": false,
+        "readOnly": false,
+        "sourceId": "project-deep-work",
+        "sourceName": "Deep Work",
+        "color": "BLUE",
+        "status": "IN_PROGRESS",
+        "priority": "MEDIUM"
+      }
+    },
+    {
+      "id": "task-completed",
+      "title": "Completed task",
+      "scheduledStartAt": "2026-08-12T15:00:00.000Z",
+      "scheduledEndAt": "2026-08-12T15:30:00.000Z",
+      "dueAt": "2026-08-12T15:45:00.000Z",
+      "taskListId": "project-inbox",
+      "taskList": { "title": "Inbox", "color": "TEAL" },
+      "priority": "NONE",
+      "status": "COMPLETED",
+      "expected": {
+        "kind": "TASK_DURATION",
+        "startAt": "2026-08-12T15:00:00.000Z",
+        "endAt": "2026-08-12T15:30:00.000Z",
+        "dueAt": "2026-08-12T15:45:00.000Z",
+        "allDay": false,
+        "readOnly": false,
+        "sourceId": null,
+        "sourceName": "Inbox",
+        "color": "TEAL",
+        "status": "COMPLETED",
+        "priority": "NONE"
+      }
+    }
+  ],
+  "focusSessions": [
+    {
+      "id": "focus-session",
+      "customTitle": "Deep focus",
+      "taskTitleSnapshot": null,
+      "adjustedStartedAt": null,
+      "startedAt": "2026-08-12T08:00:00.000Z",
+      "adjustedCompletedAt": null,
+      "completedAt": "2026-08-12T08:30:00.000Z",
+      "taskId": "task-scheduled",
+      "status": "COMPLETED",
+      "expected": {
+        "kind": "FOCUS_SESSION",
+        "startAt": "2026-08-12T08:00:00.000Z",
+        "endAt": "2026-08-12T08:30:00.000Z",
+        "allDay": false,
+        "readOnly": true,
+        "sourceId": "focus-session",
+        "sourceName": "Focus",
+        "color": "VIOLET",
+        "status": "COMPLETED"
+      }
+    },
+    {
+      "id": "focus-abandoned",
+      "customTitle": "Abandoned focus",
+      "taskTitleSnapshot": null,
+      "adjustedStartedAt": null,
+      "startedAt": "2026-08-12T07:00:00.000Z",
+      "adjustedCompletedAt": null,
+      "completedAt": "2026-08-12T07:10:00.000Z",
+      "taskId": null,
+      "status": "ABANDONED",
+      "expected": null
+    }
+  ],
+  "externalEvents": [
+    {
+      "id": "event-all-day",
+      "calendarId": "calendar-visible",
+      "title": "Company holiday",
+      "startAt": "2026-08-12T00:00:00.000Z",
+      "endAt": null,
+      "allDay": true,
+      "status": "CONFIRMED",
+      "recurrenceId": null,
+      "visible": true,
+      "calendar": { "name": "Work", "color": "CORAL" },
+      "expected": {
+        "kind": "EXTERNAL_EVENT",
+        "startAt": "2026-08-12T00:00:00.000Z",
+        "endAt": null,
+        "allDay": true,
+        "readOnly": true,
+        "sourceId": "calendar-visible",
+        "sourceName": "Work",
+        "color": "CORAL",
+        "status": "CONFIRMED"
+      }
+    },
+    {
+      "id": "event-timed",
+      "calendarId": "calendar-visible",
+      "title": "External timed event",
+      "startAt": "2026-08-12T17:00:00.000Z",
+      "endAt": "2026-08-12T18:00:00.000Z",
+      "allDay": false,
+      "status": "CONFIRMED",
+      "recurrenceId": null,
+      "visible": true,
+      "calendar": { "name": "Work", "color": "CORAL" },
+      "expected": {
+        "kind": "EXTERNAL_EVENT",
+        "startAt": "2026-08-12T17:00:00.000Z",
+        "endAt": "2026-08-12T18:00:00.000Z",
+        "allDay": false,
+        "readOnly": true,
+        "sourceId": "calendar-visible",
+        "sourceName": "Work",
+        "color": "CORAL",
+        "status": "CONFIRMED"
+      }
+    },
+    {
+      "id": "event-recurring",
+      "calendarId": "calendar-visible",
+      "title": "Recurring instance",
+      "startAt": "2026-08-12T19:00:00.000Z",
+      "endAt": "2026-08-12T20:00:00.000Z",
+      "allDay": false,
+      "status": "CONFIRMED",
+      "recurrenceId": "20260812T190000Z",
+      "visible": true,
+      "calendar": { "name": "Work", "color": "CORAL" },
+      "expected": {
+        "kind": "EXTERNAL_EVENT",
+        "startAt": "2026-08-12T19:00:00.000Z",
+        "endAt": "2026-08-12T20:00:00.000Z",
+        "allDay": false,
+        "readOnly": true,
+        "sourceId": "calendar-visible",
+        "sourceName": "Work",
+        "color": "CORAL",
+        "status": "CONFIRMED"
+      }
+    },
+    {
+      "id": "event-hidden",
+      "calendarId": "calendar-hidden",
+      "title": "Hidden source event",
+      "startAt": "2026-08-12T20:00:00.000Z",
+      "endAt": "2026-08-12T21:00:00.000Z",
+      "allDay": false,
+      "status": "CONFIRMED",
+      "recurrenceId": null,
+      "visible": false,
+      "calendar": { "name": "Hidden", "color": "BLUE" },
+      "expected": null
+    }
+  ],
+  "rangeCases": [
+    {
+      "id": "range-start-inclusive",
+      "startAt": "2026-08-12T00:00:00.000Z",
+      "endAt": "2026-08-12T01:00:00.000Z",
+      "included": true
+    },
+    {
+      "id": "range-end-exclusive",
+      "startAt": "2026-08-13T00:00:00.000Z",
+      "endAt": "2026-08-13T01:00:00.000Z",
+      "included": false
+    },
+    {
+      "id": "range-overlap-end",
+      "startAt": "2026-08-12T23:00:00.000Z",
+      "endAt": "2026-08-13T00:00:00.000Z",
+      "included": true
+    },
+    {
+      "id": "range-before-start",
+      "startAt": "2026-08-11T23:00:00.000Z",
+      "endAt": "2026-08-12T00:00:00.000Z",
+      "included": false
+    }
+  ],
+  "reminders": [
+    {
+      "id": "relative-to-due",
+      "task": { "dueAt": "2026-08-15T14:00:00.000Z" },
+      "input": { "relativeTo": "DUE_AT", "offsetMinutes": -15 },
+      "expectedRemindAt": "2026-08-15T13:45:00.000Z"
+    },
+    {
+      "id": "relative-to-scheduled-start",
+      "task": { "scheduledStartAt": "2026-08-15T16:00:00.000Z" },
+      "input": { "relativeTo": "SCHEDULE_START_AT", "offsetMinutes": -30 },
+      "expectedRemindAt": "2026-08-15T15:30:00.000Z"
+    },
+    {
+      "id": "dst-calendar-day",
+      "task": { "dueAt": "2026-03-08T15:00:00.000Z" },
+      "input": {
+        "relativeTo": "DUE_AT",
+        "calendarDayOffset": -1,
+        "timeOfDayMinutes": 540,
+        "timeZone": "America/New_York"
+      },
+      "expectedRemindAt": "2026-03-07T14:00:00.000Z"
+    }
+  ]
+}

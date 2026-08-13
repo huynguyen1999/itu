@@ -1,12 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
-  IGymRepositoryPort,
   GYM_REPOSITORY_PORT,
   CreateExerciseDto,
   UpdateExerciseDto,
   CreateWorkoutDto,
   UpdateWorkoutDto,
 } from '../ports/out/gym-repository.port';
+import type { IGymRepositoryPort } from '../ports/out/gym-repository.port';
 import {
   ExerciseDomain,
   WorkoutDomain,
@@ -19,7 +19,7 @@ import {
 export class GymService {
   constructor(
     @Inject(GYM_REPOSITORY_PORT)
-    private readonly gymRepo: any,
+    private readonly gymRepo: IGymRepositoryPort,
   ) {}
 
   async getExercises(userId: string): Promise<ExerciseDomain[]> {

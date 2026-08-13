@@ -1,7 +1,6 @@
 export const CONFIG_KEYS = {
-  aiProvider: 'AI_PROVIDER',
   apiOrigin: 'API_ORIGIN',
-  geminiApiKey: 'GEMINI_API_KEY',
+  aiCredentialEncryptionKey: 'AI_CREDENTIAL_ENCRYPTION_KEY',
   geminiModel: 'GEMINI_MODEL',
   geminiVisionModel: 'GEMINI_VISION_MODEL',
   googleCallbackUrl: 'GOOGLE_CALLBACK_URL',
@@ -18,12 +17,6 @@ export const CONFIG_KEYS = {
   mediaRoot: 'MEDIA_ROOT',
   port: 'PORT',
   publicRoot: 'PUBLIC_ROOT',
-  openRouterApiKey: 'OPENROUTER_API_KEY',
-  openRouterAppTitle: 'OPENROUTER_APP_TITLE',
-  openRouterBaseUrl: 'OPENROUTER_BASE_URL',
-  openRouterHttpReferer: 'OPENROUTER_HTTP_REFERER',
-  openRouterModel: 'OPENROUTER_MODEL',
-  openRouterVisionModel: 'OPENROUTER_VISION_MODEL',
   rabbitMqAiQueue: 'RABBITMQ_AI_QUEUE',
   rabbitMqExchange: 'RABBITMQ_EXCHANGE',
   rabbitMqScheduledQueue: 'RABBITMQ_SCHEDULED_QUEUE',
@@ -65,7 +58,16 @@ export const AUTH_CONSTANTS = {
   dsnPrefix: 'DSN ',
   googleProvider: 'GOOGLE',
   accessTokenTtl: '15m',
-  refreshTokenTtl: '30d',
+  refreshTokenTtl: '180d',
+  refreshTokenTtlMs: 180 * 24 * 60 * 60 * 1000,
+} as const;
+
+export const AUTH_ERROR_CODES = {
+  refreshTokenExpired: 'REFRESH_TOKEN_EXPIRED',
+  refreshTokenRevoked: 'REFRESH_TOKEN_REVOKED',
+  refreshTokenInvalid: 'REFRESH_TOKEN_INVALID',
+  accountDisabled: 'ACCOUNT_DISABLED',
+  accountDeleted: 'ACCOUNT_DELETED',
 } as const;
 
 export const AUTH_ERRORS = {
@@ -270,21 +272,9 @@ export const AI_IMAGE_LIMITS = {
 } as const;
 
 export const AI_CONSTANTS = {
-  defaultProvider: 'openrouter',
   defaultGeminiModel: 'gemini-3.5-flash',
   responseMimeType: CONTENT_TYPES.json,
-  suggestedTag: 'ai-suggested',
-  fallbackWeakArea: 'Review missed cards once more',
-  fallbackNextStep: 'Add one clarifying card for any weak concept',
-  fallbackConfidence: 0.5,
   maxWeakAreas: 3,
-} as const;
-
-export const OPENROUTER_CONSTANTS = {
-  chatCompletionsPath: '/chat/completions',
-  defaultBaseUrl: 'https://openrouter.ai/api/v1',
-  defaultModel: 'openrouter/free',
-  defaultVisionModel: 'openrouter/free',
 } as const;
 
 export const AI_ERRORS = {

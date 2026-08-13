@@ -1,42 +1,43 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { JournalEntryKind } from '@core/domain/enums';
 import {
-  JournalAttachmentModel,
-  JournalEntryModel,
-  JournalEntryRevisionModel,
-  JournalTagModel,
-  JournalTemplateModel,
+  type JournalAttachmentModel,
+  type JournalEntryModel,
+  type JournalEntryRevisionModel,
+  type JournalTagModel,
+  type JournalTemplateModel,
 } from '@core/domain/journal/journal.types';
 import {
-  CreateJournalEntryData,
-  CreateJournalTemplateData,
-  IJournalAttachmentRepository,
-  IJournalRepository,
-  IJournalTagRepository,
-  IJournalTemplateRepository,
-  JournalSearchFilter,
-  UpdateJournalEntryData,
-  UpdateJournalTemplateData,
+  type CreateJournalEntryData,
+  type CreateJournalTemplateData,
+  type IJournalAttachmentRepository,
+  type IJournalRepository,
+  type IJournalTagRepository,
+  type IJournalTemplateRepository,
+  type IJournalWeeklyReviewQuery,
+  JOURNAL_ATTACHMENT_REPOSITORY,
+  JOURNAL_REPOSITORY,
+  JOURNAL_TAG_REPOSITORY,
+  JOURNAL_TEMPLATE_REPOSITORY,
+  JOURNAL_WEEKLY_REVIEW_QUERY,
+  type JournalSearchFilter,
+  type UpdateJournalEntryData,
+  type UpdateJournalTemplateData,
 } from '@core/application/ports/out/journal-repository.port';
-import { PrismaService } from '@infrastructure/persistence/prisma/prisma.service';
-
-export const JOURNAL_REPOSITORY = 'JOURNAL_REPOSITORY';
-export const JOURNAL_TEMPLATE_REPOSITORY = 'JOURNAL_TEMPLATE_REPOSITORY';
-export const JOURNAL_TAG_REPOSITORY = 'JOURNAL_TAG_REPOSITORY';
-export const JOURNAL_ATTACHMENT_REPOSITORY = 'JOURNAL_ATTACHMENT_REPOSITORY';
 
 @Injectable()
 export class JournalService {
   constructor(
     @Inject(JOURNAL_REPOSITORY)
-    private readonly journalRepository: any,
+    private readonly journalRepository: IJournalRepository,
     @Inject(JOURNAL_TEMPLATE_REPOSITORY)
-    private readonly templateRepository: any,
+    private readonly templateRepository: IJournalTemplateRepository,
     @Inject(JOURNAL_TAG_REPOSITORY)
-    private readonly tagRepository: any,
+    private readonly tagRepository: IJournalTagRepository,
     @Inject(JOURNAL_ATTACHMENT_REPOSITORY)
-    private readonly attachmentRepository: any,
-    private readonly prisma: PrismaService,
+    private readonly attachmentRepository: IJournalAttachmentRepository,
+    @Inject(JOURNAL_WEEKLY_REVIEW_QUERY)
+    private readonly weeklyReviewQuery: IJournalWeeklyReviewQuery,
   ) {}
 
   async listEntries(userId: string, filter?: JournalSearchFilter): Promise<JournalEntryModel[]> {
@@ -122,62 +123,21 @@ export class JournalService {
   }
 
   async buildWeeklyReviewSnapshot(userId: string, periodStart: Date, periodEnd: Date) {
-    const [tasksCompleted, focusStats, habitStats, reviewLogsCount, expensesRaw, workoutsCount, growthLedgerSum] =
-      await Promise.all([
-        this.prisma.task.count({
-          where: { userId, completedAt: { gte: periodStart, lte: periodEnd } },
-        }),
-        this.prisma.focusSession.aggregate({
-          where: { userId, completedAt: { gte: periodStart, lte: periodEnd } },
-          _sum: { plannedSeconds: true },
-          _count: true,
-        }),
-        this.prisma.habitOccurrence.aggregate({
-          where: { habit: { userId }, occurrenceDate: { gte: periodStart, lte: periodEnd } },
-          _count: true,
-        }),
-        this.prisma.reviewLog.count({
-          where: { userId, createdAt: { gte: periodStart, lte: periodEnd } },
-        }),
-        this.prisma.budgetTransaction.findMany({
-          where: { userId, transactionAt: { gte: periodStart, lte: periodEnd }, deletedAt: null },
-          select: { amount: true, currency: true },
-        }),
-        this.prisma.gymWorkout.count({
-          where: { userId, startedAt: { gte: periodStart, lte: periodEnd }, deletedAt: null },
-        }),
-        this.prisma.growthLedgerEntry.aggregate({
-          where: { userId, createdAt: { gte: periodStart, lte: periodEnd }, kind: 'ACTIVITY_AWARD' },
-          _sum: { amount: true },
-        }),
-      ]);
-
-    const expenseTotals = new Map<string, (typeof expensesRaw)[number]['amount']>();
-    for (const exp of expensesRaw) {
-      const current = expenseTotals.get(exp.currency);
-      expenseTotals.set(exp.currency, current ? current.add(exp.amount) : exp.amount);
-    }
-
-    const habitsCompleted = await this.prisma.habitOccurrence.count({
-      where: { habit: { userId }, occurrenceDate: { gte: periodStart, lte: periodEnd }, status: 'COMPLETED' },
-    });
-
+    const data = await this.weeklyReviewQuery.getSnapshotData(userId, periodStart, periodEnd);
     return {
-      tasks: { completed: tasksCompleted },
+      tasks: { completed: data.tasksCompleted },
       focus: {
-        minutes: Math.round((focusStats._sum?.plannedSeconds ?? 0) / 60),
-        sessions: focusStats._count ?? 0,
+        minutes: Math.round(data.focusPlannedSeconds / 60),
+        sessions: data.focusSessions,
       },
       habits: {
-        completed: habitsCompleted,
-        scheduled: habitStats._count ?? 0,
+        completed: data.habitsCompleted,
+        scheduled: data.habitsScheduled,
       },
-      learning: { reviews: reviewLogsCount },
-      expenses: Object.fromEntries(
-        [...expenseTotals].map(([currency, amount]) => [currency, amount.toFixed(2)]),
-      ),
-      workouts: { sessions: workoutsCount },
-      growth: { xpEarned: growthLedgerSum._sum.amount ?? 0 },
+      learning: { reviews: data.reviews },
+      expenses: data.expenses,
+      workouts: { sessions: data.workouts },
+      growth: { xpEarned: data.xpEarned },
     };
   }
 

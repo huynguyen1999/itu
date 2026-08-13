@@ -20,6 +20,28 @@ describe('task date rules', () => {
     expect(value.toISOString()).toBe('2026-08-14T02:00:00.000Z');
   });
 
+  it('uses the scheduled start as the explicit reminder anchor when no due date exists', () => {
+    const value = calculateRelativeReminderAt(
+      { scheduledStartAt: '2026-08-15T16:00:00.000Z' },
+      { relativeTo: 'SCHEDULE_START_AT', offsetMinutes: -30 },
+    );
+    expect(value.toISOString()).toBe('2026-08-15T15:30:00.000Z');
+  });
+
+  it('rejects relative reminders without an anchor or with invalid local times', () => {
+    expect(() => calculateRelativeReminderAt({}, { relativeTo: 'DUE_AT', offsetMinutes: 10 })).toThrow(
+      'Relative reminders require a due date or scheduled start',
+    );
+    expect(() => calculateRelativeReminderAt(
+      { dueAt: '2026-08-15T14:00:00.000Z' },
+      { timeOfDayMinutes: 1_440 },
+    )).toThrow('Reminder time must be within a day');
+    expect(() => calculateRelativeReminderAt(
+      { dueAt: '2026-08-15T14:00:00.000Z' },
+      { timeOfDayMinutes: 540, timeZone: 'Not/A_Timezone' },
+    )).toThrow('Reminder time zone is invalid');
+  });
+
   it('rejects an inverted scheduled range without comparing the due date', () => {
     expect(() => validateTaskSchedule({ scheduledStartAt: '2026-08-15T16:00:00.000Z', scheduledEndAt: '2026-08-15T15:00:00.000Z' })).toThrow(
       'Scheduled start must be before scheduled end',

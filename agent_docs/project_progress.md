@@ -1,5 +1,14 @@
 # Project Progress
 
+## Completed deployment: architecture drift remediation
+
+- API Calendar orchestration now depends on typed repository and integration ports; Prisma, HTTP/SSRF, OAuth, crypto, ICS parsing, and scheduling live in infrastructure. Preferences and Journal persistence also use typed ports, while existing REST/OpenAPI behavior is preserved.
+- Web `CalendarPage` is a thin composition root over focused data, interaction, and presentation modules. Sync responses and cleanup are account/lifecycle guarded, cross-tab messages are session-scoped, and Calendar projections invalidate with Task, Focus Session, and Calendar Subscription changes.
+- macOS keeps the `AppModel` and `OfflineStore` façades while Budget, Gym, Notifications, and Trash responsibilities are split into focused extensions. Sync work is generation/account guarded and cursors cannot move backward.
+- Canonical Calendar fixtures and architecture checks lock the cross-client semantics and dependency boundaries without adding dependencies, changing routes, deploying migrations, or editing CI.
+- Final proof: API 70 suites / 315 tests, Web 56 files / 301 tests, and extension 11/11 pass; API/Web typechecks and builds pass; Prisma generate/validate pass; OpenAPI regeneration is byte-stable; architecture boundaries and Swift parsing pass.
+- Signed macOS build/test remains environment-blocked before compilation by `KeyboardShortcuts` DNS and sandboxed cache permissions. This is the only unfinished verification item; no further refactor scope is open.
+
 ## Completed deployment: unified Calendar timeline
 
 - Web and macOS now use a source-grouped row timeline for Tasks, Due Dates, Focus Sessions, and Calendar Subscription events, with an hourly Day axis and date-based Week/Month axes.
@@ -61,7 +70,7 @@
 - Verification passed: API typecheck, build, Prisma generate/validate, full 52-suite/204-test gate and focused 3-suite/16-test usage gate; web typecheck, build, full 34-file/178-test gate and focused settings/statistics tests; signed macOS Debug build, full test gate, and focused `UsageTrackingTests` 9/9.
 - Regenerated the API OpenAPI contract and updated the macOS roadmap. The former Observation macro environment blocker did not recur. Existing unrelated work and Git state were preserved; the additive migration was not deployed.
 
-## Active deployment: deep Sync modules and cross-client reliability parity
+## Completed deployment: deep Sync modules and cross-client reliability parity
 
 - Web and macOS keep their existing feature-facing interfaces while synchronization lifecycle, retry, conflict, device, WebSocket, and reconciliation behavior moves behind one deep platform module.
 - Web remains the behavioral reference; macOS gains matching foreground-session reliability and a separate atomic Account hydration module. Direct feature reads and server wire contracts remain unchanged.
@@ -69,13 +78,11 @@
 - Work is split into disjoint Web and macOS executor packages. The main agent owns shared fixtures, integration, durable documentation, and final proof. Existing staged and unstaged work in all repositories must remain preserved.
 - Acceptance requires focused Sync and hydration coverage plus the applicable API, Web, and macOS verification gates. The known local Observation macro plugin failure must be reported honestly if it still blocks macOS tests.
 
-### Current implementation state and blockers
+### Completion state
 
-- API canonical fixture and DTO proof are implemented. API typecheck, 45 suites / 180 tests, and build pass.
-- Web Sync orchestration is deepened behind one interface and the full Web gate passed before the final repair. Focused verification now passes 55 tests plus typecheck, but independent review still rejects stale-session safety in Growth-mapping cleanup, cross-tab responses, and authentication changes during asynchronous response listeners.
-- macOS foreground Sync reliability, centralized outbox scheduling, atomic Account hydration, pending-mutation replay, session generation, device registration, retry scheduling, cursor invalidation, and status-only rebase are implemented. Swift parsing passes and test regressions were added. Xcode compilation is blocked only by the existing malformed Observation macro response after the latest repair.
-- Independent macOS review still rejects lifecycle cancellation: an untracked device-registration task and urgent/debounce closures can race with stop or User Account switching and start old-session work.
-- Both executor/tester repair loops reached the three-iteration workflow limit. Further production repair requires an explicit continuation decision. Web/macOS fixture copies, final integration verification, and durable completion documentation remain pending.
+- Web stale-session cleanup, asynchronous response handling, startup refresh, and BroadcastChannel delivery are generation/session guarded; Calendar cache invalidation is complete.
+- macOS registration, reconnect, periodic, debounce, urgent, upload, hydration, and response work is lifecycle-owned and generation/account guarded; cursor application is monotonic.
+- Focused Sync regressions and the final full API/Web/extension gates pass. Signed macOS execution remains blocked only by the dependency/cache environment described above.
 
 ## Completed deployment: behavior-preserving structural refactor
 

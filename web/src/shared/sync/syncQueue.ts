@@ -66,6 +66,10 @@ type SyncStateListener = (state: SyncState) => void;
 type SyncResponseListener = (response: SyncResponse) => void | Promise<void>;
 
 type SyncChannelMessage =
+  | { type: 'OUTBOX_CHANGED'; originClientInstanceId: string; sessionKey: string }
+  | { type: 'SYNC_RESPONSE'; originClientInstanceId: string; sessionKey: string; response: SyncResponse };
+
+type SyncChannelPayload =
   | { type: 'OUTBOX_CHANGED'; originClientInstanceId: string }
   | { type: 'SYNC_RESPONSE'; originClientInstanceId: string; response: SyncResponse };
 
@@ -92,6 +96,7 @@ export class SyncQueue {
   private started = false;
   private authenticated = true;
   private authSessionKey: string | null = null;
+  private broadcastSessionKey: string | null = null;
   private authGeneration = 0;
   private retryAttempt = 0;
   private state: SyncState = { phase: navigator.onLine ? 'up-to-date' : 'offline', pendingCount: 0, conflictCount: 0 };
@@ -109,14 +114,19 @@ export class SyncQueue {
     this.reconcileTimer = setInterval(() => {
       if (navigator.onLine && document.visibilityState === 'visible') void this.pull();
     }, RECONCILE_INTERVAL_MS);
+    const lifecycleGeneration = this.authGeneration;
     void (async () => {
-      await this.refreshState();
-      if ((await offlineSyncStore.listMutations()).length > 0) this.scheduleFlush(50);
+      await this.refreshState(lifecycleGeneration);
+      if (!this.started || lifecycleGeneration !== this.authGeneration) return;
+      if ((await offlineSyncStore.listMutations()).length > 0 && this.started && lifecycleGeneration === this.authGeneration) {
+        this.scheduleFlush(50);
+      }
     })();
   }
 
   public stop(): void {
     if (!this.started) return;
+    this.authGeneration += 1;
     this.started = false;
     if (this.flushTimer) clearTimeout(this.flushTimer);
     this.flushTimer = null;
@@ -137,13 +147,23 @@ export class SyncQueue {
     return { deviceId: this.deviceId, clientInstanceId: this.clientInstanceId };
   }
 
-  public setAuthenticated(authenticated: boolean, sessionKey?: string | null): void {
+  public setAuthenticated(
+    authenticated: boolean,
+    sessionKey?: string | null,
+    broadcastSessionKey?: string | null,
+  ): void {
     const nextSessionKey = sessionKey === undefined ? this.authSessionKey : sessionKey;
-    if (authenticated !== this.authenticated || nextSessionKey !== this.authSessionKey) {
+    const nextBroadcastSessionKey = broadcastSessionKey === undefined ? null : broadcastSessionKey;
+    if (
+      authenticated !== this.authenticated ||
+      nextSessionKey !== this.authSessionKey ||
+      nextBroadcastSessionKey !== this.broadcastSessionKey
+    ) {
       this.authGeneration += 1;
     }
     this.authenticated = authenticated;
     this.authSessionKey = nextSessionKey;
+    this.broadcastSessionKey = nextBroadcastSessionKey;
     if (!authenticated && this.flushTimer) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
@@ -179,10 +199,10 @@ export class SyncQueue {
     } else {
       await offlineSyncStore.putMutation(coalesced.mutation);
     }
-    this.channel?.postMessage({
+    this.postChannelMessage({
       type: 'OUTBOX_CHANGED',
       originClientInstanceId: this.clientInstanceId,
-    } satisfies SyncChannelMessage);
+    });
     await this.refreshState();
     if (immediate) {
       if (this.isFlushing) this.pendingFlushRequested = true;
@@ -198,7 +218,7 @@ export class SyncQueue {
   }
 
   public broadcastOptimisticChange(change: SyncResponse['changes'][number]): void {
-    this.channel?.postMessage({
+    this.postChannelMessage({
       type: 'SYNC_RESPONSE',
       originClientInstanceId: this.clientInstanceId,
       response: {
@@ -208,7 +228,7 @@ export class SyncQueue {
         conflicts: [],
         localOnly: true,
       },
-    } satisfies SyncChannelMessage);
+    });
   }
 
   public async pull(targetCursor?: string): Promise<SyncResponse | null> {
@@ -287,10 +307,10 @@ export class SyncQueue {
     await offlineSyncStore.deleteConflict(mutationId);
     await offlineSyncStore.deleteMutations([mutationId]);
     await this.refreshState();
-    this.channel?.postMessage({
+    this.postChannelMessage({
       type: 'OUTBOX_CHANGED',
       originClientInstanceId: this.clientInstanceId,
-    } satisfies SyncChannelMessage);
+    });
   }
 
   public async discardFailedMutations(): Promise<void> {
@@ -300,10 +320,10 @@ export class SyncQueue {
     await offlineSyncStore.deleteMutations(failedIds);
     await Promise.all(failedIds.map((id) => offlineSyncStore.deleteConflict(id)));
     await this.refreshState();
-    this.channel?.postMessage({
+    this.postChannelMessage({
       type: 'OUTBOX_CHANGED',
       originClientInstanceId: this.clientInstanceId,
-    } satisfies SyncChannelMessage);
+    });
   }
 
   public async keepServer(mutationId: string): Promise<void> {
@@ -410,11 +430,11 @@ export class SyncQueue {
       if (!this.isCurrentAuthGeneration(authGeneration)) return null;
       if (response.cursor) await offlineSyncStore.setCursor(response.cursor);
       if (!this.isCurrentAuthGeneration(authGeneration)) return null;
-      this.channel?.postMessage({
+      this.postChannelMessage({
         type: 'SYNC_RESPONSE',
         originClientInstanceId: this.clientInstanceId,
         response,
-      } satisfies SyncChannelMessage);
+      });
       this.retryAttempt = 0;
       return response;
     } catch (error) {
@@ -446,10 +466,16 @@ export class SyncQueue {
       return null;
     } finally {
       mutations.forEach((mutation) => this.inFlightMutationIds.delete(mutation.id));
-      if (acknowledgedGrowthMappings.length) {
-        await this.cleanupSupersededGrowthMappings(acknowledgedGrowthMappings);
+      if (this.isCurrentAuthGeneration(authGeneration) && acknowledgedGrowthMappings.length) {
+        await this.cleanupSupersededGrowthMappings(acknowledgedGrowthMappings, authGeneration);
       }
       this.isFlushing = false;
+      if (!this.isCurrentAuthGeneration(authGeneration)) {
+        this.pendingFlushRequested = false;
+        this.pendingPullRequested = false;
+        this.pendingPullCursor = null;
+        return null;
+      }
       await this.refreshState();
       const pendingFlushRequested = this.pendingFlushRequested;
       const pendingPullRequested = this.pendingPullRequested;
@@ -462,8 +488,13 @@ export class SyncQueue {
     }
   }
 
-  private async cleanupSupersededGrowthMappings(acknowledged: ClientSyncMutation[]): Promise<void> {
+  private async cleanupSupersededGrowthMappings(
+    acknowledged: ClientSyncMutation[],
+    authGeneration: number,
+  ): Promise<void> {
+    if (!this.isCurrentAuthGeneration(authGeneration)) return;
     const queued = await offlineSyncStore.listMutations();
+    if (!this.isCurrentAuthGeneration(authGeneration)) return;
     const supersededIds = supersededGrowthMappingMutationIds(
       queued,
       acknowledged.map((mutation) => mutation.id),
@@ -471,7 +502,9 @@ export class SyncQueue {
       acknowledged,
     );
     if (supersededIds.length === 0) return;
+    if (!this.isCurrentAuthGeneration(authGeneration)) return;
     await offlineSyncStore.deleteMutations(supersededIds);
+    if (!this.isCurrentAuthGeneration(authGeneration)) return;
     await Promise.all(supersededIds.map((mutationId) => offlineSyncStore.deleteConflict(mutationId)));
   }
 
@@ -492,16 +525,17 @@ export class SyncQueue {
       occurredAt: new Date().toISOString(),
     });
     if (!this.isCurrentAuthGeneration(authGeneration)) return false;
-    this.channel?.postMessage({
+    this.postChannelMessage({
       type: 'OUTBOX_CHANGED',
       originClientInstanceId: this.clientInstanceId,
-    } satisfies SyncChannelMessage);
+    });
     return true;
   }
 
   private readonly handleChannelMessage = (event: MessageEvent<SyncChannelMessage>) => {
     const message = event.data;
     if (!message || message.originClientInstanceId === this.clientInstanceId) return;
+    if (!this.authenticated || !this.broadcastSessionKey || message.sessionKey !== this.broadcastSessionKey) return;
     if (message.type === 'OUTBOX_CHANGED') {
       void this.refreshState().then(() => this.scheduleFlush(50));
       return;
@@ -513,18 +547,25 @@ export class SyncQueue {
   };
 
   private async emitResponse(response: SyncResponse): Promise<void> {
+    if (!this.authenticated) return;
     await Promise.all([...this.responseListeners].map((listener) => listener(response)));
+  }
+
+  private postChannelMessage(message: SyncChannelPayload): void {
+    if (!this.channel || !this.authenticated || !this.broadcastSessionKey) return;
+    this.channel.postMessage({ ...message, sessionKey: this.broadcastSessionKey });
   }
 
   private isCurrentAuthGeneration(generation: number): boolean {
     return this.authenticated && generation === this.authGeneration;
   }
 
-  private async refreshState(): Promise<void> {
+  private async refreshState(expectedGeneration = this.authGeneration): Promise<void> {
     const [mutations, conflicts] = await Promise.all([
       offlineSyncStore.listMutations(),
       offlineSyncStore.listConflicts(),
     ]);
+    if (expectedGeneration !== this.authGeneration) return;
     const phase: SyncPhase = !navigator.onLine
       ? 'offline'
       : conflicts.length > 0

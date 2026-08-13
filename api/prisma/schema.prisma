@@ -66,6 +66,14 @@ enum AiJobStatus {
   FAILED
 }
 
+enum AiCredentialStatus {
+  HEALTHY
+  RATE_LIMITED
+  QUOTA_EXHAUSTED
+  INVALID_KEY
+  PROVIDER_ERROR
+}
+
 enum ScheduledJobType {
   ACCOUNT_DELETE
   TRASH_PURGE
@@ -286,6 +294,7 @@ model User {
   decks                       Deck[]
   sessions                    StudySession[]
   aiJobs                      AiJob[]
+  aiCredentials               AiCredential[]
   scheduledJobs               ScheduledJob[]
   syncDevices                 SyncDevice[]
   roles                       UserRole[]
@@ -401,14 +410,16 @@ model RolePermission {
 }
 
 model RefreshSession {
-  id        String    @id
-  userId    String
-  tokenHash String    @unique
-  expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                       String    @id
+  userId                   String
+  tokenHash                String    @unique
+  expiresAt                DateTime
+  revokedAt                DateTime?
+  rotationGraceUntil       DateTime?
+  rotationRecoveryUsedAt   DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
   @@index([expiresAt])
@@ -714,6 +725,23 @@ model AiJob {
   user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, status, createdAt])
+}
+
+model AiCredential {
+  id             String             @id
+  userId         String
+  encryptedApiKey String
+  keyHint        String
+  enabled        Boolean            @default(true)
+  status         AiCredentialStatus @default(HEALTHY)
+  lastError      String?
+  lastUsedAt     DateTime?
+  cooldownUntil  DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, enabled, status, cooldownUntil, lastUsedAt])
 }
 
 model AiSessionFeedback {

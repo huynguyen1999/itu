@@ -30,6 +30,83 @@ final class OfflineStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.mutations.first?.entityId, reloaded.tasks.first?.id)
     }
 
+    func testOfflineStoreUsesStableAccountScopedJSONFiles() async throws {
+        let first = OfflineStore(accountID: "user/one", baseURL: temporaryDirectory)
+        let second = OfflineStore(accountID: "user-two", baseURL: temporaryDirectory)
+        _ = try await first.load()
+        _ = try await second.load()
+        _ = try await first.createTask(title: "Only user one")
+
+        let filenames = try FileManager.default.contentsOfDirectory(atPath: temporaryDirectory.path).sorted()
+        XCTAssertEqual(filenames, ["offline-user-two-v1.json", "offline-user_one-v1.json"])
+        let secondSnapshot = try await second.load()
+        XCTAssertTrue(secondSnapshot.tasks.isEmpty)
+        XCTAssertTrue(secondSnapshot.mutations.isEmpty)
+
+        let firstSnapshot = try await OfflineStore(accountID: "user/one", baseURL: temporaryDirectory).load()
+        XCTAssertEqual(firstSnapshot.tasks.map(\.title), ["Only user one"])
+        XCTAssertEqual(firstSnapshot.mutations.map(\.kind), ["task.create"])
+    }
+
+    func testPendingMutationAndCursorSurviveRestart() async throws {
+        let mutation = SyncMutation(
+            id: "pending-1",
+            kind: "task.update",
+            entityId: "task-1",
+            baseVersion: 2,
+            payload: ["title": .string("Saved offline")],
+            occurredAt: "2026-08-10T09:00:00Z"
+        )
+        let store = OfflineStore(accountID: "pending-user", baseURL: temporaryDirectory)
+        _ = try await store.load()
+        _ = try await store.enqueue(mutation)
+        _ = try await store.applySync(
+            acknowledgedMutationIds: [],
+            conflicts: [],
+            changes: [],
+            cursor: "18",
+            lastSyncTime: "2026-08-10T09:01:00Z"
+        )
+
+        let restarted = try await OfflineStore(accountID: "pending-user", baseURL: temporaryDirectory).load()
+        XCTAssertEqual(restarted.cursor, "18")
+        XCTAssertEqual(restarted.lastSyncTime, "2026-08-10T09:01:00Z")
+        XCTAssertEqual(restarted.mutations, [mutation])
+    }
+
+    func testSyncCursorIsMonotonicAndReorderedChangesEndAtTheNewestValue() async throws {
+        let store = OfflineStore(accountID: "cursor-order-user", baseURL: temporaryDirectory)
+        _ = try await store.load()
+        let oldTask = ProductivityTask.optimistic(id: "cursor-task", title: "Old")
+        let newTask = ProductivityTask.optimistic(id: "cursor-task", title: "New")
+        let oldData = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(oldTask))
+        let newData = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(newTask))
+
+        let ordered = try await store.applySync(
+            acknowledgedMutationIds: [],
+            conflicts: [],
+            changes: [
+                SyncChange(cursor: 12, entityType: "task", entityId: oldTask.id, deleted: false, data: newData, complete: true),
+                SyncChange(cursor: 11, entityType: "task", entityId: oldTask.id, deleted: false, data: oldData, complete: true)
+            ],
+            cursor: "12"
+        )
+        XCTAssertEqual(ordered.cursor, "12")
+        XCTAssertEqual(ordered.tasks.first?.title, "New")
+
+        var staleTask = newTask
+        staleTask.title = "Stale response"
+        let staleData = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(staleTask))
+        let stale = try await store.applySync(
+            acknowledgedMutationIds: [],
+            conflicts: [],
+            changes: [SyncChange(cursor: 9, entityType: "task", entityId: staleTask.id, deleted: false, data: staleData, complete: true)],
+            cursor: "9"
+        )
+        XCTAssertEqual(stale.cursor, "12")
+        XCTAssertEqual(stale.tasks.first?.title, "New")
+    }
+
     func testLearnDeckCardsAndReviewMutationsPersistOfflineFirst() async throws {
         let store = OfflineStore(accountID: "test-user", baseURL: temporaryDirectory)
         _ = try await store.load()

@@ -4,7 +4,7 @@ import type { SyncResponse } from './syncQueue';
 
 const QUERY_PREFIXES: Record<string, string[]> = {
   task: ['tasks', 'calendar', 'trash', 'study-calendar', 'dashboard'],
-  tasklist: ['task-lists', 'projects'],
+  tasklist: ['task-lists', 'projects', 'calendar'],
   deck: ['deck', 'decks', 'dashboard', 'trash', 'study-calendar'],
   card: ['cards', 'deck', 'decks', 'deck-stats', 'due', 'dashboard', 'trash', 'study-calendar'],
   cardimage: ['cards', 'deck', 'decks', 'deck-stats', 'trash'],
@@ -16,7 +16,7 @@ const QUERY_PREFIXES: Record<string, string[]> = {
   aijob: ['session-feedback'],
   aisessionfeedback: ['session-feedback'],
   focuspreset: ['focus-presets'],
-  focussession: ['focus', 'dashboard', 'study-calendar'],
+  focussession: ['focus', 'dashboard', 'study-calendar', 'calendar'],
   focussound: ['focus', 'sounds'],
   focussoundpreference: ['focus', 'sounds'],
   habit: ['habits', 'habit-occurrences', 'habit-stats', 'study-calendar'],
@@ -53,6 +53,9 @@ const QUERY_PREFIXES: Record<string, string[]> = {
   budgettransaction: ['budget'],
   budgetpreferences: ['user-preferences'],
   calendarpreferences: ['user-preferences'],
+  externalcalendar: ['calendar'],
+  externalcalendarevent: ['calendar'],
+  calendarevent: ['calendar'],
   gympreferences: ['user-preferences'],
 };
 
@@ -370,6 +373,7 @@ function applyCompleteChange(
   }
   if (change.entityType === 'tasklist') {
     updateFlatQueries(queryClient, 'task-lists', change);
+    fallbackPrefixes.add('calendar');
     return;
   }
   if (change.entityType === 'habit') {

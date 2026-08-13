@@ -1,5 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { PrismaService } from '@infrastructure/persistence/prisma/prisma.service';
+import { Inject } from '@nestjs/common';
+import {
+  PREFERENCES_REPOSITORY,
+} from '@core/application/ports/out/preferences-repository.port';
+import type { IPreferencesRepository } from '@core/application/ports/out/preferences-repository.port';
 
 export interface TaskPreferences {
   defaultDate: 'NONE' | 'TODAY' | 'TOMORROW';
@@ -218,12 +222,10 @@ export function validateCalendarPreferences(input: Partial<CalendarPreferences>)
 
 @Injectable()
 export class PreferencesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PREFERENCES_REPOSITORY) private readonly preferencesRepository: IPreferencesRepository) {}
 
   async getPreferences(userId: string): Promise<AllUserPreferences> {
-    const record = await this.prisma.userPreferences.findUnique({
-      where: { userId },
-    });
+    const record = await this.preferencesRepository.findByUserId(userId);
 
     const tasks = { ...DEFAULT_TASK_PREFERENCES, ...((record?.taskPreferences as Partial<TaskPreferences>) || {}) };
     const focus = { ...DEFAULT_FOCUS_PREFERENCES, ...((record?.focusPreferences as Partial<FocusPreferences>) || {}) };
@@ -251,110 +253,70 @@ export class PreferencesService {
     if (!/^\d{2}:\d{2}$/.test(updated.defaultDueTime) || hours > 23 || minutes > 59) {
       throw new BadRequestException('defaultDueTime must be a valid HH:MM time');
     }
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, taskPreferences: updated as any },
-      update: { taskPreferences: updated as any },
-    });
+    await this.preferencesRepository.upsert(userId, { taskPreferences: updated });
     return updated;
   }
 
   async updateFocusPreferences(userId: string, patch: Partial<FocusPreferences>): Promise<FocusPreferences> {
     const current = await this.getPreferences(userId);
     const updated = { ...current.focus, ...patch };
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, focusPreferences: updated as any },
-      update: { focusPreferences: updated as any },
-    });
+    await this.preferencesRepository.upsert(userId, { focusPreferences: updated });
     return updated;
   }
 
   async updateHabitPreferences(userId: string, patch: Partial<HabitPreferences>): Promise<HabitPreferences> {
     const current = await this.getPreferences(userId);
     const updated = { ...current.habits, ...patch };
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, habitPreferences: updated as any },
-      update: { habitPreferences: updated as any },
-    });
+    await this.preferencesRepository.upsert(userId, { habitPreferences: updated });
     return updated;
   }
 
   async updateMatrixPreferences(userId: string, patch: Partial<MatrixPreferences>): Promise<MatrixPreferences> {
     const current = await this.getPreferences(userId);
     const updated = { ...current.matrix, ...patch };
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, matrixPreferences: updated as any },
-      update: { matrixPreferences: updated as any },
-    });
+    await this.preferencesRepository.upsert(userId, { matrixPreferences: updated });
     return updated;
   }
 
   async updateGrowthPreferences(userId: string, patch: Partial<GrowthPreferences>): Promise<GrowthPreferences> {
     const current = await this.getPreferences(userId);
     const updated = { ...current.growth, ...patch };
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, growthPreferences: updated as any },
-      update: { growthPreferences: updated as any },
-    });
+    await this.preferencesRepository.upsert(userId, { growthPreferences: updated });
     return updated;
   }
 
   async updateLearnPreferences(userId: string, patch: Partial<LearnPreferences>): Promise<LearnPreferences> {
     const current = await this.getPreferences(userId);
     const updated = { ...current.learn, ...patch };
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, learnPreferences: updated as any },
-      update: { learnPreferences: updated as any },
-    });
+    await this.preferencesRepository.upsert(userId, { learnPreferences: updated });
     return updated;
   }
 
   async updateJournalPreferences(userId: string, patch: Partial<JournalPreferences>): Promise<JournalPreferences> {
     const current = await this.getPreferences(userId);
     const updated = { ...current.journal, ...patch };
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, journalPreferences: updated as any },
-      update: { journalPreferences: updated as any },
-    });
+    await this.preferencesRepository.upsert(userId, { journalPreferences: updated });
     return updated;
   }
 
   async updateMoneyPreferences(userId: string, patch: Partial<MoneyPreferences>): Promise<MoneyPreferences> {
     const current = await this.getPreferences(userId);
     const updatedMoney = { ...current.money, ...patch };
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, moneyPreferences: updatedMoney as any, budgetPreferences: updatedMoney as any },
-      update: { moneyPreferences: updatedMoney as any, budgetPreferences: updatedMoney as any },
-    });
+    await this.preferencesRepository.upsert(userId, { moneyPreferences: updatedMoney, budgetPreferences: updatedMoney });
     return updatedMoney;
   }
 
   async updateBudgetPreferences(userId: string, patch: Partial<BudgetPreferences>): Promise<BudgetPreferences> {
     const current = await this.getPreferences(userId);
     const updatedBudget = { ...current.budget, ...patch };
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, budgetPreferences: updatedBudget as any, moneyPreferences: updatedBudget as any },
-      update: { budgetPreferences: updatedBudget as any, moneyPreferences: updatedBudget as any },
-    });
+    await this.preferencesRepository.upsert(userId, { budgetPreferences: updatedBudget, moneyPreferences: updatedBudget });
     return updatedBudget;
   }
 
   async updateGymPreferences(userId: string, patch: Partial<GymPreferences>): Promise<GymPreferences> {
     const current = await this.getPreferences(userId);
     const updatedGym = { ...current.gym, ...patch };
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, gymPreferences: updatedGym as any },
-      update: { gymPreferences: updatedGym as any },
-    });
+    await this.preferencesRepository.upsert(userId, { gymPreferences: updatedGym });
     return updatedGym;
   }
 
@@ -391,22 +353,14 @@ export class PreferencesService {
       );
     }
     updated.excludedBundleIds = Array.from(new Set(updated.excludedBundleIds.map((id) => id.trim())));
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, usagePreferences: updated as any },
-      update: { usagePreferences: updated as any },
-    });
+    await this.preferencesRepository.upsert(userId, { usagePreferences: updated });
     return updated;
   }
 
   async updateCalendarPreferences(userId: string, patch: Partial<CalendarPreferences>): Promise<CalendarPreferences> {
     const current = await this.getPreferences(userId);
     const updated = validateCalendarPreferences({ ...current.calendar, ...patch });
-    await this.prisma.userPreferences.upsert({
-      where: { userId },
-      create: { userId, calendarPreferences: updated as any },
-      update: { calendarPreferences: updated as any },
-    });
+    await this.preferencesRepository.upsert(userId, { calendarPreferences: updated });
     return updated;
   }
 

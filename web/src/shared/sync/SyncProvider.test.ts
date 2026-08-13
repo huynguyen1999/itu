@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
+import { describe, expect, it, vi } from 'vitest';
 import type { GrowthAwardReceipt } from '../api/types';
-import { growthCompletionTransition, mergeGrowthReceiptEntries } from './SyncProvider';
+import { Sync, growthCompletionTransition, mergeGrowthReceiptEntries } from './SyncProvider';
 
 function receipt(title: string, amount: number): GrowthAwardReceipt {
   return {
@@ -84,5 +85,58 @@ describe('growth receipt lifecycle reconciliation', () => {
     );
     expect(afterReload).toHaveLength(1);
     expect(duplicate).toHaveLength(1);
+  });
+
+  it('stops async response cache work when the Sync lifecycle changes', async () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal('navigator', { onLine: true });
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    });
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => storage.get(`session:${key}`) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    });
+    const queryClient = new QueryClient();
+    const sync = new Sync(queryClient);
+    const internals = sync as unknown as {
+      started: boolean;
+      authenticated: boolean;
+      sessionIdentity: string | null;
+      lifecycleGeneration: number;
+      handleResponse(response: unknown): Promise<void>;
+    };
+    internals.started = true;
+    internals.authenticated = true;
+    internals.sessionIdentity = 'account-a';
+    internals.lifecycleGeneration = 1;
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries').mockImplementation(async () => blocked);
+    const handling = internals.handleResponse({
+      acknowledgedMutationIds: [],
+      cursor: '1',
+      changes: [{ entityType: 'task', entityId: 'task-1', deleted: false, data: { id: 'task-1' } }],
+      conflicts: [
+        {
+          mutationId: 'mutation-1',
+          entityType: 'growthattributemapping',
+          entityId: 'skill-1',
+          reason: 'STALE_VERSION',
+          serverData: null,
+          localDraft: {},
+        },
+      ],
+    });
+    await vi.waitFor(() => expect(invalidateQueries).toHaveBeenCalledTimes(1));
+    internals.lifecycleGeneration += 1;
+    release();
+    await handling;
+
+    expect(invalidateQueries).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
   });
 });

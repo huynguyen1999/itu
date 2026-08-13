@@ -23,8 +23,8 @@
     "prisma:deploy": "dotenv -e .env -- prisma migrate deploy",
     "prisma:seed": "dotenv -e .env -- tsx prisma/seed.ts",
     "journal:reset-dev": "dotenv -e .env -- tsx scripts/reset-journal-dev.ts",
-    "openapi:generate": "nest build && node dist/generate-openapi.js",
-    "openapi:check": "yarn openapi:generate && git diff --exit-code openapi/openapi.json"
+    "architecture:check": "node ../tools/check-architecture.mjs",
+    "architecture:verify": "yarn architecture:check"
   },
   "dependencies": {
     "@fastify/compress": "^9.0.0",

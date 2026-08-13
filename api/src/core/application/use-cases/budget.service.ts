@@ -1,12 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
-  IBudgetRepositoryPort,
   BUDGET_REPOSITORY_PORT,
   CreateCategoryDto,
   UpdateCategoryDto,
   CreateTransactionDto,
   UpdateTransactionDto,
 } from '../ports/out/budget-repository.port';
+import type { IBudgetRepositoryPort } from '../ports/out/budget-repository.port';
 import {
   BudgetCategoryDomain,
   BudgetPeriodDomain,
@@ -18,7 +18,7 @@ import {
 export class BudgetService {
   constructor(
     @Inject(BUDGET_REPOSITORY_PORT)
-    private readonly budgetRepo: any,
+    private readonly budgetRepo: IBudgetRepositoryPort,
   ) {}
 
   async getCategories(userId: string): Promise<BudgetCategoryDomain[]> {

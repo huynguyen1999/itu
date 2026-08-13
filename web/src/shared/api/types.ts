@@ -322,7 +322,7 @@ export interface SessionReviewItem {
   answerRichText: string;
 }
 
-export interface StudySessionDetails extends StudySessionHistoryItem {
+export interface StudySessionDetails extends Omit<StudySessionHistoryItem, 'correctRate'> {
   reviews: SessionReviewItem[];
   feedback?: AiSessionFeedback | null;
 }

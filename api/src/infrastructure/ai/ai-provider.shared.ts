@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AI_CONSTANTS, AI_ERRORS } from '@core/application/constants/app.constants';
+import { AI_ERRORS } from '@core/application/constants/app.constants';
 import type { SuggestedCard } from '@core/application/ports/in/ai-use-case.port';
 import type {
   CardGrading,
@@ -210,30 +210,6 @@ export function parseGradingJson(text: string): {
   };
 }
 
-export function fallbackCards(text: string): SuggestedCard[] {
-  const first = text.split(/[.!?]/).find(Boolean)?.trim() || text.slice(0, 120);
-  return [
-    {
-      promptRichText: `What is the key idea in: **${escapeMarkdown(first)}**?`,
-      answerRichText: first,
-      tags: [AI_CONSTANTS.suggestedTag],
-    },
-  ];
-}
-
-export function fallbackSessionFeedback(input: ReviewSessionInput): SessionFeedbackResult {
-  return {
-    summary: `You reviewed ${input.reviewed} cards and remembered ${input.correct}. Focus next on cards marked Again or Hard, then retry the session to confirm recall.`,
-    cardGradings: input.reviews.map((review) => ({
-      cardId: review.cardId,
-      correctness: review.grade === 'AGAIN' ? 'INCORRECT' : 'CORRECT',
-      explanation: `Learner marked this card as ${review.grade}.`,
-    })),
-    confidence: AI_CONSTANTS.fallbackConfidence,
-    gradePoint: Math.round((input.correct / (input.reviewed || 1)) * 100),
-  };
-}
-
 export function interactionText(response: unknown): string {
   if (hasStringProperty(response, 'text')) {
     return response.text;
@@ -285,10 +261,6 @@ function stripHtml(value: string): string {
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function escapeMarkdown(value: string): string {
-  return value.replace(/[\\`*_{}[\]()#+\-.!|>]/g, '\\$&');
 }
 
 function hasStringProperty<T extends string>(value: unknown, key: T): value is Record<T, string> {

@@ -9,22 +9,22 @@ extension AppModel {
             return
         }
 
-        Task {
+        let runGeneration = sessionGeneration
+        Task { [weak self] in
+            guard let self else { return }
             do {
                 let session = try await apiClient.restoreSession()
+                guard !Task.isCancelled, runGeneration == sessionGeneration else { return }
                 try await switchAccountIfNeeded(to: session.user)
+                guard !Task.isCancelled, user?.id == session.user.id else { return }
                 startSyncLoop()
                 startUsageTracking()
                 await synchronize()
+                guard !Task.isCancelled, runGeneration == sessionGeneration else { return }
                 await loadServerState()
-            } catch let error as APIError where error.statusCode == 401 {
-                stopUsageTracking()
-                syncCoordinator.stop()
-                SessionCache.clearUser()
-                user = nil
-                focusTimer.apply(active: nil)
-                updateFocusPolicy()
-                syncPhase = .offline
+            } catch let error as APIError where error.isTerminalAuthFailure {
+                guard runGeneration == sessionGeneration else { return }
+                handleTerminalAuthenticationFailure()
             } catch {
                 startSyncLoop()
                 syncPhase = .offline
@@ -35,6 +35,7 @@ extension AppModel {
     func authenticate(identifier: String, password: String, displayName: String?, isRegistration: Bool) async {
         isAuthenticating = true
         defer { isAuthenticating = false }
+        let runGeneration = sessionGeneration
         do {
             let session = if isRegistration {
                 try await apiClient.register(
@@ -45,7 +46,9 @@ extension AppModel {
             } else {
                 try await apiClient.login(identifier: identifier, password: password)
             }
+            guard !Task.isCancelled, runGeneration == sessionGeneration else { return }
             try await switchAccountIfNeeded(to: session.user)
+            guard !Task.isCancelled, user?.id == session.user.id else { return }
             startSyncLoop()
             startUsageTracking()
             await synchronize(showErrors: true)
@@ -56,11 +59,14 @@ extension AppModel {
     }
 
     func logout() async {
-        await flushUsageForLifecycle()
-        stopUsageTracking()
         invalidateSession()
+        let runGeneration = sessionGeneration
         syncCoordinator.stop()
+        await flushUsageForLifecycle()
+        guard runGeneration == sessionGeneration else { return }
+        stopUsageTracking()
         await apiClient.logout()
+        guard runGeneration == sessionGeneration else { return }
         SessionCache.clearUser()
         user = nil
         focusTimer.apply(active: nil)
@@ -69,11 +75,14 @@ extension AppModel {
     }
 
     func updateProfile(displayName: String, username: String?) async -> Bool {
+        let runGeneration = sessionGeneration
+        let accountID = user?.id
         do {
             let session = try await apiClient.updateProfile(
                 displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : displayName,
                 username: username?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true ? nil : username
             )
+            guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
             try await switchAccountIfNeeded(to: session.user)
             return true
         } catch {
@@ -97,12 +106,16 @@ extension AppModel {
     }
 
     func deleteAccount(password: String?) async -> Bool {
+        let accountID = user?.id
+        invalidateSession()
+        let runGeneration = sessionGeneration
         do {
-            await flushUsageForLifecycle()
-            stopUsageTracking()
-            invalidateSession()
             syncCoordinator.stop()
+            await flushUsageForLifecycle()
+            guard runGeneration == sessionGeneration, user?.id == accountID else { return false }
+            stopUsageTracking()
             try await apiClient.deleteAccount(password: password)
+            guard runGeneration == sessionGeneration, user?.id == accountID else { return false }
             user = nil
             focusTimer.apply(active: nil)
             updateFocusPolicy()
@@ -174,12 +187,13 @@ extension AppModel {
     func synchronize(showErrors: Bool = false) async {
         guard let userID = user?.id else { return }
         let runGeneration = sessionGeneration
+        let store = offlineStore
         let wasOffline = syncPhase == .offline
         let previousPendingCount = pendingCount
         syncPhase = .syncing
         do {
             let result = try await syncCoordinator.synchronize()
-            guard runGeneration == sessionGeneration, user?.id == userID else { return }
+            guard runGeneration == sessionGeneration, user?.id == userID, offlineStore === store else { return }
             let handledReceiptIDs = Set(result.snapshot.handledGrowthMutationIds)
             let handledReceiptKeys = Set(result.snapshot.handledGrowthReceiptKeys)
             let authoritativeReceipts = result.outcomes.compactMap { outcome -> PresentedGrowthReceipt? in
@@ -188,16 +202,17 @@ extension AppModel {
                       receipt.receiptKey.map({ !handledReceiptKeys.contains($0) }) ?? true else { return nil }
                 return PresentedGrowthReceipt(id: outcome.mutationId, receipt: receipt)
             }
-            let snapshot = try await offlineStore.reconcileGrowthOutcomes(
+            let snapshot = try await store.reconcileGrowthOutcomes(
                 result.outcomes,
                 conflicts: result.conflicts
             )
-            guard runGeneration == sessionGeneration, user?.id == userID else { return }
+            guard runGeneration == sessionGeneration, user?.id == userID, offlineStore === store else { return }
             let reconciledReceiptIDs = Set(result.outcomes.map(\.mutationId)).union(result.conflicts.map(\.mutationId))
             growthReceiptQueue.removeAll { reconciledReceiptIDs.contains($0.id) }
             apply(snapshot)
             await uploadPendingGymImages()
             await uploadPendingJournalAttachments()
+            guard runGeneration == sessionGeneration, user?.id == userID, offlineStore === store else { return }
             for presented in authoritativeReceipts {
                 enqueueGrowthReceipt(presented.receipt, mutationId: presented.id)
             }
@@ -215,30 +230,29 @@ extension AppModel {
             }
             if hasGrowthChanges {
                 if let overview = try? await apiClient.fetchGrowthOverview() {
-                    apply(try await offlineStore.updateGrowthOverview(overview))
+                    guard runGeneration == sessionGeneration, user?.id == userID, offlineStore === store else { return }
+                    apply(try await store.updateGrowthOverview(overview))
                 }
             }
             await loadFocus()
+            guard runGeneration == sessionGeneration, user?.id == userID, offlineStore === store else { return }
             syncPhase = snapshot.conflicts.isEmpty
                 ? (snapshot.mutations.isEmpty ? .upToDate : .pending)
                 : .conflict
 
             if wasOffline && syncPhase != .offline {
                 _ = await uploadUsage()
+                guard runGeneration == sessionGeneration, user?.id == userID, offlineStore === store else { return }
                 let syncedCount = max(0, previousPendingCount - snapshot.mutations.count)
                 let message = syncedCount > 0 ? "\(syncedCount) change\(syncedCount == 1 ? "" : "s") synced" : nil
                 enqueueNotice(AppNotice(level: .success, presentation: .toast, title: "Back online", message: message))
             }
-            } catch let error as APIError where error.statusCode == 401 {
-                stopUsageTracking()
-                syncCoordinator.stop()
-            SessionCache.clearUser()
-            user = nil
-            focusTimer.apply(active: nil)
-            syncPhase = .offline
-            updateFocusPolicy()
+        } catch let error as APIError where error.isTerminalAuthFailure {
+            guard runGeneration == sessionGeneration, user?.id == userID, offlineStore === store else { return }
+            handleTerminalAuthenticationFailure()
         } catch {
-            apply(await offlineStore.snapshot())
+            guard runGeneration == sessionGeneration, user?.id == userID, offlineStore === store else { return }
+            apply(await store.snapshot())
             if let apiError = error as? APIError, apiError.statusCode > 0 {
                 syncPhase = currentSnapshot.conflicts.isEmpty
                     ? (currentSnapshot.mutations.isEmpty ? .upToDate : .pending)
@@ -250,6 +264,16 @@ extension AppModel {
                 enqueueNotice(AppNotice(level: .warning, presentation: .toast, title: "Sync status", message: error.localizedDescription))
             }
         }
+    }
+
+    private func handleTerminalAuthenticationFailure() {
+        stopUsageTracking()
+        syncCoordinator.stop()
+        SessionCache.clearUser()
+        user = nil
+        focusTimer.apply(active: nil)
+        syncPhase = .offline
+        updateFocusPolicy()
     }
 
     func loadServerState() async {
@@ -266,13 +290,20 @@ extension AppModel {
             }
             do {
                 let result = try await AccountHydrator(apiClient: apiClient, offlineStore: store).hydrate()
-                guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == userID else { return }
+                guard !Task.isCancelled,
+                      runGeneration == sessionGeneration,
+                      user?.id == userID,
+                      offlineStore === store else { return }
                 apply(result.snapshot)
                 if let serverUsagePreferences = result.usagePreferences {
                     settingsStore.mergeUsagePreferencesFromServer(serverUsagePreferences)
                     applyUsagePreferences(settingsStore.usagePreferences, sync: false)
                 }
                 await uploadPendingJournalAttachments()
+                guard !Task.isCancelled,
+                      runGeneration == sessionGeneration,
+                      user?.id == userID,
+                      offlineStore === store else { return }
                 if let value = result.habitTimeBlocks { habitTimeBlocks = value }
                 if let value = result.studySessionHistory { studySessionHistory = value }
                 if let value = result.notifications { notifications = value }

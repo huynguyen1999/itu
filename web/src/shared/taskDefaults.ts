@@ -39,11 +39,16 @@ export function applyTaskDefaults(input: TaskInput, defaults = getStoredTaskDefa
   };
 }
 
+export function applyDefaultDueTime(date: Date): Date {
+  const due = new Date(date);
+  const [hours, minutes] = getStoredTaskPreferences().defaultDueTime.split(':').map(Number);
+  due.setHours(Number.isFinite(hours) ? hours : 21, Number.isFinite(minutes) ? minutes : 0, 0, 0);
+  return due;
+}
+
 function defaultDueAt(date: DefaultTaskDate): string | undefined {
   if (date === 'NONE') return undefined;
   const due = new Date();
   if (date === 'TOMORROW') due.setDate(due.getDate() + 1);
-  const [hours, minutes] = getStoredTaskPreferences().defaultDueTime.split(':').map(Number);
-  due.setHours(Number.isFinite(hours) ? hours : 21, Number.isFinite(minutes) ? minutes : 0, 0, 0);
-  return due.toISOString();
+  return applyDefaultDueTime(due).toISOString();
 }

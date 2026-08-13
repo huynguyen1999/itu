@@ -24,9 +24,8 @@ import type {
 } from '@core/application/ports/out/repositories.port';
 import type { IAccessRepository } from '@core/application/ports/out/access-repository.port';
 import type { IPasswordHasher, IQueueJobHandler, ITokenService } from '@core/application/ports/out/services.port';
-import { DELETION_CONSTANTS } from '@core/application/constants/app.constants';
+import { AUTH_CONSTANTS, AUTH_ERROR_CODES, DELETION_CONSTANTS } from '@core/application/constants/app.constants';
 
-const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const OAUTH_HANDOFF_TTL_MS = 2 * 60 * 1000;
 
 @Injectable()
@@ -123,21 +122,35 @@ export class AuthService implements IAuthUseCase {
     let payload;
     try {
       payload = await this.tokens.verifyRefreshToken(refreshToken);
-    } catch {
-      throw new InvalidCredentialsException('Invalid refresh token');
+    } catch (error: unknown) {
+      if (this.isTokenExpiredError(error)) {
+        this.throwRefreshFailure(AUTH_ERROR_CODES.refreshTokenExpired, 'Refresh token expired');
+      }
+      this.throwRefreshFailure(AUTH_ERROR_CODES.refreshTokenInvalid, 'Invalid refresh token');
     }
     if (!payload.jti) {
-      throw new InvalidCredentialsException('Invalid refresh token');
+      this.throwRefreshFailure(AUTH_ERROR_CODES.refreshTokenInvalid, 'Invalid refresh token');
     }
-    const existingSession = await this.refreshSessions.findActiveByHash(this.hashSecret(refreshToken));
+    const existingSession = await this.refreshSessions.findByHash(this.hashSecret(refreshToken));
     if (!existingSession || existingSession.id !== payload.jti || existingSession.userId !== payload.sub) {
-      throw new InvalidCredentialsException('Invalid refresh token');
+      this.throwRefreshFailure(AUTH_ERROR_CODES.refreshTokenInvalid, 'Invalid refresh token');
     }
     const user = await this.users.findById(payload.sub);
     if (!user) {
-      throw new InvalidCredentialsException();
+      this.throwRefreshFailure(AUTH_ERROR_CODES.accountDeleted, 'Account no longer exists');
     }
-    this.ensureAccountActive(user);
+    this.ensureAccountActive(user, true);
+    if (existingSession.expiresAt <= new Date()) {
+      this.throwRefreshFailure(AUTH_ERROR_CODES.refreshTokenExpired, 'Refresh token expired');
+    }
+    if (existingSession.revokedAt) {
+      const canRecover =
+        existingSession.rotationGraceUntil &&
+        existingSession.rotationGraceUntil > new Date() &&
+        !existingSession.rotationRecoveryUsedAt;
+      if (canRecover) return this.buildResult(user, undefined, existingSession.id);
+      this.throwRefreshFailure(AUTH_ERROR_CODES.refreshTokenRevoked, 'Refresh token revoked');
+    }
     return this.buildResult(user, existingSession.id);
   }
 
@@ -150,7 +163,11 @@ export class AuthService implements IAuthUseCase {
     return this.buildResult(user);
   }
 
-  private async validateUniqueUsername(userId: string, currentUsername: string | null | undefined, requestedUsername: string): Promise<void> {
+  private async validateUniqueUsername(
+    userId: string,
+    currentUsername: string | null | undefined,
+    requestedUsername: string,
+  ): Promise<void> {
     if (requestedUsername === currentUsername) return;
     const existing = await this.users.findByUsername(requestedUsername);
     if (existing && existing.id !== userId) {
@@ -232,7 +249,7 @@ export class AuthService implements IAuthUseCase {
     const payload =
       'registerToken' in result
         ? { type: 'register' as const, registerToken: result.registerToken }
-        : { type: 'success' as const, accessToken: result.accessToken, refreshToken: result.refreshToken };
+        : await this.oauthHandoffPayload(result);
     await this.oauthHandoffs.create({
       id: randomUUID(),
       codeHash: this.hashSecret(code),
@@ -249,19 +266,26 @@ export class AuthService implements IAuthUseCase {
     if (handoff.payload.type === 'register' && handoff.payload.registerToken) {
       return { registerToken: handoff.payload.registerToken };
     }
-    if (handoff.payload.type !== 'success' || !handoff.payload.accessToken || !handoff.payload.refreshToken) {
+    if (handoff.payload.type !== 'success' || !handoff.payload.userId || !handoff.payload.refreshSessionId) {
       throw new InvalidCredentialsException('Invalid OAuth handoff code');
     }
-    const payload = await this.tokens.verifyRefreshToken(handoff.payload.refreshToken);
-    if (!payload.jti) throw new InvalidCredentialsException('Invalid refresh token');
-    const user = await this.users.findById(payload.sub);
+    const user = await this.users.findById(handoff.payload.userId);
     if (!user) throw new InvalidCredentialsException();
     this.ensureAccountActive(user);
-    return {
-      ...(await this.sessionUser(user)),
-      accessToken: handoff.payload.accessToken,
-      refreshToken: handoff.payload.refreshToken,
-    };
+    await this.refreshSessions.revokeById(handoff.payload.refreshSessionId);
+    return this.buildResult(user);
+  }
+
+  private async oauthHandoffPayload(result: AuthResult): Promise<{
+    type: 'success';
+    userId: string;
+    refreshSessionId: string;
+  }> {
+    const payload = await this.tokens.verifyRefreshToken(result.refreshToken);
+    if (!payload.jti || payload.sub !== result.user.id) {
+      throw new InvalidCredentialsException('Invalid refresh token');
+    }
+    return { type: 'success', userId: result.user.id, refreshSessionId: payload.jti };
   }
 
   private async sessionUser(user: {
@@ -284,6 +308,7 @@ export class AuthService implements IAuthUseCase {
   private async buildResult(
     user: { id: string; email?: string | null; username?: string | null; displayName?: string | null },
     previousRefreshSessionId?: string,
+    recoveryRefreshSessionId?: string,
   ): Promise<AuthResult> {
     const refreshSessionId = randomUUID();
     const tokenEmail = user.email || user.username || user.id;
@@ -292,10 +317,18 @@ export class AuthService implements IAuthUseCase {
       id: refreshSessionId,
       userId: user.id,
       tokenHash: this.hashSecret(refreshToken),
-      expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      expiresAt: new Date(Date.now() + AUTH_CONSTANTS.refreshTokenTtlMs),
     };
-    if (previousRefreshSessionId) {
-      await this.refreshSessions.rotate(previousRefreshSessionId, refreshSession);
+    if (recoveryRefreshSessionId) {
+      const recovered = await this.refreshSessions.recoverRotation(recoveryRefreshSessionId, refreshSession);
+      if (!recovered) {
+        this.throwRefreshFailure(AUTH_ERROR_CODES.refreshTokenRevoked, 'Refresh token revoked');
+      }
+    } else if (previousRefreshSessionId) {
+      const rotated = await this.refreshSessions.rotate(previousRefreshSessionId, refreshSession);
+      if (!rotated) {
+        this.throwRefreshFailure(AUTH_ERROR_CODES.refreshTokenRevoked, 'Refresh token revoked');
+      }
     } else {
       await this.refreshSessions.create(refreshSession);
     }
@@ -306,17 +339,34 @@ export class AuthService implements IAuthUseCase {
     };
   }
 
-  private ensureAccountActive(user: {
-    deletionRequestedAt?: Date | null;
-    deletedAt?: Date | null;
-    bannedAt?: Date | null;
-  }): void {
+  private ensureAccountActive(
+    user: {
+      deletionRequestedAt?: Date | null;
+      deletedAt?: Date | null;
+      bannedAt?: Date | null;
+    },
+    terminalRefresh = false,
+  ): void {
     if (user.bannedAt) {
+      if (terminalRefresh) {
+        throw new DomainException('Account is disabled', AUTH_ERROR_CODES.accountDisabled, 401);
+      }
       throw new InvalidCredentialsException('Account is banned');
     }
     if (user.deletedAt || user.deletionRequestedAt) {
+      if (terminalRefresh) {
+        throw new DomainException('Account deletion is pending', AUTH_ERROR_CODES.accountDeleted, 401);
+      }
       throw new InvalidCredentialsException('Account deletion is pending');
     }
+  }
+
+  private throwRefreshFailure(code: string, message: string): never {
+    throw new DomainException(message, code, 401);
+  }
+
+  private isTokenExpiredError(error: unknown): boolean {
+    return typeof error === 'object' && error !== null && 'name' in error && error.name === 'TokenExpiredError';
   }
 
   private hashSecret(secret: string): string {

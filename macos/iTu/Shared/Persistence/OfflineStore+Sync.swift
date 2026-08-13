@@ -54,6 +54,20 @@ extension OfflineStore {
         cursor: String,
         lastSyncTime: String? = nil
     ) throws -> OfflineSnapshot {
+        let localCursor = state.cursor
+        let incomingCursorIsNewer = Self.isCursorNewer(cursor, than: localCursor)
+        let applicableChanges = changes.filter { change in
+            guard let changeCursor = change.cursor else { return incomingCursorIsNewer }
+            return Self.isCursorNewer(String(changeCursor), than: localCursor)
+        }
+        let orderedChanges = applicableChanges.sorted { left, right in
+            switch (left.cursor, right.cursor) {
+            case let (left?, right?): return left < right
+            case (nil, nil): return false
+            case (nil, _): return true
+            case (_, nil): return false
+            }
+        }
         let optimisticTasksByID = Dictionary(uniqueKeysWithValues: state.tasks.map { ($0.id, $0) })
         let optimisticFocusByID = Dictionary(uniqueKeysWithValues: state.focusSessions.map { ($0.id, $0) })
         let optimisticOccurrencesByID = Dictionary(uniqueKeysWithValues: state.habitOccurrences.map { ($0.id, $0) })
@@ -108,7 +122,7 @@ extension OfflineStore {
             state.mutations[index].nextRetryAt = nil
         }
 
-        for change in changes where change.entityType == "task" {
+        for change in orderedChanges where change.entityType == "task" {
             if change.deleted {
                 state.tasks.removeAll { $0.id == change.entityId }
                 continue
@@ -122,7 +136,7 @@ extension OfflineStore {
                 state.tasks.append(task)
             }
         }
-        for change in changes where change.entityType == "tasklist" {
+        for change in orderedChanges where change.entityType == "tasklist" {
             if change.deleted {
                 state.taskLists.removeAll { $0.id == change.entityId }
                 continue
@@ -136,7 +150,7 @@ extension OfflineStore {
                 state.taskLists.append(list)
             }
         }
-        for change in changes where change.entityType == "focussession" {
+        for change in orderedChanges where change.entityType == "focussession" {
             if change.deleted {
                 state.focusSessions.removeAll { $0.id == change.entityId }
                 continue
@@ -150,7 +164,7 @@ extension OfflineStore {
                 upsertFocusSession(incoming)
             }
         }
-        for change in changes where change.entityType == "habit" {
+        for change in orderedChanges where change.entityType == "habit" {
             if change.deleted {
                 state.habits.removeAll { $0.id == change.entityId }
                 continue
@@ -165,7 +179,7 @@ extension OfflineStore {
                 }
             }
         }
-        for change in changes where change.entityType == "habitoccurrence" {
+        for change in orderedChanges where change.entityType == "habitoccurrence" {
             if change.deleted {
                 state.habitOccurrences.removeAll { $0.id == change.entityId }
                 continue
@@ -180,7 +194,7 @@ extension OfflineStore {
                 }
             }
         }
-        for change in changes where change.entityType == "deck" {
+        for change in orderedChanges where change.entityType == "deck" {
             if change.deleted {
                 state.decks.removeAll { $0.id == change.entityId }
                 continue
@@ -195,7 +209,7 @@ extension OfflineStore {
                 }
             }
         }
-        for change in changes where change.entityType == "card" {
+        for change in orderedChanges where change.entityType == "card" {
             if change.deleted {
                 for deckID in state.cardsByDeckId.keys {
                     state.cardsByDeckId[deckID]?.removeAll { $0.id == change.entityId }
@@ -214,7 +228,7 @@ extension OfflineStore {
             state.cardsByDeckId[card.deckId] = cards
             updateDeckCardCount(deckId: card.deckId, cards: cards)
         }
-        for change in changes where change.entityType == "growthskill" {
+        for change in orderedChanges where change.entityType == "growthskill" {
             if change.deleted {
                 state.skills.removeAll { $0.id == change.entityId }
                 continue
@@ -230,7 +244,7 @@ extension OfflineStore {
                 }
             }
         }
-        for change in changes where change.entityType == "growthprofile" {
+        for change in orderedChanges where change.entityType == "growthprofile" {
             if change.deleted {
                 state.growthProfile = nil
                 continue
@@ -240,7 +254,7 @@ extension OfflineStore {
                   let profile = try? decoder.decode(GrowthProfileDTO.self, from: data) else { continue }
             state.growthProfile = profile
         }
-        for change in changes where change.entityType == "growthattributemapping" {
+        for change in orderedChanges where change.entityType == "growthattributemapping" {
             if change.deleted {
                 state.growthAttributeMappings.removeValue(forKey: change.entityId)
                 continue
@@ -248,9 +262,9 @@ extension OfflineStore {
             guard let mappings = Self.decodeGrowthAttributeMappings(change.data) else { continue }
             state.growthAttributeMappings[change.entityId] = mappings
         }
-        try applyBudgetGymChanges(changes)
-        try applyJournalChanges(changes)
-        try applyCalendarChanges(changes)
+        try applyBudgetGymChanges(orderedChanges)
+        try applyJournalChanges(orderedChanges)
+        try applyCalendarChanges(orderedChanges)
         reapplyPendingJournalMutations()
         try reapplyPendingTaskMutations(optimisticTasksByID: optimisticTasksByID)
         try reapplyPendingTaskListMutations(optimisticByID: optimisticTaskListsByID)
@@ -302,10 +316,24 @@ extension OfflineStore {
         for deckID in cardDeckIDs {
             try reapplyPendingCardMutations(deckId: deckID, optimisticCardsByID: optimisticCardsByID)
         }
-        state.cursor = cursor
-        state.lastSyncTime = lastSyncTime
+        if incomingCursorIsNewer {
+            state.cursor = cursor
+            state.lastSyncTime = lastSyncTime
+        } else if cursor == localCursor, let lastSyncTime {
+            state.lastSyncTime = lastSyncTime
+        }
         try persist()
         return state
+    }
+
+    /// Compares protocol cursors without changing their wire or storage form.
+    /// Numeric cursors use numeric ordering; legacy opaque cursors retain their
+    /// existing lexical ordering.
+    internal static func isCursorNewer(_ incoming: String, than local: String) -> Bool {
+        if let incomingNumber = UInt64(incoming), let localNumber = UInt64(local) {
+            return incomingNumber > localNumber
+        }
+        return incoming != local && incoming > local
     }
 
     private static func isStatusOnlyTaskConflict(_ conflict: SyncConflict) -> Bool {

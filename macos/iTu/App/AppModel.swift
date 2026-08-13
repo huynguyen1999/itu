@@ -385,9 +385,20 @@ final class AppModel {
             stopUsageTracking()
             invalidateSession()
             TaskUndoCoordinator.shared.clearHistory()
-            offlineStore = OfflineStore(accountID: profile.id)
-            syncCoordinator.attach(store: offlineStore)
-            apply(try await offlineStore.load())
+            let store = OfflineStore(accountID: profile.id)
+            offlineStore = store
+            syncCoordinator.attach(store: store)
+            let switchGeneration = sessionGeneration
+            let snapshot: OfflineSnapshot
+            do {
+                snapshot = try await store.load()
+            } catch {
+                guard switchGeneration == sessionGeneration else { return }
+                throw error
+            }
+            guard switchGeneration == sessionGeneration else { return }
+            apply(snapshot)
+            guard switchGeneration == sessionGeneration else { return }
         }
         user = profile
         SessionCache.saveUser(profile)
@@ -395,9 +406,21 @@ final class AppModel {
     }
 
     func loadLocalState() async {
+        let runGeneration = sessionGeneration
+        let accountID = user?.id
+        let store = offlineStore
         do {
-            apply(try await offlineStore.load())
+            let snapshot = try await store.load()
+            guard !Task.isCancelled,
+                  runGeneration == sessionGeneration,
+                  offlineStore === store,
+                  user?.id == accountID else { return }
+            apply(snapshot)
         } catch {
+            guard !Task.isCancelled,
+                  runGeneration == sessionGeneration,
+                  offlineStore === store,
+                  user?.id == accountID else { return }
             errorMessage = "Could not load offline data: \(error.localizedDescription)"
         }
     }
@@ -406,6 +429,17 @@ final class AppModel {
         AppPerformanceSignposts.recordModelApply()
         let tasksChanged = tasks != snapshot.tasks
         currentSnapshot = snapshot
+        applyTaskProjection(snapshot, tasksChanged: tasksChanged)
+        applyHabitProjection(snapshot)
+        applyLearningProjection(snapshot)
+        applyGrowthProjection(snapshot)
+        applyBudgetGymProjection(snapshot)
+        applyJournalProjection(snapshot)
+        applyUsageProjection(snapshot)
+        applyFocusProjection(snapshot)
+    }
+
+    private func applyTaskProjection(_ snapshot: OfflineSnapshot, tasksChanged: Bool) {
         if tasksChanged {
             if !snapshot.tasks.isEmpty || tasks.isEmpty {
                 tasks = snapshot.tasks
@@ -416,17 +450,26 @@ final class AppModel {
             cachedTaskProjectionDay = nil
         }
         conflicts = snapshot.conflicts
+        taskLists = snapshot.taskLists
+        sections = snapshot.sections
+        tags = snapshot.tags
+        tagIdsByTaskID = snapshot.tagIdsByTaskID
+    }
+
+    private func applyHabitProjection(_ snapshot: OfflineSnapshot) {
         habits = snapshot.habits
         habitOccurrences = snapshot.habitOccurrences
         habitOccurrencesByHabitAndDay = snapshot.habitOccurrences.reduce(into: [:]) { index, occurrence in
             index[Self.habitOccurrenceKey(habitId: occurrence.habitId, day: occurrence.localDayString)] = occurrence
         }
+    }
+
+    private func applyLearningProjection(_ snapshot: OfflineSnapshot) {
         cardsByDeckId = snapshot.cardsByDeckId
-        taskLists = snapshot.taskLists
-        sections = snapshot.sections
-        tags = snapshot.tags
-        tagIdsByTaskID = snapshot.tagIdsByTaskID
         decks = snapshot.decks
+    }
+
+    private func applyGrowthProjection(_ snapshot: OfflineSnapshot) {
         userCoins = snapshot.userCoins
         growthLevel = snapshot.growthLevel
         growthCurrentXp = snapshot.growthCurrentXp
@@ -445,8 +488,9 @@ final class AppModel {
         growthTaskRewardDefaults = snapshot.growthTaskRewardDefaults
         growthEarningRules = snapshot.growthEarningRules
         growthAttributeMappings = snapshot.growthAttributeMappings
-        localUsageSummaries = snapshot.usageSummaries
-        localWebsiteUsageSummaries = snapshot.websiteUsageSummaries
+    }
+
+    private func applyBudgetGymProjection(_ snapshot: OfflineSnapshot) {
         budgetCategories = snapshot.budgetCategories.filter { $0.archivedAt == nil }
         budgetPeriods = snapshot.budgetPeriods
         budgetTransactions = snapshot.budgetTransactions.filter { $0.deletedAt == nil }
@@ -454,6 +498,9 @@ final class AppModel {
         gymWorkouts = snapshot.gymWorkouts.filter { $0.deletedAt == nil }
         budgetPreferences = snapshot.budgetPreferences
         gymPreferences = snapshot.gymPreferences
+    }
+
+    private func applyJournalProjection(_ snapshot: OfflineSnapshot) {
         journalNotes = snapshot.journalNotes.filter { $0.deletedAt == nil }
         journalTags = snapshot.journalTags
         journalTemplates = snapshot.journalTemplates.filter { $0.archivedAt == nil }
@@ -465,6 +512,14 @@ final class AppModel {
         settingsStore.journalAutoOpenTodayNote = journalPreferences.autoOpenTodayNote
         settingsStore.journalWeekStartDay = journalPreferences.weekStartDay
         settingsStore.journalAutoCreateWeeklyReview = journalPreferences.autoCreateWeeklyReview
+    }
+
+    private func applyUsageProjection(_ snapshot: OfflineSnapshot) {
+        localUsageSummaries = snapshot.usageSummaries
+        localWebsiteUsageSummaries = snapshot.websiteUsageSummaries
+    }
+
+    private func applyFocusProjection(_ snapshot: OfflineSnapshot) {
         let active = snapshot.focusSessions.first {
             $0.status == .active || $0.status == .paused
         }

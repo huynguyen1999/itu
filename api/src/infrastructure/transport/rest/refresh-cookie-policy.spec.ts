@@ -7,7 +7,7 @@ describe('refresh cookie policy', () => {
       secure: false,
       sameSite: 'lax',
       path: '/',
-      maxAge: 2_592_000,
+      maxAge: 15_552_000,
     });
   });
 

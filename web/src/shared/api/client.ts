@@ -11,15 +11,18 @@ import { createBudgetApi, type BudgetApi } from './budgetApi';
 import { createGymApi, type GymApi } from './gymApi';
 import { createUsageApi, type UsageApi } from './usageApi';
 import { createTrashApi, type TrashApi } from './trashApi';
+import { createAiCredentialsApi, type AiCredentialsApi } from './aiCredentialsApi';
 import type { ApiClientContext, OfflineMutationHandler, OfflineMutationInput } from './apiContext';
 
 export type { OfflineMutationHandler, OfflineMutationInput } from './apiContext';
 export type * from './types';
 export type * from './preferencesApi';
 export type * from './usageApi';
+export type * from './aiCredentialsApi';
 
 export interface ApiClient
-  extends SyncApi,
+  extends
+    SyncApi,
     ProductivityApi,
     FocusProductivityApi,
     AuthApi,
@@ -29,7 +32,8 @@ export interface ApiClient
     BudgetApi,
     GymApi,
     UsageApi,
-    TrashApi {}
+    TrashApi,
+    AiCredentialsApi {}
 
 export class ApiClient extends HttpClient {
   private offlineMutationHandler: OfflineMutationHandler | null = null;
@@ -55,6 +59,7 @@ export class ApiClient extends HttpClient {
       createGymApi(context),
       createUsageApi(context),
       createTrashApi(context),
+      createAiCredentialsApi(context),
     );
   }
 

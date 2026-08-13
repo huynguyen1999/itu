@@ -63,6 +63,8 @@ export class Sync {
   private snapshot: SyncSnapshot;
   private started = false;
   private authenticated = false;
+  private sessionIdentity: string | null = null;
+  private lifecycleGeneration = 0;
   private unsubscribeToken: (() => void) | null = null;
   private unsubscribeQueueState: (() => void) | null = null;
   private unsubscribeQueueResponses: (() => void) | null = null;
@@ -81,10 +83,13 @@ export class Sync {
     };
   }
 
-  public start(authenticated: boolean): void {
+  public start(authenticated: boolean, sessionIdentity: string | null = null): void {
     const wasAuthenticated = this.authenticated;
+    const sessionChanged = sessionIdentity !== this.sessionIdentity;
+    if (authenticated !== this.authenticated || sessionChanged) this.lifecycleGeneration += 1;
     this.authenticated = authenticated;
-    this.queue.setAuthenticated(authenticated, api.getToken());
+    this.sessionIdentity = sessionIdentity;
+    this.queue.setAuthenticated(authenticated, api.getToken(), sessionIdentity);
     if (!this.started) {
       this.started = true;
       this.queue.start();
@@ -97,19 +102,21 @@ export class Sync {
         void this.queue.pull();
       });
       this.unsubscribeToken = api.subscribeToken((token) => {
-        this.queue.setAuthenticated(this.authenticated, token);
+        this.queue.setAuthenticated(this.authenticated, token, this.sessionIdentity);
         this.connectWithToken(token);
       });
       api.setOfflineMutationHandler(this.submit);
     }
-    if (authenticated && !wasAuthenticated) this.queue.scheduleFlush(50);
+    if (authenticated && (!wasAuthenticated || sessionChanged)) this.queue.scheduleFlush(50);
     this.connectWithToken(api.getToken());
   }
 
   public stop(): void {
     if (!this.started) return;
+    this.lifecycleGeneration += 1;
     this.started = false;
     this.authenticated = false;
+    this.sessionIdentity = null;
     this.unsubscribeToken?.();
     this.unsubscribeToken = null;
     this.unsubscribeQueueState?.();
@@ -121,7 +128,7 @@ export class Sync {
     this.unsubscribeWebSocketConnected?.();
     this.unsubscribeWebSocketConnected = null;
     api.setOfflineMutationHandler(null);
-    this.queue.setAuthenticated(false, null);
+    this.queue.setAuthenticated(false, null, null);
     this.wsClient.disconnect();
     this.queue.stop();
   }
@@ -248,6 +255,8 @@ export class Sync {
   }
 
   private connectWithToken = (token: string | null): void => {
+    const lifecycleGeneration = this.lifecycleGeneration;
+    const sessionIdentity = this.sessionIdentity;
     const { deviceId, clientInstanceId } = this.queue.getIdentity();
     if (!token || !this.authenticated) {
       this.wsClient.disconnect();
@@ -255,9 +264,12 @@ export class Sync {
     }
     void offlineSyncStore
       .getCursor()
-      .then((cursor) => api.registerSyncDevice({ deviceId, lastKnownSyncCursor: cursor }))
+      .then((cursor) => {
+        if (!this.isCurrentLifecycle(lifecycleGeneration, sessionIdentity)) return undefined;
+        return api.registerSyncDevice({ deviceId, lastKnownSyncCursor: cursor });
+      })
       .then(() => {
-        if (this.started && this.authenticated && api.getToken() === token) {
+        if (this.isCurrentLifecycle(lifecycleGeneration, sessionIdentity) && api.getToken() === token) {
           this.wsClient.connect(token, deviceId, clientInstanceId);
         }
       })
@@ -265,6 +277,10 @@ export class Sync {
   };
 
   private readonly handleResponse = async (response: import('./syncQueue').SyncResponse): Promise<void> => {
+    const lifecycleGeneration = this.lifecycleGeneration;
+    const sessionIdentity = this.sessionIdentity;
+    const isCurrent = () => this.isCurrentLifecycle(lifecycleGeneration, sessionIdentity);
+    if (!isCurrent()) return;
     if (response.localOnly) {
       applySyncChanges(this.queryClient, response);
       return;
@@ -276,10 +292,18 @@ export class Sync {
       .map((outcome) => ({ receipt: outcome.growthReceipt, key: outcome.mutationId, authoritative: true }));
     this.appendGrowthReceipts(receipts);
     this.removeGrowthReceipts(new Set(response.conflicts.map((conflict) => conflict.mutationId)));
-    if (response.conflicts.length)
+    if (response.conflicts.length) {
       await this.queryClient.invalidateQueries({ queryKey: ['growth'], refetchType: 'active' });
+      if (!isCurrent()) return;
+    }
+    if (!isCurrent()) return;
     await invalidateSyncChanges(this.queryClient, response);
+    if (!isCurrent()) return;
   };
+
+  private isCurrentLifecycle(generation: number, sessionIdentity: string | null): boolean {
+    return this.started && this.authenticated && generation === this.lifecycleGeneration && sessionIdentity === this.sessionIdentity;
+  }
 
   private appendGrowthReceipts(entries: GrowthReceiptEntry[]): void {
     if (!entries.length) return;
@@ -307,10 +331,13 @@ export class Sync {
   }
 
   private async refreshSnapshot(state = this.queue.getState()): Promise<void> {
+    const lifecycleGeneration = this.lifecycleGeneration;
+    const sessionIdentity = this.sessionIdentity;
     const [conflicts, pendingMutations] = await Promise.all([
       this.queue.listConflicts(),
       this.queue.listPendingMutations(),
     ]);
+    if (!this.isCurrentLifecycle(lifecycleGeneration, sessionIdentity)) return;
     this.removeGrowthReceipts(new Set(conflicts.map((conflict) => conflict.mutationId)));
     const failedMutationIds = new Set(
       pendingMutations.filter((mutation) => Boolean(mutation.lastErrorCode)).map((mutation) => mutation.id),
@@ -318,15 +345,19 @@ export class Sync {
     this.removeGrowthReceipts(failedMutationIds);
     if (failedMutationIds.size) {
       await this.queryClient.invalidateQueries({ queryKey: ['growth'], refetchType: 'active' });
+      if (!this.isCurrentLifecycle(lifecycleGeneration, sessionIdentity)) return;
     }
     for (const mutation of pendingMutations) {
+      if (!this.isCurrentLifecycle(lifecycleGeneration, sessionIdentity)) return;
       if (mutation.kind === 'growthattributemapping.upsert' && mutation.lastErrorCode) {
         await this.queryClient.invalidateQueries({
           queryKey: ['growth', 'attribute-mappings', mutation.entityId],
           exact: true,
         });
+        if (!this.isCurrentLifecycle(lifecycleGeneration, sessionIdentity)) return;
       }
     }
+    if (!this.isCurrentLifecycle(lifecycleGeneration, sessionIdentity)) return;
     this.updateSnapshot({ ...state, conflicts, pendingMutations });
   }
 
@@ -390,8 +421,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient]);
 
   useEffect(() => {
-    sync.start(auth.isAuthenticated);
-  }, [auth.isAuthenticated, sync]);
+    sync.start(auth.isAuthenticated, auth.user?.id ?? null);
+  }, [auth.isAuthenticated, auth.user?.id, sync]);
 
   useEffect(() => {
     const unsubscribe = sync.subscribe(setSnapshot);

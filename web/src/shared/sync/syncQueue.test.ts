@@ -302,6 +302,125 @@ describe('SyncQueue transport', () => {
     expect(deleteMutations).not.toHaveBeenCalled();
   });
 
+  it('does not run stale finally cleanup after the authenticated session changes', async () => {
+    installBrowserGlobals();
+    const oldMapping: ClientSyncMutation = {
+      ...base,
+      id: 'mapping-old-failed',
+      kind: 'growthattributemapping.upsert',
+      entityId: 'skill-1',
+      attemptCount: 1,
+      lastErrorCode: 'CLIENT',
+    };
+    const acknowledgedMapping: ClientSyncMutation = {
+      ...oldMapping,
+      id: 'mapping-new-acked',
+      attemptCount: undefined,
+      lastErrorCode: undefined,
+      occurredAt: '2026-07-25T00:01:00.000Z',
+    };
+    vi.spyOn(offlineSyncStore, 'listMutations').mockResolvedValue([oldMapping, acknowledgedMapping]);
+    vi.spyOn(offlineSyncStore, 'listConflicts').mockResolvedValue([]);
+    vi.spyOn(offlineSyncStore, 'getCursor').mockResolvedValue('1');
+    vi.spyOn(offlineSyncStore, 'setCursor').mockResolvedValue();
+    const deleteMutations = vi.spyOn(offlineSyncStore, 'deleteMutations').mockResolvedValue();
+    vi.spyOn(offlineSyncStore, 'putConflicts').mockResolvedValue();
+    const request = vi.fn().mockResolvedValue({
+      acknowledgedMutationIds: [acknowledgedMapping.id],
+      cursor: '2',
+      changes: [],
+      conflicts: [],
+      mutationOutcomes: [],
+    });
+    const queue = new SyncQueue({ request } as unknown as HttpClient);
+    queue.setAuthenticated(true, 'session-a');
+    queue.subscribeResponses(() => {
+      queue.setAuthenticated(true, 'session-b');
+    });
+
+    await queue.flush(true);
+
+    expect(deleteMutations).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores cross-session and unauthenticated BroadcastChannel responses', async () => {
+    installBrowserGlobals();
+    installLifecycleGlobals('visible');
+    let onMessage: ((event: MessageEvent) => void) | undefined;
+    class BroadcastChannelStub {
+      addEventListener(type: string, listener: EventListener) {
+        if (type === 'message') onMessage = listener as (event: MessageEvent) => void;
+      }
+      removeEventListener() {}
+      postMessage() {}
+      close() {}
+    }
+    vi.stubGlobal('BroadcastChannel', BroadcastChannelStub);
+    vi.spyOn(offlineSyncStore, 'listMutations').mockResolvedValue([]);
+    vi.spyOn(offlineSyncStore, 'listConflicts').mockResolvedValue([]);
+    const queue = new SyncQueue({ request: vi.fn() } as unknown as HttpClient);
+    queue.setAuthenticated(true, 'access-token-a', 'account-a');
+    const responses: unknown[] = [];
+    queue.subscribeResponses((response) => {
+      responses.push(response);
+    });
+    queue.start();
+    await vi.waitFor(() => expect(onMessage).toBeDefined());
+
+    const response = {
+      acknowledgedMutationIds: [],
+      cursor: '',
+      changes: [],
+      conflicts: [],
+      localOnly: true,
+    };
+    onMessage?.({
+      data: { type: 'SYNC_RESPONSE', originClientInstanceId: 'other-tab', sessionKey: 'account-b', response },
+    } as MessageEvent);
+    await Promise.resolve();
+    expect(responses).toHaveLength(0);
+
+    onMessage?.({
+      data: { type: 'SYNC_RESPONSE', originClientInstanceId: 'other-tab', sessionKey: 'account-a', response },
+    } as MessageEvent);
+    await vi.waitFor(() => expect(responses).toHaveLength(1));
+
+    queue.setAuthenticated(false, null, null);
+    onMessage?.({
+      data: { type: 'SYNC_RESPONSE', originClientInstanceId: 'other-tab', sessionKey: 'account-a', response },
+    } as MessageEvent);
+    await Promise.resolve();
+    expect(responses).toHaveLength(1);
+    queue.stop();
+  });
+
+  it('never falls back to the access token for BroadcastChannel identity', () => {
+    installBrowserGlobals();
+    installLifecycleGlobals('visible');
+    const posted: unknown[] = [];
+    class BroadcastChannelStub {
+      addEventListener() {}
+      removeEventListener() {}
+      postMessage(message: unknown) { posted.push(message); }
+      close() {}
+    }
+    vi.stubGlobal('BroadcastChannel', BroadcastChannelStub);
+    vi.spyOn(offlineSyncStore, 'listMutations').mockResolvedValue([]);
+    vi.spyOn(offlineSyncStore, 'listConflicts').mockResolvedValue([]);
+    const queue = new SyncQueue({ request: vi.fn() } as unknown as HttpClient);
+    queue.start();
+    queue.setAuthenticated(true, 'secret-access-token');
+
+    queue.broadcastOptimisticChange({ entityType: 'task', entityId: 'task-1', deleted: false, data: {} });
+    expect(posted).toEqual([]);
+
+    queue.setAuthenticated(true, 'secret-access-token', 'account-a');
+    queue.broadcastOptimisticChange({ entityType: 'task', entityId: 'task-1', deleted: false, data: {} });
+    expect(posted).toEqual([expect.objectContaining({ sessionKey: 'account-a' })]);
+    expect(JSON.stringify(posted)).not.toContain('secret-access-token');
+    queue.stop();
+  });
+
   it('requests a fresh snapshot when the WebSocket cursor is behind the persisted cursor', async () => {
     installBrowserGlobals();
     vi.spyOn(offlineSyncStore, 'getCursor').mockResolvedValue('1730');

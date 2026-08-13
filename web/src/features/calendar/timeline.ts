@@ -4,6 +4,7 @@ export type TimelineItemKind = 'TASK_DURATION' | 'TASK_DUE' | 'FOCUS_SESSION' | 
 export const CALENDAR_DAY_WIDTH = 180;
 export const CALENDAR_HOUR_HEIGHT = 60;
 export const CALENDAR_ALL_DAY_HEIGHT = 38;
+export const CALENDAR_GUTTER_WIDTH = 64;
 
 export function formatRangeLabel(
   range: { from: Date; to: Date },
@@ -138,6 +139,67 @@ export function localDayIndex(timestamp: Date | string, rangeStart: Date): numbe
 export function localMinutesSinceMidnight(timestamp: Date | string): number {
   const date = new Date(timestamp);
   return date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60;
+}
+
+type PositionableTimelineItem = {
+  kind: TimelineItemKind;
+  startAt: Date | string;
+  endAt?: Date | string | null;
+  allDay?: boolean;
+};
+
+export function findClosestTimedItem<T extends PositionableTimelineItem>(
+  items: readonly T[],
+  now = new Date(),
+): T | null {
+  const nowMinutes = localMinutesSinceMidnight(now);
+  return items
+    .filter((item) => item.kind !== 'TASK_DUE' && !item.allDay && Number.isFinite(new Date(item.startAt).getTime()))
+    .reduce<T | null>((closest, item) => {
+      if (!closest) return item;
+      const itemDistance = Math.abs(localMinutesSinceMidnight(item.startAt) - nowMinutes);
+      const closestDistance = Math.abs(localMinutesSinceMidnight(closest.startAt) - nowMinutes);
+      return itemDistance < closestDistance ? item : closest;
+    }, null);
+}
+
+export function findClosestPopulatedDay<T extends PositionableTimelineItem>(
+  items: readonly T[],
+  days: readonly Date[],
+  today = new Date(),
+): number | null {
+  const todayStart = new Date(today);
+  todayStart.setHours(0, 0, 0, 0);
+  return days
+    .map((day, index) => ({ day, index }))
+    .filter(({ day }) => items.some((item) => itemSpansDay(item, day)))
+    .reduce<{ index: number; distance: number } | null>((closest, { day, index }) => {
+      const dayStart = new Date(day);
+      dayStart.setHours(0, 0, 0, 0);
+      const distance = Math.abs(dayStart.getTime() - todayStart.getTime());
+      return !closest || distance < closest.distance ? { index, distance } : closest;
+    }, null)?.index ?? null;
+}
+
+export function dayTimelineScrollTop(
+  items: readonly PositionableTimelineItem[],
+  now = new Date(),
+  hourHeight = CALENDAR_HOUR_HEIGHT,
+  contextMinutes = 60,
+): number {
+  const closest = findClosestTimedItem(items, now);
+  if (!closest) return 0;
+  return Math.max(0, ((localMinutesSinceMidnight(closest.startAt) - contextMinutes) / 60) * hourHeight);
+}
+
+export function weekTimelineScrollLeft(
+  items: readonly PositionableTimelineItem[],
+  days: readonly Date[],
+  today = new Date(),
+  dayWidth = CALENDAR_DAY_WIDTH,
+): number {
+  const dayIndex = findClosestPopulatedDay(items, days, today);
+  return dayIndex === null ? 0 : Math.max(0, (dayIndex - 1) * dayWidth);
 }
 
 export function gridTimestampFromPoint(
@@ -281,4 +343,8 @@ export function formatSingleTime(dateInput: Date | string): string {
   const ampm = hour >= 12 ? 'PM' : 'AM';
   const formattedHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
   return `${formattedHour}:${min.toString().padStart(2, '0')} ${ampm}`;
+}
+
+export function formatSingleDate(dateInput: Date | string): string {
+  return new Date(dateInput).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }

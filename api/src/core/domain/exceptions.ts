@@ -74,3 +74,15 @@ export class TermsNotAcceptedException extends DomainException {
     super('You must agree to the terms and conditions', 'TERMS_NOT_ACCEPTED', 400);
   }
 }
+
+export class GeminiNotConfiguredException extends DomainException {
+  constructor() {
+    super('Configure Gemini in Settings to use AI', 'GEMINI_NOT_CONFIGURED', 422);
+  }
+}
+
+export class InvalidAiCredentialException extends DomainException {
+  constructor(message: string) {
+    super(message, 'INVALID_KEY', 422);
+  }
+}

@@ -6,6 +6,7 @@ export * from './prisma-trash.repository';
 export * from './prisma-study.repository';
 export * from './prisma-scheduled-job.repository';
 export * from './prisma-ai.repository';
+export * from './prisma-ai-credential.repository';
 export * from './prisma-productivity.repository';
 export * from './prisma-growth.repository';
 export * from './prisma-usage.repository';

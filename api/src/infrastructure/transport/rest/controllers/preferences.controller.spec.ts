@@ -15,7 +15,7 @@ import {
   DEFAULT_USAGE_PREFERENCES,
   DEFAULT_CALENDAR_PREFERENCES,
 } from '@core/application/use-cases/preferences.service';
-import { PrismaService } from '@infrastructure/persistence/prisma/prisma.service';
+import { PREFERENCES_REPOSITORY } from '@core/application/ports/out/preferences-repository.port';
 import { AuthGuard } from '../guards/auth.guard';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -31,13 +31,21 @@ describe('PreferencesController', () => {
       upsert: jest.fn(),
     },
   };
+  const mockPreferencesRepository = {
+    findByUserId: jest.fn((userId: string) => mockPrisma.userPreferences.findUnique({ where: { userId } })),
+    upsert: jest.fn((userId: string, update: Record<string, unknown>) => mockPrisma.userPreferences.upsert({
+      where: { userId },
+      create: { userId, ...update },
+      update,
+    })),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PreferencesController],
       providers: [
         PreferencesService,
-        { provide: PrismaService, useValue: mockPrisma },
+        { provide: PREFERENCES_REPOSITORY, useValue: mockPreferencesRepository },
       ],
     })
       .overrideGuard(AuthGuard)

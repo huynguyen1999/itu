@@ -13,10 +13,13 @@ final class SyncCoordinator {
     private var retryTask: Task<Void, Never>?
     private var urgentFlushTask: Task<Void, Never>?
     private var outboxTask: Task<Void, Never>?
+    private var registrationTask: Task<Void, Never>?
+    private var registrationTaskID: UUID?
     private var socketTask: URLSessionWebSocketTask?
     private var socketReceiveTask: Task<Void, Never>?
     private var syncAction: (@MainActor () async -> Void)?
     private var isSyncing = false
+    private var syncingGeneration: Int?
     private var followupRequested = false
     private var registeredDevice = false
     private(set) var isActive = false
@@ -50,6 +53,7 @@ final class SyncCoordinator {
         retryTask?.cancel()
         urgentFlushTask?.cancel()
         outboxTask?.cancel()
+        registrationTask?.cancel()
         socketReceiveTask?.cancel()
         socketTask?.cancel(with: .goingAway, reason: nil)
     }
@@ -62,27 +66,31 @@ final class SyncCoordinator {
     func start(periodicAction: @escaping @MainActor () async -> Void) {
         syncAction = periodicAction
         isActive = true
+        let runGeneration = generation
         outboxTask?.cancel()
         if let offlineStore {
             outboxTask = Task { [weak self] in
                 for await event in await offlineStore.outboxEvents() {
                     guard !Task.isCancelled else { return }
-                    if case let .enqueued(urgent) = event { self?.requestFlush(urgent: urgent) }
+                    guard let self, self.isActive, self.generation == runGeneration else { return }
+                    if case let .enqueued(urgent) = event { self.requestFlush(urgent: urgent) }
                 }
             }
         }
         periodicTask?.cancel()
-        periodicTask = Task {
+        periodicTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(300))
                 guard !Task.isCancelled else { return }
+                guard let self, self.isActive, self.generation == runGeneration else { return }
                 await periodicAction()
             }
         }
         ConnectivityMonitor.shared.onReconnected = { [weak self] in
-            self?.requestFlush(urgent: true)
+            guard let self, self.isActive, self.generation == runGeneration else { return }
+            self.requestFlush(urgent: true)
         }
-        Task { [weak self] in await self?.registerAndConnect() }
+        scheduleRegistration(generation: runGeneration)
     }
 
     func stop() {
@@ -91,6 +99,9 @@ final class SyncCoordinator {
         syncAction = nil
         isActive = false
         registeredDevice = false
+        followupRequested = false
+        isSyncing = false
+        syncingGeneration = nil
     }
 
     private func cancelTransport() {
@@ -99,49 +110,64 @@ final class SyncCoordinator {
         retryTask?.cancel(); retryTask = nil
         urgentFlushTask?.cancel(); urgentFlushTask = nil
         outboxTask?.cancel(); outboxTask = nil
+        isSyncing = false
+        syncingGeneration = nil
+        followupRequested = false
+        registrationTask?.cancel(); registrationTask = nil
+        registrationTaskID = nil
         socketReceiveTask?.cancel(); socketReceiveTask = nil
         socketTask?.cancel(with: .goingAway, reason: nil); socketTask = nil
+        ConnectivityMonitor.shared.onReconnected = nil
     }
 
     /// Requests an outbox flush. Normal writes share a 1.5 second debounce;
     /// status/delete and explicit recovery actions can request an immediate run.
     func requestFlush(urgent: Bool = false) {
         guard isActive, let syncAction else { return }
+        let runGeneration = generation
         debounceTask?.cancel()
         if urgent {
             urgentFlushTask?.cancel()
             urgentFlushTask = Task { [weak self] in
+                guard let self, self.isActive, self.generation == runGeneration else { return }
                 await syncAction()
-                guard !Task.isCancelled else { return }
-                self?.urgentFlushTask = nil
+                guard !Task.isCancelled, self.isActive, self.generation == runGeneration else { return }
+                self.urgentFlushTask = nil
             }
             return
         }
-        debounceTask = Task {
+        debounceTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(1500))
-            guard !Task.isCancelled else { return }
+            guard let self, !Task.isCancelled, self.isActive, self.generation == runGeneration else { return }
             await syncAction()
         }
     }
 
     func synchronize() async throws -> SyncResult {
         AppPerformanceSignposts.recordSyncRun()
+        let runGeneration = generation
         guard let offlineStore else { throw APIError(statusCode: 0, message: "Sync is not attached") }
         if isSyncing {
+            guard syncingGeneration == runGeneration else {
+                let snapshot = await offlineStore.snapshot()
+                return SyncResult(snapshot: snapshot, outcomes: [], conflicts: snapshot.conflicts, cursor: snapshot.cursor)
+            }
             followupRequested = true
             let snapshot = await offlineStore.snapshot()
             return SyncResult(snapshot: snapshot, outcomes: [], conflicts: snapshot.conflicts, cursor: snapshot.cursor)
         }
         isSyncing = true
+        syncingGeneration = runGeneration
         defer {
+            guard syncingGeneration == runGeneration else { return }
             isSyncing = false
+            syncingGeneration = nil
             if followupRequested {
                 followupRequested = false
                 requestFlush(urgent: true)
             }
         }
 
-        let runGeneration = generation
         let before = await offlineStore.snapshot()
         guard runGeneration == generation else { return SyncResult(snapshot: before, outcomes: [], conflicts: before.conflicts, cursor: before.cursor) }
         scheduleEarliestRetry(for: before.mutations, generation: runGeneration)
@@ -159,8 +185,14 @@ final class SyncCoordinator {
             ))
             guard runGeneration == generation else { return SyncResult(snapshot: await offlineStore.snapshot(), outcomes: [], conflicts: [], cursor: before.cursor) }
             let snapshot = try await offlineStore.applySync(response)
+            guard runGeneration == generation else {
+                return SyncResult(snapshot: await offlineStore.snapshot(), outcomes: [], conflicts: [], cursor: snapshot.cursor)
+            }
             try? await apiClient.updateSyncDevice(deviceId: deviceId, cursor: response.cursor)
-            if socketTask == nil { await registerAndConnect() }
+            guard runGeneration == generation else {
+                return SyncResult(snapshot: await offlineStore.snapshot(), outcomes: [], conflicts: [], cursor: snapshot.cursor)
+            }
+            if socketTask == nil { scheduleRegistration(generation: runGeneration) }
             return SyncResult(
                 snapshot: snapshot,
                 outcomes: response.mutationOutcomes ?? [],
@@ -190,21 +222,38 @@ final class SyncCoordinator {
         return try await synchronize()
     }
 
-    private func registerAndConnect() async {
-        guard socketTask == nil, await apiClient.token() != nil, let offlineStore else { return }
+    private func scheduleRegistration(generation runGeneration: Int) {
+        guard isActive, generation == runGeneration, registrationTask == nil else { return }
+        let taskID = UUID()
+        registrationTaskID = taskID
+        registrationTask = Task { [weak self] in
+            await self?.registerAndConnect(generation: runGeneration)
+            guard let self, self.registrationTaskID == taskID else { return }
+            self.registrationTask = nil
+            self.registrationTaskID = nil
+        }
+    }
+
+    private func registerAndConnect(generation runGeneration: Int) async {
+        guard isActive, generation == runGeneration, socketTask == nil,
+              await apiClient.token() != nil, let offlineStore else { return }
         do {
             let cursor = await offlineStore.snapshot().cursor
+            guard isActive, generation == runGeneration, socketTask == nil else { return }
             try await apiClient.registerSyncDevice(deviceId: deviceId, cursor: cursor)
+            guard isActive, generation == runGeneration, socketTask == nil else { return }
             registeredDevice = true
-            await connectWebSocket()
+            await connectWebSocket(generation: runGeneration)
         } catch {
             // Reachability is reflected by the next sync; never fabricate an
             // authenticated/online phase because device registration failed.
         }
     }
 
-    private func connectWebSocket() async {
-        guard registeredDevice, socketTask == nil, let token = await apiClient.token() else { return }
+    private func connectWebSocket(generation connectionGeneration: Int) async {
+        guard isActive, generation == connectionGeneration, registeredDevice,
+              socketTask == nil, let token = await apiClient.token() else { return }
+        guard isActive, generation == connectionGeneration, registeredDevice, socketTask == nil else { return }
         var components = URLComponents(url: APIConfiguration.baseURL, resolvingAgainstBaseURL: false)
         components?.scheme = APIConfiguration.baseURL.scheme == "https" ? "wss" : "ws"
         components?.path = "/ws/sync"
@@ -241,7 +290,8 @@ final class SyncCoordinator {
                 socketTask = nil; socketReceiveTask = nil
                 guard !Task.isCancelled else { return }
                 try? await Task.sleep(for: .seconds(3))
-                await registerAndConnect()
+                guard connectionGeneration == self.generation, self.isActive else { return }
+                self.scheduleRegistration(generation: connectionGeneration)
                 return
             }
         }
@@ -264,13 +314,6 @@ final class SyncCoordinator {
 
     private static func parseDate(_ value: String) -> Date? {
         ISO8601DateFormatter().date(from: value)
-    }
-
-    private static func isCursorNewer(_ incoming: String, than local: String) -> Bool {
-        if let incomingNumber = UInt64(incoming), let localNumber = UInt64(local) {
-            return incomingNumber > localNumber
-        }
-        return incoming != local && incoming > local
     }
 
     private static func syncErrorCode(_ error: Error) -> String {

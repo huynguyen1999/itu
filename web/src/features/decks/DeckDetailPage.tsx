@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   Pencil,
   Search,
+  Settings2,
   Trash2,
   UploadCloud,
 } from 'lucide-react';
@@ -56,6 +57,7 @@ export function DeckDetailPage() {
   const [aiText, setAiText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [streamErrorCode, setStreamErrorCode] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<AiSuggestedCard[]>([]);
   const [addedSuggestions, setAddedSuggestions] = useState<number[]>([]);
   const [isEditingDeck, setIsEditingDeck] = useState(false);
@@ -76,6 +78,12 @@ export function DeckDetailPage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const deckQuery = useQuery({ queryKey: ['deck', deckId], queryFn: () => api.deck(deckId), enabled: Boolean(deckId) });
+  const aiCredentialsQuery = useQuery({
+    queryKey: ['ai-credentials'],
+    queryFn: () => api.listAiCredentials(),
+    enabled: canUseAi,
+  });
+  const hasUsableAiCredentials = aiCredentialsQuery.data?.some((credential) => credential.usable) ?? false;
   const statsQuery = useQuery({
     queryKey: ['deck-stats', deckId],
     queryFn: () => api.deckStats(deckId),
@@ -182,6 +190,7 @@ export function DeckDetailPage() {
     mutationFn: async () => {
       setIsStreaming(true);
       setStreamError(null);
+      setStreamErrorCode(null);
       setSuggestions([]);
       setAddedSuggestions([]);
 
@@ -205,7 +214,7 @@ export function DeckDetailPage() {
             const parsedLine = parseSseEventLine<{ chunk?: string; error?: string }>(event);
             if (!parsedLine.isData || !parsedLine.data) continue;
             if (parsedLine.error) {
-              throw new Error(parsedLine.error);
+              throw new AiStreamError(parsedLine.error, parsedLine.code ?? undefined);
             }
             if (parsedLine.data.chunk) {
               accumulatedText += parsedLine.data.chunk;
@@ -236,6 +245,7 @@ export function DeckDetailPage() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setStreamError(msg);
+        setStreamErrorCode(err instanceof AiStreamError ? (err.code ?? null) : errorCode(err));
         throw err;
       } finally {
         setIsStreaming(false);
@@ -569,22 +579,51 @@ export function DeckDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Textarea
-                    value={aiText}
-                    onChange={(e) => setAiText(e.target.value)}
-                    placeholder="Paste your notes here to automatically generate flashcards..."
-                    className="min-h-[100px] bg-background"
-                  />
-                  <Button
-                    variant="secondary"
-                    className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-                    disabled={suggest.isPending || pendingAiJob || !aiText.trim()}
-                    onClick={() => suggest.mutate()}
-                  >
-                    <Bot size={16} /> {suggest.isPending || pendingAiJob ? 'Generating...' : 'Generate suggestions'}
-                  </Button>
+                  {aiCredentialsQuery.isSuccess && !hasUsableAiCredentials ? (
+                    <div className="space-y-3 rounded-xl border border-dashed p-4">
+                      <p className="text-sm text-muted-foreground">Configure Gemini in Settings to use AI</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate('/settings?section=ai')}
+                      >
+                        <Settings2 /> Open Settings → AI
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <Textarea
+                        value={aiText}
+                        onChange={(e) => setAiText(e.target.value)}
+                        placeholder="Paste your notes here to automatically generate flashcards..."
+                        className="min-h-[100px] bg-background"
+                        disabled={aiCredentialsQuery.isLoading}
+                      />
+                      <Button
+                        variant="secondary"
+                        className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                        disabled={suggest.isPending || pendingAiJob || !aiText.trim() || !hasUsableAiCredentials}
+                        onClick={() => suggest.mutate()}
+                      >
+                        <Bot size={16} /> {suggest.isPending || pendingAiJob ? 'Generating...' : 'Generate suggestions'}
+                      </Button>
+                    </>
+                  )}
                   {(suggest.isError || streamError) && (
-                    <p className="text-sm text-destructive">{streamError || errorMessage(suggest.error)}</p>
+                    <div className="space-y-2">
+                      <p className="text-sm text-destructive">{streamError || errorMessage(suggest.error)}</p>
+                      {streamErrorCode === 'GEMINI_NOT_CONFIGURED' ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate('/settings?section=ai')}
+                        >
+                          <Settings2 /> Open Settings → AI
+                        </Button>
+                      ) : null}
+                    </div>
                   )}
                   {(pendingAiJob || suggestions.length > 0) && (
                     <div className="rounded-md border bg-card p-4 text-sm">
@@ -869,6 +908,19 @@ export function DeckDetailPage() {
   );
 }
 
+class AiStreamError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
+    super(message);
+  }
+}
+
+function errorCode(error: unknown): string | null {
+  return error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : null;
+}
+
 function MoveCardsDialog({
   open,
   onOpenChange,
@@ -1001,7 +1053,7 @@ function DeckStatsPanel({ stats }: { stats: Awaited<ReturnType<typeof api.deckSt
                   style={{ height: `${Math.max(4, Math.min(64, day.dueCount * 8))}px` }}
                   title={`${day.date}: ${day.dueCount} due`}
                 />
-                <span className="text-[10px] text-muted-foreground">{new Date(day.date).getDate()}</span>
+                <span className="text-xs text-muted-foreground">{new Date(day.date).getDate()}</span>
               </div>
             ))}
           </div>

@@ -108,3 +108,25 @@ export interface IJournalAttachmentRepository {
   listByEntry(userId: string, entryId: string): Promise<JournalAttachmentModel[]>;
   delete(userId: string, id: string): Promise<boolean>;
 }
+
+export interface JournalWeeklyReviewSnapshotData {
+  tasksCompleted: number;
+  focusPlannedSeconds: number;
+  focusSessions: number;
+  habitsScheduled: number;
+  habitsCompleted: number;
+  reviews: number;
+  expenses: Record<string, string>;
+  workouts: number;
+  xpEarned: number;
+}
+
+export interface IJournalWeeklyReviewQuery {
+  getSnapshotData(userId: string, periodStart: Date, periodEnd: Date): Promise<JournalWeeklyReviewSnapshotData>;
+}
+
+export const JOURNAL_REPOSITORY = 'JOURNAL_REPOSITORY';
+export const JOURNAL_TEMPLATE_REPOSITORY = 'JOURNAL_TEMPLATE_REPOSITORY';
+export const JOURNAL_TAG_REPOSITORY = 'JOURNAL_TAG_REPOSITORY';
+export const JOURNAL_ATTACHMENT_REPOSITORY = 'JOURNAL_ATTACHMENT_REPOSITORY';
+export const JOURNAL_WEEKLY_REVIEW_QUERY = 'JOURNAL_WEEKLY_REVIEW_QUERY';

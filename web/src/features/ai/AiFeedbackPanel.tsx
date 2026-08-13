@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../shared/api/client';
 import type { CardGrading } from '../../shared/api/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Skeleton } from '@/shared/ui/skeleton';
-import { BrainCircuit, CheckCircle2, Target } from 'lucide-react';
+import { BrainCircuit, CheckCircle2, Settings2, Target } from 'lucide-react';
 import { MarkdownPreview } from '../../shared/markdown/MarkdownPreview';
 import { useSync } from '@/shared/sync/SyncProvider';
 import { studyCompletionMessage, studyReceiptAccountXp } from '../review/studyReward';
@@ -39,7 +40,7 @@ export function AiFeedbackPanel({
   const [isStreaming, setIsStreaming] = useState(false);
   const [isGradingLoading, setIsGradingLoading] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [accumulatedText, setAccumulatedText] = useState('');
+  const [streamErrorCode, setStreamErrorCode] = useState<string | null>(null);
   const [rating, setRating] = useState(8);
   const [showRatingForm, setShowRatingForm] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -50,6 +51,13 @@ export function AiFeedbackPanel({
   const completionReceipt = growthReceipts.find(
     (receipt) => receipt.sourceType === 'REVIEW_DECK' && receipt.sourceId === sessionId,
   );
+  const navigate = useNavigate();
+  const aiCredentialsQuery = useQuery({
+    queryKey: ['ai-credentials'],
+    queryFn: () => api.listAiCredentials(),
+    enabled: canUseAi,
+  });
+  const hasUsableAiCredentials = aiCredentialsQuery.data?.some((credential) => credential.usable) ?? false;
 
   const cancelledRef = useRef(false);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
@@ -81,25 +89,20 @@ export function AiFeedbackPanel({
       return;
     }
 
-    if (
-      !wantsAiReview ||
-      feedbackQuery.isLoading ||
-      isStreaming ||
-      isGradingLoading ||
-      streamedFeedback ||
-      feedbackQuery.isError
-    ) {
+    if (!wantsAiReview || feedbackQuery.isLoading || feedbackData || feedbackQuery.isError) {
       return;
     }
 
     let active = true;
     cancelledRef.current = false;
 
-    const runStream = async () => {
+    const runFeedback = async () => {
       setIsStreaming(true);
+      setIsGradingLoading(false);
       setStreamError(null);
+      setStreamErrorCode(null);
       let buffer = '';
-      let currentSummaryText = '';
+      let summary = '';
 
       try {
         const stream = await api.sessionSummaryStream(sessionId);
@@ -111,17 +114,16 @@ export function AiFeedbackPanel({
           const parsedLine = parseSseEventLine<{ chunk?: string; error?: string }>(line);
           if (!parsedLine.isData || !parsedLine.data) return;
           if (parsedLine.error) {
-            throw new Error(parsedLine.error);
+            throw new AiStreamError(parsedLine.error, parsedLine.code ?? undefined);
           }
           const chunk = parsedLine.data.chunk;
           if (chunk) {
-            currentSummaryText += chunk;
-            setAccumulatedText(currentSummaryText);
+            summary += chunk;
             setStreamedFeedback((prev) => ({
               id: sessionId,
               userId: '',
               sessionId,
-              summary: currentSummaryText,
+              summary,
               cardGradings: prev?.cardGradings || [],
               confidence: prev?.confidence ?? null,
               gradePoint: prev?.gradePoint ?? null,
@@ -146,47 +148,42 @@ export function AiFeedbackPanel({
         if (buffer.trim() && !cancelledRef.current) {
           processLine(buffer.trim());
         }
+
+        if (!summary.trim()) {
+          throw new Error('AI returned an empty session summary.');
+        }
+
+        if (!active || cancelledRef.current) return;
+
+        setIsStreaming(false);
+        setIsGradingLoading(true);
+        const grading = await api.sessionGrading(sessionId, summary);
+        if (!active || cancelledRef.current) return;
+        setStreamedFeedback((prev) => ({
+          id: sessionId,
+          userId: '',
+          sessionId,
+          summary: prev?.summary || summary,
+          cardGradings: grading.cardGradings,
+          confidence: grading.confidence ?? null,
+          gradePoint: grading.gradePoint,
+          createdAt: new Date().toISOString(),
+        }));
       } catch (err) {
         if (active && !cancelledRef.current) {
           setStreamError(err instanceof Error ? err.message : String(err));
+          setStreamErrorCode(err instanceof AiStreamError ? (err.code ?? null) : errorCode(err));
         }
       } finally {
         if (active) {
           setIsStreaming(false);
+          setIsGradingLoading(false);
           readerRef.current = null;
         }
       }
     };
 
-    const runGrading = async () => {
-      setIsGradingLoading(true);
-      try {
-        const grading = await api.sessionGrading(sessionId, '');
-        if (!cancelledRef.current && active) {
-          setStreamedFeedback((prev) => ({
-            id: sessionId,
-            userId: '',
-            sessionId,
-            summary: prev?.summary || '',
-            cardGradings: grading.cardGradings,
-            confidence: grading.confidence ?? null,
-            gradePoint: grading.gradePoint,
-            createdAt: new Date().toISOString(),
-          }));
-        }
-      } catch (err) {
-        if (active && !cancelledRef.current) {
-          // ignore or set error
-        }
-      } finally {
-        if (active) {
-          setIsGradingLoading(false);
-        }
-      }
-    };
-
-    runStream();
-    runGrading();
+    void runFeedback();
 
     return () => {
       active = false;
@@ -231,6 +228,12 @@ export function AiFeedbackPanel({
 
   const handleStartAiReview = async () => {
     setStreamError(null);
+    setStreamErrorCode(null);
+    if (!hasUsableAiCredentials) {
+      setStreamError('Configure Gemini in Settings to use AI');
+      setStreamErrorCode('GEMINI_NOT_CONFIGURED');
+      return;
+    }
     setWantsAiReview(true);
     await feedbackQuery.refetch();
   };
@@ -273,12 +276,21 @@ export function AiFeedbackPanel({
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-              {canUseAi && (
-                <Button className="font-semibold" onClick={handleStartAiReview}>
-                  <BrainCircuit className="h-4 w-4" />
-                  Generate AI review
-                </Button>
-              )}
+              {canUseAi &&
+                (aiCredentialsQuery.isSuccess && !hasUsableAiCredentials ? (
+                  <Button variant="outline" className="font-semibold" onClick={() => navigate('/settings?section=ai')}>
+                    <Settings2 /> Configure Gemini in Settings
+                  </Button>
+                ) : (
+                  <Button
+                    className="font-semibold"
+                    onClick={handleStartAiReview}
+                    disabled={aiCredentialsQuery.isLoading}
+                  >
+                    <BrainCircuit className="h-4 w-4" />
+                    Generate AI review
+                  </Button>
+                ))}
               <Button variant="outline" onClick={onFinish}>
                 {canUseAi ? 'Not now' : 'Done'}
               </Button>
@@ -305,6 +317,11 @@ export function AiFeedbackPanel({
                 <div className="rounded-md border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
                   {streamError || 'Unable to load AI feedback right now.'}
                 </div>
+                {streamErrorCode === 'GEMINI_NOT_CONFIGURED' ? (
+                  <Button variant="outline" onClick={() => navigate('/settings?section=ai')}>
+                    <Settings2 /> Open Settings → AI
+                  </Button>
+                ) : null}
                 <Button variant="outline" onClick={onFinish}>
                   Done
                 </Button>
@@ -351,6 +368,8 @@ export function AiFeedbackPanel({
                   </div>
                   {streamedFeedback?.summary ? (
                     <MarkdownPreview value={streamedFeedback.summary} className="prose-sm leading-6 text-slate-800" />
+                  ) : !isStreaming ? (
+                    <span className="text-muted-foreground text-sm">No AI summary was returned.</span>
                   ) : (
                     <span className="text-muted-foreground flex items-center gap-2 text-sm">
                       <span className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -450,4 +469,17 @@ export function AiFeedbackPanel({
       )}
     </div>
   );
+}
+
+class AiStreamError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
+    super(message);
+  }
+}
+
+function errorCode(error: unknown): string | null {
+  return error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : null;
 }

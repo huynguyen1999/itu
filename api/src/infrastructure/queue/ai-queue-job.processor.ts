@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { AI_CONSTANTS, AI_ERRORS } from '@core/application/constants/app.constants';
+import { AI_ERRORS } from '@core/application/constants/app.constants';
 import { TOKENS } from '@core/application/constants/tokens';
 import type {
   IAiFeedbackRepository,
@@ -38,7 +38,7 @@ export class AiQueueJobProcessor {
       await this.jobs.markRunning(jobId);
       const job = await this.findJobByKnownUser(jobId);
       const input = job.input as { pastedText: string };
-      const output = await this.ai.generateCards(input.pastedText);
+      const output = await this.ai.generateCards(job.userId, input.pastedText);
       await this.jobs.markCompleted(jobId, { cards: output });
       this.logger.debug('AI card suggestion job completed', { jobId, cardCount: output.length });
     } catch (error) {
@@ -64,7 +64,7 @@ export class AiQueueJobProcessor {
         this.media,
         this.logger,
       );
-      const output = await this.ai.reviewSession({
+      const output = await this.ai.reviewSession(job.userId, {
         rating: session.rating,
         reviewed: session.reviewed,
         correct: session.correct,
@@ -82,36 +82,6 @@ export class AiQueueJobProcessor {
       const message = this.errorMessage(error);
       this.logger.error('AI session feedback job failed', { jobId, sessionId, userId, error: message });
       await this.jobs.markFailed(jobId, message);
-
-      if (userId && sessionId) {
-        try {
-          const session = await this.sessions.findById(userId, sessionId);
-          if (session) {
-            const reviews = await this.sessions.sessionReviews(userId, sessionId);
-            const fallbackOutput = {
-              summary: `You reviewed ${session.reviewed} cards with ${session.correct} remembered. Your session rating was ${session.rating}/10. (Gemini was temporarily unavailable)`,
-              weakAreas: reviews.map((r) =>
-                JSON.stringify({
-                  cardId: r.cardId,
-                  correctness: r.grade === 'AGAIN' ? 'INCORRECT' : 'CORRECT',
-                  explanation: `Learner marked this card as ${r.grade}.`,
-                }),
-              ),
-              nextSteps: [],
-              confidence: AI_CONSTANTS.fallbackConfidence,
-            };
-            await this.feedback.create(userId, sessionId, fallbackOutput);
-            this.logger.warn('AI session feedback fallback created', { jobId, sessionId, userId });
-          }
-        } catch (fallbackError) {
-          this.logger.error('AI session feedback fallback failed', {
-            jobId,
-            sessionId,
-            userId,
-            error: this.errorMessage(fallbackError),
-          });
-        }
-      }
     }
   }
 
@@ -123,6 +93,8 @@ export class AiQueueJobProcessor {
   }
 
   private errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
+    if (!(error instanceof Error)) return String(error);
+    const code = 'code' in error && typeof error.code === 'string' ? `${error.code}: ` : '';
+    return `${code}${error.message}`;
   }
 }

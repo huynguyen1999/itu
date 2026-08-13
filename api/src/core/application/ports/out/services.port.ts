@@ -37,13 +37,24 @@ export interface IMediaStorage {
 }
 
 export interface IAiProvider {
-  generateCards(pastedText: string): Promise<SuggestedCard[]>;
-  reviewSession(input: ReviewSessionInput): Promise<SessionFeedbackResult>;
-  streamCards(pastedText: string): AsyncIterable<string>;
-  streamSessionSummary(input: ReviewSessionInput): AsyncIterable<string>;
+  generateCards(userId: string, pastedText: string): Promise<SuggestedCard[]>;
+  reviewSession(userId: string, input: ReviewSessionInput): Promise<SessionFeedbackResult>;
+  streamCards(userId: string, pastedText: string): AsyncIterable<string>;
+  streamSessionSummary(userId: string, input: ReviewSessionInput): AsyncIterable<string>;
   generateSessionGrading(
+    userId: string,
     input: ReviewSessionInput,
   ): Promise<{ cardGradings: CardGrading[]; confidence?: number; gradePoint?: number }>;
+}
+
+export interface IAiCredentialCrypto {
+  encrypt(value: string): string;
+  decrypt(value: string): string;
+  keyHint(value: string): string;
+}
+
+export interface IGeminiKeyValidator {
+  validate(apiKey: string): Promise<void>;
 }
 
 export interface SyncQueueJob {

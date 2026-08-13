@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { applyTaskDefaults } from '@/shared/taskDefaults';
 
 const calendarFixture = vi.hoisted(() => ({
   preferences: undefined as { calendar: { zoom: 'DAY' | 'WEEK' | 'MONTH'; visibleKinds: Array<'TASK_DURATION' | 'TASK_DUE' | 'FOCUS_SESSION' | 'EXTERNAL_EVENT'>; showCompleted: boolean; collapsedGroupIds: string[] } } | undefined,
@@ -42,7 +43,7 @@ const queryMocks = vi.hoisted(() => ({
 vi.mock('@tanstack/react-query', () => queryMocks);
 
 import { CalendarPage, groupCalendarItems } from './CalendarPage';
-import { formatSingleTime } from './timeline';
+import { formatSingleDate, formatSingleTime } from './timeline';
 
 describe('CalendarPage', () => {
   it('keeps the week visible and exposes Arrange tasks as a reveal action', () => {
@@ -77,6 +78,44 @@ describe('CalendarPage', () => {
     const inboxGroup = groups.find((g) => g.id === 'project:inbox');
     expect(inboxGroup?.items.map((i) => i.id)).toEqual(['inbox', 'inbox-assigned']);
     expect(inboxGroup?.subtitle).toBe('Inbox');
+  });
+
+  it('uses one authoritative source color for grouped tasks, Focus, and external calendars', () => {
+    const groups = groupCalendarItems([
+      { id: 'project-duration', kind: 'TASK_DURATION', title: 'Scheduled', startAt: '2026-08-12T09:00:00Z', endAt: '2026-08-12T10:00:00Z', sourceId: 'project-a', sourceName: 'Project A', color: 'ROSE', readOnly: false },
+      { id: 'project-due', kind: 'TASK_DUE', title: 'Due', startAt: '2026-08-12T11:00:00Z', endAt: null, sourceId: 'project-a', sourceName: 'Project A', readOnly: false },
+      { id: 'calendar-event', kind: 'EXTERNAL_EVENT', title: 'Imported', startAt: '2026-08-12T12:00:00Z', endAt: '2026-08-12T13:00:00Z', sourceId: 'calendar-a', sourceName: 'TalkFirst', color: 'CORAL', readOnly: true },
+      { id: 'focus-session', kind: 'FOCUS_SESSION', title: 'Focus', startAt: '2026-08-12T14:00:00Z', endAt: '2026-08-12T15:00:00Z', sourceId: 'focus-a', sourceName: 'Focus', readOnly: true },
+    ]);
+
+    const project = groups.find((group) => group.id === 'project:project-a');
+    expect(project?.color).toBe('#e11d48');
+    expect(project?.items.every((item) => item.color === project.color)).toBe(true);
+    expect(groups.find((group) => group.id === 'calendar:calendar-a')?.color).toBe('var(--itu-coral-500)');
+    expect(groups.find((group) => group.id === 'focus')?.color).toBe('#8b6fc9');
+  });
+
+  it('uses the stored default due time when assigning a default task date', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => JSON.stringify({ tasks: { defaultDueTime: '18:45' } }),
+      setItem: vi.fn(),
+    });
+
+    try {
+      const dueAt = applyTaskDefaults({ title: 'Arrange this task' }, {
+        date: 'TODAY',
+        priority: 'NONE',
+        taskListId: '',
+      }).dueAt;
+
+      expect(dueAt).toBeDefined();
+      const due = new Date(dueAt!);
+      expect(due.getHours()).toBe(18);
+      expect(due.getMinutes()).toBe(45);
+      expect(due.getSeconds()).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('does not position a due-only task as a timed block in day view', () => {
@@ -120,8 +159,33 @@ describe('CalendarPage', () => {
     const markup = renderToStaticMarkup(<CalendarPage />);
 
     expect(markup).toContain('Due today');
+    expect(markup).toContain('ALL-DAY');
+    expect(markup).toContain('TIME');
     expect(markup).toContain('All-day task 1');
     expect(markup).toContain('All-day task 2');
+    calendarFixture.preferences = undefined;
+    calendarFixture.timelineItems = [];
+  });
+
+  it('keeps the hourly viewport bounded and pins the week all-day band', () => {
+    calendarFixture.preferences = {
+      calendar: { zoom: 'WEEK', visibleKinds: ['TASK_DURATION', 'TASK_DUE'], showCompleted: true, collapsedGroupIds: [] },
+    };
+    calendarFixture.timelineItems = [{
+      id: 'week-all-day',
+      kind: 'TASK_DUE',
+      title: 'All-day week task',
+      startAt: '2026-08-12T00:00:00.000Z',
+      endAt: null,
+      allDay: true,
+      readOnly: false,
+      taskId: 'week-all-day',
+    }];
+
+    const markup = renderToStaticMarkup(<CalendarPage />);
+
+    expect(markup).toContain('h-[calc(100vh-220px)]');
+    expect(markup).toContain('sticky top-16 z-40');
     calendarFixture.preferences = undefined;
     calendarFixture.timelineItems = [];
   });
@@ -176,6 +240,32 @@ describe('CalendarPage', () => {
     calendarFixture.timelineItems = [];
   });
 
+  it('splits overlapping timed tasks into side-by-side week lanes', () => {
+    calendarFixture.preferences = {
+      calendar: { zoom: 'WEEK', visibleKinds: ['TASK_DURATION'], showCompleted: true, collapsedGroupIds: [] },
+    };
+    calendarFixture.timelineItems = [1, 2, 3].map((index) => ({
+      id: `week-overlap-${index}`,
+      kind: 'TASK_DURATION',
+      title: `Week overlap ${index}`,
+      startAt: '2026-08-12T18:00:00.000Z',
+      endAt: '2026-08-12T19:00:00.000Z',
+      allDay: false,
+      readOnly: false,
+      taskId: `week-overlap-${index}`,
+    }));
+
+    const markup = renderToStaticMarkup(<CalendarPage />);
+    const laneWidths = markup.match(/width:calc\(4\.7619/g) ?? [];
+    expect(laneWidths.length).toBe(3);
+    expect(markup).toContain('left:calc(57.14285714285714% + 2px)');
+    expect(markup).toContain('left:calc(61.9047619047619% + 2px)');
+    expect(markup).toContain('left:calc(66.66666666666667% + 2px)');
+
+    calendarFixture.preferences = undefined;
+    calendarFixture.timelineItems = [];
+  });
+
   it('renders a 3-line layout for same-date duration tasks and split columns for different-date duration tasks', () => {
     calendarFixture.preferences = {
       calendar: { zoom: 'DAY', visibleKinds: ['TASK_DURATION'], showCompleted: true, collapsedGroupIds: [] },
@@ -197,6 +287,30 @@ describe('CalendarPage', () => {
     expect(markupSameDay).toContain('Same Day Feature');
     expect(markupSameDay).toContain(formatSingleTime('2026-08-12T09:00:00.000Z'));
     expect(markupSameDay).toContain(formatSingleTime('2026-08-12T10:30:00.000Z'));
+
+    calendarFixture.preferences = undefined;
+    calendarFixture.timelineItems = [];
+  });
+
+  it('shows local dates beside both endpoints of a multi-day duration task', () => {
+    calendarFixture.preferences = {
+      calendar: { zoom: 'DAY', visibleKinds: ['TASK_DURATION'], showCompleted: true, collapsedGroupIds: [] },
+    };
+    calendarFixture.timelineItems = [{
+      id: 'overnight-task',
+      kind: 'TASK_DURATION',
+      title: 'Overnight task',
+      startAt: '2026-08-12T23:00:00.000',
+      endAt: '2026-08-13T03:00:00.000',
+      allDay: false,
+      readOnly: false,
+      taskId: 'overnight-task',
+    }];
+
+    const markup = renderToStaticMarkup(<CalendarPage />);
+
+    expect(markup).toContain(`${formatSingleTime('2026-08-12T23:00:00.000')} · ${formatSingleDate('2026-08-12T23:00:00.000')}`);
+    expect(markup).toContain(`${formatSingleTime('2026-08-13T03:00:00.000')} · ${formatSingleDate('2026-08-13T03:00:00.000')}`);
 
     calendarFixture.preferences = undefined;
     calendarFixture.timelineItems = [];
@@ -225,6 +339,126 @@ describe('CalendarPage', () => {
     calendarFixture.preferences = undefined;
     calendarFixture.timelineItems = [];
   });
+
+  it('persists the visible range filters for completed and read-only items', () => {
+    calendarFixture.preferences = {
+      calendar: { zoom: 'WEEK', visibleKinds: ['TASK_DURATION', 'FOCUS_SESSION'], showCompleted: false, collapsedGroupIds: [] },
+    };
+    calendarFixture.timelineItems = [
+      {
+        id: 'active-task',
+        kind: 'TASK_DURATION',
+        title: 'Active task',
+        startAt: '2026-08-12T09:00:00.000Z',
+        endAt: '2026-08-12T10:00:00.000Z',
+        allDay: false,
+        readOnly: false,
+        taskId: 'active-task',
+      },
+      {
+        id: 'completed-task',
+        kind: 'TASK_DURATION',
+        title: 'Completed task',
+        startAt: '2026-08-12T11:00:00.000Z',
+        endAt: '2026-08-12T12:00:00.000Z',
+        allDay: false,
+        readOnly: false,
+        status: 'COMPLETED',
+        taskId: 'completed-task',
+      },
+      {
+        id: 'focus-session',
+        kind: 'FOCUS_SESSION',
+        title: 'Quiet focus',
+        startAt: '2026-08-12T13:00:00.000Z',
+        endAt: '2026-08-12T14:00:00.000Z',
+        allDay: false,
+        readOnly: true,
+      },
+      {
+        id: 'external-event',
+        kind: 'EXTERNAL_EVENT',
+        title: 'Subscription event',
+        startAt: '2026-08-12T15:00:00.000Z',
+        endAt: '2026-08-12T16:00:00.000Z',
+        allDay: false,
+        readOnly: true,
+      },
+    ];
+
+    const markup = renderToStaticMarkup(<CalendarPage />);
+
+    expect(markup).toContain('Active task, Task, draggable');
+    expect(markup).toContain('Quiet focus, Focus Session, read-only');
+    expect(markup).not.toContain('Completed task');
+    expect(markup).not.toContain('Subscription event');
+  });
+
+  it('collapses a persisted source group without rendering its items', () => {
+    calendarFixture.preferences = {
+      calendar: { zoom: 'DAY', visibleKinds: ['TASK_DURATION'], showCompleted: true, collapsedGroupIds: ['project:inbox'] },
+    };
+    calendarFixture.timelineItems = [{
+      id: 'collapsed-task',
+      kind: 'TASK_DURATION',
+      title: 'Collapsed task',
+      startAt: '2026-08-12T09:00:00.000Z',
+      endAt: '2026-08-12T10:00:00.000Z',
+      allDay: false,
+      readOnly: false,
+      taskId: 'collapsed-task',
+    }];
+
+    const markup = renderToStaticMarkup(<CalendarPage />);
+
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain('Inbox · 1');
+    expect(markup).not.toContain('Collapsed task');
+  });
+
+  it('keeps task drag and resize controls keyboard-focusable while read-only items stay locked', () => {
+    calendarFixture.preferences = {
+      calendar: { zoom: 'DAY', visibleKinds: ['TASK_DURATION', 'FOCUS_SESSION', 'EXTERNAL_EVENT'], showCompleted: true, collapsedGroupIds: [] },
+    };
+    calendarFixture.timelineItems = [
+      {
+        id: 'scheduled-task',
+        kind: 'TASK_DURATION',
+        title: 'Scheduled task',
+        startAt: '2026-08-12T09:00:00.000Z',
+        endAt: '2026-08-12T10:00:00.000Z',
+        allDay: false,
+        readOnly: false,
+        taskId: 'scheduled-task',
+      },
+      {
+        id: 'focus-session',
+        kind: 'FOCUS_SESSION',
+        title: 'Focus session',
+        startAt: '2026-08-12T11:00:00.000Z',
+        endAt: '2026-08-12T12:00:00.000Z',
+        allDay: false,
+        readOnly: true,
+      },
+      {
+        id: 'external-event',
+        kind: 'EXTERNAL_EVENT',
+        title: 'External event',
+        startAt: '2026-08-12T13:00:00.000Z',
+        endAt: '2026-08-12T14:00:00.000Z',
+        allDay: false,
+        readOnly: true,
+      },
+    ];
+
+    const markup = renderToStaticMarkup(<CalendarPage />);
+
+    expect(markup).toContain('Scheduled task, Task, draggable');
+    expect(markup).toContain('aria-label="Resize start of Scheduled task"');
+    expect(markup).toContain('aria-label="Resize end of Scheduled task"');
+    expect(markup).toContain('Focus session, Focus Session, read-only');
+    expect(markup).toContain('External event, Subscription, read-only');
+    expect(markup).not.toContain('Resize start of Focus session');
+    expect(markup).not.toContain('Resize end of External event');
+  });
 });
-
-

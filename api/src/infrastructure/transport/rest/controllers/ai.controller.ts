@@ -54,7 +54,11 @@ export class AiController {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      res.raw.write(`event: error\ndata: ${JSON.stringify({ error: message })}\n\n`);
+      const code =
+        error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : undefined;
+      res.raw.write(`event: error\ndata: ${JSON.stringify({ error: message, code })}\n\n`);
     } finally {
       res.raw.end();
     }
@@ -101,7 +105,11 @@ export class AiController {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      res.raw.write(`event: error\ndata: ${JSON.stringify({ error: message })}\n\n`);
+      const code =
+        error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : undefined;
+      res.raw.write(`event: error\ndata: ${JSON.stringify({ error: message, code })}\n\n`);
     } finally {
       res.raw.end();
     }

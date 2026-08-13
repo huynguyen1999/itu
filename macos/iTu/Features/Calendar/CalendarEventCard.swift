@@ -89,6 +89,10 @@ struct CalendarEventCard: View {
         return Calendar.current.isDate(item.start, inSameDayAs: end)
     }
 
+    private var showsDateLabels: Bool {
+        hasDuration && !sameDay
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: isCompact ? 2 : 4) {
             // Title
@@ -106,16 +110,12 @@ struct CalendarEventCard: View {
             } else if hasDuration || !item.allDay {
                 Divider().background(Color.white.opacity(0.12))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(formatTime(item.start))
-                        .font(.system(size: isCompact ? 8.5 : 9.5, weight: .medium, design: .monospaced))
-                        .foregroundStyle(iTuTheme.inkDim)
+                    timeLabel(item.start, fontSize: isCompact ? 8.5 : 9.5)
                     if hasDuration, let end = item.end {
                         Text("↓")
                             .font(.system(size: 8))
                             .foregroundStyle(iTuTheme.inkFaint)
-                        Text(formatTime(end))
-                            .font(.system(size: isCompact ? 8.5 : 9.0, weight: .medium, design: .monospaced))
-                            .foregroundStyle(iTuTheme.inkDim.opacity(0.8))
+                        timeLabel(end, fontSize: isCompact ? 8.5 : 9.0, opacity: 0.8)
                     }
                 }
             }
@@ -152,5 +152,31 @@ struct CalendarEventCard: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: date)
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: date)
+    }
+
+    @ViewBuilder
+    private func timeLabel(_ date: Date, fontSize: CGFloat, opacity: Double = 1) -> some View {
+        if showsDateLabels && isCompact {
+            Text("\(formatTime(date)) · \(formatDate(date))")
+                .font(.system(size: fontSize, weight: .medium, design: .monospaced))
+                .foregroundStyle(iTuTheme.inkDim.opacity(opacity))
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(formatTime(date))
+                    .font(.system(size: fontSize, weight: .medium, design: .monospaced))
+                    .foregroundStyle(iTuTheme.inkDim.opacity(opacity))
+                if showsDateLabels {
+                    Text(formatDate(date))
+                        .font(.system(size: 8, weight: .medium, design: .monospaced))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                }
+            }
+        }
     }
 }

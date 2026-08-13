@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   assignOverlapLane,
+  CALENDAR_DAY_WIDTH,
+  dayTimelineScrollTop,
+  findClosestPopulatedDay,
+  findClosestTimedItem,
   gridTimestampFromPoint,
   formatRangeLabel,
   intervalToRect,
@@ -14,6 +18,7 @@ import {
   timestampToX,
   timelineItemColor,
   visibleRange,
+  weekTimelineScrollLeft,
   xToTimestamp,
 } from './timeline';
 
@@ -56,13 +61,23 @@ describe('timeline math', () => {
   });
 
   it('uses local week and month boundaries', () => {
-    expect(visibleRange(new Date('2026-08-12T15:00:00'), 'WEEK').from.getDay()).toBe(1);
-    expect(visibleRange(new Date('2026-08-12T15:00:00'), 'MONTH').from.getDate()).toBe(1);
+    const anchor = new Date(2026, 7, 12, 15);
+    const day = visibleRange(anchor, 'DAY');
+    const week = visibleRange(anchor, 'WEEK');
+    const month = visibleRange(anchor, 'MONTH');
+
+    expect(day.from).toEqual(new Date(2026, 7, 12));
+    expect(day.to).toEqual(new Date(2026, 7, 13));
+    expect(week.from).toEqual(new Date(2026, 7, 10));
+    expect(week.to).toEqual(new Date(2026, 7, 17));
+    expect(month.from).toEqual(new Date(2026, 7, 1));
+    expect(month.to).toEqual(new Date(2026, 8, 1));
   });
 
   it('moves month anchors by calendar month, not a fixed number of days', () => {
     expect(shiftAnchor(new Date('2026-01-31T12:00:00'), 'MONTH', 1).getMonth()).toBe(1);
     expect(shiftAnchor(new Date('2026-08-12T12:00:00'), 'WEEK', -1).getDate()).toBe(5);
+    expect(shiftAnchor(new Date('2026-08-12T12:00:00'), 'DAY', 1).getDate()).toBe(13);
   });
 
   it('labels the active range at each zoom', () => {
@@ -86,6 +101,32 @@ describe('timeline math', () => {
     expect(timelineItemColor('TASK_DURATION', 'EMERALD')).toBe('#059669');
   });
 
+  it('finds the timed item nearest the current local time and leaves all-day-only days at the start', () => {
+    const now = new Date(2026, 7, 12, 14, 30);
+    const items = [9, 15, 23].map((hour) => ({
+      kind: 'TASK_DURATION' as const,
+      startAt: new Date(2026, 7, 12, hour).toISOString(),
+      endAt: new Date(2026, 7, 12, hour + 1).toISOString(),
+    }));
+
+    expect(findClosestTimedItem(items, now)?.startAt).toBe(items[1].startAt);
+    expect(dayTimelineScrollTop(items, now)).toBe(840);
+    expect(dayTimelineScrollTop([{ kind: 'TASK_DUE' as const, startAt: now.toISOString(), allDay: true }], now)).toBe(0);
+  });
+
+  it('finds the populated week day nearest today and leaves empty weeks at the start', () => {
+    const days = Array.from({ length: 7 }, (_, index) => new Date(2026, 7, 10 + index));
+    const items = [
+      { kind: 'TASK_DURATION' as const, startAt: new Date(2026, 7, 10, 9).toISOString(), endAt: new Date(2026, 7, 10, 10).toISOString() },
+      { kind: 'EXTERNAL_EVENT' as const, startAt: new Date(2026, 7, 14, 9).toISOString(), endAt: new Date(2026, 7, 14, 10).toISOString() },
+    ];
+    const today = new Date(2026, 7, 13, 12);
+
+    expect(findClosestPopulatedDay(items, days, today)).toBe(4);
+    expect(weekTimelineScrollLeft(items, days, today)).toBe(3 * CALENDAR_DAY_WIDTH);
+    expect(weekTimelineScrollLeft([], days, today)).toBe(0);
+  });
+
   it('detects multi-day task overlaps correctly', () => {
     const item = {
       startAt: '2026-08-14T23:00:00.000',
@@ -104,4 +145,3 @@ describe('timeline math', () => {
     expect(itemSpansDay(exactMidnight, new Date('2026-08-15T00:00:00'))).toBe(false);
   });
 });
-

@@ -2,6 +2,35 @@
 
 ## Session date
 
+2026-08-13
+
+## Completed
+
+- Resolved the Calendar and Sync merge conflicts while preserving the current Calendar presentation and existing user-owned changes.
+- Moved API Calendar persistence and external integration concerns behind typed ports, extracted its scheduler, and moved Preferences/Journal persistence behind typed repositories.
+- Reduced Web `CalendarPage` to a composition root, reused the shared default Due Date rule, and made Sync cache/channel work safe across logout and User Account changes.
+- Split macOS Budget/Gym and Notifications/Trash responsibilities while keeping stable `AppModel`/`OfflineStore` façades; hardened Sync lifecycle ownership and monotonic cursor handling.
+- Added canonical Calendar semantics fixtures and an executable architecture-boundary check.
+
+## Verification
+
+- API: 70 suites / 315 tests, typecheck, build, Prisma generate/validate, architecture boundary check, and byte-stable OpenAPI regeneration passed.
+- Web: 56 files / 301 tests, typecheck, and production build passed.
+- Extension: 11/11 tests passed. All touched Swift production/test files parse and repository conflict/whitespace checks pass.
+- Signed macOS build/test could not reach compilation because `KeyboardShortcuts` package DNS and sandboxed Swift/Xcode cache access are unavailable; signing was not disabled.
+
+## Unfinished
+
+- Re-run the signed macOS build/test gate when dependency and cache access are available. No further architecture-refactor scope is open.
+
+## Next entry point
+
+Run the signed macOS gate only; otherwise proceed with normal product work without reopening this remediation plan.
+
+---
+
+## Session date
+
 2026-08-11
 
 ## Completed

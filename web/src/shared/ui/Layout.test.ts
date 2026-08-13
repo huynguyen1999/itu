@@ -36,14 +36,10 @@ describe('workspace navigation', () => {
         { id: 'growth', to: '/growth' },
       ],
       [
-        { id: 'conflicts', to: '/conflicts' },
-        { id: 'notifications', to: '/notifications' },
         { id: 'trash', to: '/trash' },
-        { id: 'profile', to: '/profile' },
-        { id: 'settings', to: '/settings' },
       ],
     ]);
-    expect(workspaceNavigation).toHaveLength(17);
+    expect(workspaceNavigation).toHaveLength(13);
     expect(workspaceNavigation.slice(0, 6).map((entry) => entry.id)).toEqual([
       'home',
       'plan',

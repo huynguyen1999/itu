@@ -15,7 +15,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { api } from '@/shared/api/client';
-import { getStoredTaskPreferences } from '@/shared/api/preferencesApi';
+import { applyDefaultDueTime } from '@/shared/taskDefaults';
 import type { ProductivityTask, TaskPriority, TaskStatus } from '@/shared/api/types';
 import { DatePickerPopover } from '@/shared/ui/DatePickerPopover';
 import { useUndoStack, useUndoToast } from '@/shared/hooks/useUndoStack';
@@ -484,7 +484,5 @@ export function taskDueDatePatch(value: string | null): { dueAt: string | null }
 function defaultDueDate(daysToAdd: number) {
   const date = new Date();
   date.setDate(date.getDate() + daysToAdd);
-  const [hours, minutes] = getStoredTaskPreferences().defaultDueTime.split(':').map(Number);
-  date.setHours(Number.isFinite(hours) ? hours : 21, Number.isFinite(minutes) ? minutes : 0, 0, 0);
-  return date;
+  return applyDefaultDueTime(date);
 }

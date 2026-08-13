@@ -65,6 +65,14 @@ export enum AiJobStatus {
   FAILED = 'FAILED',
 }
 
+export enum AiCredentialStatus {
+  HEALTHY = 'HEALTHY',
+  RATE_LIMITED = 'RATE_LIMITED',
+  QUOTA_EXHAUSTED = 'QUOTA_EXHAUSTED',
+  INVALID_KEY = 'INVALID_KEY',
+  PROVIDER_ERROR = 'PROVIDER_ERROR',
+}
+
 export enum ScheduledJobType {
   ACCOUNT_DELETE = 'ACCOUNT_DELETE',
   TRASH_PURGE = 'TRASH_PURGE',

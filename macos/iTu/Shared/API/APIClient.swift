@@ -14,6 +14,18 @@ struct APIError: LocalizedError, Sendable {
     }
 
     var errorDescription: String? { message }
+
+    var isTerminalAuthFailure: Bool {
+        statusCode == 401 && code.map(Self.terminalAuthenticationCodes.contains) == true
+    }
+
+    private static let terminalAuthenticationCodes: Set<String> = [
+        "REFRESH_TOKEN_EXPIRED",
+        "REFRESH_TOKEN_REVOKED",
+        "REFRESH_TOKEN_INVALID",
+        "ACCOUNT_DISABLED",
+        "ACCOUNT_DELETED"
+    ]
 }
 
 private struct APIErrorBody: Decodable {
@@ -50,6 +62,23 @@ private struct ServerUsagePreferences: Decodable {
 
 private struct UserPreferencesResponse: Decodable {
     let usage: ServerUsagePreferences
+}
+
+struct AiCredential: Codable, Identifiable, Equatable, Sendable {
+    let id: String
+    let keyHint: String
+    let enabled: Bool
+    let status: String
+    let lastError: String?
+    let lastUsedAt: String?
+    let cooldownUntil: String?
+    let createdAt: String
+    let updatedAt: String
+    let usable: Bool
+}
+
+private struct AiCredentialDeleteResponse: Decodable, Sendable {
+    let success: Bool
 }
 
 actor APIClient {
@@ -112,7 +141,7 @@ actor APIClient {
             let session = try await refresh()
             return session
         } catch {
-            if let apiError = error as? APIError, apiError.statusCode == 401 {
+            if let apiError = error as? APIError, apiError.isTerminalAuthFailure {
                 accessToken = nil
                 SessionCache.clearUser()
                 throw error
@@ -198,6 +227,43 @@ actor APIClient {
 
     func token() -> String? {
         accessToken
+    }
+
+    func fetchAiCredentials() async throws -> [AiCredential] {
+        try await request(path: "/ai/credentials")
+    }
+
+    func addAiCredential(apiKey: String) async throws -> AiCredential {
+        try await request(
+            path: "/ai/credentials",
+            method: "POST",
+            body: ["apiKey": .string(apiKey)] as [String: JSONValue]
+        )
+    }
+
+    func updateAiCredential(id: String, apiKey: String? = nil, enabled: Bool? = nil) async throws -> AiCredential {
+        var body: [String: JSONValue] = [:]
+        if let apiKey { body["apiKey"] = .string(apiKey) }
+        if let enabled { body["enabled"] = .bool(enabled) }
+        return try await request(
+            path: "/ai/credentials/\(escapedPath(id))",
+            method: "PATCH",
+            body: body
+        )
+    }
+
+    func removeAiCredential(id: String) async throws {
+        let _: AiCredentialDeleteResponse = try await request(
+            path: "/ai/credentials/\(escapedPath(id))",
+            method: "DELETE"
+        )
+    }
+
+    func testAiCredential(id: String) async throws -> AiCredential {
+        try await request(
+            path: "/ai/credentials/\(escapedPath(id))/test",
+            method: "POST"
+        )
     }
 
     func uploadUsageSummaries(_ summaries: [UsageSummary], deviceId: String) async throws {
@@ -916,29 +982,28 @@ actor APIClient {
         let storedRefresh = SessionCache.loadTokens().refreshToken
         let body: [String: JSONValue]? = storedRefresh != nil ? ["refreshToken": .string(storedRefresh!)] : nil
         let task = Task<AuthSession, Error> {
-            try await request(
-                path: "/auth/refresh",
-                method: "POST",
-                body: body,
-                authorize: false,
-                retryAfterUnauthorized: false
-            )
+            do {
+                let refreshed: AuthSession = try await self.request(
+                    path: "/auth/refresh",
+                    method: "POST",
+                    body: body,
+                    authorize: false,
+                    retryAfterUnauthorized: false
+                )
+                self.accessToken = refreshed.accessToken
+                self.storeSession(refreshed)
+                return refreshed
+            } catch {
+                if let apiError = error as? APIError, apiError.isTerminalAuthFailure {
+                    self.accessToken = nil
+                    SessionCache.clearUser()
+                }
+                throw error
+            }
         }
         refreshTask = task
         defer { refreshTask = nil }
-        let refreshed: AuthSession
-        do {
-            refreshed = try await task.value
-        } catch {
-            if let apiError = error as? APIError, apiError.statusCode == 401 {
-                accessToken = nil
-                SessionCache.clearUser()
-            }
-            throw error
-        }
-        accessToken = refreshed.accessToken
-        storeSession(refreshed)
-        return refreshed
+        return try await task.value
     }
 
     private func storeSession(_ session: AuthSession) {

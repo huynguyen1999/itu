@@ -1,6 +1,5 @@
 import { JournalService } from './journal/journal.service';
 import { JournalEntryKind } from '@core/domain/enums';
-import { Prisma } from '@prisma/client';
 
 describe('JournalService', () => {
   let service: JournalService;
@@ -8,7 +7,7 @@ describe('JournalService', () => {
   let mockTemplateRepo: any;
   let mockTagRepo: any;
   let mockAttachmentRepo: any;
-  let mockPrisma: any;
+  let mockWeeklyReviewQuery: any;
 
   beforeEach(() => {
     mockJournalRepo = {
@@ -35,19 +34,18 @@ describe('JournalService', () => {
       create: jest.fn().mockResolvedValue({ id: 'att1' }),
       delete: jest.fn().mockResolvedValue(true),
     };
-    mockPrisma = {
-      task: { count: jest.fn().mockResolvedValue(10) },
-      focusSession: { aggregate: jest.fn().mockResolvedValue({ _sum: { plannedSeconds: 7200 }, _count: 4 }) },
-      habitOccurrence: {
-        aggregate: jest.fn().mockResolvedValue({ _count: 15 }),
-        count: jest.fn().mockResolvedValue(12),
-      },
-      reviewLog: { count: jest.fn().mockResolvedValue(50) },
-      budgetTransaction: {
-        findMany: jest.fn().mockResolvedValue([{ amount: new Prisma.Decimal('100000.00'), currency: 'VND' }]),
-      },
-      gymWorkout: { count: jest.fn().mockResolvedValue(2) },
-      growthLedgerEntry: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 300 } }) },
+    mockWeeklyReviewQuery = {
+      getSnapshotData: jest.fn().mockResolvedValue({
+        tasksCompleted: 10,
+        focusPlannedSeconds: 7200,
+        focusSessions: 4,
+        habitsScheduled: 15,
+        habitsCompleted: 12,
+        reviews: 50,
+        expenses: { VND: '100000.00' },
+        workouts: 2,
+        xpEarned: 300,
+      }),
     };
 
     service = new JournalService(
@@ -55,7 +53,7 @@ describe('JournalService', () => {
       mockTemplateRepo,
       mockTagRepo,
       mockAttachmentRepo,
-      mockPrisma,
+      mockWeeklyReviewQuery,
     );
   });
 

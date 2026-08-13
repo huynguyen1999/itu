@@ -5,6 +5,7 @@ import type {
   IStudySessionRepository,
 } from '@core/application/ports/out/repositories.port';
 import type { IAiProvider, ILogger, IQueueJobHandler } from '@core/application/ports/out/services.port';
+import type { AiCredentialsService } from './ai-credentials.service';
 import { AiJobStatus, AiJobType } from '@core/domain/enums';
 import type { AiJobModel } from '@core/domain/models';
 
@@ -75,14 +76,23 @@ describe('AiService', () => {
       streamSessionSummary: jest.fn(),
       generateSessionGrading: jest.fn(),
     };
-    service = new AiService(jobs, feedback, sessions, queue, logger, ai, {
-      storeCardImage: jest.fn(),
-      storeUserImage: jest.fn(),
-      storeAudio: jest.fn(),
-      storeRawBuffer: jest.fn(),
-      read: jest.fn(),
-      delete: jest.fn(),
-    });
+    service = new AiService(
+      jobs,
+      feedback,
+      sessions,
+      queue,
+      logger,
+      ai,
+      {
+        storeCardImage: jest.fn(),
+        storeUserImage: jest.fn(),
+        storeAudio: jest.fn(),
+        storeRawBuffer: jest.fn(),
+        read: jest.fn(),
+        delete: jest.fn(),
+      },
+      { assertUsable: jest.fn() } as unknown as AiCredentialsService,
+    );
   });
 
   it('marks a created card suggestion job failed when RabbitMQ enqueue fails', async () => {

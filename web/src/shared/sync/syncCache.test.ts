@@ -766,3 +766,24 @@ describe('applySyncChanges', () => {
     expect(() => structuredClone(dehydrated)).not.toThrow();
   });
 });
+
+describe('calendar invalidation', () => {
+  it('invalidates calendar timeline queries for remote scheduling changes', async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['calendar', 'timeline', 'from', 'to'], { items: [] });
+
+    await invalidateSyncChanges(queryClient, {
+      acknowledgedMutationIds: [],
+      cursor: '12',
+      conflicts: [],
+      changes: [
+        { entityType: 'task', entityId: 'task-1', deleted: false, data: { id: 'task-1' } },
+        { entityType: 'tasklist', entityId: 'project-1', deleted: false, data: { id: 'project-1' } },
+        { entityType: 'focussession', entityId: 'focus-1', deleted: false, data: { id: 'focus-1' } },
+        { entityType: 'externalcalendarevent', entityId: 'event-1', deleted: false, data: { id: 'event-1' } },
+      ],
+    });
+
+    expect(queryClient.getQueryState(['calendar', 'timeline', 'from', 'to'])?.isInvalidated).toBe(true);
+  });
+});

@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { CalendarTimelineItem } from '@/shared/api/client';
-import { formatSingleTime, isSameLocalDay, timelineItemColor } from './timeline';
+import { formatSingleDate, formatSingleTime, isSameLocalDay, timelineItemColor } from './timeline';
 
 export type CalendarEventCardDensity = 'regular' | 'compact';
 export type CalendarEventCardVariant = 'timeline' | 'board' | 'monthChip' | 'regular' | 'compact';
@@ -45,15 +45,17 @@ function calcSpanningDuration(startAt: string | Date, endAt: string | Date): str
 
 function tintStyles(color: string, isCompact: boolean) {
   const isHex = color.startsWith('#');
+  const tint = isHex ? `${color}26` : color.startsWith('var(') ? `color-mix(in srgb, ${color} 14%, transparent)` : color;
+  const border = isHex ? `${color}55` : color.startsWith('var(') ? `color-mix(in srgb, ${color} 38%, transparent)` : color;
   if (isCompact) {
     return {
-      backgroundColor: isHex ? `${color}26` : 'rgba(45, 212, 191, 0.16)',
-      borderColor: isHex ? `${color}55` : 'rgba(45, 212, 191, 0.35)',
+      backgroundColor: tint,
+      borderColor: border,
     };
   }
   return {
-    backgroundColor: isHex ? `${color}24` : color.startsWith('var') ? 'rgba(45, 212, 191, 0.14)' : `${color}`,
-    borderColor: isHex ? `${color}60` : color.startsWith('var') ? 'rgba(45, 212, 191, 0.38)' : 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: isHex ? `${color}24` : tint,
+    borderColor: isHex ? `${color}60` : border,
   };
 }
 
@@ -91,6 +93,8 @@ export function CalendarEventCard({
   const hasDuration = !item.allDay && Boolean(item.endAt);
   const sameDay = hasDuration && isSameLocalDay(item.startAt, item.endAt!);
   const isSpanningItem = Boolean(isSpanning) || (hasDuration && !sameDay);
+  const formatEventTime = (timestamp: string | Date) =>
+    hasDuration && !sameDay ? `${formatSingleTime(timestamp)} · ${formatSingleDate(timestamp)}` : formatSingleTime(timestamp);
   const isDueOnly = item.kind === 'TASK_DUE' || (item.allDay && Boolean(item.dueAt));
   const tint = tintStyles(color, isCompact);
   const showResizeHandles = onResize && item.kind === 'TASK_DURATION' && !item.readOnly;
@@ -168,7 +172,7 @@ export function CalendarEventCard({
         {/* Timeline Nodes Row */}
         <div className="mt-1 pt-1 border-t border-white/10 flex items-center justify-between font-mono text-[9.5px] relative z-20">
           <div className="flex flex-col items-start leading-tight">
-            <span className="font-bold text-foreground text-[10px]">{formatSingleTime(item.startAt)}</span>
+            <span className="font-bold text-foreground text-[10px]">{formatEventTime(item.startAt)}</span>
             <span className="text-[8px] uppercase tracking-wider text-muted-foreground/80 font-sans font-semibold">
               {startDayLabel ?? 'START'}
             </span>
@@ -176,7 +180,7 @@ export function CalendarEventCard({
 
           <div className="flex flex-col items-end leading-tight">
             <span className="font-bold text-foreground text-[10px]">
-              {item.endAt ? formatSingleTime(item.endAt) : 'END'}
+              {item.endAt ? formatEventTime(item.endAt) : 'END'}
             </span>
             <span className="text-[8px] uppercase tracking-wider text-muted-foreground/80 font-sans font-semibold">
               {endDayLabel ?? 'END'}
@@ -313,15 +317,21 @@ export function CalendarEventCard({
           className="mt-1 border-t pt-1 font-mono text-[9px] text-muted-foreground flex items-center justify-between"
           style={{ borderColor: 'rgba(255,255,255,0.08)' }}
         >
-          {isStartDay ? (
+          {!day && hasDuration ? (
             <>
-              <span className="font-semibold text-foreground">{formatSingleTime(item.startAt)}</span>
+              <span className="font-semibold text-foreground">{formatEventTime(item.startAt)}</span>
+              <span className="rounded bg-black/40 px-1 text-[8px] font-bold text-emerald-400 border border-emerald-500/30">↓</span>
+              <span className="font-semibold text-foreground">{formatEventTime(item.endAt!)}</span>
+            </>
+          ) : isStartDay ? (
+            <>
+              <span className="font-semibold text-foreground">{formatEventTime(item.startAt)}</span>
               <span className="rounded bg-black/40 px-1 text-[8px] font-bold text-emerald-400 border border-emerald-500/30">→ 00:00</span>
             </>
           ) : isEndDay ? (
             <>
               <span className="rounded bg-black/40 px-1 text-[8px] font-bold text-emerald-400 border border-emerald-500/30">00:00 →</span>
-              <span className="font-semibold text-foreground">{formatSingleTime(item.endAt!)}</span>
+              <span className="font-semibold text-foreground">{formatEventTime(item.endAt!)}</span>
             </>
           ) : (
             <>
@@ -333,7 +343,7 @@ export function CalendarEventCard({
       ) : hasDuration || item.startAt ? (
         isVertical ? (
           <div className="mt-0.5 font-mono text-[9.5px] leading-tight text-muted-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis">
-            {formatSingleTime(item.startAt)}{hasDuration ? ` – ${formatSingleTime(item.endAt!)}` : ''}
+            {formatEventTime(item.startAt)}{hasDuration ? ` – ${formatEventTime(item.endAt!)}` : ''}
           </div>
         ) : (
           <div
@@ -343,13 +353,13 @@ export function CalendarEventCard({
             style={{ borderColor: 'rgba(255,255,255,0.08)' }}
           >
             <span className="leading-none text-muted-foreground">
-              {formatSingleTime(item.startAt)}
+              {formatEventTime(item.startAt)}
             </span>
             {hasDuration ? (
               <>
                 <span className="my-[1px] text-[8px] leading-none text-muted-foreground/40">↓</span>
                 <span className="leading-none text-muted-foreground/70 text-[9px]">
-                  {formatSingleTime(item.endAt!)}
+                  {formatEventTime(item.endAt!)}
                 </span>
               </>
             ) : null}

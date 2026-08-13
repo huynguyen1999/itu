@@ -5,6 +5,7 @@ import ServiceManagement
 enum SettingsSection: String, CaseIterable, Identifiable {
     case appearance
     case desktop
+    case ai
     case companion
 
     var id: String { rawValue }
@@ -13,6 +14,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .appearance: "Appearance & System"
         case .desktop: "Desktop & Sync"
+        case .ai: "AI / Gemini"
         case .companion: "Companion"
         }
     }
@@ -21,6 +23,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .appearance: "paintpalette"
         case .desktop: "laptopcomputer.and.iphone"
+        case .ai: "key.fill"
         case .companion: "sidebar.squares.trailing"
         }
     }
@@ -94,6 +97,8 @@ struct SettingsView: View {
                         AppearanceSettingsPanel()
                     case .desktop:
                         DesktopSettingsPanel()
+                    case .ai:
+                        AiSettingsPanel()
                     case .companion:
                         CompanionSettingsPanel()
                     }
@@ -113,12 +118,289 @@ struct SettingsView: View {
             Text("Settings")
                 .font(.system(size: 26, weight: .bold, design: .rounded))
                 .foregroundStyle(iTuTheme.ink)
-            Text("Configure appearance, desktop sync, and Companion window behavior.")
+            Text("Configure appearance, Gemini credentials, desktop sync, and Companion window behavior.")
                 .font(.system(size: 13))
                 .foregroundStyle(iTuTheme.inkDim)
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 18)
+    }
+}
+
+private struct AiSettingsPanel: View {
+    @Environment(AppModel.self) private var model
+    @State private var credentials: [AiCredential] = []
+    @State private var newApiKey = ""
+    @State private var replacements: [String: String] = [:]
+    @State private var isLoading = false
+    @State private var isAdding = false
+    @State private var busyCredentialID: String?
+    @State private var errorMessage: String?
+    @State private var credentialToRemove: AiCredential?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            SettingsCardView(
+                iconName: "key.fill",
+                title: "Gemini API keys",
+                description: "Add up to five keys. They are validated before storage and encrypted by the server."
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 10) {
+                        SecureField("Paste a Gemini API key", text: $newApiKey)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { addCredential() }
+
+                        Button(isAdding ? "Adding…" : "Add key (\(credentials.count)/5)") {
+                            addCredential()
+                        }
+                        .buttonStyle(iTuPrimaryButtonStyle(height: 32))
+                        .disabled(credentials.count >= 5 || newApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isAdding)
+                    }
+
+                    Text("Enabled healthy keys rotate automatically. Test Connection checks one key without changing rotation usage.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.inkDim)
+
+                    if credentials.count >= 5 {
+                        Text("You have reached the five-key limit.")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(iTuTheme.amber)
+                    }
+                }
+            }
+
+            if isLoading {
+                ProgressView("Loading Gemini credentials…")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if credentials.isEmpty {
+                Text("No Gemini keys configured. Add a key above to use AI features.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(iTuTheme.inkDim)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(iTuTheme.surfaceMuted)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(credentials) { credential in
+                        AiCredentialRow(
+                            credential: credential,
+                            replacement: Binding(
+                                get: { replacements[credential.id] ?? "" },
+                                set: { replacements[credential.id] = $0 }
+                            ),
+                            isBusy: busyCredentialID != nil,
+                            onToggle: { toggle(credential) },
+                            onTest: { test(credential) },
+                            onReplace: { replace(credential) },
+                            onRemove: { credentialToRemove = credential }
+                        )
+
+                        if credential.id != credentials.last?.id {
+                            Divider()
+                        }
+                    }
+                }
+                .padding(16)
+                .background(iTuTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(iTuTheme.border, lineWidth: 1)
+                }
+            }
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 12))
+                    .foregroundStyle(iTuTheme.coral)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .task { await loadCredentials() }
+        .confirmationDialog(
+            "Remove this Gemini key?",
+            isPresented: Binding(
+                get: { credentialToRemove != nil },
+                set: { if !$0 { credentialToRemove = nil } }
+            ),
+            presenting: credentialToRemove
+        ) { credential in
+            Button("Remove \(credential.keyHint)", role: .destructive) {
+                remove(credential)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("Removed keys will not be selected for new AI requests.")
+        }
+    }
+
+    private func loadCredentials() async {
+        isLoading = true
+        do {
+            credentials = try await model.apiClient.fetchAiCredentials()
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    private func addCredential() {
+        let value = newApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, credentials.count < 5, !isAdding else { return }
+        isAdding = true
+        errorMessage = nil
+        Task {
+            do {
+                _ = try await model.apiClient.addAiCredential(apiKey: value)
+                newApiKey = ""
+                await loadCredentials()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isAdding = false
+        }
+    }
+
+    private func toggle(_ credential: AiCredential) {
+        busyCredentialID = credential.id
+        errorMessage = nil
+        Task {
+            do {
+                _ = try await model.apiClient.updateAiCredential(id: credential.id, enabled: !credential.enabled)
+                await loadCredentials()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            busyCredentialID = nil
+        }
+    }
+
+    private func test(_ credential: AiCredential) {
+        busyCredentialID = credential.id
+        errorMessage = nil
+        Task {
+            do {
+                _ = try await model.apiClient.testAiCredential(id: credential.id)
+                await loadCredentials()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            busyCredentialID = nil
+        }
+    }
+
+    private func replace(_ credential: AiCredential) {
+        let value = replacements[credential.id]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !value.isEmpty else { return }
+        busyCredentialID = credential.id
+        errorMessage = nil
+        Task {
+            do {
+                _ = try await model.apiClient.updateAiCredential(id: credential.id, apiKey: value)
+                replacements[credential.id] = ""
+                await loadCredentials()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            busyCredentialID = nil
+        }
+    }
+
+    private func remove(_ credential: AiCredential) {
+        credentialToRemove = nil
+        busyCredentialID = credential.id
+        errorMessage = nil
+        Task {
+            do {
+                try await model.apiClient.removeAiCredential(id: credential.id)
+                await loadCredentials()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            busyCredentialID = nil
+        }
+    }
+}
+
+private struct AiCredentialRow: View {
+    let credential: AiCredential
+    @Binding var replacement: String
+    let isBusy: Bool
+    let onToggle: () -> Void
+    let onTest: () -> Void
+    let onReplace: () -> Void
+    let onRemove: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: credential.usable ? "checkmark.circle.fill" : "exclamationmark.circle")
+                    .foregroundStyle(statusColor)
+
+                Text(credential.keyHint)
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(iTuTheme.ink)
+
+                Text(credential.status)
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(statusColor)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(statusColor.opacity(0.12))
+                    .clipShape(Capsule())
+
+                Spacer()
+
+                Button(credential.enabled ? "Disable" : "Enable", action: onToggle)
+                    .buttonStyle(iTuSecondaryButtonStyle(height: 28))
+                    .disabled(isBusy)
+            }
+
+            if let lastError = credential.lastError {
+                Text(lastError)
+                    .font(.system(size: 12))
+                    .foregroundStyle(iTuTheme.coral)
+            }
+
+            if let cooldownUntil = credential.cooldownUntil {
+                Text("Cooldown until \(formattedDate(cooldownUntil))")
+                    .font(.system(size: 12))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+
+            HStack(spacing: 8) {
+                SecureField("Replace key", text: $replacement)
+                    .textFieldStyle(.roundedBorder)
+                Button("Replace", action: onReplace)
+                    .buttonStyle(iTuSecondaryButtonStyle(height: 28))
+                    .disabled(isBusy || replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Test Connection", action: onTest)
+                    .buttonStyle(iTuSecondaryButtonStyle(height: 28))
+                    .disabled(isBusy)
+                Button("Remove", role: .destructive, action: onRemove)
+                    .buttonStyle(iTuDangerButtonStyle())
+                    .disabled(isBusy)
+            }
+        }
+        .padding(.vertical, 12)
+    }
+
+    private var statusColor: Color {
+        switch credential.status {
+        case "HEALTHY": return iTuTheme.mint
+        case "RATE_LIMITED": return iTuTheme.amber
+        case "QUOTA_EXHAUSTED": return iTuTheme.gold
+        case "INVALID_KEY": return iTuTheme.coral
+        default: return iTuTheme.inkDim
+        }
+    }
+
+    private func formattedDate(_ value: String) -> String {
+        guard let date = ISO8601DateFormatter().date(from: value) else { return value }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 }
 

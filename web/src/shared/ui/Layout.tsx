@@ -98,11 +98,7 @@ export const workspaceNavigationGroups: readonly WorkspaceNavigationGroup[] = [
     id: 'system',
     title: 'System',
     entries: [
-      { id: 'conflicts', to: '/conflicts', label: 'Conflicts', icon: TriangleAlert, end: false },
-      { id: 'notifications', to: '/notifications', label: 'Notifications', icon: Bell, end: false },
       { id: 'trash', to: '/trash', label: 'Trash', icon: Trash2, end: false },
-      { id: 'profile', to: '/profile', label: 'Profile', icon: User, end: false },
-      { id: 'settings', to: '/settings', label: 'Settings', icon: Settings, end: false },
     ],
   },
 ] as const;
@@ -115,6 +111,13 @@ const planningNavigation = [
   { to: '/inbox', label: 'Inbox', icon: Inbox, end: false },
   { to: '/plan/today', label: 'Today', icon: CalendarDays, end: false },
   { to: '/upcoming', label: 'Next 7 Days', icon: CircleDot, end: false },
+] as const;
+
+const mobileUtilityNavigation = [
+  { to: '/conflicts', label: 'Conflicts', icon: TriangleAlert },
+  { to: '/notifications', label: 'Notifications', icon: Bell },
+  { to: '/profile', label: 'Profile', icon: User },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ] as const;
 
 export function Layout({
@@ -152,8 +155,9 @@ export function Layout({
   const moreNavigationActive =
     orderedWorkspaceNavigation.slice(5).some((item) => location.pathname.startsWith(item.to)) ||
     planningNavigation.some((item) => location.pathname === item.to) ||
-    location.pathname === '/profile' ||
-    location.pathname === '/settings';
+    mobileUtilityNavigation.some(
+      (item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`),
+    );
 
   function beginRailResize(event: ReactPointerEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -314,6 +318,19 @@ export function Layout({
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Planning views</DropdownMenuLabel>
               {planningNavigation.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <DropdownMenuItem key={item.to} asChild>
+                    <Link to={item.to}>
+                      <Icon className="h-4 w-4" />
+                      {item.label}
+                    </Link>
+                  </DropdownMenuItem>
+                );
+              })}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>System & account</DropdownMenuLabel>
+              {mobileUtilityNavigation.map((item) => {
                 const Icon = item.icon;
                 return (
                   <DropdownMenuItem key={item.to} asChild>

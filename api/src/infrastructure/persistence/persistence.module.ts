@@ -3,6 +3,7 @@ import { TOKENS } from '@core/application/constants/tokens';
 import { PrismaService } from './prisma/prisma.service';
 import {
   PrismaAiFeedbackRepository,
+  PrismaAiCredentialRepository,
   PrismaAiJobRepository,
   PrismaCardRepository,
   PrismaDeckRepository,
@@ -31,12 +32,16 @@ import {
   PrismaJournalTagRepository,
   PrismaJournalAttachmentRepository,
 } from './prisma/prisma-journal.repository';
+import { PrismaJournalWeeklyReviewRepository } from './prisma/prisma-journal-weekly-review.repository';
+import { PrismaPreferencesRepository } from './prisma/prisma-preferences.repository';
 import {
-  JOURNAL_REPOSITORY,
-  JOURNAL_TEMPLATE_REPOSITORY,
-  JOURNAL_TAG_REPOSITORY,
   JOURNAL_ATTACHMENT_REPOSITORY,
-} from '@core/application/use-cases/journal/journal.service';
+  JOURNAL_REPOSITORY,
+  JOURNAL_TAG_REPOSITORY,
+  JOURNAL_TEMPLATE_REPOSITORY,
+  JOURNAL_WEEKLY_REVIEW_QUERY,
+} from '@core/application/ports/out/journal-repository.port';
+import { PREFERENCES_REPOSITORY } from '@core/application/ports/out/preferences-repository.port';
 
 @Module({
   providers: [
@@ -51,6 +56,7 @@ import {
     PrismaStudySessionRepository,
     PrismaAiJobRepository,
     PrismaAiFeedbackRepository,
+    PrismaAiCredentialRepository,
     PrismaTrashRepository,
     PrismaScheduledJobRepository,
     PrismaReminderRepository,
@@ -67,6 +73,8 @@ import {
     PrismaJournalTemplateRepository,
     PrismaJournalTagRepository,
     PrismaJournalAttachmentRepository,
+    PrismaJournalWeeklyReviewRepository,
+    PrismaPreferencesRepository,
     { provide: TOKENS.USER_REPOSITORY, useExisting: PrismaUserRepository },
     { provide: TOKENS.DECK_REPOSITORY, useExisting: PrismaDeckRepository },
     { provide: TOKENS.REFRESH_SESSION_REPOSITORY, useExisting: PrismaRefreshSessionRepository },
@@ -77,6 +85,7 @@ import {
     { provide: TOKENS.STUDY_SESSION_REPOSITORY, useExisting: PrismaStudySessionRepository },
     { provide: TOKENS.AI_JOB_REPOSITORY, useExisting: PrismaAiJobRepository },
     { provide: TOKENS.AI_FEEDBACK_REPOSITORY, useExisting: PrismaAiFeedbackRepository },
+    { provide: TOKENS.AI_CREDENTIAL_REPOSITORY, useExisting: PrismaAiCredentialRepository },
     { provide: TOKENS.SYNC_REPOSITORY, useExisting: PrismaSyncRepository },
     { provide: TOKENS.TRASH_REPOSITORY, useExisting: PrismaTrashRepository },
     { provide: TOKENS.SCHEDULED_JOB_REPOSITORY, useExisting: PrismaScheduledJobRepository },
@@ -86,10 +95,12 @@ import {
     { provide: TOKENS.ACCESS_REPOSITORY, useExisting: PrismaAccessRepository },
     { provide: TOKENS.PRODUCTIVITY_REPOSITORY, useExisting: PrismaProductivityRepository },
     { provide: TOKENS.GROWTH_REPOSITORY, useExisting: PrismaGrowthRepository },
-    { provide: JOURNAL_REPOSITORY, useClass: PrismaJournalRepository },
-    { provide: JOURNAL_TEMPLATE_REPOSITORY, useClass: PrismaJournalTemplateRepository },
-    { provide: JOURNAL_TAG_REPOSITORY, useClass: PrismaJournalTagRepository },
-    { provide: JOURNAL_ATTACHMENT_REPOSITORY, useClass: PrismaJournalAttachmentRepository },
+    { provide: JOURNAL_REPOSITORY, useExisting: PrismaJournalRepository },
+    { provide: JOURNAL_TEMPLATE_REPOSITORY, useExisting: PrismaJournalTemplateRepository },
+    { provide: JOURNAL_TAG_REPOSITORY, useExisting: PrismaJournalTagRepository },
+    { provide: JOURNAL_ATTACHMENT_REPOSITORY, useExisting: PrismaJournalAttachmentRepository },
+    { provide: JOURNAL_WEEKLY_REVIEW_QUERY, useExisting: PrismaJournalWeeklyReviewRepository },
+    { provide: PREFERENCES_REPOSITORY, useExisting: PrismaPreferencesRepository },
   ],
   exports: [
     PrismaService,
@@ -103,6 +114,7 @@ import {
     PrismaStudySessionRepository,
     PrismaAiJobRepository,
     PrismaAiFeedbackRepository,
+    PrismaAiCredentialRepository,
     PrismaSyncRepository,
     PrismaTrashRepository,
     PrismaScheduledJobRepository,
@@ -118,6 +130,8 @@ import {
     PrismaJournalTemplateRepository,
     PrismaJournalTagRepository,
     PrismaJournalAttachmentRepository,
+    PrismaJournalWeeklyReviewRepository,
+    PrismaPreferencesRepository,
     SrsSchedulerService,
     TOKENS.USER_REPOSITORY,
     TOKENS.DECK_REPOSITORY,
@@ -129,6 +143,7 @@ import {
     TOKENS.STUDY_SESSION_REPOSITORY,
     TOKENS.AI_JOB_REPOSITORY,
     TOKENS.AI_FEEDBACK_REPOSITORY,
+    TOKENS.AI_CREDENTIAL_REPOSITORY,
     TOKENS.SYNC_REPOSITORY,
     TOKENS.TRASH_REPOSITORY,
     TOKENS.SCHEDULED_JOB_REPOSITORY,
@@ -142,6 +157,8 @@ import {
     JOURNAL_TEMPLATE_REPOSITORY,
     JOURNAL_TAG_REPOSITORY,
     JOURNAL_ATTACHMENT_REPOSITORY,
+    JOURNAL_WEEKLY_REVIEW_QUERY,
+    PREFERENCES_REPOSITORY,
   ],
 })
 export class PersistenceModule {}
