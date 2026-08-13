@@ -59,11 +59,36 @@ enum StatisticsDisplayHelpers {
 struct StatisticsView: View {
     @Environment(AppModel.self) private var model
 
-    @State private var timeRange: String = "30 Days"
-    @State private var customFromDate = Calendar.current.date(byAdding: .day, value: -29, to: Date()) ?? Date()
-    @State private var customToDate = Date()
+    @SceneStorage("statistics.timeRange") private var timeRange: String = "30 Days"
+    @SceneStorage("statistics.customFromDate") private var customFromTimestamp = (Calendar.current.date(byAdding: .day, value: -29, to: Date()) ?? Date()).timeIntervalSinceReferenceDate
+    @SceneStorage("statistics.customToDate") private var customToTimestamp = Date().timeIntervalSinceReferenceDate
+    @SceneStorage("statistics.didHydrateDefaultRange") private var didHydrateDefaultRange = false
     @State private var showingSettings = false
-    @State private var websitePrivacyFilter: WebsiteActivityPrivacyFilter = .all
+    @SceneStorage("statistics.websitePrivacyFilter") private var websitePrivacyFilterRaw = WebsiteActivityPrivacyFilter.all.rawValue
+
+    private var customFromDate: Date {
+        Date(timeIntervalSinceReferenceDate: customFromTimestamp)
+    }
+
+    private var customToDate: Date {
+        Date(timeIntervalSinceReferenceDate: customToTimestamp)
+    }
+
+    private var websitePrivacyFilter: WebsiteActivityPrivacyFilter {
+        WebsiteActivityPrivacyFilter(rawValue: websitePrivacyFilterRaw) ?? .all
+    }
+
+    private var customFromDateBinding: Binding<Date> {
+        Binding(get: { customFromDate }, set: { customFromTimestamp = $0.timeIntervalSinceReferenceDate })
+    }
+
+    private var customToDateBinding: Binding<Date> {
+        Binding(get: { customToDate }, set: { customToTimestamp = $0.timeIntervalSinceReferenceDate })
+    }
+
+    private var websitePrivacyFilterBinding: Binding<WebsiteActivityPrivacyFilter> {
+        Binding(get: { websitePrivacyFilter }, set: { websitePrivacyFilterRaw = $0.rawValue })
+    }
 
     private struct TrendItem: Identifiable {
         let id: String
@@ -241,14 +266,14 @@ struct StatisticsView: View {
         }
         .background(iTuTheme.canvas)
         .onAppear {
-            if timeRange == displaySettings.defaultRange {
-                refreshForCurrentRange()
-            } else {
+            if !didHydrateDefaultRange {
                 timeRange = displaySettings.defaultRange
+                didHydrateDefaultRange = true
             }
+            refreshForCurrentRange(force: false)
         }
         .onChange(of: timeRange) { _, _ in
-            if timeRange != "Custom" { refreshForCurrentRange() }
+            if timeRange != "Custom" { refreshForCurrentRange(force: true) }
         }
     }
 
@@ -279,7 +304,7 @@ struct StatisticsView: View {
 
     private var refreshButton: some View {
         Button {
-            refreshForCurrentRange()
+            refreshForCurrentRange(force: true)
         } label: {
             Label("Refresh", systemImage: "arrow.clockwise")
         }
@@ -326,9 +351,9 @@ struct StatisticsView: View {
         Group {
             if timeRange == "Custom" {
                 HStack(spacing: 12) {
-                    DatePicker("From", selection: $customFromDate, in: Self.earliestDate...Date(), displayedComponents: .date)
-                    DatePicker("To", selection: $customToDate, in: Self.earliestDate...Date(), displayedComponents: .date)
-                    Button("Apply Range") { refreshForCurrentRange() }
+                    DatePicker("From", selection: customFromDateBinding, in: Self.earliestDate...Date(), displayedComponents: .date)
+                    DatePicker("To", selection: customToDateBinding, in: Self.earliestDate...Date(), displayedComponents: .date)
+                    Button("Apply Range") { refreshForCurrentRange(force: true) }
                         .buttonStyle(iTuPrimaryButtonStyle(height: 32))
                         .disabled(customFromDate > customToDate)
                 }
@@ -478,7 +503,7 @@ struct StatisticsView: View {
                         .font(.system(size: 16, weight: .semibold))
                 }
                 Spacer()
-                Picker("Privacy", selection: $websitePrivacyFilter) {
+                Picker("Privacy", selection: websitePrivacyFilterBinding) {
                     ForEach(WebsiteActivityPrivacyFilter.allCases) { filter in
                         Text(filter.title).tag(filter)
                     }
@@ -1030,7 +1055,7 @@ struct StatisticsView: View {
         return value
     }
 
-    private func refreshForCurrentRange() {
+    private func refreshForCurrentRange(force: Bool) {
         let days = selectedDayCount ?? 365
         let from: String
         let to: String
@@ -1051,8 +1076,13 @@ struct StatisticsView: View {
             usageTo = Self.dateKey(Date())
         }
         Task {
-            await model.refreshStatistics(calendarDays: days, fromDate: from, toDate: to)
-            await model.refreshUsage(from: usageFrom, to: usageTo)
+            async let statistics: Void = model.refreshCoordinator.run(.statistics, force: force) {
+                await model.refreshStatistics(calendarDays: days, fromDate: from, toDate: to)
+            }
+            async let usage: Void = model.refreshCoordinator.run(.usage, force: force) {
+                await model.refreshUsage(from: usageFrom, to: usageTo)
+            }
+            _ = await (statistics, usage)
         }
     }
 

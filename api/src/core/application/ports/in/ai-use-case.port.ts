@@ -11,6 +11,7 @@ import { CardGrading } from '../out/service-types.port';
 export interface IAiUseCase {
   suggestCards(userId: string, pastedText: string): Promise<AiJobModel>;
   requestSessionFeedback(userId: string, sessionId: string): Promise<AiJobModel>;
+  requestReviewInsights(userId: string, entryId: string, expectedVersion: number): Promise<AiJobModel>;
   getJob(userId: string, jobId: string): Promise<AiJobModel>;
   getSessionFeedback(userId: string, sessionId: string): Promise<AiSessionFeedbackModel | null>;
   streamCards(userId: string, pastedText: string): Promise<AsyncIterable<string>>;

@@ -80,7 +80,11 @@ struct TrashView: View {
                 Task { await performPermanentDelete(target) }
             }, secondaryButton: .cancel())
         }
-        .task { await model.refreshTrash() }
+        .task {
+            await model.refreshCoordinator.run(.trash) {
+                await model.refreshTrash()
+            }
+        }
     }
 
     private var trashHeader: some View {

@@ -2,8 +2,8 @@ import SwiftUI
 
 struct BudgetView: View {
     @Environment(AppModel.self) private var model
-    @State private var selectedTab = "Overview"
-    @State private var selectedPeriod = BudgetView.currentPeriod
+    @SceneStorage("budget.selectedTab") private var selectedTab = "Overview"
+    @SceneStorage("budget.selectedPeriod") private var selectedPeriod = BudgetView.currentPeriod
     @State private var newCategoryName = ""
     @State private var newCategoryType = "EXPENSE"
     @State private var newCategoryIcon = "wallet"
@@ -26,8 +26,8 @@ struct BudgetView: View {
     @State private var isSavingTransaction = false
     @State private var transactionError: String?
     @State private var budgetTarget = ""
-    @State private var transactionTypeFilter = ""
-    @State private var transactionCategoryFilter = ""
+    @SceneStorage("budget.transactionTypeFilter") private var transactionTypeFilter = ""
+    @SceneStorage("budget.transactionCategoryFilter") private var transactionCategoryFilter = ""
     @State private var categoryLimitDrafts: [String: String] = [:]
     @State private var editingTransactionID: String?
     @State private var editingTransactionType = "EXPENSE"
@@ -64,11 +64,10 @@ struct BudgetView: View {
         }
         .background(iTuTheme.canvas)
         .task {
-            await loadBudgetData()
-            await model.loadBudgetCategories()
+            await loadBudgetData(force: false)
         }
-        .onChange(of: transactionTypeFilter) { _, _ in Task { await loadBudgetData() } }
-        .onChange(of: transactionCategoryFilter) { _, _ in Task { await loadBudgetData() } }
+        .onChange(of: transactionTypeFilter) { _, _ in Task { await loadBudgetData(force: true) } }
+        .onChange(of: transactionCategoryFilter) { _, _ in Task { await loadBudgetData(force: true) } }
         .onChange(of: selectedTab) { _, tab in
             if tab == "Budgets", budgetTarget.isEmpty { budgetTarget = String(format: "%.2f", model.budgetOverview?.overallBudget ?? 0) }
         }
@@ -802,9 +801,17 @@ struct BudgetView: View {
         }
     }
 
-    private func loadBudgetData() async {
-        await model.loadBudgetOverview(period: selectedPeriod)
-        await model.loadBudgetTransactions(period: selectedPeriod, categoryID: transactionCategoryFilter.isEmpty ? nil : transactionCategoryFilter, type: transactionTypeFilter.isEmpty ? nil : transactionTypeFilter)
+    private func loadBudgetData(force: Bool) async {
+        await model.refreshCoordinator.run(.budget, force: force) {
+            async let overview: Void = model.loadBudgetOverview(period: selectedPeriod)
+            async let categories: Void = model.loadBudgetCategories()
+            async let transactions: Void = model.loadBudgetTransactions(
+                period: selectedPeriod,
+                categoryID: transactionCategoryFilter.isEmpty ? nil : transactionCategoryFilter,
+                type: transactionTypeFilter.isEmpty ? nil : transactionTypeFilter
+            )
+            _ = await (overview, categories, transactions)
+        }
     }
 
     private func addTransaction() {
@@ -908,7 +915,7 @@ struct BudgetView: View {
         let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: 1)) ?? Date()
         guard let next = calendar.date(byAdding: .month, value: offset, to: date) else { return }
         selectedPeriod = String(format: "%04d-%02d", calendar.component(.year, from: next), calendar.component(.month, from: next))
-        Task { await loadBudgetData() }
+        Task { await loadBudgetData(force: true) }
     }
 
     private func formatCurrency(_ amount: Double, currency: String) -> String {

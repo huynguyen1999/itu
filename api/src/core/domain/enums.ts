@@ -56,6 +56,7 @@ export enum StudyMode {
 export enum AiJobType {
   CARD_GENERATION = 'CARD_GENERATION',
   SESSION_FEEDBACK = 'SESSION_FEEDBACK',
+  REVIEW_INSIGHTS = 'REVIEW_INSIGHTS',
 }
 
 export enum AiJobStatus {
@@ -97,6 +98,7 @@ export enum SyncDevicePlatform {
 export enum JournalEntryKind {
   NOTE = 'NOTE',
   WEEKLY_REVIEW = 'WEEKLY_REVIEW',
+  DAILY_REVIEW = 'DAILY_REVIEW',
 }
 
 export enum PaymentMethod {

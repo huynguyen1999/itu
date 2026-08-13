@@ -4,8 +4,7 @@ import AppKit
 
 struct GymView: View {
     @Environment(AppModel.self) private var model
-    @State private var selectedTab = "Overview"
-    @State private var isLoading = true
+    @SceneStorage("gym.selectedTab") private var selectedTab = "Overview"
     @State private var isStartingWorkout = false
     @State private var newExerciseName = ""
     @State private var newExerciseDescription = ""
@@ -41,7 +40,7 @@ struct GymView: View {
     @State private var focusedSetID: String?
     @State private var showingGymSettings = false
     @State private var showingFinishConfirmation = false
-    @State private var historyFilter = "COMPLETED"
+    @SceneStorage("gym.historyFilter") private var historyFilter = "COMPLETED"
 
     private var visibleGymWorkouts: [WorkoutModel] {
         model.gymWorkouts.filter { $0.deletedAt == nil }
@@ -92,42 +91,37 @@ struct GymView: View {
             secondaryRail
 
             VStack(alignment: .leading, spacing: 0) {
-                if isLoading {
-                    VStack(spacing: 10) {
-                        ProgressView()
-                        Text("Loading Gym…")
-                            .font(.system(size: 13))
-                            .foregroundStyle(iTuTheme.inkDim)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .iTuPinnedHeader { header }
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
-                            if selectedTab == "Active" {
-                                activeWorkoutSection
-                            } else if selectedTab == "Overview" {
-                                gymOverviewSection
-                            } else if selectedTab == "History" {
-                                gymHistorySection
-                            } else {
-                                exercisesSection
-                            }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        if selectedTab == "Active" {
+                            activeWorkoutSection
+                        } else if selectedTab == "Overview" {
+                            gymOverviewSection
+                        } else if selectedTab == "History" {
+                            gymHistorySection
+                        } else {
+                            exercisesSection
                         }
-                        .padding(24)
                     }
-                    .iTuPinnedHeader { header }
+                    .padding(24)
                 }
+                .iTuPinnedHeader { header }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .background(iTuTheme.canvas)
         .task {
-            await reload()
+            await model.refreshCoordinator.run(.gym, force: false) {
+                async let overview: Void = model.loadGymOverview()
+                async let exercises: Void = model.loadGymExercises()
+                async let workouts: Void = model.loadGymWorkouts()
+                _ = await (overview, exercises, workouts)
+            }
         }
-        .task {
-            var wasRunning = false
-            while !Task.isCancelled {
+        .task(id: "\(activeWorkout?.id ?? "none")-\(restTimer.isRunning)") {
+            guard restTimer.isRunning || activeWorkout != nil else { return }
+            var wasRunning = restTimer.isRunning
+            while !Task.isCancelled && (restTimer.isRunning || activeWorkout != nil) {
                 let running = restTimer.isRunning
                 if wasRunning && !running && model.gymPreferences.soundsEnabled && model.gymPreferences.restSoundEnabled {
                     NSSound.beep()
@@ -135,7 +129,8 @@ struct GymView: View {
                 wasRunning = running
                 restTimerTick = Date()
                 clockNow = Date()
-                try? await Task.sleep(for: .milliseconds(250))
+                AppPerformanceSignposts.recordGymTick()
+                try? await Task.sleep(for: .seconds(1))
             }
         }
         .alert("Discard workout?", isPresented: Binding(get: { deleteWorkoutID != nil }, set: { if !$0 { deleteWorkoutID = nil } })) {
@@ -1022,14 +1017,6 @@ struct GymView: View {
         newExerciseImageName = ""
         exerciseError = nil
         showingExerciseForm = false
-    }
-
-    private func reload() async {
-        isLoading = true
-        await model.loadGymOverview()
-        await model.loadGymExercises()
-        await model.loadGymWorkouts()
-        isLoading = false
     }
 
     private func emptyState(_ text: String) -> some View {

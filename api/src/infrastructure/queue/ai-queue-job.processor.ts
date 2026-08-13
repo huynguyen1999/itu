@@ -8,6 +8,9 @@ import type {
 } from '@core/application/ports/out/repositories.port';
 import type { AiJobModel } from '@core/domain/models';
 import type { IAiProvider, ILogger, IMediaStorage } from '@core/application/ports/out/services.port';
+import { JOURNAL_REPOSITORY, type IJournalRepository } from '@core/application/ports/out/journal-repository.port';
+import { ReviewContextBuilder } from '@core/application/use-cases/review-context.builder';
+import type { ReviewInsightsResultV1 } from '@core/domain/review/review.types';
 import { hydrateSessionReviewImages } from '@core/application/use-cases/ai-session-images';
 import type { AiQueueJob, AiQueueJobType } from './queue.types';
 
@@ -22,6 +25,8 @@ export class AiQueueJobProcessor {
     @Inject(TOKENS.AI_PROVIDER) private readonly ai: IAiProvider,
     @Inject(TOKENS.LOGGER) private readonly logger: ILogger,
     @Inject(TOKENS.MEDIA_STORAGE) private readonly media: IMediaStorage,
+    @Inject(JOURNAL_REPOSITORY) private readonly journal: IJournalRepository,
+    private readonly reviewContext: ReviewContextBuilder,
   ) {}
 
   async process(job: AiQueueJob): Promise<void> {
@@ -30,7 +35,79 @@ export class AiQueueJobProcessor {
       await this.runCardSuggestions(job.jobId);
       return;
     }
+    if (job.type === 'review-insights') {
+      await this.runReviewInsights(job.jobId);
+      return;
+    }
     await this.runSessionFeedback(job.jobId);
+  }
+
+  private async runReviewInsights(jobId: string): Promise<void> {
+    let entryId = '';
+    try {
+      await this.jobs.markRunning(jobId);
+      const job = await this.findJobByKnownUser(jobId);
+      const input = job.input as {
+        entryId: string;
+        reviewKind: 'DAILY' | 'WEEKLY';
+        sourceEntryVersion: number;
+        period: { startDate: string; endDate: string; timezone: string };
+        promptVersion: 'review-insights-v1';
+      };
+      entryId = input.entryId;
+      const entry = await this.journal.findById(job.userId, entryId);
+      if (!entry) throw new Error('REVIEW_DELETED');
+      if (entry.version !== input.sourceEntryVersion) {
+        await this.jobs.markCompleted(jobId, { stale: true });
+        return;
+      }
+      const review = input.reviewKind === 'DAILY' ? entry.dailyReview : entry.weeklyReview;
+      if (!review) throw new Error('REVIEW_DATA_MISSING');
+      const reflections: Record<string, string> = input.reviewKind === 'DAILY'
+        ? {
+            wentWell: entry.dailyReview!.wentWellMarkdown ?? '',
+            friction: entry.dailyReview!.frictionMarkdown ?? '',
+            learned: entry.dailyReview!.learnedMarkdown ?? '',
+            context: entry.dailyReview!.contextMarkdown ?? '',
+          }
+        : {
+            wentWell: entry.weeklyReview!.wentWellMarkdown ?? '',
+            friction: entry.weeklyReview!.frictionMarkdown ?? '',
+            learned: entry.weeklyReview!.learnedMarkdown ?? '',
+            differentFromLastWeek: entry.weeklyReview!.differentFromLastWeekMarkdown ?? '',
+            nextWeek: entry.weeklyReview!.nextWeekMarkdown ?? '',
+          };
+      const context = await this.reviewContext.build(
+        job.userId,
+        { ...input.period, kind: input.reviewKind },
+        reflections,
+        entryId,
+      );
+      const output: ReviewInsightsResultV1 = await this.ai.generateReviewInsights(job.userId, {
+        context,
+        promptVersion: input.promptVersion,
+      });
+      const saved = await this.journal.saveReviewAiInsights(
+        job.userId,
+        entryId,
+        input.sourceEntryVersion,
+        jobId,
+        context.metrics,
+        context.previousPeriod?.comparison,
+        output as unknown as Record<string, unknown>,
+      );
+      if (!saved) {
+        await this.jobs.markCompleted(jobId, { ...output, stale: true });
+        this.logger.warn('AI review insights completed against a changed review', { jobId, entryId });
+        return;
+      }
+      await this.jobs.markCompleted(jobId, output);
+      this.logger.debug('AI review insights job completed', { jobId, entryId, userId: job.userId });
+    } catch (error) {
+      const message = this.errorMessage(error);
+      this.logger.error('AI review insights job failed', { jobId, entryId, error: message });
+      await this.jobs.markFailed(jobId, message);
+    }
   }
 
   private async runCardSuggestions(jobId: string): Promise<void> {

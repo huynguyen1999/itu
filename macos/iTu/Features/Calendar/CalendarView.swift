@@ -37,23 +37,59 @@ enum CalendarKind: String, CaseIterable, Identifiable {
 struct CalendarGroup: Identifiable {
     let id: String
     let title: String
+    var color: String?
     var items: [CalendarItem] = []
 }
 
 struct CalendarView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var zoom: CalendarZoom = .week
-    @State private var anchor = Date()
+    @SceneStorage("calendar.zoom") private var zoomRaw = CalendarZoom.week.rawValue
+    @SceneStorage("calendar.anchor") private var anchorTimestamp = Date().timeIntervalSinceReferenceDate
     @State private var externalItems: [CalendarTimelineItem] = []
     @State private var arrangeTasksOpen = false
     @State private var arrangeSearch = ""
     @State private var settingsOpen = false
     @State private var detailItem: CalendarItem?
-    @State private var didLoadPreferences = false
+    @SceneStorage("calendar.didHydratePreferences") private var didHydratePreferences = false
+
+    private var zoom: CalendarZoom {
+        CalendarZoom(rawValue: zoomRaw) ?? .week
+    }
+
+    private var anchor: Date {
+        Date(timeIntervalSinceReferenceDate: anchorTimestamp)
+    }
+
+    private var zoomBinding: Binding<CalendarZoom> {
+        Binding(get: { zoom }, set: { zoomRaw = $0.rawValue })
+    }
 
     private var range: (from: Date, to: Date) { zoom.range(for: anchor) }
     private var visibleKinds: Set<String> { Set(model.calendarPreferences.visibleKinds) }
+
+    private var sourceGroups: [CalendarGroup] {
+        var groups: [String: CalendarGroup] = [:]
+        for item in items {
+            let id = item.sourceID ?? "project:inbox"
+            let title = item.sourceName?.isEmpty == false
+                ? item.sourceName!
+                : item.kind == "FOCUS_SESSION" ? "Focus" : item.kind == "EXTERNAL_EVENT" ? "Calendar Subscription" : "Inbox"
+            let sourceColor = item.color ?? (item.kind == "FOCUS_SESSION" ? "VIOLET" : item.kind == "TASK_DUE" ? "TEAL" : nil)
+            if var group = groups[id] {
+                group.items.append(item)
+                if group.color == nil { group.color = sourceColor }
+                groups[id] = group
+            } else {
+                groups[id] = CalendarGroup(id: id, title: title, color: sourceColor, items: [item])
+            }
+        }
+        return groups.values.sorted { lhs, rhs in
+            sourceRank(lhs.id) == sourceRank(rhs.id)
+                ? lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                : sourceRank(lhs.id) < sourceRank(rhs.id)
+        }
+    }
 
     private var items: [CalendarItem] {
         let taskItems = model.tasks.compactMap { task -> CalendarItem? in
@@ -116,17 +152,21 @@ struct CalendarView: View {
         VStack(spacing: 0) {
             header
             overviewBar
+            sourceLegend
             HStack(spacing: 0) {
                 mainCalendarBody
                 if arrangeTasksOpen { arrangeTasks }
             }
         }
         .background(iTuTheme.canvas)
-        .task(id: "\(range.from.timeIntervalSince1970)-\(range.to.timeIntervalSince1970)") { await loadTimeline() }
+        .task(id: "\(range.from.timeIntervalSince1970)-\(range.to.timeIntervalSince1970)") {
+            let rangeKey = "\(range.from.timeIntervalSince1970)-\(range.to.timeIntervalSince1970)"
+            await model.refreshCoordinator.run(.calendar(rangeKey)) { await loadTimeline() }
+        }
         .onAppear {
-            guard !didLoadPreferences else { return }
-            zoom = CalendarZoom(rawValue: model.calendarPreferences.zoom) ?? .week
-            didLoadPreferences = true
+            guard !didHydratePreferences else { return }
+            zoomRaw = (CalendarZoom(rawValue: model.calendarPreferences.zoom) ?? .week).rawValue
+            didHydratePreferences = true
         }
         .popover(item: $detailItem) { item in detailCard(item) }
     }
@@ -153,6 +193,7 @@ struct CalendarView: View {
                 items: items,
                 onSelect: selectItem
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
@@ -166,9 +207,9 @@ struct CalendarView: View {
             }
             Spacer()
             Button("Previous", systemImage: "chevron.left") { move(-1) }.labelStyle(.iconOnly).buttonStyle(.plain).accessibilityLabel("Previous range")
-            Button("Today") { anchor = Date() }.buttonStyle(iTuSecondaryButtonStyle(height: 28))
+            Button("Today") { anchorTimestamp = Date().timeIntervalSinceReferenceDate }.buttonStyle(iTuSecondaryButtonStyle(height: 28))
             Button("Next", systemImage: "chevron.right") { move(1) }.labelStyle(.iconOnly).buttonStyle(.plain).accessibilityLabel("Next range")
-            Picker("Zoom", selection: $zoom) { ForEach(CalendarZoom.allCases) { Text($0.title).tag($0) } }
+            Picker("Zoom", selection: zoomBinding) { ForEach(CalendarZoom.allCases) { Text($0.title).tag($0) } }
                 .pickerStyle(.segmented).frame(width: 190)
                 .onChange(of: zoom) { _, value in
                     Task { await model.updateCalendarPreferences(["zoom": .string(value.rawValue)]) }
@@ -202,8 +243,46 @@ struct CalendarView: View {
         .background(LinearGradient(colors: [iTuTheme.forest, iTuTheme.forestDeep], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
 
+    private var sourceLegend: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(sourceGroups) { group in
+                    sourceChip(group)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+        }
+        .background(iTuTheme.surface)
+        .overlay(alignment: .bottom) { Rectangle().fill(iTuTheme.borderSoft).frame(height: 1) }
+    }
+
+    private func sourceChip(_ group: CalendarGroup) -> some View {
+        let color = Color.calendarColor(kind: group.items.first?.kind ?? "", sourceColor: group.color)
+        return HStack(spacing: 7) {
+            Circle().fill(color).frame(width: 9, height: 9)
+            Text(group.title).lineLimit(1)
+            Text("· " + String(group.items.count)).foregroundStyle(iTuTheme.inkDim)
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(iTuTheme.ink)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(color.opacity(0.08), in: Capsule())
+        .overlay { Capsule().stroke(color.opacity(0.75), lineWidth: 1) }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(group.title + ", " + String(group.items.count) + " items")
+    }
+
     private func legend(_ title: String, color: Color) -> some View {
         Label(title, systemImage: "circle.fill").font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.78)).symbolRenderingMode(.palette).foregroundStyle(color, .clear)
+    }
+
+    private func sourceRank(_ id: String) -> Int {
+        if id == "project:inbox" { return 0 }
+        if id.hasPrefix("project:") { return 1 }
+        if id.hasPrefix("calendar:") { return 2 }
+        return 3
     }
 
     private func selectItem(_ item: CalendarItem) {
@@ -237,11 +316,11 @@ struct CalendarView: View {
         let cal = Calendar.current
         switch zoom {
         case .day:
-            anchor = cal.date(byAdding: .day, value: direction, to: anchor) ?? anchor
+            anchorTimestamp = (cal.date(byAdding: .day, value: direction, to: anchor) ?? anchor).timeIntervalSinceReferenceDate
         case .week:
-            anchor = cal.date(byAdding: .day, value: direction * 7, to: anchor) ?? anchor
+            anchorTimestamp = (cal.date(byAdding: .day, value: direction * 7, to: anchor) ?? anchor).timeIntervalSinceReferenceDate
         case .month:
-            anchor = cal.date(byAdding: .month, value: direction, to: anchor) ?? anchor
+            anchorTimestamp = (cal.date(byAdding: .month, value: direction, to: anchor) ?? anchor).timeIntervalSinceReferenceDate
         }
     }
 

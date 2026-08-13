@@ -22,8 +22,6 @@ enum LayoutMode {
 
 struct MainView: View {
     @Environment(AppModel.self) private var model
-    @State private var retainedDestinations: Set<RetainedDestination> = [.home]
-    @State private var retainedPlanSection: AppSection = .inbox
     /// Manually shown/hidden in .medium mode; auto-shown in .wide.
     @State private var showPlanRail = false
 
@@ -73,16 +71,8 @@ struct MainView: View {
         .animation(.snappy(duration: 0.22), value: showPlanRail)
         .animation(.snappy, value: model.presentedOverlay)
         .preferredColorScheme(preferredColorScheme)
-        .onAppear {
-            retain(model.selectedSection)
-        }
         .onChange(of: model.selectedSection) { _, section in
-            retain(section)
-            Task { @MainActor in
-                await Task.yield()
-                guard model.selectedSection == section else { return }
-                AppPerformanceSignposts.emitContentVisible(sectionName: section.rawValue)
-            }
+            AppPerformanceSignposts.emitSelectionCommitted(sectionName: section.rawValue)
         }
     }
 
@@ -96,89 +86,29 @@ struct MainView: View {
 
     @ViewBuilder
     private var detail: some View {
-        ZStack {
-            if retainedDestinations.contains(.home) || model.selectedSection == .home {
-                retainedDestination(isVisible: model.selectedSection == .home) {
-                    HomeOverviewView()
-                }
-            }
-            if retainedDestinations.contains(.plan) || model.selectedSection.isRetainedPlanningSection {
-                retainedDestination(isVisible: model.selectedSection.isRetainedPlanningSection) {
-                    PlanningView(section: activePlanSection)
-                }
-            }
-            if retainedDestinations.contains(.matrix) || model.selectedSection == .matrix {
-                retainedDestination(isVisible: model.selectedSection == .matrix) {
-                    EisenhowerMatrixView()
-                }
-            }
-            if retainedDestinations.contains(.statistics) || model.selectedSection == .statistics {
-                retainedDestination(isVisible: model.selectedSection == .statistics) {
-                    StatisticsView()
-                }
-            }
-            if retainedDestinations.contains(.focus) || model.selectedSection == .focus {
-                retainedDestination(isVisible: model.selectedSection == .focus) {
-                    FocusView()
-                }
-            }
-            if retainedDestinations.contains(.calendar) || model.selectedSection == .calendar {
-                retainedDestination(isVisible: model.selectedSection == .calendar) {
-                    CalendarView()
-                }
-            }
-            if retainedDestinations.contains(.habits) || model.selectedSection == .habits {
-                retainedDestination(isVisible: model.selectedSection == .habits) {
-                    HabitsView()
-                }
-            }
-
-            if !model.selectedSection.isRetainedDestination {
-                nonRetainedDetail
-            }
+        let section = model.selectedSection
+        DestinationLifecycle(section: section) {
+            destination(for: section)
         }
-    }
-
-    private func retain(_ section: AppSection) {
-        switch section {
-        case .home:
-            retainedDestinations.insert(.home)
-        case .today, .inbox, .completed:
-            retainedDestinations.insert(.plan)
-            retainedPlanSection = section
-        case .matrix:
-            retainedDestinations.insert(.matrix)
-        case .statistics:
-            retainedDestinations.insert(.statistics)
-        case .focus:
-            retainedDestinations.insert(.focus)
-        case .calendar:
-            retainedDestinations.insert(.calendar)
-        case .habits:
-            retainedDestinations.insert(.habits)
-        default:
-            break
-        }
-    }
-
-    private var activePlanSection: AppSection {
-        model.selectedSection.isRetainedPlanningSection ? model.selectedSection : retainedPlanSection
-    }
-
-    private func retainedDestination<Content: View>(
-        isVisible: Bool,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        content()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .opacity(isVisible ? 1 : 0)
-            .allowsHitTesting(isVisible)
-            .accessibilityHidden(!isVisible)
     }
 
     @ViewBuilder
-    private var nonRetainedDetail: some View {
-        switch model.selectedSection {
+    private func destination(for section: AppSection) -> some View {
+        switch section {
+        case .home:
+            HomeOverviewView()
+        case .today, .inbox, .completed:
+            PlanningView(section: section)
+        case .matrix:
+            EisenhowerMatrixView()
+        case .statistics:
+            StatisticsView()
+        case .focus:
+            FocusView()
+        case .calendar:
+            CalendarView()
+        case .habits:
+            HabitsView()
         case .upcoming:
             UpcomingView()
         case .journal:
@@ -201,8 +131,6 @@ struct MainView: View {
             ProfileView()
         case .settings:
             SettingsView()
-        case .home, .today, .inbox, .completed, .matrix, .statistics, .focus, .calendar, .habits:
-            EmptyView()
         }
     }
 
@@ -222,14 +150,33 @@ struct MainView: View {
         )
     }
 
-    private enum RetainedDestination: Hashable {
-        case home
-        case plan
-        case matrix
-        case statistics
-        case focus
-        case calendar
-        case habits
+}
+
+private struct DestinationLifecycle<Content: View>: View {
+    @Environment(AppModel.self) private var model
+    let section: AppSection
+    let content: Content
+
+    init(section: AppSection, @ViewBuilder content: () -> Content) {
+        self.section = section
+        self.content = content()
+    }
+
+    var body: some View {
+        let _ = AppPerformanceSignposts.emitDestinationBody(sectionName: section.rawValue)
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear {
+                AppPerformanceSignposts.emitDestinationAppeared(sectionName: section.rawValue)
+                AppPerformanceSignposts.recordDestinationMounted()
+                DispatchQueue.main.async {
+                    guard model.selectedSection == section else { return }
+                    AppPerformanceSignposts.emitFirstLocalFrame(sectionName: section.rawValue)
+                }
+            }
+            .onDisappear {
+                AppPerformanceSignposts.recordDestinationUnmounted()
+            }
     }
 }
 
@@ -240,7 +187,7 @@ private struct PrimaryRail: View {
         let sectionChanged = model.selectedSection != section
         guard sectionChanged || model.selectedTaskListId != nil else { return }
         if sectionChanged {
-            AppPerformanceSignposts.emitSelectionCommitted(sectionName: section.rawValue)
+            AppPerformanceSignposts.emitNavigationSelection(sectionName: section.rawValue)
         }
         var transaction = Transaction()
         transaction.disablesAnimations = true
@@ -745,7 +692,7 @@ private struct PlanningRailButton: View {
         }
         Button {
             if model.selectedSection != section {
-                AppPerformanceSignposts.emitSelectionCommitted(sectionName: section.rawValue)
+                AppPerformanceSignposts.emitNavigationSelection(sectionName: section.rawValue)
             }
             var transaction = Transaction()
             transaction.disablesAnimations = true
@@ -791,18 +738,6 @@ private extension AppSection {
         [.today, .inbox, .upcoming, .completed].contains(self)
     }
 
-    var isRetainedPlanningSection: Bool {
-        [.today, .inbox, .completed].contains(self)
-    }
-
-    var isRetainedDestination: Bool {
-        switch self {
-        case .home, .today, .inbox, .completed, .matrix, .statistics, .focus, .calendar, .habits:
-            true
-        default:
-            false
-        }
-    }
 }
 
 // MARK: - Environment Keys

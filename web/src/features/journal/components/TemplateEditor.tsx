@@ -150,6 +150,7 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
                     className="h-10 w-full rounded-[var(--itu-radius-s)] border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <option value="NOTE">NOTE</option>
+                    <option value="DAILY_REVIEW">DAILY REVIEW</option>
                     <option value="WEEKLY_REVIEW">WEEKLY REVIEW</option>
                   </select>
                 </label>

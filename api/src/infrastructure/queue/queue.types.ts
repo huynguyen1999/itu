@@ -1,4 +1,4 @@
-export type AiQueueJobType = 'card-suggestions' | 'session-feedback';
+export type AiQueueJobType = 'card-suggestions' | 'session-feedback' | 'review-insights';
 
 export interface AiQueueJob {
   type: AiQueueJobType;

@@ -9,9 +9,17 @@ struct CalendarMonthView: View {
     @State private var popoverItems: [CalendarItem] = []
 
     private let maxVisibleLanes = 3
-    private let dayHeaderHeight: CGFloat = 26
+    private let dayHeaderHeight: CGFloat = 30
     private let compactCardHeight: CGFloat = 28
     private let cardGap: CGFloat = 4
+
+    private struct MonthSegment: Identifiable {
+        let item: CalendarItem
+        let dayStart: Int
+        let dayEnd: Int
+        let lane: Int
+        var id: String { item.id }
+    }
 
     private var weeks: [[Date]] {
         let cal = Calendar.current
@@ -50,24 +58,23 @@ struct CalendarMonthView: View {
                         Text(day)
                             .font(.system(size: 10, weight: .bold, design: .monospaced))
                             .foregroundStyle(iTuTheme.inkDim)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .frame(height: 34, alignment: .center)
                             .overlay(alignment: .leading) {
                                 Rectangle().fill(iTuTheme.borderSoft).frame(width: 1)
                             }
                     }
                 }
-                .background(iTuTheme.surface)
+                .background(iTuTheme.surfaceMuted)
 
                 // Month Weeks Grid
                 ForEach(weeks, id: \.self) { weekDays in
                     let weekStart = Calendar.current.startOfDay(for: weekDays[0])
-                    let weekEnd = Calendar.current.date(byAdding: .day, value: 7, to: weekStart)!
                     let weekItems = items.filter { item in
-                        let s = item.start
-                        let e = item.end ?? s.addingTimeInterval(1800)
-                        return s < weekEnd && e >= weekStart
+                        weekDays.contains { itemSpansDay(item, day: $0) }
                     }
+                    let segments = monthSegments(for: weekItems, weekStart: weekStart)
 
                     ZStack(alignment: .topLeading) {
                         // 7 Day Cells Background
@@ -76,7 +83,7 @@ struct CalendarMonthView: View {
                                 let isToday = Calendar.current.isDateInToday(date)
                                 let isCurrentMonth = Calendar.current.isDate(date, equalTo: anchor, toGranularity: .month)
                                 let dayItems = weekItems.filter { itemSpansDay($0, day: date) }
-                                let hiddenCount = max(0, dayItems.count - maxVisibleLanes)
+                                let hiddenCount = segments.filter { $0.lane >= maxVisibleLanes && $0.dayStart <= weekDays.firstIndex(of: date)! && $0.dayEnd > weekDays.firstIndex(of: date)! }.count
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack {
@@ -111,25 +118,18 @@ struct CalendarMonthView: View {
                             }
                         }
 
-                        // Compact Cards Layer
-                        VStack(spacing: 0) {
-                            Color.clear.frame(height: dayHeaderHeight)
-
-                            HStack(spacing: 0) {
-                                ForEach(weekDays, id: \.self) { date in
-                                    let dayItems = weekItems.filter { itemSpansDay($0, day: date) }
-                                    let visible = Array(dayItems.prefix(maxVisibleLanes))
-
-                                    VStack(spacing: cardGap) {
-                                        ForEach(visible) { item in
-                                            CalendarEventCard(item: item, density: .compact, onSelect: { onSelect(item) })
-                                                .frame(height: compactCardHeight)
-                                        }
-                                        Spacer(minLength: 0)
-                                    }
-                                    .padding(.horizontal, 2)
-                                    .frame(maxWidth: .infinity, alignment: .top)
-                                }
+                        GeometryReader { geometry in
+                            ForEach(segments.filter { $0.lane < maxVisibleLanes }) { segment in
+                                let width = geometry.size.width * CGFloat(segment.dayEnd - segment.dayStart) / 7
+                                let x = geometry.size.width * CGFloat(segment.dayStart) / 7
+                                CalendarEventCard(
+                                    item: segment.item,
+                                    density: .compact,
+                                    showsMetadata: false,
+                                    onSelect: { onSelect(segment.item) }
+                                )
+                                .frame(width: width - 4, height: compactCardHeight)
+                                .position(x: x + width / 2, y: dayHeaderHeight + CGFloat(segment.lane) * (compactCardHeight + cardGap) + compactCardHeight / 2)
                             }
                         }
                     }
@@ -139,6 +139,7 @@ struct CalendarMonthView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .popover(isPresented: Binding(get: { popoverDate != nil }, set: { if !$0 { popoverDate = nil } })) {
             if let popoverDate {
@@ -161,6 +162,7 @@ struct CalendarMonthView: View {
                 .frame(width: 260, height: 280)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func itemSpansDay(_ item: CalendarItem, day: Date) -> Bool {
@@ -169,7 +171,58 @@ struct CalendarMonthView: View {
         let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart)!
         let itemStart = item.start
         let itemEnd = item.end ?? itemStart.addingTimeInterval(1800)
-        return itemStart < dayEnd && itemEnd >= dayStart
+        return itemStart < dayEnd && itemEnd > dayStart
+    }
+
+    private func monthSegments(for items: [CalendarItem], weekStart: Date) -> [MonthSegment] {
+        let cal = Calendar.current
+        let weekEnd = cal.date(byAdding: .day, value: 7, to: weekStart)!
+        var lanes: [[Bool]] = []
+        var segments: [MonthSegment] = []
+
+        let ordered = items.sorted {
+            let leftLength = spanLength($0, weekStart: weekStart, weekEnd: weekEnd)
+            let rightLength = spanLength($1, weekStart: weekStart, weekEnd: weekEnd)
+            return leftLength == rightLength ? $0.id < $1.id : leftLength > rightLength
+        }
+
+        for item in ordered {
+            let (itemStart, itemEnd) = monthDayBounds(for: item)
+            let start = max(weekStart, itemStart)
+            let end = min(weekEnd, itemEnd)
+            let dayStart = max(0, cal.dateComponents([.day], from: weekStart, to: start).day ?? 0)
+            let dayEnd = min(7, max(dayStart + 1, cal.dateComponents([.day], from: weekStart, to: end).day ?? dayStart + 1))
+
+            var lane = 0
+            while lanes.indices.contains(lane) && (dayStart..<dayEnd).contains(where: { lanes[lane][$0] }) {
+                lane += 1
+            }
+            if !lanes.indices.contains(lane) { lanes.append(Array(repeating: false, count: 7)) }
+            for day in dayStart..<dayEnd { lanes[lane][day] = true }
+            segments.append(MonthSegment(item: item, dayStart: dayStart, dayEnd: dayEnd, lane: lane))
+        }
+        return segments
+    }
+
+    private func spanLength(_ item: CalendarItem, weekStart: Date, weekEnd: Date) -> Int {
+        let cal = Calendar.current
+        let (itemStart, itemEnd) = monthDayBounds(for: item)
+        let start = max(weekStart, itemStart)
+        let end = min(weekEnd, itemEnd)
+        return max(1, cal.dateComponents([.day], from: start, to: end).day ?? 1)
+    }
+
+    private func monthDayBounds(for item: CalendarItem) -> (Date, Date) {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: item.start)
+        guard let end = item.end else {
+            return (start, cal.date(byAdding: .day, value: 1, to: start)!)
+        }
+        let endDay = cal.startOfDay(for: end)
+        let lastDay = end == endDay
+            ? cal.date(byAdding: .day, value: -1, to: endDay)!
+            : endDay
+        return (start, cal.date(byAdding: .day, value: 1, to: max(start, lastDay))!)
     }
 
     private func formatDate(_ date: Date) -> String {

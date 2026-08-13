@@ -64,7 +64,7 @@ describe('RabbitMqQueueJobHandler', () => {
     expect(channel.publish).toHaveBeenCalledWith(
       'itu.ai',
       QUEUE_CONSTANTS.routingKeys.cardSuggestions,
-      Buffer.from(JSON.stringify({ type: 'card-suggestions', jobId: 'job-1' })),
+      Buffer.from(JSON.stringify({ pattern: 'card-suggestions', data: { type: 'card-suggestions', jobId: 'job-1' } })),
       expect.objectContaining({
         contentType: 'application/json',
         messageId: 'job-1',
@@ -81,7 +81,7 @@ describe('RabbitMqQueueJobHandler', () => {
     expect(channel.publish).toHaveBeenCalledWith(
       'itu.ai',
       QUEUE_CONSTANTS.routingKeys.sessionFeedback,
-      Buffer.from(JSON.stringify({ type: 'session-feedback', jobId: 'job-2' })),
+      Buffer.from(JSON.stringify({ pattern: 'session-feedback', data: { type: 'session-feedback', jobId: 'job-2' } })),
       expect.objectContaining({
         contentType: 'application/json',
         messageId: 'job-2',
@@ -97,7 +97,7 @@ describe('RabbitMqQueueJobHandler', () => {
     expect(channel.publish).toHaveBeenCalledWith(
       'itu.ai',
       QUEUE_CONSTANTS.routingKeys.scheduledJob,
-      Buffer.from(JSON.stringify({ type: 'scheduled-job', jobId: 'job-3' })),
+      Buffer.from(JSON.stringify({ pattern: 'scheduled-job', data: { type: 'scheduled-job', jobId: 'job-3' } })),
       expect.objectContaining({ type: 'scheduled-job' }),
     );
   });

@@ -16,6 +16,7 @@ import type {
   ReviewSessionInput,
   SessionFeedbackResult,
 } from '@core/application/ports/out/service-types.port';
+import type { ReviewInsightsInput, ReviewInsightsResultV1 } from '@core/domain/review/review.types';
 import {
   classifyGeminiError,
   errorText,
@@ -32,6 +33,7 @@ import {
   parseCardSuggestionsJson,
   parseGradingJson,
 } from './ai-provider.shared';
+import { buildReviewInsightsPrompt, parseReviewInsights } from './review-insights';
 
 const CardSuggestionResponseSchema = {
   type: Type.OBJECT,
@@ -75,6 +77,31 @@ const GradingResponseSchema = {
   required: ['cardGradings'],
 };
 
+const ReviewInsightsResponseSchema = {
+  type: Type.OBJECT,
+  properties: {
+    version: { type: Type.INTEGER },
+    headline: { type: Type.STRING },
+    summary: { type: Type.STRING },
+    insights: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          type: { type: Type.STRING, enum: ['WIN', 'IMPROVEMENT', 'FRICTION', 'PATTERN', 'REFLECTION_ALIGNMENT', 'REFLECTION_TENSION'] },
+          title: { type: Type.STRING },
+          body: { type: Type.STRING },
+          evidenceIds: { type: Type.ARRAY, items: { type: Type.STRING } },
+          confidence: { type: Type.STRING, enum: ['LOW', 'MEDIUM', 'HIGH'] },
+        },
+        required: ['type', 'title', 'body', 'evidenceIds', 'confidence'],
+      },
+    },
+    attentionNext: { type: Type.ARRAY, items: { type: Type.STRING } },
+  },
+  required: ['version', 'headline', 'summary', 'insights', 'attentionNext'],
+};
+
 @Injectable()
 export class GeminiAiProvider implements IAiProvider {
   private readonly model: string;
@@ -97,6 +124,20 @@ export class GeminiAiProvider implements IAiProvider {
         contents: buildCardSuggestionPrompt(pastedText),
       });
       return parseCardSuggestionsJson(interactionText(response));
+    });
+  }
+
+  generateReviewInsights(userId: string, input: ReviewInsightsInput): Promise<ReviewInsightsResultV1> {
+    return this.withFailover(userId, async (ai) => {
+      const response = await ai.models.generateContent({
+        model: this.model,
+        contents: buildReviewInsightsPrompt(input.context),
+        config: {
+          responseMimeType: AI_CONSTANTS.responseMimeType,
+          responseSchema: ReviewInsightsResponseSchema,
+        },
+      });
+      return parseReviewInsights(interactionText(response), input.context);
     });
   }
 

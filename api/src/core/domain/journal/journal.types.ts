@@ -30,8 +30,31 @@ export interface JournalWeeklyReviewModel {
   summarySnapshot: Record<string, unknown>;
   wentWellMarkdown?: string | null;
   frictionMarkdown?: string | null;
+  learnedMarkdown?: string | null;
+  differentFromLastWeekMarkdown?: string | null;
   nextWeekMarkdown?: string | null;
   experimentSnapshot?: Record<string, unknown> | null;
+  comparisonSnapshot?: Record<string, unknown> | null;
+  aiInsightsSnapshot?: Record<string, unknown> | null;
+  aiGenerationJobId?: string | null;
+  aiGeneratedAt?: Date | null;
+  aiPromptVersion?: string | null;
+  aiSourceEntryVersion?: number | null;
+}
+
+export interface JournalDailyReviewModel {
+  entryId: EntityId;
+  periodDate: string;
+  summarySnapshot: Record<string, unknown>;
+  wentWellMarkdown?: string | null;
+  frictionMarkdown?: string | null;
+  learnedMarkdown?: string | null;
+  contextMarkdown?: string | null;
+  aiInsightsSnapshot?: Record<string, unknown> | null;
+  aiGenerationJobId?: string | null;
+  aiGeneratedAt?: Date | null;
+  aiPromptVersion?: string | null;
+  aiSourceEntryVersion?: number | null;
 }
 
 export interface JournalEntryRevisionModel {
@@ -59,6 +82,7 @@ export interface JournalEntryModel {
   deletedAt?: Date | null;
   deletedByDeviceId?: string | null;
   weeklyReview?: JournalWeeklyReviewModel | null;
+  dailyReview?: JournalDailyReviewModel | null;
   tags?: JournalTagModel[];
   attachments?: JournalAttachmentModel[];
 }

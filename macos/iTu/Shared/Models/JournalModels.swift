@@ -84,6 +84,7 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
     var deletedAt: String?
     var deletedByDeviceId: String?
     var weeklyReview: JournalWeeklyReviewModel?
+    var dailyReview: JournalDailyReviewModel?
     var tags: [JournalTagModel]
     var attachments: [JournalAttachmentModel]
 
@@ -92,7 +93,7 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
         contentMarkdown: String, entryDate: String, updatedAt: String,
         timezone: String = iTuCalendarSupport.timezone.identifier, templateId: String? = nil, tagIds: [String] = [],
         version: Int = 1, createdAt: String? = nil, deletedAt: String? = nil, deletedByDeviceId: String? = nil,
-        weeklyReview: JournalWeeklyReviewModel? = nil, tags: [JournalTagModel] = [],
+        weeklyReview: JournalWeeklyReviewModel? = nil, dailyReview: JournalDailyReviewModel? = nil, tags: [JournalTagModel] = [],
         attachments: [JournalAttachmentModel] = []
     ) {
         self.id = id; self.userId = userId; self.kind = kind; self.title = title
@@ -100,7 +101,7 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
         self.timezone = timezone; self.templateId = templateId; self.tagIds = tagIds
         self.version = version; self.createdAt = createdAt ?? updatedAt
         self.updatedAt = updatedAt; self.deletedAt = deletedAt; self.deletedByDeviceId = deletedByDeviceId
-        self.weeklyReview = weeklyReview; self.tags = tags; self.attachments = attachments
+        self.weeklyReview = weeklyReview; self.dailyReview = dailyReview; self.tags = tags; self.attachments = attachments
     }
 
     var previewText: String {
@@ -117,7 +118,7 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id, userId, kind, title, contentMarkdown, entryDate, timezone, templateId,
-             tagIds, version, createdAt, updatedAt, deletedAt, deletedByDeviceId, weeklyReview, tags, attachments
+             tagIds, version, createdAt, updatedAt, deletedAt, deletedByDeviceId, weeklyReview, dailyReview, tags, attachments
     }
 
     init(from decoder: Decoder) throws {
@@ -137,6 +138,7 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
         deletedAt = try values.decodeIfPresent(String.self, forKey: .deletedAt)
         deletedByDeviceId = try values.decodeIfPresent(String.self, forKey: .deletedByDeviceId)
         weeklyReview = try values.decodeIfPresent(JournalWeeklyReviewModel.self, forKey: .weeklyReview)
+        dailyReview = try values.decodeIfPresent(JournalDailyReviewModel.self, forKey: .dailyReview)
         tags = try values.decodeIfPresent([JournalTagModel].self, forKey: .tags) ?? []
         attachments = try values.decodeIfPresent([JournalAttachmentModel].self, forKey: .attachments) ?? []
     }
@@ -149,8 +151,38 @@ struct JournalWeeklyReviewModel: Codable, Sendable, Equatable {
     var summarySnapshot: [String: JSONValue]
     var wentWellMarkdown: String?
     var frictionMarkdown: String?
+    var learnedMarkdown: String? = nil
+    var differentFromLastWeekMarkdown: String? = nil
     var nextWeekMarkdown: String?
     var experimentSnapshot: JSONValue?
+    var comparisonSnapshot: JSONValue? = nil
+    var aiInsightsSnapshot: JSONValue? = nil
+    var aiGenerationJobId: String? = nil
+    var aiGeneratedAt: String? = nil
+    var aiPromptVersion: String? = nil
+    var aiSourceEntryVersion: Int? = nil
+}
+
+struct JournalDailyReviewModel: Codable, Sendable, Equatable {
+    let entryId: String
+    var periodDate: String
+    var summarySnapshot: [String: JSONValue]
+    var wentWellMarkdown: String?
+    var frictionMarkdown: String?
+    var learnedMarkdown: String?
+    var contextMarkdown: String?
+    var aiInsightsSnapshot: JSONValue?
+    var aiGenerationJobId: String?
+    var aiGeneratedAt: String?
+    var aiPromptVersion: String?
+    var aiSourceEntryVersion: Int?
+}
+
+struct JournalAiJobModel: Codable, Sendable, Equatable {
+    let id: String
+    let status: String
+    let output: JSONValue?
+    let error: String?
 }
 
 struct JournalTagModel: Codable, Sendable, Equatable, Identifiable {

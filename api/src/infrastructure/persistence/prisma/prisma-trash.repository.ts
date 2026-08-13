@@ -142,7 +142,7 @@ export class PrismaTrashRepository implements ITrashRepository {
       }),
       this.prisma.journalEntry.findMany({
         where: { userId, deletedAt: { not: null } },
-        include: { weeklyReview: true, tags: { include: { tag: true } }, attachments: true },
+        include: { weeklyReview: true, dailyReview: true, tags: { include: { tag: true } }, attachments: true },
         orderBy: { deletedAt: 'desc' },
       }),
       this.prisma.budgetTransaction.findMany({
@@ -248,7 +248,7 @@ export class PrismaTrashRepository implements ITrashRepository {
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.journalEntry.updateMany({ where: { id: entryId, userId, deletedAt: { not: null } }, data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } } });
       if (!updated.count) return null;
-      const restored = await tx.journalEntry.findUniqueOrThrow({ where: { id: entryId }, include: { weeklyReview: true, tags: { include: { tag: true } }, attachments: { where: { deletedAt: null } } } });
+      const restored = await tx.journalEntry.findUniqueOrThrow({ where: { id: entryId }, include: { weeklyReview: true, dailyReview: true, tags: { include: { tag: true } }, attachments: { where: { deletedAt: null } } } });
       await recordSyncChange(tx, userId, 'journalentry', entryId, 'UPSERT', restored);
       return mapEntryToModel(restored);
     });

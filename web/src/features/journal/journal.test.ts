@@ -31,14 +31,14 @@ describe('Journal Web Feature', () => {
     expect(local.storageKey).toContain('local-blob:');
   });
 
-  it('limits journal kinds to notes and weekly reviews', () => {
-    const retainedKinds: JournalEntryKind[] = ['NOTE', 'WEEKLY_REVIEW'];
+  it('retains note and review journal kinds', () => {
+    const retainedKinds: JournalEntryKind[] = ['NOTE', 'DAILY_REVIEW', 'WEEKLY_REVIEW'];
     // @ts-expect-error Structured expense entries are no longer Journal kinds.
     const removedExpenseKind: JournalEntryKind = 'EXPENSE';
     // @ts-expect-error Structured workout entries are no longer Journal kinds.
     const removedWorkoutKind: JournalEntryKind = 'WORKOUT';
 
-    expect(retainedKinds).toEqual(['NOTE', 'WEEKLY_REVIEW']);
+    expect(retainedKinds).toEqual(['NOTE', 'DAILY_REVIEW', 'WEEKLY_REVIEW']);
     expect(removedExpenseKind).toBe('EXPENSE');
     expect(removedWorkoutKind).toBe('WORKOUT');
   });

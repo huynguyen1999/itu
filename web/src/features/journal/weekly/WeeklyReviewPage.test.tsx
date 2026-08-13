@@ -21,6 +21,10 @@ vi.mock('../components/JournalMarkdownEditor', () => ({
   JournalMarkdownEditor: () => null,
 }));
 
+vi.mock('@/shared/sync/SyncProvider', () => ({
+  useSync: () => ({ state: { phase: 'up-to-date' }, pendingMutations: [] }),
+}));
+
 describe('WeeklyReviewPage', () => {
   it('does not fabricate summary metrics before the weekly summary loads', () => {
     const markup = renderToStaticMarkup(

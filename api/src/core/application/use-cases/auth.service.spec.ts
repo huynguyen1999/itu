@@ -52,6 +52,7 @@ describe('AuthService', () => {
     queueMock = {
       enqueueCardSuggestions: jest.fn(),
       enqueueSessionFeedback: jest.fn(),
+      enqueueReviewInsights: jest.fn(),
       enqueueScheduledJob: jest.fn().mockResolvedValue(undefined),
       enqueueSyncInvalidation: jest.fn().mockResolvedValue(undefined),
     };

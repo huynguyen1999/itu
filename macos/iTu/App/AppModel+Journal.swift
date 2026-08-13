@@ -25,7 +25,7 @@ extension AppModel {
             updatedAt: now, timezone: existing?.timezone ?? iTuCalendarSupport.timezone.identifier,
             templateId: existing?.templateId, tagIds: tagIds ?? existing?.tagIds ?? [], version: existing?.version ?? 1,
             createdAt: existing?.createdAt ?? now, deletedAt: nil,
-            weeklyReview: existing?.weeklyReview, tags: existing?.tags ?? [], attachments: existing?.attachments ?? []
+            weeklyReview: existing?.weeklyReview, dailyReview: existing?.dailyReview, tags: existing?.tags ?? [], attachments: existing?.attachments ?? []
         )
         var payload: [String: JSONValue] = [
             "title": .string(title), "contentMarkdown": .string(contentMarkdown),
@@ -73,9 +73,22 @@ extension AppModel {
         var normalizedReview = review
         normalizedReview.periodStart = String(review.periodStart.prefix(10))
         normalizedReview.periodEnd = String(review.periodEnd.prefix(10))
-        let note = JournalNoteModel(id: id ?? ULID.generate(), userId: user?.id ?? "local", kind: "WEEKLY_REVIEW", title: title, contentMarkdown: contentMarkdown, entryDate: String(entryDate.prefix(10)), updatedAt: now, timezone: existing?.timezone ?? iTuCalendarSupport.timezone.identifier, tagIds: tagIds ?? existing?.tagIds ?? [], version: existing?.version ?? 1, createdAt: existing?.createdAt ?? now, weeklyReview: normalizedReview, tags: existing?.tags ?? [], attachments: existing?.attachments ?? [])
+        let note = JournalNoteModel(id: id ?? ULID.generate(), userId: user?.id ?? "local", kind: "WEEKLY_REVIEW", title: title, contentMarkdown: contentMarkdown, entryDate: String(entryDate.prefix(10)), updatedAt: now, timezone: existing?.timezone ?? iTuCalendarSupport.timezone.identifier, tagIds: tagIds ?? existing?.tagIds ?? [], version: existing?.version ?? 1, createdAt: existing?.createdAt ?? now, weeklyReview: normalizedReview, dailyReview: existing?.dailyReview, tags: existing?.tags ?? [], attachments: existing?.attachments ?? [])
         var payload = journalEntryPayload(note)
         if id == nil { payload["id"] = JSONValue.string(note.id); payload["kind"] = JSONValue.string("WEEKLY_REVIEW") }
+        let mutation = SyncMutation(id: ULID.generate(), kind: id == nil ? "journal.create" : "journal.update", entityId: note.id, baseVersion: existing?.version, baseValues: nil, payload: payload, occurredAt: now, attemptCount: nil, lastAttemptAt: nil, nextRetryAt: nil, lastErrorCode: nil)
+        do { apply(try await offlineStore.saveJournalNote(note, mutation: mutation)); return note }
+        catch { errorMessage = error.localizedDescription; return nil }
+    }
+
+    func saveDailyReview(id: String?, title: String, contentMarkdown: String, entryDate: String, review: JournalDailyReviewModel, tagIds: [String]? = nil) async -> JournalNoteModel? {
+        let now = Self.journalNow()
+        let existing = id.flatMap { noteID in currentSnapshot.journalNotes.first(where: { $0.id == noteID }) }
+        var normalized = review
+        normalized.periodDate = String(review.periodDate.prefix(10))
+        let note = JournalNoteModel(id: id ?? ULID.generate(), userId: user?.id ?? "local", kind: "DAILY_REVIEW", title: title, contentMarkdown: contentMarkdown, entryDate: normalized.periodDate, updatedAt: now, timezone: existing?.timezone ?? iTuCalendarSupport.timezone.identifier, tagIds: tagIds ?? existing?.tagIds ?? [], version: existing?.version ?? 1, createdAt: existing?.createdAt ?? now, weeklyReview: existing?.weeklyReview, dailyReview: normalized, tags: existing?.tags ?? [], attachments: existing?.attachments ?? [])
+        var payload = journalEntryPayload(note)
+        if id == nil { payload["id"] = .string(note.id); payload["kind"] = .string("DAILY_REVIEW") }
         let mutation = SyncMutation(id: ULID.generate(), kind: id == nil ? "journal.create" : "journal.update", entityId: note.id, baseVersion: existing?.version, baseValues: nil, payload: payload, occurredAt: now, attemptCount: nil, lastAttemptAt: nil, nextRetryAt: nil, lastErrorCode: nil)
         do { apply(try await offlineStore.saveJournalNote(note, mutation: mutation)); return note }
         catch { errorMessage = error.localizedDescription; return nil }
@@ -117,6 +130,30 @@ extension AppModel {
             errorMessage = "Weekly summary unavailable offline: \(error.localizedDescription)"
             return nil
         }
+    }
+
+    func generateReviewInsights(entryID: String) async -> String? {
+        guard let entry = currentSnapshot.journalNotes.first(where: { $0.id == entryID }) else { return "Review not found." }
+        let hasPendingReviewMutation = currentSnapshot.mutations.contains { mutation in
+            mutation.entityId == entryID && (mutation.kind == "journal.create" || mutation.kind == "journal.update")
+        }
+        guard !hasPendingReviewMutation else { return "Save and wait for sync before generating insights." }
+        guard syncPhase != .offline else { return "Review must be online before generating insights." }
+        do {
+            var job = try await apiClient.requestReviewInsights(entryID: entryID, expectedVersion: entry.version)
+            for _ in 0..<60 {
+                if job.status == "COMPLETED" {
+                    let stale: Bool
+                    if case let .object(fields)? = job.output { stale = fields["stale"]?.boolValue == true } else { stale = false }
+                    _ = await loadJournalNotesResult()
+                    return stale ? "Your reflections changed while these insights were generated. Regenerate to analyze the latest version." : nil
+                }
+                if job.status == "FAILED" { return job.error ?? "AI generation failed." }
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+                job = try await apiClient.getAiJob(id: job.id)
+            }
+            return "AI generation is still running. Reopen the review to check again."
+        } catch { return error.localizedDescription }
     }
 
     func deleteJournalAttachment(entryID: String, attachmentID: String) async {
@@ -245,9 +282,21 @@ extension AppModel {
             var fields: [String: JSONValue] = ["periodStart": .string(review.periodStart), "periodEnd": .string(review.periodEnd), "summarySnapshot": .object(review.summarySnapshot)]
             fields["wentWellMarkdown"] = .string(review.wentWellMarkdown ?? "")
             fields["frictionMarkdown"] = .string(review.frictionMarkdown ?? "")
+            fields["learnedMarkdown"] = .string(review.learnedMarkdown ?? "")
+            fields["differentFromLastWeekMarkdown"] = .string(review.differentFromLastWeekMarkdown ?? "")
             fields["nextWeekMarkdown"] = .string(review.nextWeekMarkdown ?? "")
             if let value = review.experimentSnapshot { fields["experimentSnapshot"] = value }
             payload["weeklyReview"] = .object(fields)
+        }
+        if let review = note.dailyReview {
+            payload["dailyReview"] = .object([
+                "periodDate": .string(review.periodDate),
+                "summarySnapshot": .object(review.summarySnapshot),
+                "wentWellMarkdown": .string(review.wentWellMarkdown ?? ""),
+                "frictionMarkdown": .string(review.frictionMarkdown ?? ""),
+                "learnedMarkdown": .string(review.learnedMarkdown ?? ""),
+                "contextMarkdown": .string(review.contextMarkdown ?? ""),
+            ])
         }
         return payload
     }

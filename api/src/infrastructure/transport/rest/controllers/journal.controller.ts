@@ -27,6 +27,7 @@ import {
   UpdateJournalEntryDto,
   UpdateJournalTemplateDto,
   WeeklySummaryQueryDto,
+  DailySummaryQueryDto,
 } from '../dto/journal.dto';
 import type { AuthenticatedMultipartRequest, AuthenticatedRequest } from '../types/authenticated-request';
 import { createUlid } from '@infrastructure/persistence/prisma/ulid';
@@ -70,6 +71,12 @@ export class JournalController {
             periodEnd: new Date(dto.weeklyReview.periodEnd),
           }
         : undefined,
+      dailyReview: dto.dailyReview
+        ? {
+            ...dto.dailyReview,
+            periodDate: new Date(dto.dailyReview.periodDate),
+          }
+        : undefined,
     });
   }
 
@@ -87,6 +94,12 @@ export class JournalController {
             ...dto.weeklyReview,
             periodStart: dto.weeklyReview.periodStart ? new Date(dto.weeklyReview.periodStart) : undefined,
             periodEnd: dto.weeklyReview.periodEnd ? new Date(dto.weeklyReview.periodEnd) : undefined,
+          }
+        : undefined,
+      dailyReview: dto.dailyReview
+        ? {
+            ...dto.dailyReview,
+            periodDate: dto.dailyReview.periodDate ? new Date(dto.dailyReview.periodDate) : undefined,
           }
         : undefined,
     });
@@ -151,12 +164,29 @@ export class JournalController {
   }
 
   @Get('weekly-summary')
-  weeklySummary(@Req() req: AuthenticatedRequest, @Query() query: WeeklySummaryQueryDto) {
-    return this.journalService.buildWeeklyReviewSnapshot(
+  async weeklySummary(@Req() req: AuthenticatedRequest, @Query() query: WeeklySummaryQueryDto) {
+    const legacy = await this.journalService.buildWeeklyReviewSnapshot(
       req.user.sub,
       hcmcDateOnly(query.periodStart),
       new Date(hcmcDateOnly(query.periodEnd).getTime() + 24 * 60 * 60 * 1000 - 1),
     );
+    const reviewContext = await this.journalService.buildReviewContext(req.user.sub, {
+      kind: 'WEEKLY',
+      startDate: query.periodStart.slice(0, 10),
+      endDate: query.periodEnd.slice(0, 10),
+      timezone: query.timezone || 'Asia/Ho_Chi_Minh',
+    });
+    return { ...legacy, reviewContext };
+  }
+
+  @Get('daily-summary')
+  dailySummary(@Req() req: AuthenticatedRequest, @Query() query: DailySummaryQueryDto) {
+    return this.journalService.buildReviewContext(req.user.sub, {
+      kind: 'DAILY',
+      startDate: query.date.slice(0, 10),
+      endDate: query.date.slice(0, 10),
+      timezone: query.timezone || 'Asia/Ho_Chi_Minh',
+    });
   }
 
   @Post('attachments/upload')

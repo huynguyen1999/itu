@@ -6,8 +6,8 @@ struct PlanningView: View {
     @Environment(\.showPlanRailBinding) private var showPlanRailBinding
     let section: AppSection
 
-    @State private var searchDraft = ""
-    @State private var committedSearch = ""
+    @SceneStorage("planning.searchDraft") private var searchDraft = ""
+    @SceneStorage("planning.committedSearch") private var committedSearch = ""
     @State private var searchExpanded = false
     @FocusState private var searchFocused: Bool
     @State private var showGroupAndSortPopover = false

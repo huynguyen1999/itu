@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Calendar,
@@ -22,9 +22,13 @@ import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { getJournalWeekRange } from '../journalDate';
+import { ReviewAiInsights } from '../components/ReviewAiInsights';
+import { useSync } from '@/shared/sync/SyncProvider';
+import type { AiJob } from '@/shared/api/types';
 
 export function WeeklyReviewPage() {
   const { entryId } = useParams();
+  const navigate = useNavigate();
   const isNew = !entryId || entryId === 'new';
   const preferencesQuery = useQuery({ queryKey: ['user-preferences'], queryFn: () => api.getPreferences() });
   const {
@@ -62,11 +66,36 @@ export function WeeklyReviewPage() {
 
   const [wentWell, setWentWell] = useState('');
   const [friction, setFriction] = useState('');
+  const [learned, setLearned] = useState('');
+  const [differentFromLastWeek, setDifferentFromLastWeek] = useState('');
   const [nextWeek, setNextWeek] = useState('');
   const [experimentHypothesis, setExperimentHypothesis] = useState('');
   const [experimentAction, setExperimentAction] = useState('');
   const [experimentSuccess, setExperimentSuccess] = useState('');
   const [contentMarkdown, setContentMarkdown] = useState('');
+  const [job, setJob] = useState<AiJob | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const { state: syncState, pendingMutations } = useSync();
+  const reviewPending = pendingMutations.some(
+    (mutation) => mutation.entityId === id && (mutation.kind === 'journal.create' || mutation.kind === 'journal.update'),
+  );
+
+  useEffect(() => {
+    if (!job || job.status === 'COMPLETED' || job.status === 'FAILED') return;
+    let cancelled = false;
+    const poll = () => {
+      void api.job(job.id).then((data) => {
+        if (cancelled) return;
+        setAiError(null);
+        setJob(data);
+        if (data.status === 'COMPLETED') void refetchEntry();
+      }).catch((error) => {
+        if (!cancelled) setAiError(error instanceof Error ? `Job status: ${error.message}` : 'Job status could not be refreshed. Retrying…');
+      });
+    };
+    const timer = window.setInterval(poll, 1500);
+    return () => window.clearInterval(timer);
+  }, [job?.id, job?.status, refetchEntry]);
 
   const tasksCompleted = weeklyMetrics?.tasks?.completed ?? 0;
   const focusMinutes = weeklyMetrics?.focus?.minutes ?? 0;
@@ -80,6 +109,8 @@ export function WeeklyReviewPage() {
     setTitle(existingEntry.title || 'Weekly Review');
     setWentWell(existingEntry.weeklyReview.wentWellMarkdown || '');
     setFriction(existingEntry.weeklyReview.frictionMarkdown || '');
+    setLearned(existingEntry.weeklyReview.learnedMarkdown || '');
+    setDifferentFromLastWeek(existingEntry.weeklyReview.differentFromLastWeekMarkdown || '');
     setNextWeek(existingEntry.weeklyReview.nextWeekMarkdown || '');
     setContentMarkdown(existingEntry.contentMarkdown || '');
 
@@ -97,6 +128,8 @@ export function WeeklyReviewPage() {
       periodEnd,
       wentWellMarkdown: wentWell,
       frictionMarkdown: friction,
+      learnedMarkdown: learned,
+      differentFromLastWeekMarkdown: differentFromLastWeek,
       nextWeekMarkdown: nextWeek,
       experimentSnapshot: {
         hypothesis: experimentHypothesis,
@@ -115,10 +148,21 @@ export function WeeklyReviewPage() {
         entryDate: periodStart,
         weeklyReview: payloadReview,
       });
+      navigate(`/journal/weekly/${id}`, { replace: true });
       return;
     }
 
     await updateMutation.mutateAsync({ id, title, contentMarkdown, weeklyReview: payloadReview });
+  };
+
+  const generate = async () => {
+    if (isNew || reviewPending || syncState.phase === 'offline') return;
+    setAiError(null);
+    try {
+      setJob(await api.requestReviewInsights(id, existingEntry?.version || 1));
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'AI generation could not be started.');
+    }
   };
 
   if (isEntryLoading) {
@@ -144,6 +188,7 @@ export function WeeklyReviewPage() {
   }
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
+  const jobInProgress = job?.status === 'QUEUED' || job?.status === 'RUNNING';
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 pb-20" aria-busy={isSaving}>
@@ -192,11 +237,17 @@ export function WeeklyReviewPage() {
               className="min-w-0 bg-transparent outline-none"
             />
           </div>
-          <Button type="button" onClick={() => void handleSave()} disabled={isSaving} className="w-full sm:w-auto">
-            {isSaving ? 'Saving…' : 'Save Review'}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="button" onClick={() => void handleSave()} disabled={isSaving} className="w-full sm:w-auto">
+              {isSaving ? 'Saving…' : 'Save Review'}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void generate()} disabled={isNew || isSaving || reviewPending || syncState.phase === 'offline' || jobInProgress} aria-busy={jobInProgress}>
+              <Sparkles className="h-4 w-4" />{job?.status === 'QUEUED' ? 'Queued…' : job?.status === 'RUNNING' ? 'Generating…' : 'Generate AI Insights'}
+            </Button>
+          </div>
         </div>
       </PageHeader>
+      {reviewPending ? <p className="text-sm text-muted-foreground" role="status">Save Review and wait for sync before generating insights.</p> : null}
 
       {createMutation.isError || updateMutation.isError ? (
         <p className="text-sm text-destructive" role="alert">
@@ -226,7 +277,7 @@ export function WeeklyReviewPage() {
               Loading weekly metrics…
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-5 lg:grid-cols-8">
               <Metric
                 icon={<CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
                 label="Tasks"
@@ -252,10 +303,26 @@ export function WeeklyReviewPage() {
                 label="Spending"
                 value={`₫${Number(spendingVnd).toLocaleString()}`}
               />
+              <Metric icon={<Sparkles className="h-3.5 w-3.5 text-primary" />} label="Learning" value={`${weeklyMetrics?.learning?.reviews ?? 0} reviews`} />
+              <Metric icon={<Flame className="h-3.5 w-3.5 text-[var(--itu-amber-500)]" />} label="Apps" value={formatDuration(weeklyMetrics?.reviewContext?.metrics?.appUsage?.activeSeconds)} />
+              <Metric icon={<Sparkles className="h-3.5 w-3.5 text-primary" />} label="Websites" value={formatDuration(weeklyMetrics?.reviewContext?.metrics?.websiteUsage?.activeSeconds)} />
             </div>
           )}
         </CardContent>
       </Card>
+
+      {weeklyMetrics?.reviewContext?.previousPeriod?.comparison ? (
+        <Card>
+          <CardContent className="space-y-3 p-4 sm:p-5">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Compared with last week</h2>
+            <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-5">
+              {Object.entries(weeklyMetrics.reviewContext.previousPeriod.comparison).slice(0, 5).map(([key, comparison]: [string, any]) => (
+                <Metric icon={<Zap className="h-3.5 w-3.5 text-primary" />} key={key} label={key.split('.').pop() || key} value={`${comparison.current} vs ${comparison.previous} (${comparison.absoluteDelta > 0 ? '+' : ''}${comparison.absoluteDelta})`} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <ReflectionCard
@@ -264,6 +331,20 @@ export function WeeklyReviewPage() {
           placeholder="Wins, achievements, positive habits..."
           value={wentWell}
           onChange={setWentWell}
+        />
+        <ReflectionCard
+          icon={<Sparkles className="h-4 w-4 text-primary" />}
+          title="What did I learn or notice?"
+          placeholder="Lessons, patterns, surprises..."
+          value={learned}
+          onChange={setLearned}
+        />
+        <ReflectionCard
+          icon={<Calendar className="h-4 w-4 text-primary" />}
+          title="What felt different from last week?"
+          placeholder="Changes in rhythm, energy, or context..."
+          value={differentFromLastWeek}
+          onChange={setDifferentFromLastWeek}
         />
         <ReflectionCard
           icon={<Flame className="h-4 w-4 text-[var(--itu-amber-500)]" />}
@@ -326,8 +407,16 @@ export function WeeklyReviewPage() {
           frameless={false}
         />
       </section>
+      {aiError ? <p role="alert" className="text-sm text-destructive">{aiError}</p> : null}
+      {job?.status === 'FAILED' ? <p role="alert" className="text-sm text-destructive">{job.error || 'AI generation failed.'}</p> : null}
+      {isRecord(job?.output) && job.output.stale === true ? <p role="alert" className="text-sm text-destructive">Your reflections changed while these insights were generated. Regenerate to analyze the latest version.</p> : null}
+      <ReviewAiInsights result={(isRecord(job?.output) && job.output.stale === true ? existingEntry?.weeklyReview?.aiInsightsSnapshot : job?.status === 'COMPLETED' && isRecord(job.output) ? job.output : existingEntry?.weeklyReview?.aiInsightsSnapshot) as any} job={job} />
     </div>
   );
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return typeof value === 'object' && value !== null;
 }
 
 function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
@@ -339,6 +428,11 @@ function Metric({ icon, label, value }: { icon: ReactNode; label: string; value:
       <p className="text-sm font-bold text-foreground">{value}</p>
     </div>
   );
+}
+
+function formatDuration(value: unknown) {
+  const seconds = typeof value === 'number' ? value : 0;
+  return seconds >= 3600 ? `${Math.round(seconds / 3600)}h` : `${Math.round(seconds / 60)}m`;
 }
 
 function ReflectionCard({

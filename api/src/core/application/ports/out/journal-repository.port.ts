@@ -1,6 +1,7 @@
 import { JournalEntryKind } from '@core/domain/enums';
 import {
   JournalAttachmentModel,
+  JournalDailyReviewModel,
   JournalEntryModel,
   JournalEntryRevisionModel,
   JournalTagModel,
@@ -25,6 +26,27 @@ export interface CreateJournalEntryData {
     frictionMarkdown?: string | null;
     nextWeekMarkdown?: string | null;
     experimentSnapshot?: Record<string, unknown> | null;
+    learnedMarkdown?: string | null;
+    differentFromLastWeekMarkdown?: string | null;
+    comparisonSnapshot?: Record<string, unknown> | null;
+    aiInsightsSnapshot?: Record<string, unknown> | null;
+    aiGenerationJobId?: string | null;
+    aiGeneratedAt?: Date | null;
+    aiPromptVersion?: string | null;
+    aiSourceEntryVersion?: number | null;
+  };
+  dailyReview?: {
+    periodDate: Date;
+    summarySnapshot: Record<string, unknown>;
+    wentWellMarkdown?: string | null;
+    frictionMarkdown?: string | null;
+    learnedMarkdown?: string | null;
+    contextMarkdown?: string | null;
+    aiInsightsSnapshot?: Record<string, unknown> | null;
+    aiGenerationJobId?: string | null;
+    aiGeneratedAt?: Date | null;
+    aiPromptVersion?: string | null;
+    aiSourceEntryVersion?: number | null;
   };
 }
 
@@ -43,7 +65,16 @@ export interface UpdateJournalEntryData {
     frictionMarkdown?: string | null;
     nextWeekMarkdown?: string | null;
     experimentSnapshot?: Record<string, unknown> | null;
+    learnedMarkdown?: string | null;
+    differentFromLastWeekMarkdown?: string | null;
+    comparisonSnapshot?: Record<string, unknown> | null;
+    aiInsightsSnapshot?: Record<string, unknown> | null;
+    aiGenerationJobId?: string | null;
+    aiGeneratedAt?: Date | null;
+    aiPromptVersion?: string | null;
+    aiSourceEntryVersion?: number | null;
   };
+  dailyReview?: Partial<CreateJournalEntryData['dailyReview']>;
 }
 
 export interface JournalSearchFilter {
@@ -64,6 +95,15 @@ export interface IJournalRepository {
   softDelete(userId: string, id: string): Promise<boolean>;
   hardDelete(userId: string, id: string): Promise<JournalAttachmentModel[] | null>;
   restore(userId: string, id: string): Promise<JournalEntryModel | null>;
+  saveReviewAiInsights(
+    userId: string,
+    entryId: string,
+    sourceEntryVersion: number,
+    jobId: string,
+    summarySnapshot: Record<string, unknown>,
+    comparisonSnapshot: Record<string, unknown> | undefined,
+    insightsSnapshot: Record<string, unknown>,
+  ): Promise<JournalEntryModel | null>;
   listRevisions(userId: string, entryId: string): Promise<JournalEntryRevisionModel[]>;
   restoreRevision(userId: string, entryId: string, revisionId: string): Promise<JournalEntryModel | null>;
 }
@@ -111,7 +151,7 @@ export interface IJournalAttachmentRepository {
 
 export interface JournalWeeklyReviewSnapshotData {
   tasksCompleted: number;
-  focusPlannedSeconds: number;
+  focusActualSeconds: number;
   focusSessions: number;
   habitsScheduled: number;
   habitsCompleted: number;

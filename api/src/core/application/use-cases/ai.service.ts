@@ -13,6 +13,7 @@ import { AiJobModel, AiSessionFeedbackModel } from '@core/domain/models';
 import { EntityNotFoundException } from '@core/domain/exceptions';
 import { hydrateSessionReviewImages } from './ai-session-images';
 import { AiCredentialsService } from './ai-credentials.service';
+import { JOURNAL_REPOSITORY, type IJournalRepository } from '@core/application/ports/out/journal-repository.port';
 
 @Injectable()
 export class AiService implements IAiUseCase {
@@ -25,6 +26,7 @@ export class AiService implements IAiUseCase {
     @Inject(TOKENS.AI_PROVIDER) private readonly ai: IAiProvider,
     @Inject(TOKENS.MEDIA_STORAGE) private readonly media: IMediaStorage,
     private readonly credentials: AiCredentialsService,
+    @Inject(JOURNAL_REPOSITORY) private readonly journal: IJournalRepository,
   ) {}
 
   async suggestCards(userId: string, pastedText: string): Promise<AiJobModel> {
@@ -56,6 +58,39 @@ export class AiService implements IAiUseCase {
       throw error;
     }
     this.logger.debug('AI session feedback job enqueued', { jobId: job.id, sessionId, userId });
+    return job;
+  }
+
+  async requestReviewInsights(userId: string, entryId: string, expectedVersion: number): Promise<AiJobModel> {
+    const entry = await this.journal.findById(userId, entryId);
+    if (!entry) throw new EntityNotFoundException('JournalEntry', entryId);
+    if (entry.version !== expectedVersion) throw new Error('REVIEW_VERSION_MISMATCH');
+    const reviewKind = entry.kind === 'DAILY_REVIEW' ? 'DAILY' : entry.kind === 'WEEKLY_REVIEW' ? 'WEEKLY' : null;
+    if (!reviewKind) throw new Error('REVIEW_KIND_REQUIRED');
+    const review = reviewKind === 'DAILY' ? entry.dailyReview : entry.weeklyReview;
+    if (!review) throw new Error('REVIEW_DATA_MISSING');
+    await this.credentials.assertUsable(userId);
+    const job = await this.jobs.create(userId, AiJobType.REVIEW_INSIGHTS, {
+      entryId,
+      reviewKind,
+      sourceEntryVersion: expectedVersion,
+      period: {
+        startDate: reviewKind === 'DAILY' ? entry.dailyReview!.periodDate : entry.weeklyReview!.periodStart,
+        endDate: reviewKind === 'DAILY' ? entry.dailyReview!.periodDate : entry.weeklyReview!.periodEnd,
+        timezone: entry.timezone,
+      },
+      promptVersion: 'review-insights-v1',
+    });
+    try {
+      if (!this.queue.enqueueReviewInsights) throw new Error('REVIEW_INSIGHTS_QUEUE_UNAVAILABLE');
+      await this.queue.enqueueReviewInsights(job.id);
+    } catch (error) {
+      const message = this.errorMessage(error);
+      await this.jobs.markFailed(job.id, message);
+      this.logger.error('AI review insights job enqueue failed', { jobId: job.id, entryId, userId, error: message });
+      throw error;
+    }
+    this.logger.debug('AI review insights job enqueued', { jobId: job.id, entryId, userId });
     return job;
   }
 

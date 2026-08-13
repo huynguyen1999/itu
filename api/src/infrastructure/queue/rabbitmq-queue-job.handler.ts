@@ -46,6 +46,10 @@ export class RabbitMqQueueJobHandler implements IQueueJobHandler, OnModuleInit, 
     await this.publish({ type: 'session-feedback', jobId });
   }
 
+  async enqueueReviewInsights(jobId: string): Promise<void> {
+    await this.publish({ type: 'review-insights', jobId });
+  }
+
   async enqueueScheduledJob(jobId: string): Promise<void> {
     await this.publish({ type: 'scheduled-job', jobId });
   }
@@ -61,7 +65,7 @@ export class RabbitMqQueueJobHandler implements IQueueJobHandler, OnModuleInit, 
   private async publish(job: AiQueueJob | ScheduledQueueJob | SyncQueueJob): Promise<void> {
     const channel = await this.ensureChannel();
     const routingKey = this.routingKey(job.type);
-    const message = Buffer.from(JSON.stringify(job));
+    const message = Buffer.from(JSON.stringify({ pattern: job.type, data: job }));
     channel.publish(this.exchangeName, routingKey, message, {
       contentType: 'application/json',
       messageId: job.jobId,
@@ -115,6 +119,7 @@ export class RabbitMqQueueJobHandler implements IQueueJobHandler, OnModuleInit, 
   private routingKey(type: string): string {
     if (type === 'card-suggestions') return QUEUE_CONSTANTS.routingKeys.cardSuggestions;
     if (type === 'session-feedback') return QUEUE_CONSTANTS.routingKeys.sessionFeedback;
+    if (type === 'review-insights') return QUEUE_CONSTANTS.routingKeys.reviewInsights;
     if (type === 'scheduled-job') return QUEUE_CONSTANTS.routingKeys.scheduledJob;
     if (type === 'sync-invalidation') return QUEUE_CONSTANTS.routingKeys.syncInvalidation;
     return type;

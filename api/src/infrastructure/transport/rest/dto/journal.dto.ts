@@ -39,8 +39,22 @@ export class CreateJournalEntryDto {
     summarySnapshot: Record<string, unknown>;
     wentWellMarkdown?: string | null;
     frictionMarkdown?: string | null;
+    learnedMarkdown?: string | null;
+    differentFromLastWeekMarkdown?: string | null;
     nextWeekMarkdown?: string | null;
     experimentSnapshot?: Record<string, unknown> | null;
+    comparisonSnapshot?: Record<string, unknown> | null;
+  };
+
+  @IsOptional()
+  @IsObject()
+  dailyReview?: {
+    periodDate: string;
+    summarySnapshot: Record<string, unknown>;
+    wentWellMarkdown?: string | null;
+    frictionMarkdown?: string | null;
+    learnedMarkdown?: string | null;
+    contextMarkdown?: string | null;
   };
 
 }
@@ -79,8 +93,22 @@ export class UpdateJournalEntryDto {
     summarySnapshot?: Record<string, unknown>;
     wentWellMarkdown?: string | null;
     frictionMarkdown?: string | null;
+    learnedMarkdown?: string | null;
+    differentFromLastWeekMarkdown?: string | null;
     nextWeekMarkdown?: string | null;
     experimentSnapshot?: Record<string, unknown> | null;
+    comparisonSnapshot?: Record<string, unknown> | null;
+  };
+
+  @IsOptional()
+  @IsObject()
+  dailyReview?: {
+    periodDate?: string;
+    summarySnapshot?: Record<string, unknown>;
+    wentWellMarkdown?: string | null;
+    frictionMarkdown?: string | null;
+    learnedMarkdown?: string | null;
+    contextMarkdown?: string | null;
   };
 
 }
@@ -176,4 +204,17 @@ export class WeeklySummaryQueryDto {
 
   @IsDateString()
   periodEnd!: string;
+
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+}
+
+export class DailySummaryQueryDto {
+  @IsDateString()
+  date!: string;
+
+  @IsOptional()
+  @IsString()
+  timezone?: string;
 }

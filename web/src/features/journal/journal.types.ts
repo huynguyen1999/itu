@@ -1,4 +1,4 @@
-export type JournalEntryKind = 'NOTE' | 'WEEKLY_REVIEW';
+export type JournalEntryKind = 'NOTE' | 'DAILY_REVIEW' | 'WEEKLY_REVIEW';
 
 export interface JournalTag {
   id: string;
@@ -28,8 +28,16 @@ export interface JournalWeeklyReview {
   periodEnd: string;
   wentWellMarkdown?: string;
   frictionMarkdown?: string;
+  learnedMarkdown?: string;
+  differentFromLastWeekMarkdown?: string;
   nextWeekMarkdown?: string;
   experimentSnapshot?: any;
+  comparisonSnapshot?: Record<string, unknown> | null;
+  aiInsightsSnapshot?: ReviewInsightsResult | null;
+  aiGenerationJobId?: string | null;
+  aiGeneratedAt?: string | null;
+  aiPromptVersion?: string | null;
+  aiSourceEntryVersion?: number | null;
   summarySnapshot: {
     tasks?: { completed: number };
     focus?: { minutes: number; sessions: number };
@@ -40,6 +48,36 @@ export interface JournalWeeklyReview {
     growth?: { xpEarned: number };
     [key: string]: unknown;
   };
+}
+
+export interface JournalDailyReview {
+  entryId: string;
+  periodDate: string;
+  summarySnapshot: Record<string, unknown>;
+  wentWellMarkdown?: string;
+  frictionMarkdown?: string;
+  learnedMarkdown?: string;
+  contextMarkdown?: string;
+  aiInsightsSnapshot?: ReviewInsightsResult | null;
+  aiGenerationJobId?: string | null;
+  aiGeneratedAt?: string | null;
+  aiPromptVersion?: string | null;
+  aiSourceEntryVersion?: number | null;
+}
+
+export interface ReviewInsightsResult {
+  version: 1;
+  headline: string;
+  summary: string;
+  insights: Array<{
+    type: string;
+    title: string;
+    body: string;
+    evidenceIds: string[];
+    evidence?: Array<{ id: string; source: string; label: string }>;
+    confidence: 'LOW' | 'MEDIUM' | 'HIGH';
+  }>;
+  attentionNext: string[];
 }
 
 export interface JournalEntryRevision {
@@ -67,6 +105,7 @@ export interface JournalEntry {
   updatedAt: string;
   deletedAt?: string | null;
   weeklyReview?: JournalWeeklyReview | null;
+  dailyReview?: JournalDailyReview | null;
   tags?: JournalTag[];
   attachments?: JournalAttachment[];
 }

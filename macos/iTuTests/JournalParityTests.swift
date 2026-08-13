@@ -2,6 +2,18 @@ import XCTest
 @testable import iTu
 
 final class JournalParityTests: XCTestCase {
+    func testDailyReviewDecodesAndPersistsSeparatelyFromWeeklyReview() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let daily = JournalDailyReviewModel(entryId: "daily-1", periodDate: "2026-08-13", summarySnapshot: [:], wentWellMarkdown: "win", frictionMarkdown: nil, learnedMarkdown: "lesson", contextMarkdown: nil, aiInsightsSnapshot: .object(["headline": .string("A day")]), aiGenerationJobId: "job-1", aiGeneratedAt: nil, aiPromptVersion: "review-insights-v1", aiSourceEntryVersion: 1)
+        let note = JournalNoteModel(id: "daily-1", userId: "user", kind: "DAILY_REVIEW", title: "Daily review", contentMarkdown: "", entryDate: "2026-08-13", updatedAt: "2026-08-13T00:00:00Z", dailyReview: daily)
+        let store = OfflineStore(accountID: "daily-review", baseURL: directory)
+        _ = try await store.saveJournalNote(note, mutation: SyncMutation(id: "daily-create", kind: "journal.create", entityId: note.id, baseVersion: nil, baseValues: nil, payload: [:], occurredAt: note.updatedAt, attemptCount: nil, lastAttemptAt: nil, nextRetryAt: nil, lastErrorCode: nil))
+        let reloaded = try await OfflineStore(accountID: "daily-review", baseURL: directory).load()
+        XCTAssertEqual(reloaded.journalNotes.first?.kind, "DAILY_REVIEW")
+        XCTAssertEqual(reloaded.journalNotes.first?.dailyReview?.aiGenerationJobId, "job-1")
+        XCTAssertEqual(reloaded.journalNotes.first?.weeklyReview, nil)
+    }
     func testJournalWeekRangeUsesHCMCAndWeekStartPreference() {
         let calendar = iTuCalendarSupport.calendar()
         let date = calendar.date(from: DateComponents(year: 2026, month: 8, day: 9, hour: 23))!

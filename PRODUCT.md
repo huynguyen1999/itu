@@ -4,7 +4,7 @@
 
 ## Platform
 
-adaptive (web React/Vite/Tailwind + macOS SwiftUI), sharing one cross-platform design-token vocabulary
+adaptive
 
 ## Users
 
@@ -12,7 +12,7 @@ Individual practitioners and self-directed learners who manage their own tasks, 
 
 ## Product Purpose
 
-iTu provides a personal-first productivity and learning system that seamlessly integrates task planning (Eisenhower matrix, subtasks, scheduling), task-linked focus sessions (Pomodoro/stopwatch), dedicated habit tracking, spaced-repetition flashcard learning (Learn module), and a gamified Growth engine (XP, attributes, coins, shop, and achievements). Success means enabling deep work, consistent habit execution, efficient knowledge retention, and transparent personal progression without relying on disjointed single-purpose tools.
+iTu provides a personal-first productivity and learning system that seamlessly integrates task planning (Eisenhower matrix, subtasks, scheduling), task-linked focus sessions (Pomodoro/stopwatch), dedicated habit tracking, spaced-repetition flashcard learning (Learn module), a Calendar timeline, and a gamified Growth engine (XP, attributes, coins, shop, and ledgers). Success means enabling deep work, consistent habit execution, efficient knowledge retention, and transparent personal progression without relying on disjointed single-purpose tools.
 
 ## Positioning
 
@@ -24,7 +24,7 @@ An offline-first, single-user productivity and learning hub that tightly connect
 - Native macOS client (SwiftUI) sharing the same `iTuTheme` token palette and design language as the web client, with native SF Symbols, controls, menu-bar focus status, and responsive split-rail behavior.
 - Multi-device and multi-tab synchronization backed by an IndexedDB offline mutation queue, WebSocket change invalidation, and push-then-pull REST sync against a NestJS/Fastify/Prisma API.
 - Dense task workspace with smart lists, tags, inline capture, a persistent task-detail inspector, and Eisenhower matrix views.
-- Focus session overlay/global timer, habit check-ins and heatmaps, spaced-repetition study review, Growth dashboard/shop, Budget tracking, Gym workout logging, Journal entries, Statistics, Trash, Notifications, Conflicts, Profile, and Settings.
+- Focus session overlay/global timer, habit check-ins and heatmaps, Calendar timeline views, spaced-repetition study review, Growth dashboard/shop, Budget tracking, Gym workout logging, Journal notes and reviews, usage Statistics, Trash, Notifications, Conflicts, Profile, and Settings.
 
 ## Capabilities and Constraints
 
@@ -33,13 +33,16 @@ An offline-first, single-user productivity and learning hub that tightly connect
   - Task-linked Pomodoro & stopwatch focus sessions with server-authoritative state and global timer.
   - Dedicated boolean, count, duration, and quantity habit check-ins, heatmaps, streaks, and habit journal.
   - Spaced-repetition flashcard decks, cards, study reviews, and learning history.
-  - Budget workspaces for overview, transactions, budgets, and calendar views.
-  - Gym workspaces for overview, active workouts, exercise library, routines, and workout history.
+  - Calendar timelines for Day, Week, and Month views, grouped Tasks, Due Dates, Focus Sessions, and read-only external calendar events, with task arrange/move/resize interactions and synced display preferences.
+  - Budget workspaces for overview, transactions, budgets, and categories.
+  - Gym workspaces for overview, active workouts, exercise library, and workout history.
+  - Journal notes, tags, templates, revisions, attachments, and weekly reviews.
+  - Usage and Website Activity statistics with privacy-aware local/offline states and drill-down history.
   - Offline-first mutation queue (IndexedDB), ULID entity identifiers, multi-tab BroadcastChannel state sharing, and WebSocket real-time invalidation.
-  - Gamified Growth system featuring 6 starter Attributes, 6 starter Skills, permanent XP/leveling, coins, immutable award ledgers, achievements, and an item shop.
+  - Gamified Growth system featuring starter Attributes and Skills, permanent Account XP and Skill XP, coins, immutable Growth Ledgers, Growth Receipts, and a Shop Item inventory.
 - **Constraints**:
   - Strictly Yarn Classic 1.22 (`yarn`) package manager inside `web/` and `api/` (no `npm` or `pnpm`).
-  - No alteration of top-level directory structure (`api/`, `web/`, `ios/`, `macos/`).
+  - Preserve the current top-level product boundaries (`api/`, `web/`, `macos/`, `extension/`); do not add another client stack without a product decision.
   - Hexagonal layering in NestJS backend (`core/domain`, `core/application`, `infrastructure/transport`, `infrastructure/persistence`).
   - TanStack Query owns server state; local React state reserved for ephemeral UI.
 
@@ -53,10 +56,10 @@ An offline-first, single-user productivity and learning hub that tightly connect
 
 ## Evidence on Hand
 
-- Functional web client (`web/`) with active workspaces for Home, Plan, Matrix, Focus, Habits, Statistics, Budget, Gym, Journal, Learn, Growth, Trash, Settings, and Profile (`web/src/features/`).
-- Native macOS client (`macos/`) sharing the token system via [`macos/iTu/Shared/UI/iTuTheme.swift`](macos/iTu/Shared/UI/iTuTheme.swift).
+- Functional web client (`web/`) with active workspaces for Home, Plan, Matrix, Focus, Calendar, Habits, Statistics, Budget, Gym, Journal, Learn, Growth, Trash, plus utility destinations for Conflicts, Notifications, Profile, and Settings (`web/src/features/`).
+- Native macOS client (`macos/`) with the same workspace vocabulary, native menu-bar Focus status, a fixed primary rail, responsive planning rail, and the shared token system in [`macos/iTu/Shared/UI/iTuTheme.swift`](macos/iTu/Shared/UI/iTuTheme.swift).
 - Durable design system captured in [`DESIGN.md`](DESIGN.md).
-- Verified implementation status and architectural documentation in [`README.md`](file:///Users/ice-h/Source/iTu/README.md), [`PLAN.md`](file:///Users/ice-h/Source/iTu/PLAN.md), and [`ROADMAP.md`](file:///Users/ice-h/Source/iTu/ROADMAP.md).
+- Current implementation status and verification notes in [`README.md`](README.md), [`agent_docs/project_progress.md`](agent_docs/project_progress.md), and [`agent_docs/latest_session_work.md`](agent_docs/latest_session_work.md).
 
 ## Product Principles
 

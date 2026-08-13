@@ -159,7 +159,7 @@ extension AppModel {
     }
 
     @MainActor
-    private func rebuildBudgetOverview(period: String) {
+    func rebuildBudgetOverview(period: String) {
         guard let periodModel = budgetPeriods.first(where: { $0.period == period }) else { return }
         let transactions = budgetTransactions.filter { budgetTransactionMonth($0.transactionAt) == period && $0.deletedAt == nil }
         let income = transactions.filter { $0.type.uppercased() == "INCOME" }.reduce(0) { $0 + $1.amount }
@@ -176,7 +176,8 @@ extension AppModel {
             return BudgetCategoryStatModel(category: category, budget: budget, spent: categorySpent, remaining: remaining, percentage: percentage)
         }
         let overallBudget = periodModel.overallLimit
-        budgetOverview = BudgetOverviewModel(period: period, currency: periodModel.currency, income: income, spent: spent, overallBudget: overallBudget, remainingBudget: max(0, overallBudget - spent), categories: categoryStats)
+        let overview = BudgetOverviewModel(period: period, currency: periodModel.currency, income: income, spent: spent, overallBudget: overallBudget, remainingBudget: max(0, overallBudget - spent), categories: categoryStats)
+        if budgetOverview != overview { budgetOverview = overview }
     }
 
     private func budgetTransactionMonth(_ value: String) -> String {

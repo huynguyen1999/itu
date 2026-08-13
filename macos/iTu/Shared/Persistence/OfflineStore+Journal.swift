@@ -108,7 +108,14 @@ extension OfflineStore {
     }
 
     func applyJournalChanges(_ changes: [SyncChange]) throws {
-        var pending = Set(state.mutations.map { "\($0.kind.split(separator: ".").first ?? ""):\($0.entityId)" })
+        var pending = Set(state.mutations.map { mutation -> String in
+            let prefix: String
+            if mutation.kind.hasPrefix("journal_tag.") { prefix = "journaltag" }
+            else if mutation.kind.hasPrefix("journal_attachment.") { prefix = "journalattachment" }
+            else if mutation.kind.hasPrefix("journal.") { prefix = "journalentry" }
+            else { prefix = String(mutation.kind.split(separator: ".").first ?? "") }
+            return "\(prefix):\(mutation.entityId)"
+        })
         for mutation in state.mutations where mutation.kind == "journal_revision.restore" {
             if let entryID = mutation.payload["entryId"]?.stringValue { pending.insert("journalentry:\(entryID)") }
         }
@@ -204,16 +211,49 @@ extension OfflineStore {
                         periodStart: periodStart,
                         periodEnd: periodEnd,
                         summarySnapshot: summary,
-                        wentWellMarkdown: fields["wentWellMarkdown"]?.stringValue ?? existing?.wentWellMarkdown,
-                        frictionMarkdown: fields["frictionMarkdown"]?.stringValue ?? existing?.frictionMarkdown,
-                        nextWeekMarkdown: fields["nextWeekMarkdown"]?.stringValue ?? existing?.nextWeekMarkdown,
-                        experimentSnapshot: fields["experimentSnapshot"] ?? existing?.experimentSnapshot
+                        wentWellMarkdown: reviewMarkdown(fields, "wentWellMarkdown", existing?.wentWellMarkdown),
+                        frictionMarkdown: reviewMarkdown(fields, "frictionMarkdown", existing?.frictionMarkdown),
+                        learnedMarkdown: reviewMarkdown(fields, "learnedMarkdown", existing?.learnedMarkdown),
+                        differentFromLastWeekMarkdown: reviewMarkdown(fields, "differentFromLastWeekMarkdown", existing?.differentFromLastWeekMarkdown),
+                        nextWeekMarkdown: reviewMarkdown(fields, "nextWeekMarkdown", existing?.nextWeekMarkdown),
+                        experimentSnapshot: fields["experimentSnapshot"] ?? existing?.experimentSnapshot,
+                        comparisonSnapshot: fields["comparisonSnapshot"] ?? existing?.comparisonSnapshot,
+                        aiInsightsSnapshot: existing?.aiInsightsSnapshot,
+                        aiGenerationJobId: existing?.aiGenerationJobId,
+                        aiGeneratedAt: existing?.aiGeneratedAt,
+                        aiPromptVersion: existing?.aiPromptVersion,
+                        aiSourceEntryVersion: existing?.aiSourceEntryVersion
+                    )
+                }
+                if case let .object(fields)? = mutation.payload["dailyReview"] {
+                    let existing = state.journalNotes[index].dailyReview
+                    let summary = fields["summarySnapshot"].flatMap { value -> [String: JSONValue]? in
+                        guard case let .object(values) = value else { return nil }; return values
+                    } ?? existing?.summarySnapshot ?? [:]
+                    state.journalNotes[index].dailyReview = JournalDailyReviewModel(
+                        entryId: state.journalNotes[index].id,
+                        periodDate: fields["periodDate"]?.stringValue ?? existing?.periodDate ?? state.journalNotes[index].entryDate,
+                        summarySnapshot: summary,
+                        wentWellMarkdown: reviewMarkdown(fields, "wentWellMarkdown", existing?.wentWellMarkdown),
+                        frictionMarkdown: reviewMarkdown(fields, "frictionMarkdown", existing?.frictionMarkdown),
+                        learnedMarkdown: reviewMarkdown(fields, "learnedMarkdown", existing?.learnedMarkdown),
+                        contextMarkdown: reviewMarkdown(fields, "contextMarkdown", existing?.contextMarkdown),
+                        aiInsightsSnapshot: existing?.aiInsightsSnapshot,
+                        aiGenerationJobId: existing?.aiGenerationJobId,
+                        aiGeneratedAt: existing?.aiGeneratedAt,
+                        aiPromptVersion: existing?.aiPromptVersion,
+                        aiSourceEntryVersion: existing?.aiSourceEntryVersion
                     )
                 }
                 state.journalNotes[index].version = max(state.journalNotes[index].version, (mutation.baseVersion ?? state.journalNotes[index].version) + 1)
             default: break
             }
         }
+    }
+
+    private func reviewMarkdown(_ fields: [String: JSONValue], _ key: String, _ fallback: String?) -> String? {
+        guard let value = fields[key] else { return fallback }
+        return value.stringValue
     }
 
     private func upsert<Value: Identifiable>(_ values: inout [Value], _ value: Value) where Value.ID: Equatable {

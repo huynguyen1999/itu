@@ -9,6 +9,7 @@ import {
   StoreAudioInput,
   VerifiedTokenPayload,
 } from './service-types.port';
+import type { ReviewInsightsInput, ReviewInsightsResultV1 } from '@core/domain/review/review.types';
 
 export interface StoredImage {
   storageKey: string;
@@ -45,6 +46,7 @@ export interface IAiProvider {
     userId: string,
     input: ReviewSessionInput,
   ): Promise<{ cardGradings: CardGrading[]; confidence?: number; gradePoint?: number }>;
+  generateReviewInsights(userId: string, input: ReviewInsightsInput): Promise<ReviewInsightsResultV1>;
 }
 
 export interface IAiCredentialCrypto {
@@ -72,6 +74,7 @@ export interface SyncQueueJob {
 export interface IQueueJobHandler {
   enqueueCardSuggestions(jobId: string): Promise<void>;
   enqueueSessionFeedback(jobId: string): Promise<void>;
+  enqueueReviewInsights(jobId: string): Promise<void>;
   enqueueScheduledJob(jobId: string): Promise<void>;
   enqueueSyncInvalidation(job: Omit<SyncQueueJob, 'type' | 'jobId'>): Promise<void>;
 }

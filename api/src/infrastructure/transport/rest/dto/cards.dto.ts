@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsBoolean,
   IsEnum,
+  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
@@ -116,6 +117,14 @@ export class AiSessionGradingDto {
   @IsString()
   @MaxLength(20000)
   summary!: string;
+}
+
+export class AiReviewInsightsDto {
+  @IsString()
+  entryId!: string;
+
+  @IsNumber()
+  expectedVersion!: number;
 }
 
 export class ImportCardItemDto {

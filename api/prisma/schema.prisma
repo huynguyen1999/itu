@@ -57,6 +57,7 @@ enum StudyMode {
 enum AiJobType {
   CARD_GENERATION
   SESSION_FEEDBACK
+  REVIEW_INSIGHTS
 }
 
 enum AiJobStatus {
@@ -1760,6 +1761,7 @@ model SyncFieldClock {
 enum JournalEntryKind {
   NOTE
   WEEKLY_REVIEW
+  DAILY_REVIEW
 }
 
 enum TransactionType {
@@ -1812,6 +1814,7 @@ model JournalEntry {
   user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   template        JournalTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
   weeklyReview    JournalWeeklyReview?
+  dailyReview     JournalDailyReview?
   revisions       JournalEntryRevision[]
   tags            JournalTagAssignment[]
   attachments     JournalAttachment[]
@@ -1828,11 +1831,37 @@ model JournalWeeklyReview {
   summarySnapshot Json
   wentWellMarkdown String?
   frictionMarkdown String?
+  learnedMarkdown String?
+  differentFromLastWeekMarkdown String?
   nextWeekMarkdown String?
   experimentSnapshot Json?
+  comparisonSnapshot Json?
+  aiInsightsSnapshot Json?
+  aiGenerationJobId String?
+  aiGeneratedAt DateTime?
+  aiPromptVersion String?
+  aiSourceEntryVersion Int?
   entry           JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([periodStart, periodEnd])
+}
+
+model JournalDailyReview {
+  entryId              String       @id
+  periodDate            DateTime     @db.Date
+  summarySnapshot      Json         @default("{}")
+  wentWellMarkdown     String?
+  frictionMarkdown     String?
+  learnedMarkdown      String?
+  contextMarkdown      String?
+  aiInsightsSnapshot   Json?
+  aiGenerationJobId    String?
+  aiGeneratedAt        DateTime?
+  aiPromptVersion      String?
+  aiSourceEntryVersion Int?
+  entry                JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([periodDate])
 }
 
 enum GymWorkoutStatus {

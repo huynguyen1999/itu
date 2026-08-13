@@ -65,14 +65,14 @@ struct CalendarWeekView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(allDayOrSpanning, id: \.id) { item in
-                                CalendarEventCard(item: item, density: .compact, onSelect: { onSelect(item) })
-                                    .frame(width: 180, height: 38)
+                                CalendarEventCard(item: item, density: .compact, titleLineLimit: 2, onSelect: { onSelect(item) })
+                                    .frame(width: 240, height: 48)
                             }
                         }
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
                 .background(iTuTheme.surface)
                 .overlay(alignment: .bottom) {
                     Rectangle().fill(iTuTheme.borderSoft).frame(height: 1)

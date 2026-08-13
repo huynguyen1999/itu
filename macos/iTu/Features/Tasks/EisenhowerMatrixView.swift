@@ -2,17 +2,26 @@ import SwiftUI
 
 struct EisenhowerMatrixView: View {
     @Environment(AppModel.self) private var model
-    @State private var searchText = ""
-    @State private var priorityFilter: TaskPriority?
+    @SceneStorage("matrix.searchText") private var searchText = ""
+    @SceneStorage("matrix.priorityFilter") private var priorityFilterRaw = ""
     @State private var showFilterPopover = false
+
+    private var priorityFilter: TaskPriority? {
+        TaskPriority(rawValue: priorityFilterRaw)
+    }
+
+    private var priorityFilterBinding: Binding<TaskPriority?> {
+        Binding(get: { priorityFilter }, set: { priorityFilterRaw = $0?.rawValue ?? "" })
+    }
 
     var body: some View {
         let matrixSettings = model.settingsStore.matrixSettings
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let archivedSkillIDs = Set(model.skills.filter { $0.archivedAt != nil }.map(\.id))
         let filteredTasks = model.tasks.filter { task in
             guard task.deletedAt == nil, task.status != .archived else { return false }
             if let priorityFilter, task.priority != priorityFilter { return false }
-            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                let query = searchText.lowercased()
+            if !query.isEmpty {
                 guard task.title.lowercased().contains(query) else { return false }
             }
             return true
@@ -85,7 +94,7 @@ struct EisenhowerMatrixView: View {
                         .pointingHandCursor()
                         .help("Matrix filters")
                         .popover(isPresented: $showFilterPopover, arrowEdge: .top) {
-                            MatrixFilterPopover(priorityFilter: $priorityFilter)
+                            MatrixFilterPopover(priorityFilter: priorityFilterBinding)
                         }
 
                         if !isNarrow {
@@ -106,6 +115,7 @@ struct EisenhowerMatrixView: View {
                                 MatrixQuadrantCard(
                                     quadrant: quadrant,
                                     tasks: tasksForQuadrant(quadrant, from: allTasks, settings: matrixSettings),
+                                    archivedSkillIDs: archivedSkillIDs,
                                     onEditTask: { openTaskEditor($0) }
                                 )
                                 .frame(height: isShort ? 280 : 340)
@@ -119,12 +129,12 @@ struct EisenhowerMatrixView: View {
 
                     Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
                         GridRow {
-                            quadrantCard(.q1, tasks: allTasks, settings: matrixSettings, height: rowHeight)
-                            quadrantCard(.q2, tasks: allTasks, settings: matrixSettings, height: rowHeight)
+                            quadrantCard(.q1, tasks: allTasks, settings: matrixSettings, archivedSkillIDs: archivedSkillIDs, height: rowHeight)
+                            quadrantCard(.q2, tasks: allTasks, settings: matrixSettings, archivedSkillIDs: archivedSkillIDs, height: rowHeight)
                         }
                         GridRow {
-                            quadrantCard(.q3, tasks: allTasks, settings: matrixSettings, height: rowHeight)
-                            quadrantCard(.q4, tasks: allTasks, settings: matrixSettings, height: rowHeight)
+                            quadrantCard(.q3, tasks: allTasks, settings: matrixSettings, archivedSkillIDs: archivedSkillIDs, height: rowHeight)
+                            quadrantCard(.q4, tasks: allTasks, settings: matrixSettings, archivedSkillIDs: archivedSkillIDs, height: rowHeight)
                         }
                     }
                 }
@@ -154,11 +164,13 @@ struct EisenhowerMatrixView: View {
         _ quadrant: MatrixQuadrant,
         tasks: [ProductivityTask],
         settings: MatrixSettings,
+        archivedSkillIDs: Set<String>,
         height: CGFloat
     ) -> some View {
         MatrixQuadrantCard(
             quadrant: quadrant,
             tasks: tasksForQuadrant(quadrant, from: tasks, settings: settings),
+            archivedSkillIDs: archivedSkillIDs,
             onEditTask: { openTaskEditor($0) }
         )
         .frame(maxWidth: .infinity)
@@ -355,7 +367,7 @@ enum MatrixQuadrant: String, CaseIterable, Identifiable {
     }
 
     private func isDueWithin(_ dueAt: String?, days: Int) -> Bool {
-        guard days > 0, let dueAt = dueAt, let date = ISO8601DateFormatter().date(from: dueAt) else { return false }
+        guard days > 0, let dueAt, let date = iTuDateSupport.parse(dueAt) else { return false }
         return date <= Date().addingTimeInterval(Double(days) * 86_400)
     }
 }
@@ -364,6 +376,7 @@ private struct MatrixQuadrantCard: View {
     @Environment(AppModel.self) private var model
     let quadrant: MatrixQuadrant
     let tasks: [ProductivityTask]
+    let archivedSkillIDs: Set<String>
     let onEditTask: (ProductivityTask) -> Void
 
     @State private var quickTitle = ""
@@ -461,7 +474,7 @@ private struct MatrixQuadrantCard: View {
                                 .padding(.vertical, 16)
                             } else {
                                 ForEach(activeTasks) { task in
-                                    MatrixTaskRow(task: task, quadrant: quadrant, onEdit: { onEditTask(task) })
+                                    MatrixTaskRow(task: task, quadrant: quadrant, archivedSkillIDs: archivedSkillIDs, onEdit: { onEditTask(task) })
                                 }
                             }
 
@@ -551,7 +564,7 @@ private struct MatrixQuadrantCard: View {
             DisclosureGroup(isExpanded: isExpanded) {
                 VStack(spacing: 8) {
                     ForEach(tasks) { task in
-                        MatrixTaskRow(task: task, quadrant: quadrant, onEdit: { onEditTask(task) })
+                        MatrixTaskRow(task: task, quadrant: quadrant, archivedSkillIDs: archivedSkillIDs, onEdit: { onEditTask(task) })
                     }
                 }
                 .padding(.top, 8)
@@ -579,6 +592,7 @@ private struct MatrixTaskRow: View {
     @Environment(AppModel.self) private var model
     let task: ProductivityTask
     let quadrant: MatrixQuadrant
+    let archivedSkillIDs: Set<String>
     let onEdit: () -> Void
 
     @State private var isHovered = false
@@ -649,7 +663,7 @@ private struct MatrixTaskRow: View {
                             rule: growthRule,
                             compact: true,
                             dense: true,
-                            archivedSkillIDs: Set(model.skills.filter { $0.archivedAt != nil }.map(\.id))
+                            archivedSkillIDs: archivedSkillIDs
                         )
                     }
                 }
@@ -726,26 +740,25 @@ private struct MatrixTaskRow: View {
     }
 
     private func dueColor(_ value: String) -> Color {
-        isResolved ? iTuTheme.inkDim : (isOverdue(value) ? iTuTheme.coral : iTuTheme.teal)
+        guard let date = parseDate(value) else { return isResolved ? iTuTheme.inkDim : iTuTheme.teal }
+        return isResolved ? iTuTheme.inkDim : (isOverdue(date) ? iTuTheme.coral : iTuTheme.teal)
     }
 
     private func dueBackground(_ value: String) -> Color {
-        isResolved ? iTuTheme.surface : (isOverdue(value) ? iTuTheme.coralTint : iTuTheme.mintTint)
+        guard let date = parseDate(value) else { return isResolved ? iTuTheme.surface : iTuTheme.mintTint }
+        return isResolved ? iTuTheme.surface : (isOverdue(date) ? iTuTheme.coralTint : iTuTheme.mintTint)
     }
 
     private func formattedDueDate(_ value: String) -> String {
         guard let date = parseDate(value) else { return value }
 
         if isResolved {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.dateFormat = "dd MMM"
-            return formatter.string(from: date)
+            return date.formatted(iTuDateSupport.dueDay)
         }
         if Calendar.current.isDateInToday(date) {
             return "Today"
         }
-        if isOverdue(value) {
+        if isOverdue(date) {
             let days = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 1
             return "\(days) Day\(days == 1 ? "" : "s") Overdue"
         }
@@ -753,18 +766,10 @@ private struct MatrixTaskRow: View {
     }
 
     private func parseDate(_ value: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        if let date = formatter.date(from: value) { return date }
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) { return date }
-
-        let simpleFormatter = DateFormatter()
-        simpleFormatter.dateFormat = "yyyy-MM-dd"
-        return simpleFormatter.date(from: value)
+        iTuDateSupport.parse(value)
     }
 
-    private func isOverdue(_ value: String) -> Bool {
-        guard let date = parseDate(value) else { return false }
+    private func isOverdue(_ date: Date) -> Bool {
         return date < Date() && !Calendar.current.isDateInToday(date)
     }
 

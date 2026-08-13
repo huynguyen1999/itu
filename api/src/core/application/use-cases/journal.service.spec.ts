@@ -37,7 +37,7 @@ describe('JournalService', () => {
     mockWeeklyReviewQuery = {
       getSnapshotData: jest.fn().mockResolvedValue({
         tasksCompleted: 10,
-        focusPlannedSeconds: 7200,
+        focusActualSeconds: 7200,
         focusSessions: 4,
         habitsScheduled: 15,
         habitsCompleted: 12,
@@ -54,6 +54,7 @@ describe('JournalService', () => {
       mockTagRepo,
       mockAttachmentRepo,
       mockWeeklyReviewQuery,
+      { build: jest.fn() } as any,
     );
   });
 

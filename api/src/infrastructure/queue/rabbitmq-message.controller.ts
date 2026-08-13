@@ -18,6 +18,7 @@ export class RabbitMqMessageController {
 
   @MessagePattern('card-suggestions')
   @MessagePattern('session-feedback')
+  @MessagePattern('review-insights')
   async handleAiJob(@Payload() job: AiQueueJob, @Ctx() context: RmqContext): Promise<void> {
     const channel = context.getChannelRef();
     const originalMsg = context.getMessage();

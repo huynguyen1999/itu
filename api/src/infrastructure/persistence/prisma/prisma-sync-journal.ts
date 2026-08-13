@@ -14,6 +14,7 @@ import {
 
 export const JOURNAL_SYNC_INCLUDE = {
   weeklyReview: true,
+  dailyReview: true,
   tags: { include: { tag: true } },
   attachments: { where: { deletedAt: null } },
 };
@@ -66,7 +67,30 @@ export class PrismaSyncJournal {
         if (tagIds.length) await tx.journalTagAssignment.createMany({ data: tagIds.map((tagId: string) => ({ entryId: entry.id, tagId })) });
         if (snapshot.weeklyReview) {
           const wr = snapshot.weeklyReview;
-          await tx.journalWeeklyReview.upsert({ where: { entryId: entry.id }, create: { entryId: entry.id, periodStart: new Date(wr.periodStart), periodEnd: new Date(wr.periodEnd), summarySnapshot: wr.summarySnapshot ?? {}, wentWellMarkdown: wr.wentWellMarkdown ?? null, frictionMarkdown: wr.frictionMarkdown ?? null, nextWeekMarkdown: wr.nextWeekMarkdown ?? null, experimentSnapshot: wr.experimentSnapshot ?? null }, update: { periodStart: new Date(wr.periodStart), periodEnd: new Date(wr.periodEnd), summarySnapshot: wr.summarySnapshot ?? {}, wentWellMarkdown: wr.wentWellMarkdown ?? null, frictionMarkdown: wr.frictionMarkdown ?? null, nextWeekMarkdown: wr.nextWeekMarkdown ?? null, experimentSnapshot: wr.experimentSnapshot ?? null } });
+          await tx.journalWeeklyReview.upsert({ where: { entryId: entry.id }, create: { entryId: entry.id, periodStart: new Date(wr.periodStart), periodEnd: new Date(wr.periodEnd), summarySnapshot: wr.summarySnapshot ?? {}, wentWellMarkdown: wr.wentWellMarkdown ?? null, frictionMarkdown: wr.frictionMarkdown ?? null, learnedMarkdown: wr.learnedMarkdown ?? null, differentFromLastWeekMarkdown: wr.differentFromLastWeekMarkdown ?? null, nextWeekMarkdown: wr.nextWeekMarkdown ?? null, experimentSnapshot: wr.experimentSnapshot ?? null, comparisonSnapshot: wr.comparisonSnapshot ?? null, aiInsightsSnapshot: wr.aiInsightsSnapshot ?? null, aiGenerationJobId: wr.aiGenerationJobId ?? null, aiGeneratedAt: wr.aiGeneratedAt ? new Date(wr.aiGeneratedAt as string) : null, aiPromptVersion: wr.aiPromptVersion ?? null, aiSourceEntryVersion: typeof wr.aiSourceEntryVersion === 'number' ? wr.aiSourceEntryVersion : null }, update: { periodStart: new Date(wr.periodStart), periodEnd: new Date(wr.periodEnd), summarySnapshot: wr.summarySnapshot ?? {}, wentWellMarkdown: wr.wentWellMarkdown ?? null, frictionMarkdown: wr.frictionMarkdown ?? null, learnedMarkdown: wr.learnedMarkdown ?? null, differentFromLastWeekMarkdown: wr.differentFromLastWeekMarkdown ?? null, nextWeekMarkdown: wr.nextWeekMarkdown ?? null, experimentSnapshot: wr.experimentSnapshot ?? null, comparisonSnapshot: wr.comparisonSnapshot ?? null, aiInsightsSnapshot: wr.aiInsightsSnapshot ?? null, aiGenerationJobId: wr.aiGenerationJobId ?? null, aiGeneratedAt: wr.aiGeneratedAt ? new Date(wr.aiGeneratedAt as string) : null, aiPromptVersion: wr.aiPromptVersion ?? null, aiSourceEntryVersion: typeof wr.aiSourceEntryVersion === 'number' ? wr.aiSourceEntryVersion : null } });
+        }
+        if (snapshot.dailyReview && typeof snapshot.dailyReview === 'object') {
+          const dr = snapshot.dailyReview as Record<string, unknown>;
+          await tx.journalDailyReview.upsert({
+            where: { entryId: entry.id },
+            create: {
+              entryId: entry.id,
+              periodDate: new Date(dr.periodDate as string),
+              summarySnapshot: dr.summarySnapshot ?? {},
+              wentWellMarkdown: optionalString(dr, 'wentWellMarkdown'),
+              frictionMarkdown: optionalString(dr, 'frictionMarkdown'),
+              learnedMarkdown: optionalString(dr, 'learnedMarkdown'),
+              contextMarkdown: optionalString(dr, 'contextMarkdown'),
+            },
+            update: {
+              periodDate: dr.periodDate ? new Date(dr.periodDate as string) : undefined,
+              summarySnapshot: dr.summarySnapshot ?? undefined,
+              wentWellMarkdown: dr.wentWellMarkdown === undefined ? undefined : optionalString(dr, 'wentWellMarkdown'),
+              frictionMarkdown: dr.frictionMarkdown === undefined ? undefined : optionalString(dr, 'frictionMarkdown'),
+              learnedMarkdown: dr.learnedMarkdown === undefined ? undefined : optionalString(dr, 'learnedMarkdown'),
+              contextMarkdown: dr.contextMarkdown === undefined ? undefined : optionalString(dr, 'contextMarkdown'),
+            },
+          });
         }
         const restored = await tx.journalEntry.findUniqueOrThrow({ where: { id: entry.id }, include: JOURNAL_SYNC_INCLUDE });
         await recordSyncChange(tx, userId, 'journalentry', entry.id, 'UPSERT', restored);
@@ -134,8 +158,27 @@ export class PrismaSyncJournal {
               summarySnapshot: (wr.summarySnapshot as any) ?? {},
               wentWellMarkdown: optionalString(wr, 'wentWellMarkdown'),
               frictionMarkdown: optionalString(wr, 'frictionMarkdown'),
+              learnedMarkdown: optionalString(wr, 'learnedMarkdown'),
+              differentFromLastWeekMarkdown: optionalString(wr, 'differentFromLastWeekMarkdown'),
               nextWeekMarkdown: optionalString(wr, 'nextWeekMarkdown'),
               experimentSnapshot: (wr.experimentSnapshot as any) ?? undefined,
+              comparisonSnapshot: (wr.comparisonSnapshot as any) ?? undefined,
+            },
+            update: {},
+          });
+        }
+        if (payload.dailyReview && typeof payload.dailyReview === 'object') {
+          const dr = payload.dailyReview as Record<string, unknown>;
+          await tx.journalDailyReview.upsert({
+            where: { entryId: entry.id },
+            create: {
+              entryId: entry.id,
+              periodDate: new Date(dr.periodDate as string),
+              summarySnapshot: dr.summarySnapshot ?? {},
+              wentWellMarkdown: optionalString(dr, 'wentWellMarkdown'),
+              frictionMarkdown: optionalString(dr, 'frictionMarkdown'),
+              learnedMarkdown: optionalString(dr, 'learnedMarkdown'),
+              contextMarkdown: optionalString(dr, 'contextMarkdown'),
             },
             update: {},
           });
@@ -226,8 +269,11 @@ export class PrismaSyncJournal {
               summarySnapshot: (wr.summarySnapshot as any) ?? {},
               wentWellMarkdown: optionalString(wr, 'wentWellMarkdown'),
               frictionMarkdown: optionalString(wr, 'frictionMarkdown'),
+              learnedMarkdown: optionalString(wr, 'learnedMarkdown'),
+              differentFromLastWeekMarkdown: optionalString(wr, 'differentFromLastWeekMarkdown'),
               nextWeekMarkdown: optionalString(wr, 'nextWeekMarkdown'),
               experimentSnapshot: (wr.experimentSnapshot as any) ?? undefined,
+              comparisonSnapshot: (wr.comparisonSnapshot as any) ?? undefined,
             },
             update: {
               periodStart: wr.periodStart ? new Date(wr.periodStart as string) : undefined,
@@ -237,6 +283,32 @@ export class PrismaSyncJournal {
               frictionMarkdown: wr.frictionMarkdown === undefined ? undefined : optionalString(wr, 'frictionMarkdown'),
               nextWeekMarkdown: wr.nextWeekMarkdown === undefined ? undefined : optionalString(wr, 'nextWeekMarkdown'),
               experimentSnapshot: wr.experimentSnapshot === undefined ? undefined : (wr.experimentSnapshot as any),
+              learnedMarkdown: wr.learnedMarkdown === undefined ? undefined : optionalString(wr, 'learnedMarkdown'),
+              differentFromLastWeekMarkdown: wr.differentFromLastWeekMarkdown === undefined ? undefined : optionalString(wr, 'differentFromLastWeekMarkdown'),
+              comparisonSnapshot: wr.comparisonSnapshot === undefined ? undefined : (wr.comparisonSnapshot as any),
+            },
+          });
+        }
+        if (payload.dailyReview && typeof payload.dailyReview === 'object') {
+          const dr = payload.dailyReview as Record<string, unknown>;
+          await tx.journalDailyReview.upsert({
+            where: { entryId: entry.id },
+            create: {
+              entryId: entry.id,
+              periodDate: new Date(dr.periodDate as string),
+              summarySnapshot: dr.summarySnapshot ?? {},
+              wentWellMarkdown: optionalString(dr, 'wentWellMarkdown'),
+              frictionMarkdown: optionalString(dr, 'frictionMarkdown'),
+              learnedMarkdown: optionalString(dr, 'learnedMarkdown'),
+              contextMarkdown: optionalString(dr, 'contextMarkdown'),
+            },
+            update: {
+              periodDate: dr.periodDate ? new Date(dr.periodDate as string) : undefined,
+              summarySnapshot: dr.summarySnapshot ?? undefined,
+              wentWellMarkdown: dr.wentWellMarkdown === undefined ? undefined : optionalString(dr, 'wentWellMarkdown'),
+              frictionMarkdown: dr.frictionMarkdown === undefined ? undefined : optionalString(dr, 'frictionMarkdown'),
+              learnedMarkdown: dr.learnedMarkdown === undefined ? undefined : optionalString(dr, 'learnedMarkdown'),
+              contextMarkdown: dr.contextMarkdown === undefined ? undefined : optionalString(dr, 'contextMarkdown'),
             },
           });
         }

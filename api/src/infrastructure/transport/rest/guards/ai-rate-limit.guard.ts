@@ -13,6 +13,7 @@ export class AiRateLimitGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest & FastifyRequest>();
+    if (request.method === 'GET') return true;
     const key = request.user?.sub ?? request.ip ?? 'anonymous';
     const result = await this.rateLimits.consume(`ai:${key}`, WINDOW_MS, MAX_REQUESTS);
     if (!result.allowed) {

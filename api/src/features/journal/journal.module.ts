@@ -6,11 +6,12 @@ import { PreferencesController } from '@infrastructure/transport/rest/controller
 import { AuthModule } from '@features/auth/auth.module';
 import { PersistenceModule } from '@infrastructure/persistence/persistence.module';
 import { MediaModule } from '@infrastructure/media/media.module';
+import { ReviewContextBuilder } from '@core/application/use-cases/review-context.builder';
 
 @Module({
   imports: [AuthModule, PersistenceModule, MediaModule],
   controllers: [JournalController, PreferencesController],
-  providers: [JournalService, PreferencesService],
-  exports: [JournalService, PreferencesService],
+  providers: [JournalService, PreferencesService, ReviewContextBuilder],
+  exports: [JournalService, PreferencesService, ReviewContextBuilder],
 })
 export class JournalModule {}

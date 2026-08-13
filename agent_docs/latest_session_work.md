@@ -6,6 +6,27 @@
 
 ## Completed
 
+- Implemented Phase 1 Daily/Weekly Review Insights across API, Web, and macOS: durable Daily Reviews, richer Weekly Reviews, deterministic cross-domain review context, coverage/evidence contracts, structured Gemini output, queued AI jobs, and source-version stale protection.
+- Preserved offline-first Journal writes and existing AI/job/provider boundaries. AI output remains separate from reflection and failed regeneration preserves the previous successful snapshot.
+
+## Verification
+
+- API: 72 suites / 328 tests, typecheck, and build passed.
+- Web: 57 files / 309 tests, typecheck, and production build passed.
+- macOS: the signed Apple Development build/test passed before the final offline replay hardening. The final rerun is blocked before test execution by pre-existing Swift 6 compile errors in `AppPerformanceSignposts.swift` and `EisenhowerMatrixView.swift`; the new review parity test was green in the earlier signed run.
+
+## Unfinished
+
+- Apply the additive `20260813100000_review_insights` migration before deployment, then run live Gemini configuration, authenticated visual QA, and two-device sync/generation acceptance.
+
+---
+
+## Session date
+
+2026-08-13
+
+## Completed
+
 - Resolved the Calendar and Sync merge conflicts while preserving the current Calendar presentation and existing user-owned changes.
 - Moved API Calendar persistence and external integration concerns behind typed ports, extracted its scheduler, and moved Preferences/Journal persistence behind typed repositories.
 - Reduced Web `CalendarPage` to a composition root, reused the shared default Due Date rule, and made Sync cache/channel work safe across logout and User Account changes.

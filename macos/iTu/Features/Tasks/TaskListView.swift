@@ -659,10 +659,18 @@ struct WrappingHStack: Layout {
     var horizontalSpacing: CGFloat = 6
     var verticalSpacing: CGFloat = 6
 
+    struct Cache {
+        var sizes: [CGSize]
+    }
+
+    func makeCache(subviews: Subviews) -> Cache {
+        Cache(sizes: subviews.map { $0.sizeThatFits(.unspecified) })
+    }
+
     func sizeThatFits(
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout ()
+        cache: inout Cache
     ) -> CGSize {
         let availableWidth = proposal.width ?? .infinity
         var x: CGFloat = 0
@@ -670,8 +678,7 @@ struct WrappingHStack: Layout {
         var rowHeight: CGFloat = 0
         var measuredWidth: CGFloat = 0
 
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+        for size in cache.sizes {
             let candidateWidth = x == 0 ? size.width : x + horizontalSpacing + size.width
             if x > 0, candidateWidth > availableWidth {
                 measuredWidth = max(measuredWidth, x)
@@ -695,14 +702,13 @@ struct WrappingHStack: Layout {
         in bounds: CGRect,
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout ()
+        cache: inout Cache
     ) {
         var x = bounds.minX
         var y = bounds.minY
         var rowHeight: CGFloat = 0
 
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+        for (subview, size) in zip(subviews, cache.sizes) {
             let candidateX = x == bounds.minX ? x : x + horizontalSpacing
             if x > bounds.minX, candidateX + size.width > bounds.maxX {
                 x = bounds.minX

@@ -7,6 +7,8 @@ import { NotePage } from './components/NotePage';
 import { JournalSearchPage } from './JournalSearchPage';
 import { WeeklyReviewPage } from './weekly/WeeklyReviewPage';
 import { WeeklyReviewsPage } from './weekly/WeeklyReviewsPage';
+import { DailyReviewPage } from './daily/DailyReviewPage';
+import { DailyReviewsPage } from './daily/DailyReviewsPage';
 import { TemplateEditor } from './components/TemplateEditor';
 import { useJournalEntries } from './journalQueries';
 import { getLocalTodayDateString } from './journalDate';
@@ -40,6 +42,9 @@ export function JournalWorkspace() {
             <Route index element={<JournalDashboard />} />
             <Route path="daily" element={<DailyNoteRoute />} />
             <Route path="daily/:date" element={<NotePage isDaily={true} />} />
+            <Route path="reviews/daily" element={<DailyReviewsPage />} />
+            <Route path="review/daily/new" element={<DailyReviewPage />} />
+            <Route path="review/daily/:entryId" element={<DailyReviewPage />} />
             <Route path="weekly" element={<WeeklyReviewsPage />} />
             <Route path="weekly/new" element={<WeeklyReviewPage />} />
             <Route path="weekly/:entryId" element={<WeeklyReviewPage />} />

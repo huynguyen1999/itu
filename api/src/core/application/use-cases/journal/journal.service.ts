@@ -24,6 +24,9 @@ import {
   type UpdateJournalEntryData,
   type UpdateJournalTemplateData,
 } from '@core/application/ports/out/journal-repository.port';
+import { ReviewContextBuilder } from '../review-context.builder';
+import type { ReviewRangeInput } from '@core/application/ports/out/review-data-source.port';
+import type { ReviewContextV1 } from '@core/domain/review/review.types';
 
 @Injectable()
 export class JournalService {
@@ -38,6 +41,7 @@ export class JournalService {
     private readonly attachmentRepository: IJournalAttachmentRepository,
     @Inject(JOURNAL_WEEKLY_REVIEW_QUERY)
     private readonly weeklyReviewQuery: IJournalWeeklyReviewQuery,
+    private readonly reviewContextBuilder: ReviewContextBuilder,
   ) {}
 
   async listEntries(userId: string, filter?: JournalSearchFilter): Promise<JournalEntryModel[]> {
@@ -127,7 +131,7 @@ export class JournalService {
     return {
       tasks: { completed: data.tasksCompleted },
       focus: {
-        minutes: Math.round(data.focusPlannedSeconds / 60),
+        minutes: Math.round((Number.isFinite(data.focusActualSeconds) ? data.focusActualSeconds : 0) / 60),
         sessions: data.focusSessions,
       },
       habits: {
@@ -139,6 +143,10 @@ export class JournalService {
       workouts: { sessions: data.workouts },
       growth: { xpEarned: data.xpEarned },
     };
+  }
+
+  buildReviewContext(userId: string, input: ReviewRangeInput, entryId?: string): Promise<ReviewContextV1> {
+    return this.reviewContextBuilder.build(userId, input, {}, entryId);
   }
 
   async addAttachment(

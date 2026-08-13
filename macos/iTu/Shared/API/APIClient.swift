@@ -1185,6 +1185,17 @@ actor APIClient {
         return try await request(path: "/journal/weekly-summary?periodStart=\(start)&periodEnd=\(end)")
     }
 
+    func requestReviewInsights(entryID: String, expectedVersion: Int) async throws -> JournalAiJobModel {
+        try await request(path: "/ai/review-insights", method: "POST", body: [
+            "entryId": .string(entryID),
+            "expectedVersion": .number(Double(expectedVersion)),
+        ] as [String: JSONValue])
+    }
+
+    func getAiJob(id: String) async throws -> JournalAiJobModel {
+        try await request(path: "/ai/jobs/\(escapedPath(id))")
+    }
+
     func updateJournalPreferences(_ patch: [String: JSONValue]) async throws -> JournalPreferencesModel {
         try await request(path: "/preferences/journal", method: "PATCH", body: patch)
     }

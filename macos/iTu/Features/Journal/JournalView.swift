@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct JournalView: View {
     @Environment(AppModel.self) private var model
-    @State private var destination: JournalDestination = .overview
+    @SceneStorage("journal.destination") private var destinationRaw = JournalDestination.overview.rawValue
     @State private var selectedNoteID: String?
     @State private var title = ""
     @State private var content = ""
@@ -13,6 +13,7 @@ struct JournalView: View {
     @State private var loadError: String?
     @State private var saveError: String?
     @State private var isWeeklyReview = false
+    @State private var isDailyReview = false
     @State private var editorMode = "LIVE"
     @State private var selectedTagIDs: Set<String> = []
     @State private var filterKind = "ALL"
@@ -24,8 +25,12 @@ struct JournalView: View {
     @State private var reviewWentWell = ""
     @State private var reviewFriction = ""
     @State private var reviewNextWeek = ""
+    @State private var reviewLearned = ""
+    @State private var reviewDifferent = ""
     @State private var reviewSummary: [String: JSONValue] = [:]
     @State private var weeklySummaryMessage: String?
+    @State private var reviewAiMessage: String?
+    @State private var isGeneratingReviewInsights = false
     @State private var showFileImporter = false
     @State private var editingTemplateID: String?
     @State private var templateNameDraft = ""
@@ -35,6 +40,10 @@ struct JournalView: View {
 
     private static var today: String {
         iTuCalendarSupport.dayString()
+    }
+
+    private var destination: JournalDestination {
+        JournalDestination(rawValue: destinationRaw) ?? .overview
     }
 
     var body: some View {
@@ -62,7 +71,11 @@ struct JournalView: View {
             .background(iTuTheme.canvas)
         }
         .background(iTuTheme.canvas)
-        .task { await loadNotes() }
+        .task {
+            await model.refreshCoordinator.run(.journal) {
+                await model.loadJournalNotes()
+            }
+        }
         .alert("Move note to Trash?", isPresented: Binding(get: { deleteNoteID != nil }, set: { if !$0 { deleteNoteID = nil } })) {
             Button("Move to Trash", role: .destructive) {
                 if let id = deleteNoteID { Task { await model.deleteJournalNote(id: id) } }
@@ -118,7 +131,7 @@ struct JournalView: View {
             }
             Spacer()
             HStack(spacing: 8) {
-                Button { destination = .notes } label: { Label("Search", systemImage: "magnifyingglass") }
+                Button { destinationRaw = JournalDestination.notes.rawValue } label: { Label("Search", systemImage: "magnifyingglass") }
                     .buttonStyle(iTuSecondaryButtonStyle(height: 34))
                 Button { newNote() } label: { Label("New note", systemImage: "plus") }
                     .buttonStyle(iTuPrimaryButtonStyle(height: 34))
@@ -236,7 +249,7 @@ struct JournalView: View {
 
     private func navigationButton(_ title: String, icon: String, destination: JournalDestination) -> some View {
         Button {
-            self.destination = destination
+            destinationRaw = destination.rawValue
             if destination == .daily, let todayNote {
                 open(todayNote)
             }
@@ -300,8 +313,12 @@ struct JournalView: View {
                     Text("Notes can stay rough. Start with the thought, then return when you have more shape.")
                         .font(.system(size: 13))
                         .foregroundStyle(iTuTheme.ink)
-                    Button { destination = .weekly } label: {
+                    Button { destinationRaw = JournalDestination.weekly.rawValue } label: {
                         HStack { Text("Weekly review"); Spacer(); Image(systemName: "arrow.right") }
+                    }
+                    .buttonStyle(iTuGhostButtonStyle())
+                    Button { newDailyReview() } label: {
+                        HStack { Text("Daily review"); Spacer(); Image(systemName: "arrow.right") }
                     }
                     .buttonStyle(iTuGhostButtonStyle())
                 }
@@ -310,7 +327,7 @@ struct JournalView: View {
                 .iTuPanel(radius: 14)
             }
 
-            sectionHeader("RECENT WRITING", actionTitle: "Browse all notes") { destination = .notes }
+                    sectionHeader("RECENT WRITING", actionTitle: "Browse all notes") { destinationRaw = JournalDestination.notes.rawValue }
             if recentNotes.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "doc.text").font(.title2).foregroundStyle(iTuTheme.teal)
@@ -333,10 +350,10 @@ struct JournalView: View {
     private var editor: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Button { destination = .overview } label: { Label("Journal overview", systemImage: "chevron.left") }
+                Button { destinationRaw = JournalDestination.overview.rawValue } label: { Label("Journal overview", systemImage: "chevron.left") }
                     .buttonStyle(iTuGhostButtonStyle())
                 Spacer()
-                Text(isSaving ? "Saving…" : (isWeeklyReview ? "Weekly review" : "Note"))
+                Text(isSaving ? "Saving…" : (isWeeklyReview ? "Weekly review" : (isDailyReview ? "Daily review" : "Note")))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(iTuTheme.inkDim)
                     if selectedNoteID != nil {
@@ -395,6 +412,8 @@ struct JournalView: View {
                 }
                 tagPicker
                 if isWeeklyReview { weeklyReviewFields }
+                if isDailyReview { dailyReviewFields }
+                if selectedNoteID != nil && (isWeeklyReview || isDailyReview) { reviewAiControls }
                 if selectedNoteID != nil { attachmentsAndRevisions }
             }
             .padding(22)
@@ -444,11 +463,55 @@ struct JournalView: View {
                 .foregroundStyle(iTuTheme.ink)
                 .tint(iTuTheme.teal)
                 .lineLimit(2...5)
+            TextField("What did I learn or notice?", text: $reviewLearned, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(2...5)
+            TextField("What felt different from last week?", text: $reviewDifferent, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(2...5)
             TextField("What is next week’s focus?", text: $reviewNextWeek, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .foregroundStyle(iTuTheme.ink)
                 .tint(iTuTheme.teal)
                 .lineLimit(2...5)
+        }
+    }
+
+    private var dailyReviewFields: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("DAILY REVIEW · \(entryDate)").font(.system(size: 10, weight: .bold)).tracking(1.1).foregroundStyle(iTuTheme.inkDim)
+            TextField("What went well?", text: $reviewWentWell, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(2...5)
+            TextField("What felt difficult or distracting?", text: $reviewFriction, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(2...5)
+            TextField("What did I learn or notice?", text: $reviewLearned, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(2...5)
+            TextField("Anything important the data doesn’t show?", text: $reviewDifferent, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(2...5)
+        }
+    }
+
+    private var reviewAiControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Button(isGeneratingReviewInsights ? "Generating…" : "Generate AI insights") {
+                    guard let selectedNoteID else { return }
+                    isGeneratingReviewInsights = true
+                    reviewAiMessage = nil
+                    Task {
+                        reviewAiMessage = await model.generateReviewInsights(entryID: selectedNoteID)
+                        isGeneratingReviewInsights = false
+                    }
+                }
+                .buttonStyle(iTuSecondaryButtonStyle(height: 34))
+                .disabled(isGeneratingReviewInsights || isSaving)
+                if let reviewAiMessage { Text(reviewAiMessage).font(.system(size: 11)).foregroundStyle(iTuTheme.inkDim) }
+            }
+            if let output = selectedReviewAiOutput {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(output.headline).font(.system(size: 15, weight: .semibold))
+                    Text(output.summary).font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim)
+                    ForEach(output.insights, id: \.title) { insight in
+                        Text("• \(insight.title): \(insight.body)").font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim)
+                    }
+                }
+            }
         }
     }
 
@@ -497,6 +560,7 @@ struct JournalView: View {
                     Picker("Kind", selection: $filterKind) {
                         Text("All kinds").tag("ALL")
                         Text("Notes").tag("NOTE")
+                        Text("Daily reviews").tag("DAILY_REVIEW")
                         Text("Weekly reviews").tag("WEEKLY_REVIEW")
                     }
                     .pickerStyle(.menu)
@@ -619,7 +683,7 @@ struct JournalView: View {
             Text(title.uppercased()).font(.system(size: 10, weight: .bold)).tracking(1.3).foregroundStyle(iTuTheme.mint)
             Text("Not available on macOS yet").font(.system(size: 28, weight: .bold, design: .rounded))
             Text(detail).font(.system(size: 14)).foregroundStyle(iTuTheme.inkDim).frame(maxWidth: 560, alignment: .leading)
-            Button("Back to overview") { destination = .overview }.buttonStyle(iTuPrimaryButtonStyle(height: 34))
+            Button("Back to overview") { destinationRaw = JournalDestination.overview.rawValue }.buttonStyle(iTuPrimaryButtonStyle(height: 34))
         }
         .padding(26)
         .iTuPanel(radius: 14)
@@ -672,6 +736,25 @@ struct JournalView: View {
         model.journalNotes.first { $0.kind == "NOTE" && $0.displayDate == Self.today }
     }
 
+    private var selectedReviewAiOutput: ReviewAiDisplay? {
+        guard let selectedNoteID,
+              let note = model.currentSnapshot.journalNotes.first(where: { $0.id == selectedNoteID }),
+              let value = note.dailyReview?.aiInsightsSnapshot ?? note.weeklyReview?.aiInsightsSnapshot,
+              case let .object(fields) = value,
+              let headline = fields["headline"]?.stringValue,
+              let summary = fields["summary"]?.stringValue else { return nil }
+        let insights: [ReviewAiDisplayInsight] = fields["insights"].flatMap { value in
+            guard case let .array(values) = value else { return nil }
+            return values.compactMap { value -> ReviewAiDisplayInsight? in
+                guard case let .object(fields) = value,
+                      let title = fields["title"]?.stringValue,
+                      let body = fields["body"]?.stringValue else { return nil }
+                return ReviewAiDisplayInsight(title: title, body: body)
+            }
+        } ?? []
+        return ReviewAiDisplay(headline: headline, summary: summary, insights: insights)
+    }
+
     private var recentNotes: [JournalNoteModel] { Array(model.journalNotes.prefix(6)) }
 
     private var filteredNotes: [JournalNoteModel] {
@@ -691,6 +774,7 @@ struct JournalView: View {
     private func newNote() {
         selectedNoteID = nil
         isWeeklyReview = false
+        isDailyReview = false
         editorMode = Self.nativeEditorMode(model.settingsStore.journalDefaultEditorMode)
         title = ""
         content = ""
@@ -701,35 +785,50 @@ struct JournalView: View {
         reviewWentWell = ""
         reviewFriction = ""
         reviewNextWeek = ""
+        reviewLearned = ""
+        reviewDifferent = ""
         reviewSummary = [:]
         weeklySummaryMessage = nil
+        reviewAiMessage = nil
         saveError = nil
-        destination = .daily
+        destinationRaw = JournalDestination.daily.rawValue
+    }
+
+    private func newDailyReview() {
+        newNote()
+        isDailyReview = true
+        title = "Daily review"
     }
 
     private func open(_ note: JournalNoteModel) {
         selectedNoteID = note.id
         isWeeklyReview = note.kind == "WEEKLY_REVIEW"
+        isDailyReview = note.kind == "DAILY_REVIEW"
         editorMode = Self.nativeEditorMode(model.settingsStore.journalDefaultEditorMode)
         title = note.title
         content = note.contentMarkdown
         entryDate = note.displayDate
         selectedTagIDs = Set(note.tagIds)
         let review = note.weeklyReview
-        reviewPeriodStart = String((review?.periodStart ?? note.displayDate).prefix(10))
-        reviewPeriodEnd = String((review?.periodEnd ?? note.displayDate).prefix(10))
-        reviewWentWell = review?.wentWellMarkdown ?? ""
-        reviewFriction = review?.frictionMarkdown ?? ""
+        let daily = note.dailyReview
+        reviewPeriodStart = String((daily?.periodDate ?? review?.periodStart ?? note.displayDate).prefix(10))
+        reviewPeriodEnd = String((daily?.periodDate ?? review?.periodEnd ?? note.displayDate).prefix(10))
+        reviewWentWell = daily?.wentWellMarkdown ?? review?.wentWellMarkdown ?? ""
+        reviewFriction = daily?.frictionMarkdown ?? review?.frictionMarkdown ?? ""
         reviewNextWeek = review?.nextWeekMarkdown ?? ""
-        reviewSummary = review?.summarySnapshot ?? [:]
+        reviewLearned = daily?.learnedMarkdown ?? review?.learnedMarkdown ?? ""
+        reviewDifferent = daily?.contextMarkdown ?? review?.differentFromLastWeekMarkdown ?? ""
+        reviewSummary = daily?.summarySnapshot ?? review?.summarySnapshot ?? [:]
+        reviewAiMessage = nil
         weeklySummaryMessage = nil
         saveError = nil
-        destination = .daily
+        destinationRaw = JournalDestination.daily.rawValue
     }
 
     private func newReview() {
         newNote()
         isWeeklyReview = true
+        isDailyReview = false
         title = "Weekly review"
         let range = iTuCalendarSupport.weekRange(weekStartDay: model.settingsStore.journalWeekStartDay)
         reviewPeriodStart = range.start
@@ -746,9 +845,12 @@ struct JournalView: View {
         Task {
             let saved: JournalNoteModel?
             if isWeeklyReview {
-                let review = JournalWeeklyReviewModel(entryId: selectedNoteID ?? "", periodStart: reviewPeriodStart, periodEnd: reviewPeriodEnd, summarySnapshot: reviewSummary, wentWellMarkdown: reviewWentWell.isEmpty ? nil : reviewWentWell, frictionMarkdown: reviewFriction.isEmpty ? nil : reviewFriction, nextWeekMarkdown: reviewNextWeek.isEmpty ? nil : reviewNextWeek, experimentSnapshot: nil)
-                let combined = [reviewWentWell, reviewFriction, reviewNextWeek].filter { !$0.isEmpty }.joined(separator: "\n\n")
+                let review = JournalWeeklyReviewModel(entryId: selectedNoteID ?? "", periodStart: reviewPeriodStart, periodEnd: reviewPeriodEnd, summarySnapshot: reviewSummary, wentWellMarkdown: reviewWentWell.isEmpty ? nil : reviewWentWell, frictionMarkdown: reviewFriction.isEmpty ? nil : reviewFriction, learnedMarkdown: reviewLearned.isEmpty ? nil : reviewLearned, differentFromLastWeekMarkdown: reviewDifferent.isEmpty ? nil : reviewDifferent, nextWeekMarkdown: reviewNextWeek.isEmpty ? nil : reviewNextWeek, experimentSnapshot: nil)
+                let combined = [reviewWentWell, reviewFriction, reviewLearned, reviewDifferent, reviewNextWeek].filter { !$0.isEmpty }.joined(separator: "\n\n")
                 saved = await model.saveWeeklyReview(id: selectedNoteID, title: trimmedTitle.isEmpty ? "Weekly review" : trimmedTitle, contentMarkdown: combined.isEmpty ? content : combined, entryDate: reviewPeriodStart, review: review, tagIds: Array(selectedTagIDs))
+            } else if isDailyReview {
+                let daily = JournalDailyReviewModel(entryId: selectedNoteID ?? "", periodDate: entryDate, summarySnapshot: reviewSummary, wentWellMarkdown: reviewWentWell.isEmpty ? nil : reviewWentWell, frictionMarkdown: reviewFriction.isEmpty ? nil : reviewFriction, learnedMarkdown: reviewLearned.isEmpty ? nil : reviewLearned, contextMarkdown: reviewDifferent.isEmpty ? nil : reviewDifferent)
+                saved = await model.saveDailyReview(id: selectedNoteID, title: trimmedTitle.isEmpty ? "Daily review" : trimmedTitle, contentMarkdown: content, entryDate: entryDate, review: daily, tagIds: Array(selectedTagIDs))
             } else {
                 saved = await model.saveJournalNote(id: selectedNoteID, title: trimmedTitle.isEmpty ? "Untitled note" : trimmedTitle, contentMarkdown: content, entryDate: entryDate, tagIds: Array(selectedTagIDs))
             }
@@ -782,10 +884,21 @@ struct JournalView: View {
     }
 }
 
-private enum JournalDestination: Hashable {
+private enum JournalDestination: String, Hashable {
     case overview
     case daily
     case weekly
     case notes
     case templates
+}
+
+private struct ReviewAiDisplay {
+    let headline: String
+    let summary: String
+    let insights: [ReviewAiDisplayInsight]
+}
+
+private struct ReviewAiDisplayInsight {
+    let title: String
+    let body: String
 }

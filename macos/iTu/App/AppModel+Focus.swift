@@ -40,7 +40,9 @@ extension AppModel {
             await self?.refreshFocusData(generation: generation)
         }
         focusRefreshTask = refreshTask
+        AppPerformanceSignposts.emitRefreshStarted(sectionName: AppSection.focus.rawValue)
         await refreshTask.value
+        AppPerformanceSignposts.emitRefreshCompleted(sectionName: AppSection.focus.rawValue)
         if sessionGeneration == generation {
             focusRefreshTask = nil
         }

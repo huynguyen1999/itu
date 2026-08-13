@@ -1,5 +1,13 @@
 # Project Progress
 
+## Completed: Phase 1 Review Insights
+
+- Added durable `DAILY_REVIEW` Journal entries, extended Weekly Review reflections/comparisons, sync/revision persistence, and an additive Prisma migration.
+- Added deterministic, timezone-aware review aggregation across Tasks, Focus, Learning, Habits, Journal, Gym, Budget, app usage, and non-private website usage with coverage metadata, evidence IDs, and current-vs-immediately-previous-week comparison.
+- Added structured Gemini Review Insights behind the existing `IAiProvider` and durable `AiJob`/RabbitMQ workflow, including prompt-injection resistance, evidence validation, stale source-version protection, stable failures, and preservation of previous successful results.
+- Added Web Daily/Weekly Review reflection, comparison, AI generation, polling, stale/error states, and compact metrics; added corresponding macOS models, offline persistence, sync mapping, UI, and generation behavior.
+- Verification: API 72 suites / 328 tests, typecheck, and build; Web 57 files / 309 tests, typecheck, and build. A signed macOS build/test passed before final replay hardening; the final native rerun is blocked by pre-existing Swift 6 compile errors in `AppPerformanceSignposts.swift` and `EisenhowerMatrixView.swift`. The additive review migration remains undeployed; live Gemini and authenticated visual/two-device acceptance remain deployment checks.
+
 ## Completed deployment: architecture drift remediation
 
 - API Calendar orchestration now depends on typed repository and integration ports; Prisma, HTTP/SSRF, OAuth, crypto, ICS parsing, and scheduling live in infrastructure. Preferences and Journal persistence also use typed ports, while existing REST/OpenAPI behavior is preserved.

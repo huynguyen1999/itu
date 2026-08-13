@@ -35,6 +35,7 @@ describe('SyncService', () => {
     const queue: jest.Mocked<IQueueJobHandler> = {
       enqueueCardSuggestions: jest.fn().mockResolvedValue(undefined),
       enqueueSessionFeedback: jest.fn().mockResolvedValue(undefined),
+      enqueueReviewInsights: jest.fn().mockResolvedValue(undefined),
       enqueueScheduledJob: jest.fn().mockResolvedValue(undefined),
       enqueueSyncInvalidation: jest.fn().mockResolvedValue(undefined),
     };
@@ -160,6 +161,7 @@ describe('SyncService', () => {
     return {
       enqueueCardSuggestions: jest.fn(),
       enqueueSessionFeedback: jest.fn(),
+      enqueueReviewInsights: jest.fn(),
       enqueueScheduledJob: jest.fn(),
       enqueueSyncInvalidation: jest.fn(),
     };

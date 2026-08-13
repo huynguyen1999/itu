@@ -13,10 +13,9 @@ export class PrismaJournalWeeklyReviewRepository implements IJournalWeeklyReview
   async getSnapshotData(userId: string, periodStart: Date, periodEnd: Date): Promise<JournalWeeklyReviewSnapshotData> {
     const [tasksCompleted, focusStats, habitStats, reviews, expensesRaw, workouts, growthLedgerSum] = await Promise.all([
       this.prisma.task.count({ where: { userId, completedAt: { gte: periodStart, lte: periodEnd } } }),
-      this.prisma.focusSession.aggregate({
+      this.prisma.focusSession.findMany({
         where: { userId, completedAt: { gte: periodStart, lte: periodEnd } },
-        _sum: { plannedSeconds: true },
-        _count: true,
+        select: { startedAt: true, completedAt: true, adjustedStartedAt: true, adjustedCompletedAt: true, accumulatedPauseSecs: true },
       }),
       this.prisma.habitOccurrence.aggregate({
         where: { habit: { userId }, occurrenceDate: { gte: periodStart, lte: periodEnd } },
@@ -45,8 +44,12 @@ export class PrismaJournalWeeklyReviewRepository implements IJournalWeeklyReview
 
     return {
       tasksCompleted,
-      focusPlannedSeconds: focusStats._sum?.plannedSeconds ?? 0,
-      focusSessions: focusStats._count ?? 0,
+      focusActualSeconds: focusStats.reduce((total, session) => {
+        const start = session.adjustedStartedAt ?? session.startedAt;
+        const end = session.adjustedCompletedAt ?? session.completedAt ?? start;
+        return total + Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000) - session.accumulatedPauseSecs);
+      }, 0),
+      focusSessions: focusStats.length,
       habitsScheduled: habitStats._count ?? 0,
       habitsCompleted,
       reviews,

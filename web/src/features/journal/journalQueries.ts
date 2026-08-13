@@ -60,10 +60,17 @@ export const journalQueries = {
     queryOptions({
       queryKey: ['journal-weekly-summary', periodStart, periodEnd],
       queryFn: async () => {
-        const res = await api.get<Record<string, any>>('/journal/weekly-summary', { params: { periodStart, periodEnd } });
+        const res = await api.get<Record<string, any>>('/journal/weekly-summary', { params: { periodStart, periodEnd, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
         return res.data;
       },
       enabled: Boolean(periodStart && periodEnd),
+    }),
+
+  dailySummary: (date: string) =>
+    queryOptions({
+      queryKey: ['journal-daily-summary', date],
+      queryFn: async () => (await api.get<Record<string, any>>('/journal/daily-summary', { params: { date, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } })).data,
+      enabled: Boolean(date),
     }),
 };
 
@@ -89,4 +96,8 @@ export function useJournalTags() {
 
 export function useWeeklySummary(periodStart: string, periodEnd: string) {
   return useQuery(journalQueries.weeklySummary(periodStart, periodEnd));
+}
+
+export function useDailySummary(date: string) {
+  return useQuery(journalQueries.dailySummary(date));
 }

@@ -11,12 +11,14 @@ import { ScheduledJobDispatcher } from './scheduled-job.dispatcher';
 import { ScheduledJobProcessor } from './scheduled-job.processor';
 import { SyncJobProcessor } from './sync-job.processor';
 import { LocalMediaStorage } from '@infrastructure/media/local-media-storage';
+import { ReviewContextBuilder } from '@core/application/use-cases/review-context.builder';
 
 @Module({
   imports: [PersistenceModule, AiProviderModule, JwtModule],
   controllers: [RabbitMqMessageController],
   providers: [
     AiQueueJobProcessor,
+    ReviewContextBuilder,
     ScheduledJobProcessor,
     ScheduledJobDispatcher,
     SyncJobProcessor,

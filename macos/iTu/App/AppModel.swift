@@ -173,6 +173,64 @@ enum UndoRegistration: Sendable {
     case suppress
 }
 
+enum RefreshDomain: Hashable {
+    case focus
+    case calendar(String)
+    case statistics
+    case usage
+    case budget
+    case gym
+    case journal
+    case notifications
+    case trash
+
+    var rawValue: String {
+        switch self {
+        case .focus: "focus"
+        case .calendar(let range): "calendar:\(range)"
+        case .statistics: "statistics"
+        case .usage: "usage"
+        case .budget: "budget"
+        case .gym: "gym"
+        case .journal: "journal"
+        case .notifications: "notifications"
+        case .trash: "trash"
+        }
+    }
+}
+
+@MainActor
+final class FeatureRefreshCoordinator {
+    private var lastSuccessfulRefresh: [RefreshDomain: Date] = [:]
+    private var inFlight: [RefreshDomain: Task<Void, Never>] = [:]
+
+    func run(
+        _ domain: RefreshDomain,
+        force: Bool = false,
+        operation: @escaping @MainActor () async -> Void
+    ) async {
+        if !force,
+           let lastRefresh = lastSuccessfulRefresh[domain],
+           Date().timeIntervalSince(lastRefresh) < 5 * 60 {
+            return
+        }
+        if let task = inFlight[domain] {
+            await task.value
+            return
+        }
+
+        AppPerformanceSignposts.emitRefreshStarted(sectionName: domain.rawValue)
+        let task = Task { @MainActor [weak self] in
+            await operation()
+            self?.lastSuccessfulRefresh[domain] = Date()
+            AppPerformanceSignposts.emitRefreshCompleted(sectionName: domain.rawValue)
+        }
+        inFlight[domain] = task
+        await task.value
+        inFlight[domain] = nil
+    }
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -278,6 +336,7 @@ final class AppModel {
     @ObservationIgnored var usageSessionStore: UsageSessionStore?
     @ObservationIgnored var usageCheckpointTimer: Timer?
     @ObservationIgnored var usageWakeObserver: NSObjectProtocol?
+    @ObservationIgnored let refreshCoordinator = FeatureRefreshCoordinator()
 
     func enqueueNotice(_ notice: AppNotice) {
         noticeQueue.append(notice)
@@ -449,85 +508,99 @@ final class AppModel {
             cachedPlanningProjections.removeAll(keepingCapacity: true)
             cachedTaskProjectionDay = nil
         }
-        conflicts = snapshot.conflicts
-        taskLists = snapshot.taskLists
-        sections = snapshot.sections
-        tags = snapshot.tags
-        tagIdsByTaskID = snapshot.tagIdsByTaskID
+        if conflicts != snapshot.conflicts { conflicts = snapshot.conflicts }
+        if taskLists != snapshot.taskLists { taskLists = snapshot.taskLists }
+        if sections != snapshot.sections { sections = snapshot.sections }
+        if tags != snapshot.tags { tags = snapshot.tags }
+        if tagIdsByTaskID != snapshot.tagIdsByTaskID { tagIdsByTaskID = snapshot.tagIdsByTaskID }
     }
 
     private func applyHabitProjection(_ snapshot: OfflineSnapshot) {
-        habits = snapshot.habits
-        habitOccurrences = snapshot.habitOccurrences
-        habitOccurrencesByHabitAndDay = snapshot.habitOccurrences.reduce(into: [:]) { index, occurrence in
-            index[Self.habitOccurrenceKey(habitId: occurrence.habitId, day: occurrence.localDayString)] = occurrence
+        if habits != snapshot.habits { habits = snapshot.habits }
+        if habitOccurrences != snapshot.habitOccurrences {
+            habitOccurrences = snapshot.habitOccurrences
+            habitOccurrencesByHabitAndDay = snapshot.habitOccurrences.reduce(into: [:]) { index, occurrence in
+                index[Self.habitOccurrenceKey(habitId: occurrence.habitId, day: occurrence.localDayString)] = occurrence
+            }
         }
     }
 
     private func applyLearningProjection(_ snapshot: OfflineSnapshot) {
-        cardsByDeckId = snapshot.cardsByDeckId
-        decks = snapshot.decks
+        if cardsByDeckId != snapshot.cardsByDeckId { cardsByDeckId = snapshot.cardsByDeckId }
+        if decks != snapshot.decks { decks = snapshot.decks }
     }
 
     private func applyGrowthProjection(_ snapshot: OfflineSnapshot) {
-        userCoins = snapshot.userCoins
-        growthLevel = snapshot.growthLevel
-        growthCurrentXp = snapshot.growthCurrentXp
-        growthNextLevelXp = snapshot.growthNextLevelXp
-        growthProgressXp = snapshot.growthProgressXp
-        growthRequiredXp = snapshot.growthRequiredXp
-        attributes = snapshot.attributes.filter {
+        if userCoins != snapshot.userCoins { userCoins = snapshot.userCoins }
+        if growthLevel != snapshot.growthLevel { growthLevel = snapshot.growthLevel }
+        if growthCurrentXp != snapshot.growthCurrentXp { growthCurrentXp = snapshot.growthCurrentXp }
+        if growthNextLevelXp != snapshot.growthNextLevelXp { growthNextLevelXp = snapshot.growthNextLevelXp }
+        if growthProgressXp != snapshot.growthProgressXp { growthProgressXp = snapshot.growthProgressXp }
+        if growthRequiredXp != snapshot.growthRequiredXp { growthRequiredXp = snapshot.growthRequiredXp }
+        let attributes = snapshot.attributes.filter {
             $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "general"
         }
-        skills = snapshot.skills.filter { $0.archivedAt == nil }
-        transactions = snapshot.transactions
-        shopItems = snapshot.shopItems
-        inventoryItems = snapshot.inventoryItems
-        growthProfile = snapshot.growthProfile
-        growthRewardPresets = snapshot.growthRewardPresets
-        growthTaskRewardDefaults = snapshot.growthTaskRewardDefaults
-        growthEarningRules = snapshot.growthEarningRules
-        growthAttributeMappings = snapshot.growthAttributeMappings
+        let skills = snapshot.skills.filter { $0.archivedAt == nil }
+        if self.attributes != attributes { self.attributes = attributes }
+        if self.skills != skills { self.skills = skills }
+        if transactions != snapshot.transactions { transactions = snapshot.transactions }
+        if shopItems != snapshot.shopItems { shopItems = snapshot.shopItems }
+        if inventoryItems != snapshot.inventoryItems { inventoryItems = snapshot.inventoryItems }
+        if growthProfile != snapshot.growthProfile { growthProfile = snapshot.growthProfile }
+        if growthRewardPresets != snapshot.growthRewardPresets { growthRewardPresets = snapshot.growthRewardPresets }
+        if growthTaskRewardDefaults != snapshot.growthTaskRewardDefaults { growthTaskRewardDefaults = snapshot.growthTaskRewardDefaults }
+        if growthEarningRules != snapshot.growthEarningRules { growthEarningRules = snapshot.growthEarningRules }
+        if growthAttributeMappings != snapshot.growthAttributeMappings { growthAttributeMappings = snapshot.growthAttributeMappings }
     }
 
     private func applyBudgetGymProjection(_ snapshot: OfflineSnapshot) {
-        budgetCategories = snapshot.budgetCategories.filter { $0.archivedAt == nil }
-        budgetPeriods = snapshot.budgetPeriods
-        budgetTransactions = snapshot.budgetTransactions.filter { $0.deletedAt == nil }
-        gymExercises = snapshot.gymExercises.filter { $0.deletedAt == nil }
-        gymWorkouts = snapshot.gymWorkouts.filter { $0.deletedAt == nil }
-        budgetPreferences = snapshot.budgetPreferences
-        gymPreferences = snapshot.gymPreferences
+        let budgetCategories = snapshot.budgetCategories.filter { $0.archivedAt == nil }
+        let budgetTransactions = snapshot.budgetTransactions.filter { $0.deletedAt == nil }
+        let gymExercises = snapshot.gymExercises.filter { $0.deletedAt == nil }
+        let gymWorkouts = snapshot.gymWorkouts.filter { $0.deletedAt == nil }
+        if self.budgetCategories != budgetCategories { self.budgetCategories = budgetCategories }
+        if budgetPeriods != snapshot.budgetPeriods { budgetPeriods = snapshot.budgetPeriods }
+        if self.budgetTransactions != budgetTransactions { self.budgetTransactions = budgetTransactions }
+        if self.gymExercises != gymExercises { self.gymExercises = gymExercises }
+        if self.gymWorkouts != gymWorkouts { self.gymWorkouts = gymWorkouts }
+        if budgetPreferences != snapshot.budgetPreferences { budgetPreferences = snapshot.budgetPreferences }
+        if gymPreferences != snapshot.gymPreferences { gymPreferences = snapshot.gymPreferences }
+        rebuildBudgetOverview(period: budgetOverview?.period ?? iTuCalendarSupport.monthString())
     }
 
     private func applyJournalProjection(_ snapshot: OfflineSnapshot) {
-        journalNotes = snapshot.journalNotes.filter { $0.deletedAt == nil }
-        journalTags = snapshot.journalTags
-        journalTemplates = snapshot.journalTemplates.filter { $0.archivedAt == nil }
-        journalRevisionsByEntryID = snapshot.journalRevisionsByEntryID
-        journalPreferences = snapshot.journalPreferences
-        calendarPreferences = snapshot.calendarPreferences
-        settingsStore.journalDefaultEditorMode = journalPreferences.defaultEditorMode.uppercased() == "EDIT" ? "SOURCE" : journalPreferences.defaultEditorMode
-        settingsStore.journalAutoCreateDailyNote = journalPreferences.autoCreateDailyNote
-        settingsStore.journalAutoOpenTodayNote = journalPreferences.autoOpenTodayNote
-        settingsStore.journalWeekStartDay = journalPreferences.weekStartDay
-        settingsStore.journalAutoCreateWeeklyReview = journalPreferences.autoCreateWeeklyReview
+        let journalNotes = snapshot.journalNotes.filter { $0.deletedAt == nil }
+        let journalTemplates = snapshot.journalTemplates.filter { $0.archivedAt == nil }
+        if self.journalNotes != journalNotes { self.journalNotes = journalNotes }
+        if journalTags != snapshot.journalTags { journalTags = snapshot.journalTags }
+        if self.journalTemplates != journalTemplates { self.journalTemplates = journalTemplates }
+        if journalRevisionsByEntryID != snapshot.journalRevisionsByEntryID { journalRevisionsByEntryID = snapshot.journalRevisionsByEntryID }
+        if journalPreferences != snapshot.journalPreferences { journalPreferences = snapshot.journalPreferences }
+        if calendarPreferences != snapshot.calendarPreferences { calendarPreferences = snapshot.calendarPreferences }
+        let preferences = snapshot.journalPreferences
+        let editorMode = preferences.defaultEditorMode.uppercased() == "EDIT" ? "SOURCE" : preferences.defaultEditorMode
+        if settingsStore.journalDefaultEditorMode != editorMode { settingsStore.journalDefaultEditorMode = editorMode }
+        if settingsStore.journalAutoCreateDailyNote != preferences.autoCreateDailyNote { settingsStore.journalAutoCreateDailyNote = preferences.autoCreateDailyNote }
+        if settingsStore.journalAutoOpenTodayNote != preferences.autoOpenTodayNote { settingsStore.journalAutoOpenTodayNote = preferences.autoOpenTodayNote }
+        if settingsStore.journalWeekStartDay != preferences.weekStartDay { settingsStore.journalWeekStartDay = preferences.weekStartDay }
+        if settingsStore.journalAutoCreateWeeklyReview != preferences.autoCreateWeeklyReview { settingsStore.journalAutoCreateWeeklyReview = preferences.autoCreateWeeklyReview }
     }
 
     private func applyUsageProjection(_ snapshot: OfflineSnapshot) {
-        localUsageSummaries = snapshot.usageSummaries
-        localWebsiteUsageSummaries = snapshot.websiteUsageSummaries
+        if localUsageSummaries != snapshot.usageSummaries { localUsageSummaries = snapshot.usageSummaries }
+        if localWebsiteUsageSummaries != snapshot.websiteUsageSummaries { localWebsiteUsageSummaries = snapshot.websiteUsageSummaries }
     }
 
     private func applyFocusProjection(_ snapshot: OfflineSnapshot) {
         let active = snapshot.focusSessions.first {
             $0.status == .active || $0.status == .paused
         }
-        focusTimer.apply(active: active)
+        if focusTimer.activeSession != active { focusTimer.apply(active: active) }
         updateFocusPolicy()
-        focusTimer.history = snapshot.focusSessions.filter {
+        let history = snapshot.focusSessions.filter {
             $0.status == .completed || $0.status == .abandoned
         }
+        if focusTimer.history != history { focusTimer.history = history }
     }
 
     func localDateString(offset: Int) -> String {

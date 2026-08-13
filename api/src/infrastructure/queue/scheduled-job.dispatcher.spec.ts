@@ -23,6 +23,7 @@ describe('ScheduledJobDispatcher', () => {
     queue = {
       enqueueCardSuggestions: jest.fn(),
       enqueueSessionFeedback: jest.fn(),
+      enqueueReviewInsights: jest.fn(),
       enqueueScheduledJob: jest.fn(),
       enqueueSyncInvalidation: jest.fn(),
     };

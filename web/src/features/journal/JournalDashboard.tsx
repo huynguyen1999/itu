@@ -51,9 +51,18 @@ export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
   };
 
   const handleCreateNew = (kind: JournalEntryKind) => {
+    if (kind === 'DAILY_REVIEW') {
+      navigate('/journal/review/daily/new');
+      return;
+    }
+    if (kind === 'WEEKLY_REVIEW') {
+      navigate('/journal/weekly/new');
+      return;
+    }
     const newId = createUlid();
     const titleMap = {
       NOTE: `Note — ${new Date().toLocaleDateString()}`,
+      DAILY_REVIEW: `Daily Review — ${new Date().toLocaleDateString()}`,
       WEEKLY_REVIEW: `Weekly Review — Week ${getWeekNumber(new Date())}`,
     };
     navigate(`/journal/entry/${newId}`, {
@@ -129,6 +138,15 @@ export function JournalDashboard({ defaultKind }: JournalDashboardProps) {
               className="w-full justify-between px-2 text-left"
             >
               Weekly review
+              <span aria-hidden="true">→</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/journal/review/daily/new')}
+              className="w-full justify-between px-2 text-left"
+            >
+              Daily review
               <span aria-hidden="true">→</span>
             </Button>
           </div>

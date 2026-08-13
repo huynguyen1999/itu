@@ -63,17 +63,14 @@ extension Color {
 struct CalendarEventCard: View {
     let item: CalendarItem
     var density: CalendarEventCardDensity = .regular
+    var titleLineLimit: Int = 1
+    var showsMetadata: Bool = true
     var onSelect: (() -> Void)? = nil
 
     private var isCompact: Bool { density == .compact }
 
     private var cardColor: Color {
-        if let color = Color.fromHex(item.color) {
-            return color
-        }
-        if item.kind == "FOCUS_SESSION" { return Color(hex: 0x8B6FC9) }
-        if item.kind == "TASK_DUE" { return iTuTheme.amber }
-        return iTuTheme.teal
+        Color.calendarColor(kind: item.kind, sourceColor: item.color)
     }
 
     private var isDueOnly: Bool {
@@ -99,15 +96,15 @@ struct CalendarEventCard: View {
             Text(item.title)
                 .font(.system(size: isCompact ? 11 : 12.5, weight: .semibold))
                 .foregroundStyle(iTuTheme.ink)
-                .lineLimit(isCompact ? 1 : 2)
+                .lineLimit(isCompact ? titleLineLimit : 2)
 
             // Time / Due section with divider
-            if isDueOnly {
+            if showsMetadata && isDueOnly {
                 Divider().background(Color.white.opacity(0.12))
                 Text("Due \(formatTime(item.dueAt ?? item.start))")
                     .font(.system(size: isCompact ? 9 : 10.5, weight: .medium, design: .monospaced))
                     .foregroundStyle(iTuTheme.amber)
-            } else if hasDuration || !item.allDay {
+            } else if showsMetadata && (hasDuration || !item.allDay) {
                 Divider().background(Color.white.opacity(0.12))
                 VStack(alignment: .leading, spacing: 1) {
                     timeLabel(item.start, fontSize: isCompact ? 8.5 : 9.5)
@@ -122,7 +119,7 @@ struct CalendarEventCard: View {
         }
         .padding(.leading, isCompact ? 10 : 14)
         .padding(.trailing, isCompact ? 6 : 10)
-        .padding(.vertical, isCompact ? 4 : 8)
+        .padding(.vertical, isCompact ? 2 : 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(cardColor.opacity(isCompact ? 0.16 : 0.18))
         .clipShape(RoundedRectangle(cornerRadius: isCompact ? 6 : 9, style: .continuous))
@@ -178,5 +175,23 @@ struct CalendarEventCard: View {
                 }
             }
         }
+    }
+}
+
+extension Color {
+    static func calendarColor(kind: String, sourceColor: String?) -> Color {
+        if let hex = fromHex(sourceColor) { return hex }
+        switch sourceColor?.uppercased() {
+        case "TEAL": return iTuTheme.teal
+        case "BLUE": return iTuTheme.syncBlue
+        case "AMBER": return iTuTheme.amber
+        case "CORAL", "ROSE": return iTuTheme.coral
+        case "VIOLET", "FOCUS": return Color(hex: 0x8B6FC9)
+        case "EMERALD": return iTuTheme.mint
+        default: break
+        }
+        if kind == "FOCUS_SESSION" { return Color(hex: 0x8B6FC9) }
+        if kind == "TASK_DUE" { return iTuTheme.amber }
+        return iTuTheme.teal
     }
 }

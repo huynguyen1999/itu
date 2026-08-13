@@ -40,7 +40,11 @@ struct NotificationsView: View {
         }
         .iTuPinnedHeader { headerBar }
         .background(iTuTheme.canvas)
-        .onAppear { Task { await model.refreshNotifications() } }
+        .task {
+            await model.refreshCoordinator.run(.notifications) {
+                await model.refreshNotifications()
+            }
+        }
     }
 
     private var headerBar: some View {

@@ -127,6 +127,7 @@ export const REST_ROUTES = {
   refresh: 'refresh',
   register: 'register',
   sessionFeedback: 'session-feedback/:sessionId',
+  reviewInsights: 'review-insights',
   sessions: 'sessions',
   sessionComplete: 'sessions/:sessionId/complete',
   sessionReviews: 'sessions/:sessionId/reviews',
@@ -291,6 +292,7 @@ export const QUEUE_CONSTANTS = {
   routingKeys: {
     cardSuggestions: 'ai.card-suggestions',
     sessionFeedback: 'ai.session-feedback',
+    reviewInsights: 'ai.review-insights',
     scheduledJob: 'scheduled.job',
     syncInvalidation: 'sync.invalidation',
   },

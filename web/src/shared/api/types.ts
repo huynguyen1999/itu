@@ -175,6 +175,7 @@ export interface AiJob {
   status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
   output?: unknown;
   error?: string | null;
+  input?: unknown;
 }
 
 export interface AiSuggestedCard {

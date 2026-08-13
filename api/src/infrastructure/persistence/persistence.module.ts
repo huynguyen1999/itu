@@ -33,6 +33,8 @@ import {
   PrismaJournalAttachmentRepository,
 } from './prisma/prisma-journal.repository';
 import { PrismaJournalWeeklyReviewRepository } from './prisma/prisma-journal-weekly-review.repository';
+import { PrismaReviewDataSource } from './prisma/prisma-review-data-source';
+import { REVIEW_DATA_SOURCE } from '@core/application/ports/out/review-data-source.port';
 import { PrismaPreferencesRepository } from './prisma/prisma-preferences.repository';
 import {
   JOURNAL_ATTACHMENT_REPOSITORY,
@@ -74,6 +76,7 @@ import { PREFERENCES_REPOSITORY } from '@core/application/ports/out/preferences-
     PrismaJournalTagRepository,
     PrismaJournalAttachmentRepository,
     PrismaJournalWeeklyReviewRepository,
+    PrismaReviewDataSource,
     PrismaPreferencesRepository,
     { provide: TOKENS.USER_REPOSITORY, useExisting: PrismaUserRepository },
     { provide: TOKENS.DECK_REPOSITORY, useExisting: PrismaDeckRepository },
@@ -100,6 +103,7 @@ import { PREFERENCES_REPOSITORY } from '@core/application/ports/out/preferences-
     { provide: JOURNAL_TAG_REPOSITORY, useExisting: PrismaJournalTagRepository },
     { provide: JOURNAL_ATTACHMENT_REPOSITORY, useExisting: PrismaJournalAttachmentRepository },
     { provide: JOURNAL_WEEKLY_REVIEW_QUERY, useExisting: PrismaJournalWeeklyReviewRepository },
+    { provide: REVIEW_DATA_SOURCE, useExisting: PrismaReviewDataSource },
     { provide: PREFERENCES_REPOSITORY, useExisting: PrismaPreferencesRepository },
   ],
   exports: [
@@ -131,6 +135,7 @@ import { PREFERENCES_REPOSITORY } from '@core/application/ports/out/preferences-
     PrismaJournalTagRepository,
     PrismaJournalAttachmentRepository,
     PrismaJournalWeeklyReviewRepository,
+    PrismaReviewDataSource,
     PrismaPreferencesRepository,
     SrsSchedulerService,
     TOKENS.USER_REPOSITORY,
@@ -158,6 +163,7 @@ import { PREFERENCES_REPOSITORY } from '@core/application/ports/out/preferences-
     JOURNAL_TAG_REPOSITORY,
     JOURNAL_ATTACHMENT_REPOSITORY,
     JOURNAL_WEEKLY_REVIEW_QUERY,
+    REVIEW_DATA_SOURCE,
     PREFERENCES_REPOSITORY,
   ],
 })

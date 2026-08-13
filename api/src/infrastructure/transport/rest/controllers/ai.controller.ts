@@ -4,7 +4,7 @@ import { REST_ROUTES, ROUTE_PARAMS } from '@core/application/constants/app.const
 import { AiService } from '@core/application/use-cases/ai.service';
 import { AuthGuard } from '../guards/auth.guard';
 import { AiRateLimitGuard } from '../guards/ai-rate-limit.guard';
-import { AiCardSuggestionDto, AiSessionGradingDto } from '../dto/cards.dto';
+import { AiCardSuggestionDto, AiReviewInsightsDto, AiSessionGradingDto } from '../dto/cards.dto';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
 import { PermissionsGuard } from '../guards/permissions.guard';
 import { RequirePermissions } from '../decorators/require-permissions.decorator';
@@ -74,6 +74,11 @@ export class AiController {
   @Post(REST_ROUTES.sessionFeedback)
   requestSessionFeedback(@Req() req: AuthenticatedRequest, @Param(ROUTE_PARAMS.sessionId) sessionId: string) {
     return this.ai.requestSessionFeedback(req.user.sub, sessionId);
+  }
+
+  @Post(REST_ROUTES.reviewInsights)
+  requestReviewInsights(@Req() req: AuthenticatedRequest, @Body() dto: AiReviewInsightsDto) {
+    return this.ai.requestReviewInsights(req.user.sub, dto.entryId, dto.expectedVersion);
   }
 
   /**

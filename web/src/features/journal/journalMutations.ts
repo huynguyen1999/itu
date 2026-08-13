@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../shared/api/client';
 import { createUlid } from '../../shared/sync/syncIdentity';
-import type { JournalTag, JournalWeeklyReview } from './journal.types';
+import type { JournalDailyReview, JournalTag, JournalWeeklyReview } from './journal.types';
 
 export interface CreateJournalEntryParams {
   id?: string;
-  kind: 'NOTE' | 'WEEKLY_REVIEW';
+  kind: 'NOTE' | 'DAILY_REVIEW' | 'WEEKLY_REVIEW';
   title: string;
   contentMarkdown?: string;
   entryDate: string;
@@ -13,6 +13,7 @@ export interface CreateJournalEntryParams {
   templateId?: string | null;
   tagIds?: string[];
   weeklyReview?: Partial<JournalWeeklyReview> | null;
+  dailyReview?: Partial<JournalDailyReview> | null;
 }
 
 export function useCreateJournalEntryMutation() {
@@ -31,6 +32,7 @@ export function useCreateJournalEntryMutation() {
         templateId: params.templateId || null,
         tagIds: params.tagIds || [],
         weeklyReview: params.weeklyReview,
+        dailyReview: params.dailyReview,
       };
 
       const optimisticEntry = {
@@ -47,6 +49,7 @@ export function useCreateJournalEntryMutation() {
         updatedAt: new Date().toISOString(),
         deletedAt: null,
         weeklyReview: params.weeklyReview || null,
+        dailyReview: params.dailyReview || null,
         tags: [],
         attachments: [],
       };
@@ -90,6 +93,7 @@ export function useUpdateJournalEntryMutation() {
       templateId?: string | null;
       tagIds?: string[];
       weeklyReview?: Partial<JournalWeeklyReview> | null;
+      dailyReview?: Partial<JournalDailyReview> | null;
     }) => {
       const payload: Record<string, unknown> = { ...data };
 
@@ -283,7 +287,7 @@ export function useCreateJournalTemplateMutation() {
   return useMutation({
     mutationFn: async (params: {
       name: string;
-      entryKind: 'NOTE' | 'WEEKLY_REVIEW';
+      entryKind: 'NOTE' | 'DAILY_REVIEW' | 'WEEKLY_REVIEW';
       titleTemplate?: string;
       bodyMarkdown?: string;
       defaults?: Record<string, unknown>;
@@ -312,7 +316,7 @@ export function useCreateJournalTemplateMutation() {
 export interface UpdateJournalTemplateParams {
   id: string;
   name?: string;
-  entryKind?: 'NOTE' | 'WEEKLY_REVIEW';
+  entryKind?: 'NOTE' | 'DAILY_REVIEW' | 'WEEKLY_REVIEW';
   bodyMarkdown?: string;
   titleTemplate?: string;
 }

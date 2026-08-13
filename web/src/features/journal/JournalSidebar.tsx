@@ -4,6 +4,7 @@ import {
   Compass,
   FileSpreadsheet,
   FileText,
+  Sparkles,
   Search,
 } from 'lucide-react';
 import { PointerEvent as ReactPointerEvent, useState } from 'react';
@@ -16,6 +17,7 @@ interface JournalSidebarProps {
 const trackNavigation = [
   { to: '/journal', label: 'Overview', icon: Compass, end: true },
   { to: '/journal/daily', label: 'Daily Notes', icon: Calendar, end: false },
+  { to: '/journal/reviews/daily', label: 'Daily Reviews', icon: Sparkles, end: false },
   { to: '/journal/weekly', label: 'Weekly Reviews', icon: CalendarDays, end: false },
 ] as const;
 

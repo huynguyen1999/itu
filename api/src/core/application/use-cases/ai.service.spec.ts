@@ -61,6 +61,7 @@ describe('AiService', () => {
     queue = {
       enqueueCardSuggestions: jest.fn(),
       enqueueSessionFeedback: jest.fn(),
+      enqueueReviewInsights: jest.fn(),
       enqueueScheduledJob: jest.fn(),
       enqueueSyncInvalidation: jest.fn(),
     };
@@ -75,7 +76,11 @@ describe('AiService', () => {
       streamCards: jest.fn(),
       streamSessionSummary: jest.fn(),
       generateSessionGrading: jest.fn(),
+      generateReviewInsights: jest.fn(),
     };
+    const journal = {
+      findById: jest.fn(),
+    } as any;
     service = new AiService(
       jobs,
       feedback,
@@ -92,6 +97,7 @@ describe('AiService', () => {
         delete: jest.fn(),
       },
       { assertUsable: jest.fn() } as unknown as AiCredentialsService,
+      journal,
     );
   });
 
