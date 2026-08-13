@@ -127,4 +127,48 @@ struct AccountHydrationResources: Sendable {
     var journalNotes: [JournalNoteModel]? = nil
     var journalTags: [JournalTagModel]? = nil
     var journalTemplates: [JournalTemplateModel]? = nil
+
+    init(
+        tasks: [ProductivityTask]? = nil,
+        lists: [TaskListModel]? = nil,
+        sections: [TaskSectionModel]? = nil,
+        tags: [TagModel]? = nil,
+        metadata: [TaskMetadataDTO]? = nil,
+        habits: [HabitModel]? = nil,
+        growth: GrowthOverviewDTO? = nil,
+        skills: [GrowthSkillDTO]? = nil,
+        attributes: [GrowthSkillDTO]? = nil,
+        rewards: [GrowthRewardDTO]? = nil,
+        inventory: [GrowthInventoryDTO]? = nil,
+        ledger: [GrowthLedgerDTO]? = nil,
+        decks: [DeckModel]? = nil,
+        cards: [String: [CardModel]?] = [:],
+        profile: GrowthProfileDTO? = nil,
+        presets: [String: [String: GrowthRewardRuleDTO]]? = nil,
+        taskRules: [GrowthEarningRuleDTO]? = nil,
+        habitRules: [GrowthEarningRuleDTO]? = nil,
+        rewardDefaults: [GrowthTaskRewardDefaultDTO]? = nil,
+        mappings: [GrowthAttributeMappingDTO]? = nil
+    ) {
+        self.tasks = tasks
+        self.lists = lists
+        self.sections = sections
+        self.tags = tags
+        self.metadata = metadata
+        self.habits = habits
+        self.growth = growth
+        self.skills = skills
+        self.attributes = attributes
+        self.rewards = rewards
+        self.inventory = inventory
+        self.ledger = ledger
+        self.decks = decks
+        self.cards = cards
+        self.profile = profile
+        self.presets = presets
+        self.taskRules = taskRules
+        self.habitRules = habitRules
+        self.rewardDefaults = rewardDefaults
+        self.mappings = mappings
+    }
 }

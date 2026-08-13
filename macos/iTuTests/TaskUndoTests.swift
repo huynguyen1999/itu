@@ -6,11 +6,12 @@ final class TaskUndoTests: XCTestCase {
     var model: AppModel!
     var coordinator: TaskUndoCoordinator!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let store = OfflineStore(accountID: "test-undo-account", baseURL: directory)
+        _ = try? await store.load()
         model = AppModel()
         model.offlineStore = store
         coordinator = TaskUndoCoordinator.shared
@@ -37,6 +38,7 @@ final class TaskUndoTests: XCTestCase {
             sortOrder: 0.0,
             version: 1
         )
+        _ = try? await model.offlineStore.applyHydration(AccountHydrationResources(tasks: [task]))
         model.tasks = [task]
 
         await model.setTaskStatus(task, status: .completed)
@@ -50,6 +52,7 @@ final class TaskUndoTests: XCTestCase {
 
     func testSoftDeleteUndoRestoresTask() async {
         let task = ProductivityTask.optimistic(id: "task-undo-2", title: "Task 2 to delete", taskListId: "inbox")
+        _ = try? await model.offlineStore.applyHydration(AccountHydrationResources(tasks: [task]))
         model.tasks = [task]
 
         await model.softDeleteTask(task)
@@ -75,6 +78,7 @@ final class TaskUndoTests: XCTestCase {
                 sortOrder: Double(i),
                 version: 1
             )
+            _ = try? await model.offlineStore.applyHydration(AccountHydrationResources(tasks: [task]))
             model.tasks.append(task)
             await model.setTaskStatus(task, status: .completed)
         }

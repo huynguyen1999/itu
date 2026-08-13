@@ -119,6 +119,7 @@ final class CompanionTests: XCTestCase {
 
     func testPlannedTaskMovesToInProgressFromCompanion() async {
         let task = task("planned", status: .planned)
+        _ = try? await model.offlineStore.applyHydration(AccountHydrationResources(tasks: [task]))
         model.tasks = [task]
 
         await viewModel.toggleTask(task)

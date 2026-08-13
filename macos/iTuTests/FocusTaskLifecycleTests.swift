@@ -5,11 +5,12 @@ import XCTest
 final class FocusTaskLifecycleTests: XCTestCase {
     var model: AppModel!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let store = OfflineStore(accountID: "test-account", baseURL: directory)
+        _ = try? await store.load()
         model = AppModel()
         model.offlineStore = store
     }
@@ -21,6 +22,7 @@ final class FocusTaskLifecycleTests: XCTestCase {
 
     func testStartFocusForPlannedTaskSetsInProgress() async {
         let task = ProductivityTask.optimistic(id: "focus-task-1", title: "Planned Task", taskListId: "inbox")
+        _ = try? await model.offlineStore.applyHydration(AccountHydrationResources(tasks: [task]))
         model.tasks = [task]
         await model.setTaskStatus(task, status: .planned)
         let plannedTask = model.tasks.first(where: { $0.id == task.id })!
@@ -32,6 +34,7 @@ final class FocusTaskLifecycleTests: XCTestCase {
 
     func testStartFocusForInboxTaskSetsInProgress() async {
         let task = ProductivityTask.optimistic(id: "focus-task-2", title: "Inbox Task", taskListId: "inbox")
+        _ = try? await model.offlineStore.applyHydration(AccountHydrationResources(tasks: [task]))
         model.tasks = [task]
 
         await model.startFocus(for: task)
@@ -40,6 +43,7 @@ final class FocusTaskLifecycleTests: XCTestCase {
 
     func testStartFocusForInProgressTaskLeavesInProgress() async {
         let task = ProductivityTask.optimistic(id: "focus-task-3", title: "In Progress Task", taskListId: "inbox")
+        _ = try? await model.offlineStore.applyHydration(AccountHydrationResources(tasks: [task]))
         model.tasks = [task]
 
         await model.startFocus(for: task)
@@ -48,6 +52,7 @@ final class FocusTaskLifecycleTests: XCTestCase {
 
     func testCompletingFocusSessionLeavesTaskInProgress() async {
         let task = ProductivityTask.optimistic(id: "focus-task-4", title: "Focusing Task", taskListId: "inbox")
+        _ = try? await model.offlineStore.applyHydration(AccountHydrationResources(tasks: [task]))
         model.tasks = [task]
 
         await model.startFocus(for: task)
@@ -59,6 +64,7 @@ final class FocusTaskLifecycleTests: XCTestCase {
 
     func testAbandoningFocusSessionLeavesTaskInProgress() async {
         let task = ProductivityTask.optimistic(id: "focus-task-5", title: "Focusing Task 2", taskListId: "inbox")
+        _ = try? await model.offlineStore.applyHydration(AccountHydrationResources(tasks: [task]))
         model.tasks = [task]
 
         await model.startFocus(for: task)
