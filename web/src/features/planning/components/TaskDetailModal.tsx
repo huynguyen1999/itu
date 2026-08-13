@@ -20,6 +20,7 @@ import {
   type PendingReminderChange,
   type ReminderCreateInput,
 } from '../utils/taskReminderDraft';
+import { updateTaskInCalendarCache } from '@/features/calendar/calendarProjection';
 
 export function TaskDetailModal({
   task,
@@ -110,6 +111,9 @@ export function TaskDetailModal({
       if (taskListId !== (task.taskListId ?? task.projectId ?? null)) patch.taskListId = taskListId;
       if (Object.keys(fieldEditedAt).length > 0) patch.fieldEditedAt = fieldEditedAt;
       return api.updateTask(task.id, patch);
+    },
+    onSuccess: (updatedTask) => {
+      updateTaskInCalendarCache(queryClient, updatedTask);
     },
   });
   const [isSaving, setIsSaving] = useState(false);

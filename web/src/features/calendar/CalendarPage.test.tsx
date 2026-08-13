@@ -102,7 +102,7 @@ describe('CalendarPage', () => {
     calendarFixture.timelineItems = [];
   });
 
-  it('stacks multiple all-day items and removes the redundant row label', () => {
+  it('renders all-day items in the Due today strip in day view', () => {
     calendarFixture.preferences = {
       calendar: { zoom: 'DAY', visibleKinds: ['TASK_DURATION', 'TASK_DUE'], showCompleted: true, collapsedGroupIds: [] },
     };
@@ -119,16 +119,14 @@ describe('CalendarPage', () => {
 
     const markup = renderToStaticMarkup(<CalendarPage />);
 
-    expect(markup).toContain('height:96px');
-    expect(markup).toContain('height:126px');
-    expect(markup).toContain('top:96px');
-    expect(markup).toContain('flex flex-col gap-1');
-    expect(markup).not.toContain('>All day</span>');
+    expect(markup).toContain('Due today');
+    expect(markup).toContain('All-day task 1');
+    expect(markup).toContain('All-day task 2');
     calendarFixture.preferences = undefined;
     calendarFixture.timelineItems = [];
   });
 
-  it('grows a source row for overlapping subscription events in day view', () => {
+  it('places overlapping subscription events side-by-side in vertical day view', () => {
     calendarFixture.preferences = {
       calendar: { zoom: 'DAY', visibleKinds: ['EXTERNAL_EVENT'], showCompleted: true, collapsedGroupIds: [] },
     };
@@ -145,15 +143,14 @@ describe('CalendarPage', () => {
     }));
 
     const markup = renderToStaticMarkup(<CalendarPage />);
-    expect(markup).toContain('height:220px');
-    expect(markup).toContain('top:18px');
-    expect(markup).toContain('top:72px');
-    expect(markup).toContain('top:126px');
+    expect(markup).toContain('top:1080px');
+    expect(markup).toContain('height:60px');
+    expect(markup).toContain('width:calc(33.3333');
     calendarFixture.preferences = undefined;
     calendarFixture.timelineItems = [];
   });
 
-  it('renders a multi-day task across all spanned days in week view', () => {
+  it('renders a multi-day task as a single multi-column grid spanning card in week view', () => {
     calendarFixture.preferences = {
       calendar: { zoom: 'WEEK', visibleKinds: ['TASK_DURATION'], showCompleted: true, collapsedGroupIds: [] },
     };
@@ -170,10 +167,10 @@ describe('CalendarPage', () => {
 
     const markup = renderToStaticMarkup(<CalendarPage />);
 
-    // Item renders once per spanned day (continuous spanning item)
+    // Multi-day item renders as a single card element spanning across CSS grid columns
     const matches = markup.match(/aria-label="Build a small T\.\.\., Task, draggable"/g) || [];
-    expect(matches.length).toBe(2);
-
+    expect(matches.length).toBe(1);
+    expect(markup).toContain('grid-column:');
 
     calendarFixture.preferences = undefined;
     calendarFixture.timelineItems = [];
@@ -201,6 +198,30 @@ describe('CalendarPage', () => {
     expect(markupSameDay).toContain(formatSingleTime('2026-08-12T09:00:00.000Z'));
     expect(markupSameDay).toContain(formatSingleTime('2026-08-12T10:30:00.000Z'));
 
+    calendarFixture.preferences = undefined;
+    calendarFixture.timelineItems = [];
+  });
+
+  it('does not include relative position class on absolutely positioned event cards in day view', () => {
+    calendarFixture.preferences = {
+      calendar: { zoom: 'DAY', visibleKinds: ['TASK_DURATION'], showCompleted: true, collapsedGroupIds: [] },
+    };
+    calendarFixture.timelineItems = [
+      {
+        id: 'task-1',
+        kind: 'TASK_DURATION',
+        title: 'Task 1',
+        startAt: '2026-08-12T18:00:00.000Z',
+        endAt: '2026-08-12T19:00:00.000Z',
+        allDay: false,
+        readOnly: false,
+        taskId: 'task-1',
+      },
+    ];
+
+    const markup = renderToStaticMarkup(<CalendarPage />);
+    expect(markup).toContain('absolute z-10');
+    expect(markup).not.toContain('group relative');
     calendarFixture.preferences = undefined;
     calendarFixture.timelineItems = [];
   });

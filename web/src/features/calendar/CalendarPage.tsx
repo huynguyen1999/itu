@@ -28,15 +28,12 @@ import { Button } from '@/shared/ui/button';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { TaskDetailModal } from '../planning/components/TaskDetailModal';
 import {
-  assignOverlapLane,
-  computeDynamicItemTops,
   formatRangeLabel,
   formatSingleTime,
   isArrangeableTask,
   isSameLocalDay,
   itemSpansDay,
   localDayIndex,
-  localMinutesSinceMidnight,
   snapTimestamp,
   shiftAnchor,
   timelineItemColor,
@@ -44,6 +41,8 @@ import {
   type TimelineItemKind,
   type TimelineZoom,
 } from './timeline';
+import { calculateDayCollisions } from './collisionLayout';
+import { projectTaskToCalendarItem, updateTaskInCalendarCache } from './calendarProjection';
 import { CalendarEventCard } from './CalendarEventCard';
 import {
   MAX_VISIBLE_MONTH_LANES,
@@ -79,6 +78,9 @@ const DATE_WIDTH = 168;
 const MONTH_DATE_WIDTH = 112;
 const ALL_DAY_HEIGHT = 34;
 const ALL_DAY_ITEM_HEIGHT = 46;
+const MONTH_DATE_HEADER_HEIGHT = 28;
+const MONTH_LANE_HEIGHT = 28;
+const MONTH_LANE_GAP = 4;
 
 export type CalendarGroup = {
   id: string;
@@ -88,12 +90,22 @@ export type CalendarGroup = {
   items: CalendarTimelineItem[];
 };
 
+export interface ResizePreviewState {
+  itemId: string;
+  taskId: string;
+  edge: 'start' | 'end';
+  startAt: string;
+  endAt: string;
+}
+
 export function CalendarPage() {
   const queryClient = useQueryClient();
   const preferences = useQuery({ queryKey: ['user-preferences'], queryFn: () => api.getPreferences(), retry: 1 });
   const prefValue = (preferences.data as (typeof preferences.data & { calendar?: Partial<CalendarPreferences> }) | undefined)
     ?.calendar;
+
   const currentPreferences = { ...DEFAULT_CALENDAR_PREFERENCES, ...prefValue };
+
   const [zoom, setZoom] = useState<TimelineZoom>(currentPreferences.zoom);
   const [anchor, setAnchor] = useState(() => new Date());
   const [visibleKinds, setVisibleKinds] = useState<TimelineItemKind[]>(currentPreferences.visibleKinds);
@@ -106,15 +118,21 @@ export function CalendarPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [fallbackTask, setFallbackTask] = useState<ProductivityTask | null>(null);
   const [selectedReadonly, setSelectedReadonly] = useState<CalendarTimelineItem | null>(null);
+  const [resizePreview, setResizePreview] = useState<ResizePreviewState | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
+
+  // View Snap-Back Protection: Hydrate preferences once when prefValue arrives asynchronously.
+  const hasHydratedPreferences = useRef(Boolean(prefValue));
   useEffect(() => {
-    if (!prefValue) return;
+    if (!prefValue || hasHydratedPreferences.current) return;
     if (prefValue.zoom) setZoom(prefValue.zoom);
     if (prefValue.visibleKinds) setVisibleKinds(prefValue.visibleKinds);
     if (prefValue.showCompleted !== undefined) setShowCompleted(prefValue.showCompleted);
     if (prefValue.collapsedGroupIds) setCollapsedGroupIds(prefValue.collapsedGroupIds);
     if (prefValue.weekStart) setWeekStart(prefValue.weekStart);
-  }, [prefValue?.zoom, prefValue?.visibleKinds, prefValue?.showCompleted, prefValue?.collapsedGroupIds, prefValue?.weekStart]);
+    hasHydratedPreferences.current = true;
+  }, [prefValue]);
+
   const firstDayOfWeek = resolveFirstDayOfWeek(weekStart);
   const range = useMemo(() => {
     if (zoom === 'MONTH') return monthGridRange(anchor, firstDayOfWeek);
@@ -122,12 +140,20 @@ export function CalendarPage() {
   }, [anchor, zoom, firstDayOfWeek]);
   const from = range.from.toISOString();
   const to = range.to.toISOString();
+
   const timeline = useQuery({ queryKey: timelineKey(from, to), queryFn: () => api.calendarTimeline(from, to), retry: 1 });
   const tasks = useQuery({ queryKey: ['calendar', 'tasks'], queryFn: () => api.tasks({ limit: 100 }), retry: 1 });
   const sources = useQuery({ queryKey: ['calendar', 'sources'], queryFn: () => api.calendarSources(), retry: 1 });
+
   const updatePreferences = useMutation({
     mutationFn: (patch: Partial<CalendarPreferences>) => api.updateCalendarPreferences(patch),
   });
+
+  const selectCalendarZoom = (nextZoom: TimelineZoom) => {
+    setZoom(nextZoom);
+    savePreference({ zoom: nextZoom });
+  };
+
   const updateSource = useMutation({
     mutationFn: ({ id, visible }: { id: string; visible: boolean }) => api.updateCalendarSource(id, { visible }),
     onSuccess: () => {
@@ -135,6 +161,7 @@ export function CalendarPage() {
       void queryClient.invalidateQueries({ queryKey: ['calendar', 'timeline'] });
     },
   });
+
   const addIcs = useMutation({
     mutationFn: ({ url, name }: { url: string; name?: string }) => api.createIcsCalendar({ url, name }),
     onSuccess: () => {
@@ -142,10 +169,12 @@ export function CalendarPage() {
       void queryClient.invalidateQueries({ queryKey: ['calendar', 'timeline'] });
     },
   });
+
   const refreshSource = useMutation({
     mutationFn: (id: string) => api.refreshCalendarSource(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['calendar', 'sources'] }),
   });
+
   const removeSource = useMutation({
     mutationFn: (id: string) => api.deleteCalendarSource(id),
     onSuccess: () => {
@@ -153,13 +182,47 @@ export function CalendarPage() {
       void queryClient.invalidateQueries({ queryKey: ['calendar', 'timeline'] });
     },
   });
+
   const updateTask = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Record<string, unknown> }) => api.updateTask(id, patch),
+    onMutate: async ({ id, patch }) => {
+      const existingTask = taskById.get(id);
+      if (existingTask) {
+        const optimisticTask: ProductivityTask = {
+          ...existingTask,
+          ...(patch as any),
+        };
+        updateTaskInCalendarCache(queryClient, optimisticTask, { showCompleted });
+      }
+    },
+    onSuccess: (updatedTask) => {
+      updateTaskInCalendarCache(queryClient, updatedTask, { showCompleted });
+    },
   });
 
-  const items = (timeline.data?.items ?? []).filter(
-    (item) => visibleKinds.includes(item.kind) && (showCompleted || item.status !== 'COMPLETED'),
-  );
+  const rawItems = timeline.data?.items ?? [];
+  const items = useMemo(() => {
+    let filtered = rawItems.filter(
+      (item) => visibleKinds.includes(item.kind) && (showCompleted || item.status !== 'COMPLETED'),
+    );
+
+    // Apply live resize preview transformation if active
+    if (resizePreview) {
+      filtered = filtered.map((item) => {
+        if (item.id === resizePreview.itemId) {
+          return {
+            ...item,
+            startAt: resizePreview.startAt,
+            endAt: resizePreview.endAt,
+          };
+        }
+        return item;
+      });
+    }
+
+    return filtered;
+  }, [rawItems, visibleKinds, showCompleted, resizePreview]);
+
   const groups = groupCalendarItems(items);
   const days = useMemo(() => {
     if (zoom === 'MONTH') return monthGridDays(anchor, firstDayOfWeek);
@@ -185,6 +248,15 @@ export function CalendarPage() {
     }
   }
 
+  useEffect(() => {
+    if ((zoom === 'DAY' || zoom === 'WEEK') && trackRef.current) {
+      const today = new Date();
+      const isTodayInView = days.some((d) => isSameLocalDay(d, today));
+      const targetHour = isTodayInView ? Math.max(0, today.getHours() - 1) : 8;
+      trackRef.current.scrollTop = targetHour * DAY_HOUR_HEIGHT;
+    }
+  }, [zoom, anchor, days]);
+
   function moveAnchor(direction: -1 | 1) {
     setAnchor(shiftAnchor(anchor, zoom, direction));
   }
@@ -197,9 +269,12 @@ export function CalendarPage() {
     const target = (event.target as HTMLElement).closest<HTMLElement>('[data-calendar-day]');
     const date = target?.dataset.calendarDay ? new Date(target.dataset.calendarDay) : new Date(range.from);
     if (zoom === 'DAY') {
-      const rect = trackRef.current.getBoundingClientRect();
-      const x = event.clientX - rect.left + trackRef.current.scrollLeft - LABEL_WIDTH;
-      date.setHours(Math.floor(Math.max(0, x) / DAY_HOUR_WIDTH), 0, 0, 0);
+      const gridCanvas = (target as HTMLElement) ?? trackRef.current.querySelector<HTMLElement>('[data-calendar-day]') ?? trackRef.current;
+      const rect = gridCanvas.getBoundingClientRect();
+      const y = event.clientY - rect.top;
+      const totalMins = Math.max(0, Math.min(1439, Math.floor((y / (24 * DAY_HOUR_HEIGHT)) * 1440)));
+      const snappedMins = Math.floor(totalMins / 15) * 15;
+      date.setHours(Math.floor(snappedMins / 60), snappedMins % 60, 0, 0);
     } else {
       date.setHours(9, 0, 0, 0);
     }
@@ -211,6 +286,18 @@ export function CalendarPage() {
       : taskShape.dueAt
         ? moveDueTask(taskShape, start)
         : scheduleUnscheduledTask(taskShape, start, getStoredTaskPreferences().defaultDueTime);
+
+    // Optimistically project and mutate
+    if (task) {
+      const updatedMock: ProductivityTask = {
+        ...task,
+        scheduledStartAt: schedule.scheduledStartAt ?? task.scheduledStartAt,
+        scheduledEndAt: schedule.scheduledEndAt ?? task.scheduledEndAt,
+        dueAt: schedule.dueAt ?? task.dueAt,
+      };
+      updateTaskInCalendarCache(queryClient, updatedMock, { showCompleted });
+    }
+
     updateTask.mutate({
       id: payload.id,
       patch: { ...schedule, ...(task?.version !== undefined ? { version: task.version } : {}) },
@@ -232,44 +319,79 @@ export function CalendarPage() {
     event.stopPropagation();
     const originStart = new Date(item.startAt).getTime();
     const originEnd = new Date(item.endAt).getTime();
-    const toTimestamp = (clientX: number) => {
-      const rect = trackRef.current!.getBoundingClientRect();
-      const x = Math.max(0, clientX - rect.left + trackRef.current!.scrollLeft - LABEL_WIDTH);
+
+    const toTimestamp = (clientX: number, clientY: number) => {
       if (zoom === 'DAY') {
+        const gridCanvas = trackRef.current?.querySelector<HTMLElement>('[data-calendar-day]') ?? trackRef.current!;
+        const rect = gridCanvas.getBoundingClientRect();
+        const y = clientY - rect.top;
+        const totalMins = Math.max(0, Math.min(1439, Math.round((y / (24 * DAY_HOUR_HEIGHT)) * 1440)));
+        const snappedMins = Math.round(totalMins / 15) * 15;
         const date = new Date(range.from);
-        date.setHours(Math.floor(x / DAY_HOUR_WIDTH), Math.round(((x % DAY_HOUR_WIDTH) / DAY_HOUR_WIDTH) * 60), 0, 0);
+        date.setHours(Math.floor(snappedMins / 60), snappedMins % 60, 0, 0);
         return snapTimestamp(date, 'DAY');
       }
+      const rect = trackRef.current!.getBoundingClientRect();
+      const x = Math.max(0, clientX - rect.left + trackRef.current!.scrollLeft);
       const width = zoom === 'MONTH' ? MONTH_DATE_WIDTH : DATE_WIDTH;
       const date = new Date(range.from);
       date.setDate(date.getDate() + Math.floor(x / width));
       date.setHours(9, 0, 0, 0);
       return snapTimestamp(date, 'WEEK');
     };
+
+    let latestStartAt = item.startAt;
+    let latestEndAt = item.endAt;
+
     const onMove = (move: PointerEvent) => {
-      const next = toTimestamp(move.clientX).getTime();
+      const next = toTimestamp(move.clientX, move.clientY).getTime();
       const start = edge === 'start' ? next : originStart;
       const end = edge === 'end' ? next : originEnd;
-      if (end <= start) return;
-      queryClient.setQueryData(timelineKey(from, to), (current: { from: string; to: string; items: CalendarTimelineItem[] } | undefined) => current && ({ ...current, items: current.items.map((candidate) => candidate.id === item.id ? { ...candidate, startAt: new Date(start).toISOString(), endAt: new Date(end).toISOString() } : candidate) }));
+      if (end <= start) return; // Prevent zero/negative duration
+
+      latestStartAt = new Date(start).toISOString();
+      latestEndAt = new Date(end).toISOString();
+
+      setResizePreview({
+        itemId: item.id,
+        taskId: item.taskId!,
+        edge,
+        startAt: latestStartAt,
+        endAt: latestEndAt,
+      });
     };
-    const onUp = (up: PointerEvent) => {
-      const next = toTimestamp(up.clientX).getTime();
-      const start = edge === 'start' ? next : originStart;
-      const end = edge === 'end' ? next : originEnd;
-      if (end > start) {
-        const shape = { scheduledStartAt: item.startAt, scheduledEndAt: item.endAt ?? null };
-        const schedule = edge === 'start'
-          ? resizeTaskStart(shape, new Date(start))
-          : resizeTaskEnd(shape, new Date(end));
-        const task = taskById.get(item.taskId!);
-        updateTask.mutate({ id: item.taskId!, patch: { ...schedule, ...(task?.version !== undefined ? { version: task.version } : {}) } });
-      }
+
+    const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+
+      setResizePreview(null);
+
+      const startMs = new Date(latestStartAt).getTime();
+      const endMs = new Date(latestEndAt).getTime();
+
+      if (endMs > startMs) {
+        const shape = { scheduledStartAt: item.startAt, scheduledEndAt: item.endAt ?? null };
+        const schedule = edge === 'start'
+          ? resizeTaskStart(shape, new Date(startMs))
+          : resizeTaskEnd(shape, new Date(endMs));
+        const task = taskById.get(item.taskId!);
+
+        if (task) {
+          const updatedMock: ProductivityTask = {
+            ...task,
+            scheduledStartAt: schedule.scheduledStartAt,
+            scheduledEndAt: schedule.scheduledEndAt,
+          };
+          updateTaskInCalendarCache(queryClient, updatedMock, { showCompleted });
+        }
+
+        updateTask.mutate({ id: item.taskId!, patch: { ...schedule, ...(task?.version !== undefined ? { version: task.version } : {}) } });
+      }
     };
+
     window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp, { once: true });
+    window.addEventListener('pointerup', onUp);
   }
 
   function resizeTaskStep(item: CalendarTimelineItem, edge: 'start' | 'end', direction: -1 | 1) {
@@ -283,12 +405,31 @@ export function CalendarPage() {
       ? resizeTaskStart(shape, new Date(start))
       : resizeTaskEnd(shape, new Date(end));
     const task = taskById.get(item.taskId);
+
+    if (task) {
+      const updatedMock: ProductivityTask = {
+        ...task,
+        scheduledStartAt: schedule.scheduledStartAt,
+        scheduledEndAt: schedule.scheduledEndAt,
+      };
+      updateTaskInCalendarCache(queryClient, updatedMock, { showCompleted });
+}
+
     updateTask.mutate({ id: item.taskId, patch: { ...schedule, ...(task?.version !== undefined ? { version: task.version } : {}) } });
   }
 
+  const daySummaryText = useMemo(() => {
+    if (zoom !== 'DAY') return 'A calm, source-first view of what has your attention.';
+    const dateStr = anchor.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    const scheduledCount = items.filter((i) => i.kind !== 'TASK_DUE' && !i.allDay).length;
+    const dueCount = items.filter((i) => i.kind === 'TASK_DUE' || i.allDay).length;
+    const sourcesCount = groups.length;
+    return `${dateStr} · ${scheduledCount} scheduled · ${dueCount} due · ${sourcesCount} sources`;
+  }, [zoom, anchor, items, groups]);
+
   return (
     <section className="min-h-full space-y-5 pb-12">
-      <PageHeader kicker="Productivity" title="Calendar" description="A calm, source-first view of what has your attention.">
+      <PageHeader kicker="Productivity" title="Calendar" description={daySummaryText}>
         <div className="flex flex-wrap items-center justify-end gap-3">
           <Button variant="outline" size="sm" className="bg-transparent hover:bg-white/10 text-white border-white/20" onClick={() => setShowArrange((open) => !open)} aria-expanded={showArrange} aria-controls="calendar-arrange-tasks">
             <Plus className="h-3.5 w-3.5" /> Arrange tasks
@@ -303,7 +444,7 @@ export function CalendarPage() {
 
             <div className="flex items-center rounded-[var(--itu-radius-s)] border border-white/20 p-0.5 bg-black/20">
               {(['DAY', 'WEEK', 'MONTH'] as const).map((value) => (
-                <Button key={value} variant={zoom === value ? 'default' : 'ghost'} size="sm" className={`h-7 px-2.5 text-xs ${zoom === value ? '' : 'text-white/80 hover:text-white hover:bg-white/10'}`} onClick={() => { setZoom(value); savePreference({ zoom: value }); }}>
+                <Button key={value} variant={zoom === value ? 'default' : 'ghost'} size="sm" className={`h-7 px-2.5 text-xs ${zoom === value ? '' : 'text-white/80 hover:text-white hover:bg-white/10'}`} onClick={() => selectCalendarZoom(value)}>
                   {value[0] + value.slice(1).toLowerCase()}
                 </Button>
               ))}
@@ -335,11 +476,13 @@ export function CalendarPage() {
       /> : null}
 
       <div className="overflow-hidden rounded-[var(--itu-radius-m)] border border-border/70 bg-card shadow-[var(--itu-shadow-card)]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[image:var(--itu-gradient-deep)] px-5 py-4 text-[#f4faf7]">
-          <div><p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--itu-teal-400)]">Schedule overview · source timeline</p><h2 className="mt-1 text-lg font-semibold">{formatRangeLabel(zoom === 'MONTH' ? semanticMonthRange(anchor) : range, zoom)}</h2></div>
-          <div className="font-mono text-[11px] text-white/70">{items.length} items · {groups.length} sources</div>
-        </div>
-        <div ref={trackRef} className="overflow-auto bg-[var(--itu-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onDragOver={(event) => event.preventDefault()} onDrop={dropTask} tabIndex={0} aria-label="Calendar source timeline">
+        {zoom !== 'DAY' ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[image:var(--itu-gradient-deep)] px-5 py-4 text-[#f4faf7]">
+            <div><p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--itu-teal-400)]">Schedule overview · source timeline</p><h2 className="mt-1 text-lg font-semibold">{formatRangeLabel(zoom === 'MONTH' ? semanticMonthRange(anchor) : range, zoom)}</h2></div>
+            <div className="font-mono text-[11px] text-white/70">{items.length} items · {groups.length} sources</div>
+          </div>
+        ) : null}
+        <div ref={trackRef} className="overflow-auto max-h-[calc(100vh-220px)] bg-[var(--itu-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onDragOver={(event) => event.preventDefault()} onDrop={dropTask} tabIndex={0} aria-label="Calendar source timeline">
           {zoom === 'MONTH' ? (
             <div className="min-w-[760px]">
               <MonthCalendarGrid
@@ -358,14 +501,14 @@ export function CalendarPage() {
               />
             </div>
           ) : (
-            <div className="min-w-max" style={{ width: LABEL_WIDTH + axisWidth }}>
+            <div className="min-w-full">
               <CalendarAxis days={days} zoom={zoom} width={axisWidth} />
               {timeline.isLoading ? <CalendarStatus title="Loading your calendar…" description="Fetching tasks, Due Dates, Focus Sessions, and subscriptions." /> : null}
               {timeline.isError ? <CalendarStatus title="Calendar could not be loaded" description="The timeline request failed." action={<Button variant="outline" size="sm" onClick={() => void timeline.refetch()}>Retry</Button>} /> : null}
               {!timeline.isLoading && !timeline.isError && items.length === 0 ? <CalendarStatus title="Nothing scheduled for this range" description="Arrange an unfinished task or connect a calendar source to begin." /> : null}
               {!timeline.isLoading && !timeline.isError && items.length > 0 ? (
                 zoom === 'DAY'
-                  ? <DayRow group={{ id: 'all', label: 'All', subtitle: '', color: '', items }} day={days[0] ?? new Date()} onSelect={selectItem} onDragStart={dragItem} onResize={resizeTask} onResizeStep={resizeTaskStep} />
+                  ? <DayRow group={{ id: 'all', label: 'All', subtitle: '', color: '', items }} day={days[0] ?? new Date()} resizePreview={resizePreview} onSelect={selectItem} onDragStart={dragItem} onResize={resizeTask} onResizeStep={resizeTaskStep} />
                   : <DateRow group={{ id: 'all', label: 'All', subtitle: '', color: '', items }} days={days} zoom={zoom} onSelect={selectItem} onDragStart={dragItem} onResize={resizeTask} onResizeStep={resizeTaskStep} />
               ) : null}
             </div>
@@ -432,111 +575,553 @@ export function groupCalendarItems(items: CalendarTimelineItem[]): CalendarGroup
   });
 }
 
+function formatHourLabel(hour: number): string {
+  const h = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  const ampm = hour < 12 ? 'AM' : 'PM';
+  return `${h} ${ampm}`;
+}
+
+const DAY_HOUR_HEIGHT = 60;
+
 function CalendarAxis({ days, zoom, width }: { days: Date[]; zoom: TimelineZoom; width: number }) {
   const today = new Date();
   if (zoom === 'DAY') {
-    return (
-      <div className="sticky top-0 z-20 flex h-[76px] border-b border-border/70 bg-card/95 backdrop-blur">
-        <div className="relative" style={{ width }}>
-          {Array.from({ length: 24 }, (_, hour) => (
-            <div key={hour} className="absolute inset-y-0 border-l border-border/60 px-2 pb-3 pt-7" style={{ left: hour * DAY_HOUR_WIDTH, width: DAY_HOUR_WIDTH }}>
-              <span className="font-mono text-[10px] text-muted-foreground">{formatHour(hour)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return null;
   }
+  const cellWidth = zoom === 'MONTH' ? MONTH_DATE_WIDTH : DATE_WIDTH;
+  const isWeek = zoom === 'WEEK' && days.length === 7;
+
   return (
-    <div className="sticky top-0 z-20 border-b border-border/70 bg-card/95 backdrop-blur">
-      <div className="relative flex" style={{ width }}>
-        {days.map((date, index) => {
-          const isToday = isSameLocalDay(date, today);
-          const cellWidth = zoom === 'MONTH' ? MONTH_DATE_WIDTH : DATE_WIDTH;
-          return (
-            <div
-              key={date.toISOString()}
-              className={`flex-none border-l border-border/60 px-3 py-3 ${isToday ? 'bg-primary/[0.06]' : ''}`}
-              style={{ width: cellWidth }}
-            >
-              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-1">
-                {date.toLocaleDateString(undefined, { weekday: 'short' })}
-              </p>
-              <div className="flex items-baseline gap-1.5">
-                <span
-                  className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold leading-none ${
-                    isToday
-                      ? 'bg-[var(--itu-teal-600)] text-white'
-                      : 'text-foreground'
-                  }`}
-                >
-                  {date.getDate()}
-                </span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  {date.toLocaleDateString(undefined, { month: 'short' })}
-                </span>
+    <div className="sticky top-0 z-30 border-b border-border/70 bg-card select-none h-16">
+      <div className="relative flex" style={{ width: isWeek ? 64 + 7 * cellWidth : width }}>
+        {/* Left Time Column Spacer (64px / w-16) for Week View */}
+        {isWeek ? (
+          <div className="w-16 shrink-0 border-r border-border/60 bg-card flex items-center justify-center p-2">
+            <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60">
+              TIME
+            </span>
+          </div>
+        ) : null}
+
+        <div className="relative flex-1 grid grid-cols-7" style={{ width: 7 * cellWidth }}>
+          {days.map((date) => {
+            const isToday = isSameLocalDay(date, today);
+            return (
+              <div
+                key={date.toISOString()}
+                className={`border-r border-border/60 px-3 flex flex-col justify-center h-full ${isToday ? 'bg-primary/[0.06]' : ''}`}
+              >
+                <p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-1">
+                  {date.toLocaleDateString(undefined, { weekday: 'short' })}
+                </p>
+                <div className="flex items-baseline gap-1.5">
+                  <span
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold leading-none ${
+                      isToday
+                        ? 'bg-[var(--itu-teal-600)] text-white'
+                        : 'text-foreground'
+                    }`}
+                  >
+                    {date.getDate()}
+                  </span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {date.toLocaleDateString(undefined, { month: 'short' })}
+                  </span>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
 
-function getItemVisualHeight(item: CalendarTimelineItem, compact?: boolean): number {
-  if (item.allDay) return 26;
-  return 48;
+function getItemVisualHeight(item: CalendarTimelineItem): number {
+  if (item.allDay) return 30;
+  return 72;
 }
 
-function DayRow({ group, day, onSelect, onDragStart, onResize, onResizeStep }: { group: CalendarGroup; day: Date; onSelect: (item: CalendarTimelineItem) => void; onDragStart: (item: CalendarTimelineItem, event: React.DragEvent<HTMLElement>) => void; onResize: (item: CalendarTimelineItem, edge: 'start' | 'end', event: React.PointerEvent) => void; onResizeStep: (item: CalendarTimelineItem, edge: 'start' | 'end', direction: -1 | 1) => void }) {
-  const allDayItems = group.items.filter((item) => item.allDay);
-  const timedItems = group.items.filter((item) => !item.allDay);
+function DayRow({
+  group,
+  day,
+  resizePreview,
+  onSelect,
+  onDragStart,
+  onResize,
+  onResizeStep,
+  onSlotClick,
+}: {
+  group: CalendarGroup;
+  day: Date;
+  resizePreview: ResizePreviewState | null;
+  onSelect: (item: CalendarTimelineItem) => void;
+  onDragStart: (item: CalendarTimelineItem, event: React.DragEvent<HTMLElement>) => void;
+  onResize: (item: CalendarTimelineItem, edge: 'start' | 'end', event: React.PointerEvent) => void;
+  onResizeStep: (item: CalendarTimelineItem, edge: 'start' | 'end', direction: -1 | 1) => void;
+  onSlotClick?: (date: Date) => void;
+}) {
   const dayStart = new Date(day);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
+  const today = new Date();
+  const isToday = isSameLocalDay(day, today);
 
-  const timedBounds = timedItems.map((item) => {
-    const itemStart = new Date(item.startAt);
-    const itemEnd = item.endAt ? new Date(item.endAt) : new Date(itemStart.getTime() + 30 * 60_000);
-    const effStart = itemStart < dayStart ? dayStart : itemStart;
-    const effEnd = itemEnd > dayEnd ? dayEnd : itemEnd;
-    const startMinutes = (effStart.getTime() - dayStart.getTime()) / 60_000;
-    const durationHours = Math.max(0.5, (effEnd.getTime() - effStart.getTime()) / 3_600_000);
-    const left = (startMinutes / 60) * DAY_HOUR_WIDTH;
-    const width = Math.max(64, durationHours * DAY_HOUR_WIDTH);
-    const height = getItemVisualHeight(item);
-    return { startAt: item.startAt, endAt: item.endAt, left, width, height };
-  });
-  const timedLanes = assignOverlapLane(timedBounds);
-  const { tops: timedTops, maxBottom } = computeDynamicItemTops(timedBounds, timedLanes, 18, 6);
+  const dueTodayItems = group.items.filter((item) => item.kind === 'TASK_DUE' || item.allDay);
+  const timedItems = group.items.filter((item) => item.kind !== 'TASK_DUE' && !item.allDay);
 
-  const allDayHeight = allDayItems.length ? allDayItems.length * ALL_DAY_ITEM_HEIGHT + (allDayItems.length - 1) * 4 : ALL_DAY_HEIGHT;
-  const rowHeight = Math.max(122, allDayHeight + maxBottom + 12);
+  // Compute collision layout with interval partitioning algorithm
+  const collisionItems = timedItems.map((item) => ({
+    id: item.id,
+    startAt: item.startAt,
+    endAt: item.endAt,
+  }));
 
-  return <div className="relative bg-[var(--itu-surface-2)]" style={{ height: rowHeight }}><div className="absolute inset-x-0 top-0 flex flex-col gap-1 overflow-hidden border-b border-border/60 bg-card/70 px-3" style={{ height: allDayHeight }}>{allDayItems.map((item) => <CalendarEventCard key={item.id} item={item} variant="timeline" onSelect={onSelect} onDragStart={onDragStart} onResize={onResize} onResizeStep={onResizeStep} className="relative min-w-0 flex-1" style={{ left: 0, top: 0 }} />)}</div><div className="absolute inset-x-0 bottom-0" style={{ top: allDayHeight }}>{Array.from({ length: 24 }, (_, hour) => <div key={hour} className="absolute inset-y-0 border-l border-border/40" style={{ left: hour * DAY_HOUR_WIDTH }} />)}{timedItems.map((item, index) => {
-    const itemStart = new Date(item.startAt);
-    const itemEnd = item.endAt ? new Date(item.endAt) : new Date(itemStart.getTime() + 30 * 60_000);
-    const effStart = itemStart < dayStart ? dayStart : itemStart;
-    const effEnd = itemEnd > dayEnd ? dayEnd : itemEnd;
-    const startMinutes = (effStart.getTime() - dayStart.getTime()) / 60_000;
-    const durationHours = Math.max(0.5, (effEnd.getTime() - effStart.getTime()) / 3_600_000);
-    return <CalendarEventCard key={item.id} item={item} variant="timeline" onSelect={onSelect} onDragStart={onDragStart} onResize={onResize} onResizeStep={onResizeStep} className="absolute" style={{ left: (startMinutes / 60) * DAY_HOUR_WIDTH, top: timedTops[index], width: Math.max(64, durationHours * DAY_HOUR_WIDTH) }} />;
-  })}</div></div>;
+  const { placedItems } = calculateDayCollisions(collisionItems);
+
+  const gridHeight = 24 * DAY_HOUR_HEIGHT;
+  const nowMinutes = today.getHours() * 60 + today.getMinutes();
+  const nowTop = (nowMinutes / 60) * DAY_HOUR_HEIGHT;
+
+  const handleCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest('[role="button"]') || (event.target as HTMLElement).closest('.group')) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const clickY = event.clientY - rect.top;
+    const totalMins = Math.max(0, Math.min(1439, Math.floor((clickY / gridHeight) * 1440)));
+    const snappedMins = Math.floor(totalMins / 15) * 15;
+    const clickedDate = new Date(dayStart);
+    clickedDate.setHours(Math.floor(snappedMins / 60), snappedMins % 60, 0, 0);
+    onSlotClick?.(clickedDate);
+  };
+
+  return (
+    <div className="flex flex-col bg-background">
+      {/* Due Today Strip */}
+      {dueTodayItems.length > 0 ? (
+        <div className="sticky top-0 z-20 border-b border-border/60 bg-[var(--itu-surface-2)] px-4 py-2.5 shadow-md">
+          <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-2 flex items-center gap-1.5">
+            <span>Due today</span>
+            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[9px] font-semibold text-primary">{dueTodayItems.length}</span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {dueTodayItems.map((item) => (
+              <CalendarEventCard
+                key={item.id}
+                item={item}
+                density="compact"
+                onSelect={onSelect}
+                onDragStart={onDragStart}
+                className="max-w-xs flex-1"
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Main Vertical Schedule Grid */}
+      <div className="relative flex min-h-[600px]">
+        {/* Sticky Left Time Column */}
+        <div className="sticky left-0 z-20 w-16 shrink-0 border-r border-border/60 bg-card select-none">
+          {Array.from({ length: 24 }, (_, hour) => (
+            <div
+              key={hour}
+              className="relative h-[60px] border-b border-border/30 pr-3 pt-1 text-right flex items-start justify-end"
+            >
+              <span className="font-mono text-[10px] font-semibold text-muted-foreground whitespace-nowrap">
+                {formatHourLabel(hour)}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Vertical Schedule Grid Canvas */}
+        <div
+          data-calendar-day={dayStart.toISOString()}
+          className="relative flex-1 cursor-pointer bg-[var(--itu-surface-2)]/40"
+          style={{ height: gridHeight }}
+          onClick={handleCanvasClick}
+        >
+          {/* Horizontal Hour & Half-Hour Grid Lines */}
+          {Array.from({ length: 24 }, (_, hour) => (
+            <div
+              key={hour}
+              className="absolute inset-x-0 border-t border-border/60 pointer-events-none"
+              style={{ top: hour * DAY_HOUR_HEIGHT, height: DAY_HOUR_HEIGHT }}
+            >
+              <div
+                className="absolute inset-x-0 border-t border-dashed border-border/20 pointer-events-none"
+                style={{ top: DAY_HOUR_HEIGHT / 2 }}
+              />
+            </div>
+          ))}
+
+          {/* Current Time Line Indicator */}
+          {isToday ? (
+            <div
+              className="absolute left-0 right-0 z-30 pointer-events-none flex items-center"
+              style={{ top: `${nowTop}px` }}
+            >
+              <div className="h-2.5 w-2.5 rounded-full bg-rose-500 -ml-1.25 shadow-sm ring-2 ring-rose-500/30" />
+              <div className="h-[2px] flex-1 bg-rose-500" />
+              <span className="ml-1 rounded bg-rose-500 px-1.5 py-0.5 font-mono text-[9px] font-bold text-white shadow-sm">
+                NOW
+              </span>
+            </div>
+          ) : null}
+
+          {/* Timed Event Cards */}
+          {timedItems.map((item) => {
+            const itemStart = new Date(item.startAt);
+            const itemEnd = item.endAt ? new Date(item.endAt) : new Date(itemStart.getTime() + 30 * 60_000);
+            const effStart = itemStart < dayStart ? dayStart : itemStart;
+            const effEnd = itemEnd > dayEnd ? dayEnd : itemEnd;
+            const startMinutes = (effStart.getTime() - dayStart.getTime()) / 60_000;
+            const durationMinutes = Math.max(15, (effEnd.getTime() - effStart.getTime()) / 60_000);
+
+            const placement = placedItems.get(item.id);
+            const lane = placement?.lane ?? 0;
+            const laneCount = placement?.laneCount ?? 1;
+
+            const top = (startMinutes / 60) * DAY_HOUR_HEIGHT;
+            const height = Math.max(22, (durationMinutes / 60) * DAY_HOUR_HEIGHT);
+            const leftPct = (lane / laneCount) * 100;
+            const widthPct = (1 / laneCount) * 100;
+
+            const isResizingThis = resizePreview?.itemId === item.id;
+            const resizeTimeLabel = isResizingThis
+              ? formatSingleTime(resizePreview.edge === 'start' ? resizePreview.startAt : resizePreview.endAt)
+              : null;
+
+            return (
+              <CalendarEventCard
+                key={item.id}
+                item={item}
+                orientation="vertical"
+                density={height < 36 ? 'compact' : 'regular'}
+                onSelect={onSelect}
+                onDragStart={onDragStart}
+                onResize={onResize}
+                onResizeStep={onResizeStep}
+                isResizing={isResizingThis}
+                activeResizeEdge={isResizingThis ? resizePreview.edge : null}
+                resizeTimeLabel={resizeTimeLabel}
+                className="absolute z-10 transition-[top,height,left,width] duration-100"
+                style={{
+                  top: `${top}px`,
+                  height: `${height}px`,
+                  left: `calc(${leftPct}% + 2px)`,
+                  width: `calc(${widthPct}% - 4px)`,
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function DateRow({ group, days, zoom, onSelect, onDragStart, onResize, onResizeStep }: { group: CalendarGroup; days: Date[]; zoom: TimelineZoom; onSelect: (item: CalendarTimelineItem) => void; onDragStart: (item: CalendarTimelineItem, event: React.DragEvent<HTMLElement>) => void; onResize: (item: CalendarTimelineItem, edge: 'start' | 'end', event: React.PointerEvent) => void; onResizeStep: (item: CalendarTimelineItem, edge: 'start' | 'end', direction: -1 | 1) => void }) {
+function DateRow({
+  group,
+  days,
+  zoom,
+  resizePreview,
+  onSelect,
+  onDragStart,
+  onResize,
+  onResizeStep,
+}: {
+  group: CalendarGroup;
+  days: Date[];
+  zoom: TimelineZoom;
+  resizePreview?: ResizePreviewState | null;
+  onSelect: (item: CalendarTimelineItem) => void;
+  onDragStart: (item: CalendarTimelineItem, event: React.DragEvent<HTMLElement>) => void;
+  onResize: (item: CalendarTimelineItem, edge: 'start' | 'end', event: React.PointerEvent) => void;
+  onResizeStep: (item: CalendarTimelineItem, edge: 'start' | 'end', direction: -1 | 1) => void;
+}) {
   const cellWidth = zoom === 'MONTH' ? MONTH_DATE_WIDTH : DATE_WIDTH;
   const today = new Date();
-  const rangeStart = new Date(days[0]);
-  rangeStart.setHours(0, 0, 0, 0);
 
-  // Build a map of day ISO string → items that appear on that day
+  // WEEK VIEW: 7-Column 24-Hour Schedule Grid with Top All-Day & Spanning Strip
+  if (zoom === 'WEEK' && days.length === 7) {
+    const weekStart = days[0];
+
+    const weekItems = group.items.map((item) => {
+      const startDayIndex = localDayIndex(item.startAt, weekStart);
+      let endDayIndex = startDayIndex;
+      if (item.endAt) {
+        endDayIndex = localDayIndex(item.endAt, weekStart);
+        const endD = new Date(item.endAt);
+        if (endD.getHours() === 0 && endD.getMinutes() === 0 && endD.getSeconds() === 0 && endD.getMilliseconds() === 0) {
+          endDayIndex = Math.max(startDayIndex, endDayIndex - 1);
+        }
+      }
+
+      const visStartCol = Math.max(0, startDayIndex);
+      const visEndCol = Math.min(6, endDayIndex);
+      const numCols = visEndCol - visStartCol + 1;
+      const isSpanning = (endDayIndex > startDayIndex) || (!item.allDay && Boolean(item.endAt) && !isSameLocalDay(item.startAt, item.endAt!));
+      const isHeaderItem = item.allDay || item.kind === 'TASK_DUE' || isSpanning;
+
+      const overflowsPrev = startDayIndex < 0;
+      const overflowsNext = endDayIndex > 6;
+
+      const startDayLabel = startDayIndex >= 0 && startDayIndex < 7
+        ? days[startDayIndex].toLocaleDateString(undefined, { weekday: 'short' })
+        : 'PREV WK';
+
+      const endDayLabel = endDayIndex >= 0 && endDayIndex < 7
+        ? days[endDayIndex].toLocaleDateString(undefined, { weekday: 'short' })
+        : 'NEXT WK';
+
+      return {
+        item,
+        startDayIndex,
+        endDayIndex,
+        visStartCol,
+        visEndCol,
+        numCols,
+        isSpanning,
+        isHeaderItem,
+        overflowsPrev,
+        overflowsNext,
+        startDayLabel,
+        endDayLabel,
+      };
+    }).filter((entry) => entry.visStartCol <= 6 && entry.visEndCol >= 0);
+
+    const headerEntries = weekItems.filter((e) => e.isHeaderItem);
+    const timedEntries = weekItems.filter((e) => !e.isHeaderItem);
+
+    // Allocate rows for multi-column / all-day header entries
+    headerEntries.sort((a, b) => a.visStartCol - b.visStartCol || (b.visEndCol - b.visStartCol) - (a.visEndCol - a.visStartCol));
+    const occupancy: Record<number, Record<number, boolean>> = { 0: {}, 1: {}, 2: {}, 3: {}, 4: {}, 5: {}, 6: {} };
+    const placedHeaderItems = headerEntries.map((entry) => {
+      let targetRow = 1;
+      while (true) {
+        let isFree = true;
+        for (let c = entry.visStartCol; c <= entry.visEndCol; c++) {
+          if (occupancy[c]?.[targetRow]) {
+            isFree = false;
+            break;
+          }
+        }
+        if (isFree) break;
+        targetRow++;
+      }
+      for (let c = entry.visStartCol; c <= entry.visEndCol; c++) {
+        if (!occupancy[c]) occupancy[c] = {};
+        occupancy[c][targetRow] = true;
+      }
+      return { ...entry, targetRow };
+    });
+
+    // Compute collision layout for timed items per day column
+    const timedPlacementsByDay = days.map((day, dayIdx) => {
+      const dayStart = new Date(day);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+
+      const dayTimedItems = timedEntries
+        .filter((entry) => {
+          const itemStart = new Date(entry.item.startAt);
+          const itemEnd = entry.item.endAt ? new Date(entry.item.endAt) : new Date(itemStart.getTime() + 30 * 60_000);
+          return itemStart < dayEnd && itemEnd >= dayStart;
+        })
+        .map((entry) => entry.item);
+
+      const collisionInput = dayTimedItems.map((item) => ({
+        id: item.id,
+        startAt: item.startAt,
+        endAt: item.endAt,
+      }));
+
+      const { placedItems } = calculateDayCollisions(collisionInput);
+      return { day, dayIdx, dayStart, dayEnd, dayTimedItems, placedItems };
+    });
+
+    const gridHeight = 24 * DAY_HOUR_HEIGHT;
+    const nowMinutes = today.getHours() * 60 + today.getMinutes();
+    const nowTop = (nowMinutes / 60) * DAY_HOUR_HEIGHT;
+
+    return (
+      <div className="flex flex-col bg-background" style={{ width: 64 + 7 * cellWidth }}>
+        {/* Top All-Day & Spanning Header Strip */}
+        {placedHeaderItems.length > 0 ? (
+          <div className="sticky top-16 z-20 border-b border-border/60 bg-[var(--itu-surface-2)] flex">
+            {/* 64px Left Spacer matching time column below */}
+            <div className="w-16 shrink-0 border-r border-border/60 p-1.5 flex flex-col items-center justify-center select-none bg-card/60">
+              <span className="font-mono text-[8.5px] font-bold uppercase tracking-wider text-muted-foreground text-center leading-tight">
+                ALL-DAY
+              </span>
+              <span className="mt-1 rounded-full bg-primary/15 px-1.5 py-0.2 font-mono text-[9px] font-semibold text-primary">
+                {placedHeaderItems.length}
+              </span>
+            </div>
+
+            {/* 7-Column Grid matching schedule columns below */}
+            <div className="relative flex-1 grid grid-cols-7 gap-y-1.5 p-2.5 max-h-48 overflow-y-auto" style={{ width: 7 * cellWidth }}>
+              {placedHeaderItems.map(({ item, visStartCol, visEndCol, numCols, isSpanning, overflowsPrev, overflowsNext, startDayLabel, endDayLabel, targetRow }) => (
+                <div
+                  key={item.id}
+                  className="px-1"
+                  style={{
+                    gridColumn: `${visStartCol + 1} / ${visEndCol + 2}`,
+                    gridRow: `${targetRow}`,
+                  }}
+                >
+                  <CalendarEventCard
+                    item={item}
+                    isSpanning={isSpanning}
+                    numCols={numCols}
+                    startDayLabel={startDayLabel}
+                    endDayLabel={endDayLabel}
+                    overflowsPrev={overflowsPrev}
+                    overflowsNext={overflowsNext}
+                    density="compact"
+                    onSelect={onSelect}
+                    onDragStart={onDragStart}
+                    onResize={onResize}
+                    onResizeStep={onResizeStep}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* 7-Column 24-Hour Schedule Canvas */}
+        <div className="relative flex" style={{ height: gridHeight }}>
+          {/* Sticky Left Time Column */}
+          <div className="sticky left-0 z-20 w-16 shrink-0 border-r border-border/60 bg-card select-none">
+            {Array.from({ length: 24 }, (_, hour) => (
+              <div
+                key={hour}
+                className="relative h-[60px] border-b border-border/30 pr-3 pt-1 text-right flex items-start justify-end"
+              >
+                <span className="font-mono text-[10px] font-semibold text-muted-foreground whitespace-nowrap">
+                  {formatHourLabel(hour)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* 7 Day Columns Canvas */}
+          <div className="relative flex-1 grid grid-cols-7" style={{ height: gridHeight, width: 7 * cellWidth }}>
+            {/* Background Hour & Half-Hour Grid Lines */}
+            {Array.from({ length: 24 }, (_, hour) => (
+              <div
+                key={hour}
+                className="absolute inset-x-0 border-t border-border/60 pointer-events-none"
+                style={{ top: hour * DAY_HOUR_HEIGHT, height: DAY_HOUR_HEIGHT }}
+              >
+                <div
+                  className="absolute inset-x-0 border-t border-dashed border-border/20 pointer-events-none"
+                  style={{ top: DAY_HOUR_HEIGHT / 2 }}
+                />
+              </div>
+            ))}
+
+            {/* Background Column Borders & Today Highlights */}
+            {days.map((date, idx) => {
+              const isToday = isSameLocalDay(date, today);
+              return (
+                <div
+                  key={date.toISOString()}
+                  data-calendar-day={date.toISOString()}
+                  className={`relative border-r border-border/40 ${
+                    isToday ? 'bg-primary/[0.04]' : ''
+                  }`}
+                  style={{
+                    gridColumn: `${idx + 1} / ${idx + 2}`,
+                    height: gridHeight,
+                  }}
+                >
+                  {/* Current Time Line Indicator for Today */}
+                  {isToday ? (
+                    <div
+                      className="absolute left-0 right-0 z-30 pointer-events-none flex items-center"
+                      style={{ top: `${nowTop}px` }}
+                    >
+                      <div className="h-2.5 w-2.5 rounded-full bg-rose-500 -ml-1.25 shadow-sm ring-2 ring-rose-500/30" />
+                      <div className="h-[2px] flex-1 bg-rose-500" />
+                      <span className="ml-1 rounded bg-rose-500 px-1.5 py-0.5 font-mono text-[9px] font-bold text-white shadow-sm">
+                        NOW
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+
+            {/* Timed Event Cards for All 7 Days */}
+            {timedPlacementsByDay.flatMap(({ dayStart, dayEnd, dayTimedItems, placedItems, dayIdx }) => {
+              return dayTimedItems.map((item) => {
+                const itemStart = new Date(item.startAt);
+                const itemEnd = item.endAt ? new Date(item.endAt) : new Date(itemStart.getTime() + 30 * 60_000);
+                const effStart = itemStart < dayStart ? dayStart : itemStart;
+                const effEnd = itemEnd > dayEnd ? dayEnd : itemEnd;
+                const startMinutes = (effStart.getTime() - dayStart.getTime()) / 60_000;
+                const durationMinutes = Math.max(15, (effEnd.getTime() - effStart.getTime()) / 60_000);
+
+                const placement = placedItems.get(item.id);
+                const lane = placement?.lane ?? 0;
+                const laneCount = placement?.laneCount ?? 1;
+
+                const top = (startMinutes / 60) * DAY_HOUR_HEIGHT;
+                const height = Math.max(22, (durationMinutes / 60) * DAY_HOUR_HEIGHT);
+
+                const dayLeftPct = (dayIdx / 7) * 100;
+                const dayWidthPct = (1 / 7) * 100;
+                const laneLeftPct = dayLeftPct + (lane / laneCount) * dayWidthPct;
+                const laneWidthPct = (1 / laneCount) * dayWidthPct;
+
+                const isResizingThis = resizePreview?.itemId === item.id;
+                const resizeTimeLabel = isResizingThis
+                  ? formatSingleTime(resizePreview.edge === 'start' ? resizePreview.startAt : resizePreview.endAt)
+                  : null;
+
+                return (
+                  <CalendarEventCard
+                    key={item.id}
+                    item={item}
+                    orientation="vertical"
+                    density={height < 36 ? 'compact' : 'regular'}
+                    onSelect={onSelect}
+                    onDragStart={onDragStart}
+                    onResize={onResize}
+                    onResizeStep={onResizeStep}
+                    isResizing={isResizingThis}
+                    activeResizeEdge={isResizingThis ? resizePreview.edge : null}
+                    resizeTimeLabel={resizeTimeLabel}
+                    className="absolute z-10 transition-[top,height,left,width] duration-100"
+                    style={{
+                      top: `${top}px`,
+                      height: `${height}px`,
+                      left: `calc(${laneLeftPct}% + 2px)`,
+                      width: `calc(${laneWidthPct}% - 4px)`,
+                    }}
+                  />
+                );
+              });
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Non-week view fallback
   const itemsByDay = new Map<string, CalendarTimelineItem[]>();
   for (const day of days) {
     const key = day.toISOString();
-    itemsByDay.set(key, group.items.filter((item) => itemSpansDay(item, day)).sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()));
+    itemsByDay.set(
+      key,
+      group.items.filter((item) => itemSpansDay(item, day)).sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()),
+    );
   }
 
   return (
@@ -545,11 +1130,12 @@ function DateRow({ group, days, zoom, onSelect, onDragStart, onResize, onResizeS
         const key = date.toISOString();
         const dayItems = itemsByDay.get(key) ?? [];
         const isToday = isSameLocalDay(date, today);
+
         return (
           <div
             key={key}
             data-calendar-day={key}
-            className={`flex-none border-l border-border/50 p-2 min-h-[140px] flex flex-col gap-2 ${
+            className={`flex-none border-l border-border/50 p-2.5 min-h-[160px] flex flex-col gap-2.5 ${
               isToday ? 'bg-primary/[0.04]' : ''
             }`}
             style={{ width: cellWidth }}
@@ -558,7 +1144,8 @@ function DateRow({ group, days, zoom, onSelect, onDragStart, onResize, onResizeS
               <CalendarEventCard
                 key={item.id}
                 item={item}
-                variant="board"
+                day={date}
+                density="regular"
                 onSelect={onSelect}
                 onDragStart={onDragStart}
                 onResize={onResize}
@@ -611,7 +1198,6 @@ function ReadonlyDetails({ item, onClose }: { item: CalendarTimelineItem; onClos
         className="w-full max-w-md rounded-[var(--itu-radius-l)] border border-border bg-card text-card-foreground shadow-[var(--itu-shadow-pop)]"
         onClick={(event) => event.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-border/60 p-5 pb-4">
           <div className="min-w-0 flex-1">
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Calendar event</p>
@@ -620,15 +1206,12 @@ function ReadonlyDetails({ item, onClose }: { item: CalendarTimelineItem; onClos
           <Button variant="ghost" size="sm" onClick={onClose} className="shrink-0">Close</Button>
         </div>
 
-        {/* Body rows */}
         <div className="grid divide-y divide-border/50 px-5">
-          {/* Calendar source */}
           <div className="flex items-center gap-3 py-3">
             <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <span className="text-sm font-medium">{item.sourceName ?? 'Calendar'}</span>
           </div>
 
-          {/* When */}
           <div className="flex items-start gap-3 py-3">
             <span className="mt-0.5 h-4 w-4 shrink-0 text-center font-mono text-[10px] font-bold text-muted-foreground" aria-hidden="true">⏰</span>
             <div className="text-sm">
@@ -640,7 +1223,6 @@ function ReadonlyDetails({ item, onClose }: { item: CalendarTimelineItem; onClos
             </div>
           </div>
 
-          {/* Location */}
           {item.location ? (
             <div className="flex items-start gap-3 py-3">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -659,7 +1241,6 @@ function ReadonlyDetails({ item, onClose }: { item: CalendarTimelineItem; onClos
             </div>
           ) : null}
 
-          {/* Description */}
           {descriptionLines.length > 0 ? (
             <div className="flex items-start gap-3 py-3">
               <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -672,7 +1253,6 @@ function ReadonlyDetails({ item, onClose }: { item: CalendarTimelineItem; onClos
           ) : null}
         </div>
 
-        {/* Footer */}
         <div className="px-5 pb-4 pt-2">
           <p className="text-[10px] text-muted-foreground">Read-only · synced from external calendar</p>
         </div>
@@ -688,10 +1268,6 @@ function CalendarStatus({ title, description, action }: { title: string; descrip
 function formatHour(hour: number) {
   return `${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}${hour < 12 ? 'a' : 'p'}`;
 }
-
-const MONTH_DATE_HEADER_HEIGHT = 30;
-const MONTH_LANE_HEIGHT = 20;
-const MONTH_LANE_GAP = 3;
 
 function MonthWeekdayHeader({ firstDayOfWeek }: { firstDayOfWeek: 0 | 1 }) {
   const labels: string[] = [];
@@ -736,8 +1312,10 @@ function MonthCalendarGrid({ anchor, days, groups, firstDayOfWeek, onSelect, onD
         const weekItems = items.filter((item) => itemSpansDay(item, weekDays[0]) || itemSpansDay(item, weekDays[6]));
         const layout = layoutMonthWeek(weekItems.map((item) => ({ id: item.id, start: new Date(item.startAt), end: item.endAt ? new Date(item.endAt) : new Date(new Date(item.startAt).getTime() + 30 * 60_000) })), weekStart);
         const itemById = new Map(weekItems.map((item) => [item.id, item]));
+        const weekRowHeight = MONTH_DATE_HEADER_HEIGHT + MAX_VISIBLE_MONTH_LANES * (MONTH_LANE_HEIGHT + MONTH_LANE_GAP) + 12;
+
         return (
-          <div key={weekIndex} className="relative grid grid-cols-7 border-b border-border/60">
+          <div key={weekIndex} className="relative grid grid-cols-7 border-b border-border/60" style={{ minHeight: weekRowHeight }}>
             {weekDays.map((date, dayIndex) => {
               const key = date.toISOString();
               const isToday = isSameLocalDay(date, today);
@@ -745,7 +1323,7 @@ function MonthCalendarGrid({ anchor, days, groups, firstDayOfWeek, onSelect, onD
               const hidden = layout.hiddenCounts[dayIndex] ?? 0;
               const dayItems = weekItems.filter((item) => itemSpansDay(item, date)).sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
               return (
-                <div key={key} data-calendar-day={key} className={`min-h-[110px] border-l border-border/50 first:border-l-0 ${outside ? 'bg-black/[0.03]' : ''} ${isToday ? 'bg-primary/[0.05]' : ''}`}>
+                <div key={key} data-calendar-day={key} className={`min-h-[135px] border-l border-border/50 first:border-l-0 ${outside ? 'bg-black/[0.03]' : ''} ${isToday ? 'bg-primary/[0.05]' : ''}`}>
                   <div className="flex items-center justify-between px-2 pt-1.5" style={{ height: MONTH_DATE_HEADER_HEIGHT }}>
                     <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold leading-none ${isToday ? 'bg-[var(--itu-teal-600)] text-white' : outside ? 'text-muted-foreground/60' : 'text-foreground'}`}>
                       {date.getDate()}
@@ -776,7 +1354,7 @@ function MonthCalendarGrid({ anchor, days, groups, firstDayOfWeek, onSelect, onD
                       className="pointer-events-auto absolute px-0.5"
                       style={{ left: `${(segment.dayStart / 7) * 100}%`, width: `${((segment.dayEnd - segment.dayStart) / 7) * 100}%`, top: segment.lane * (MONTH_LANE_HEIGHT + MONTH_LANE_GAP), height: MONTH_LANE_HEIGHT }}
                     >
-                      <CalendarEventCard item={item} variant="monthChip" onSelect={onSelect} onDragStart={onDragStart} className="h-full" />
+                      <CalendarEventCard item={item} density="compact" onSelect={onSelect} onDragStart={onDragStart} className="h-full" />
                     </div>
                   );
                 })}
@@ -810,29 +1388,18 @@ function DayItemsPopover({ date, items, x, y, onSelect, onClose }: {
           <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--itu-teal-400)]">Day</p>
           <h3 className="mt-0.5 text-sm font-semibold">{date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
         </div>
-        <div className="max-h-72 divide-y divide-border/40 overflow-y-auto">
-          {items.map((item) => {
-            const color = timelineItemColor(item.kind, item.color);
-            const label = item.kind === 'TASK_DUE' ? 'Due Date' : item.kind === 'FOCUS_SESSION' ? 'Focus Session' : item.kind === 'EXTERNAL_EVENT' ? 'Subscription' : 'Task';
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => { onClose(); onSelect(item); }}
-                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left outline-none hover:bg-muted/60 focus-visible:bg-muted/60"
-              >
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-semibold text-foreground">{item.title}</span>
-                  <span className="mt-0.5 block font-mono text-[9.5px] uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
-                </span>
-                <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                  {formatSingleTime(item.startAt)}
-                  {item.endAt && !isSameLocalDay(item.startAt, item.endAt) ? ' →' : ''}
-                </span>
-              </button>
-            );
-          })}
+        <div className="max-h-72 divide-y divide-border/40 overflow-y-auto p-2 space-y-1.5">
+          {items.map((item) => (
+            <CalendarEventCard
+              key={item.id}
+              item={item}
+              density="compact"
+              onSelect={(selected) => {
+                onClose();
+                onSelect(selected);
+              }}
+            />
+          ))}
         </div>
       </div>
     </>
