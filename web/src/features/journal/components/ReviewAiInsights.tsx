@@ -2,9 +2,7 @@ import { LoaderCircle, Sparkles } from 'lucide-react';
 import type { ReviewInsightsResult } from '../journal.types';
 import { Card, CardContent } from '@/shared/ui/card';
 
-export function ReviewAiInsights({ result, isPending = false, job }: { result?: ReviewInsightsResult | null; isPending?: boolean; job?: { id?: string; status: string } | null }) {
-  isPending ||= job?.status === 'QUEUED' || job?.status === 'RUNNING';
-  const isQueued = job?.status === 'QUEUED';
+export function ReviewAiInsights({ result, isPending = false }: { result?: ReviewInsightsResult | null; isPending?: boolean }) {
   const renderableResult = isReviewInsightsResult(result) ? result : null;
 
   return (
@@ -15,10 +13,10 @@ export function ReviewAiInsights({ result, isPending = false, job }: { result?: 
             <LoaderCircle className="h-5 w-5 shrink-0 animate-spin text-primary" aria-hidden="true" />
             <div>
               <h2 className="text-sm font-semibold">
-                {isQueued ? 'AI insights queued' : 'Generating AI insights'}
+                Generating AI insights
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {isQueued ? 'Waiting for the review worker to start.' : 'Analyzing your saved activity and reflections.'}
+                Analyzing your saved activity and reflections.
               </p>
             </div>
           </CardContent>

@@ -5,7 +5,6 @@ extension AppModel {
     private func invalidateTaskProjections() {
         cachedTaskSections.removeAll(keepingCapacity: true)
         cachedHomeTodayTasks = nil
-        cachedPlanningProjections.removeAll(keepingCapacity: true)
         cachedPlanningRenderProjections.removeAll(keepingCapacity: true)
     }
 
@@ -404,52 +403,6 @@ extension AppModel {
         }
         cachedTaskSections[section] = result
         return result
-    }
-
-    func planningTasks(
-        for section: AppSection,
-        filterQuery: String,
-        taskListId: String?
-    ) -> [ProductivityTask] {
-        invalidateTaskProjectionsIfDayChanged()
-        let hasQuery = !filterQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let query = filterQuery.lowercased()
-        let key = "\(section.rawValue)|\(taskListId ?? "")|\(query)|\(sortOption.rawValue)|\(hideCompletedTasks)"
-        if let cached = cachedPlanningProjections[key] {
-            return cached
-        }
-
-        var visible = tasks(for: section)
-        if let taskListId {
-            visible = visible.filter { $0.taskListId == taskListId }
-        }
-        if hasQuery {
-            visible = visible.filter { $0.title.lowercased().contains(query) }
-        }
-        if hideCompletedTasks {
-            visible = visible.filter { $0.status != .completed }
-        }
-        switch sortOption {
-        case .manual:
-            visible.sort { $0.sortOrder < $1.sortOrder }
-        case .priority:
-            visible.sort { lhs, rhs in
-                let lhsWeight = lhs.priority == .high ? 3 : lhs.priority == .medium ? 2 : lhs.priority == .low ? 1 : 0
-                let rhsWeight = rhs.priority == .high ? 3 : rhs.priority == .medium ? 2 : rhs.priority == .low ? 1 : 0
-                if lhsWeight != rhsWeight { return lhsWeight > rhsWeight }
-                return lhs.sortOrder < rhs.sortOrder
-            }
-        case .dueDate:
-            visible.sort { lhs, rhs in
-                guard let lhsDue = lhs.dueAt else { return false }
-                guard let rhsDue = rhs.dueAt else { return true }
-                return lhsDue < rhsDue
-            }
-        case .title:
-            visible.sort { $0.title.localizedCompare($1.title) == .orderedAscending }
-        }
-        cachedPlanningProjections[key] = visible
-        return visible
     }
 
     func planningRenderProjection(

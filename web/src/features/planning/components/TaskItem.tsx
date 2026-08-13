@@ -222,7 +222,7 @@ export function TaskItem({
             {task.dueAt && (
               <span
                 className={`itu-task-chip is-due ${
-                  !done && (isOverdue(task.dueAt) || isDueToday(task.dueAt)) ? 'is-urgent' : ''
+                  !done && isOverdue(task.dueAt) ? 'is-urgent' : ''
                 }`}
               >
                 <Calendar />
@@ -322,7 +322,7 @@ function formatDue(value: string, completed: boolean) {
   const today = new Date();
   const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const startOfDueDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const days = Math.round((startOfDueDay.getTime() - startOfToday.getTime()) / 86_400_000);
+  const days = calendarDayDifference(startOfToday, startOfDueDay);
 
   if (days < 0) return `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Day' : 'Days'} Overdue`;
   if (days === 0) return 'Due today';
@@ -331,15 +331,11 @@ function formatDue(value: string, completed: boolean) {
 }
 
 function isOverdue(value: string) {
-  return new Date(value).getTime() - Date.now() < 0;
+  return calendarDayDifference(new Date(value), new Date()) > 0;
 }
 
-function isDueToday(value: string) {
-  const due = new Date(value);
-  const today = new Date();
-  return (
-    due.getFullYear() === today.getFullYear() &&
-    due.getMonth() === today.getMonth() &&
-    due.getDate() === today.getDate()
-  );
+function calendarDayDifference(from: Date, to: Date) {
+  const fromDay = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
+  const toDay = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate());
+  return Math.round((toDay - fromDay) / 86_400_000);
 }

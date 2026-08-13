@@ -348,7 +348,6 @@ enum MatrixQuadrant: String, CaseIterable, Identifiable {
 }
 
 struct MatrixQuadrantProjection: Sendable {
-    var tasks: [ProductivityTask]
     var activeTasks: [ProductivityTask]
     var completedTasks: [ProductivityTask]
     var canceledTasks: [ProductivityTask]
@@ -362,7 +361,7 @@ struct MatrixProjection: Sendable {
     }
 
     subscript(quadrant: MatrixQuadrant) -> MatrixQuadrantProjection {
-        quadrants[quadrant] ?? MatrixQuadrantProjection(tasks: [], activeTasks: [], completedTasks: [], canceledTasks: [])
+        quadrants[quadrant] ?? MatrixQuadrantProjection(activeTasks: [], completedTasks: [], canceledTasks: [])
     }
 
     static func build(
@@ -386,12 +385,11 @@ struct MatrixProjection: Sendable {
             }
         }
         var buckets = Dictionary(uniqueKeysWithValues: MatrixQuadrant.allCases.map {
-            ($0, MatrixQuadrantProjection(tasks: [], activeTasks: [], completedTasks: [], canceledTasks: []))
+            ($0, MatrixQuadrantProjection(activeTasks: [], completedTasks: [], canceledTasks: []))
         })
         for task in sorted {
             let quadrant = MatrixQuadrant.q1.classify(task: task, settings: settings, now: now)
             var bucket = buckets[quadrant]!
-            bucket.tasks.append(task)
             switch task.status {
             case .completed: bucket.completedTasks.append(task)
             case .canceled: bucket.canceledTasks.append(task)
@@ -679,7 +677,7 @@ private struct MatrixTaskRow: View {
 
                     if let reminder = task.reminders?.first(where: { $0.status == "SCHEDULED" || $0.status == "SNOOZED" }) {
                         MatrixTaskChip(
-                            title: formattedDueDate(reminder.remindAt),
+                            title: formattedDueDate(reminder.remindAt, includeOverdue: false),
                             systemImage: "bell.fill",
                             foreground: iTuTheme.teal,
                             background: iTuTheme.mintTint
@@ -777,7 +775,7 @@ private struct MatrixTaskRow: View {
         return isResolved ? iTuTheme.surface : (isOverdue(date) ? iTuTheme.coralTint : iTuTheme.mintTint)
     }
 
-    private func formattedDueDate(_ value: String) -> String {
+    private func formattedDueDate(_ value: String, includeOverdue: Bool = true) -> String {
         guard let date = parseDate(value) else { return value }
 
         if isResolved {
@@ -786,8 +784,8 @@ private struct MatrixTaskRow: View {
         if Calendar.current.isDateInToday(date) {
             return "Today"
         }
-        if isOverdue(date) {
-            let days = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 1
+        if includeOverdue && isOverdue(date) {
+            let days = iTuDateSupport.calendarDayDifference(from: date, to: Date())
             return "\(days) Day\(days == 1 ? "" : "s") Overdue"
         }
         return date.formatted(.dateTime.day().month(.abbreviated))

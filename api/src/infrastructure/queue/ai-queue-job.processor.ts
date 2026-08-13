@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { AI_ERRORS } from '@core/application/constants/app.constants';
 import { TOKENS } from '@core/application/constants/tokens';
@@ -11,7 +10,7 @@ import type { AiJobModel } from '@core/domain/models';
 import type { IAiProvider, ILogger, IMediaStorage } from '@core/application/ports/out/services.port';
 import { JOURNAL_REPOSITORY, type IJournalRepository } from '@core/application/ports/out/journal-repository.port';
 import { ReviewContextBuilder } from '@core/application/use-cases/review-context.builder';
-import type { ReviewInsightsResultV1 } from '@core/domain/review/review.types';
+import { generateAndSaveReviewInsights, reviewContextInput } from '@core/application/use-cases/review-insights.service';
 import { hydrateSessionReviewImages } from '@core/application/use-cases/ai-session-images';
 import type { AiQueueJob, AiQueueJobType } from './queue.types';
 
@@ -62,48 +61,24 @@ export class AiQueueJobProcessor {
         await this.jobs.markCompleted(jobId, { stale: true });
         return;
       }
-      const review = input.reviewKind === 'DAILY' ? entry.dailyReview : entry.weeklyReview;
-      if (!review) throw new Error('REVIEW_DATA_MISSING');
-      const reflections: Record<string, string> = input.reviewKind === 'DAILY'
-        ? {
-            wentWell: entry.dailyReview!.wentWellMarkdown ?? '',
-            friction: entry.dailyReview!.frictionMarkdown ?? '',
-            learned: entry.dailyReview!.learnedMarkdown ?? '',
-            context: entry.dailyReview!.contextMarkdown ?? '',
-          }
-        : {
-            wentWell: entry.weeklyReview!.wentWellMarkdown ?? '',
-            friction: entry.weeklyReview!.frictionMarkdown ?? '',
-            learned: entry.weeklyReview!.learnedMarkdown ?? '',
-            differentFromLastWeek: entry.weeklyReview!.differentFromLastWeekMarkdown ?? '',
-            nextWeek: entry.weeklyReview!.nextWeekMarkdown ?? '',
-          };
-      const context = await this.reviewContext.build(
-        job.userId,
-        { ...input.period, kind: input.reviewKind },
-        reflections,
-        entryId,
-      );
-      const output: ReviewInsightsResultV1 = await this.ai.generateReviewInsights(job.userId, {
-        context,
-        promptVersion: input.promptVersion,
-      });
-      const saved = await this.journal.saveReviewAiInsights(
+      const reviewInput = reviewContextInput(entry, input.reviewKind, input.period);
+      const context = await this.reviewContext.build(job.userId, reviewInput.range, reviewInput.reflections, entryId);
+      const saved = await generateAndSaveReviewInsights(
+        this.journal,
+        this.ai,
         job.userId,
         entryId,
         input.sourceEntryVersion,
         jobId,
-        context.metrics,
-        context.previousPeriod?.comparison,
-        output as unknown as Record<string, unknown>,
-        createHash('sha256').update(JSON.stringify(context)).digest('hex'),
+        context,
+        input.promptVersion,
       );
       if (!saved) {
-        await this.jobs.markCompleted(jobId, { ...output, stale: true });
+        await this.jobs.markCompleted(jobId, { stale: true });
         this.logger.warn('AI review insights completed against a changed review', { jobId, entryId });
         return;
       }
-      await this.jobs.markCompleted(jobId, output);
+      await this.jobs.markCompleted(jobId, saved.weeklyReview?.aiInsightsSnapshot ?? saved.dailyReview?.aiInsightsSnapshot ?? {});
       this.logger.debug('AI review insights job completed', { jobId, entryId, userId: job.userId });
     } catch (error) {
       const message = this.errorMessage(error);

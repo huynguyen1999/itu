@@ -60,6 +60,14 @@ final class PlanningProjectorTests: XCTestCase {
         XCTAssertEqual(store.planningSettings(for: .today).groupMode, .time)
     }
 
+    func testCalendarDayDifferenceCountsYesterdayAfterMidnightAsOneDay() {
+        let calendar = Calendar.current
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 14, hour: 1))!
+        let yesterdayLate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 13, hour: 23, minute: 30))!
+
+        XCTAssertEqual(iTuDateSupport.calendarDayDifference(from: yesterdayLate, to: now), 1)
+    }
+
     func testRenderProjectionSortsAndPartitionsOnce() {
         var completed = ProductivityTask.optimistic(id: "completed", title: "Completed")
         completed.status = .completed
@@ -72,7 +80,6 @@ final class PlanningProjectorTests: XCTestCase {
             hideCompleted: false
         )
 
-        XCTAssertEqual(projection.allTasks.map(\.id), ["active", "completed"])
         XCTAssertEqual(projection.activeGroups.flatMap(\.tasks).map(\.id), ["active"])
         XCTAssertEqual(projection.completedTasks.map(\.id), ["completed"])
     }

@@ -408,19 +408,10 @@ struct TaskRow: View {
 
                             if let reminder = task.reminders?.first(where: { $0.status == "SCHEDULED" || $0.status == "SNOOZED" }) {
                                 TaskChip(
-                                    title: formattedDate(reminder.remindAt),
+                                    title: formattedDate(reminder.remindAt, includeOverdue: false),
                                     systemImage: "bell.fill",
                                     foreground: iTuTheme.teal,
                                     background: iTuTheme.mintTint
-                                )
-                            }
-
-                            if let scheduledStartAt = task.scheduledStartAt {
-                                TaskChip(
-                                    title: formattedDate(scheduledStartAt),
-                                    systemImage: "calendar.badge.clock",
-                                    foreground: iTuTheme.amber,
-                                    background: iTuTheme.amberTint
                                 )
                             }
 
@@ -610,13 +601,13 @@ struct TaskRow: View {
     }
 
     // Robust Date Formatter handling ISO8601 with/without fractional seconds
-    private func formattedDate(_ value: String) -> String {
+    private func formattedDate(_ value: String, includeOverdue: Bool = true) -> String {
         guard let date = parseDate(value) else { return value }
         if Calendar.current.isDateInToday(date) {
             return "Today"
         }
-        if isOverdue(value) {
-            let days = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 1
+        if includeOverdue && isOverdue(value) {
+            let days = iTuDateSupport.calendarDayDifference(from: date, to: Date())
             return "\(days) Day\(days == 1 ? "" : "s") Overdue"
         }
         return date.formatted(.dateTime.day().month(.abbreviated))

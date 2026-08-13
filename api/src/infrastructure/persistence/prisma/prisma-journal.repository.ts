@@ -58,7 +58,6 @@ export function mapEntryToModel(entry: any): JournalEntryModel {
           aiGeneratedAt: entry.weeklyReview.aiGeneratedAt,
           aiPromptVersion: entry.weeklyReview.aiPromptVersion,
           aiSourceEntryVersion: entry.weeklyReview.aiSourceEntryVersion,
-          aiInputFingerprint: entry.weeklyReview.aiInputFingerprint,
         }
       : null,
     dailyReview: entry.dailyReview
@@ -75,7 +74,6 @@ export function mapEntryToModel(entry: any): JournalEntryModel {
           aiGeneratedAt: entry.dailyReview.aiGeneratedAt,
           aiPromptVersion: entry.dailyReview.aiPromptVersion,
           aiSourceEntryVersion: entry.dailyReview.aiSourceEntryVersion,
-          aiInputFingerprint: entry.dailyReview.aiInputFingerprint,
         } satisfies JournalDailyReviewModel)
       : null,
     tags: (entry.tags || []).map((assignment: any) => ({
@@ -187,7 +185,6 @@ export class PrismaJournalRepository implements IJournalRepository {
             aiGeneratedAt: data.weeklyReview.aiGeneratedAt,
             aiPromptVersion: data.weeklyReview.aiPromptVersion,
             aiSourceEntryVersion: data.weeklyReview.aiSourceEntryVersion,
-            aiInputFingerprint: data.weeklyReview.aiInputFingerprint,
           },
         });
       }
@@ -207,7 +204,6 @@ export class PrismaJournalRepository implements IJournalRepository {
             aiGeneratedAt: data.dailyReview.aiGeneratedAt,
             aiPromptVersion: data.dailyReview.aiPromptVersion,
             aiSourceEntryVersion: data.dailyReview.aiSourceEntryVersion,
-            aiInputFingerprint: data.dailyReview.aiInputFingerprint,
           },
         });
       }
@@ -307,7 +303,6 @@ export class PrismaJournalRepository implements IJournalRepository {
             aiGeneratedAt: data.weeklyReview.aiGeneratedAt,
             aiPromptVersion: data.weeklyReview.aiPromptVersion,
             aiSourceEntryVersion: data.weeklyReview.aiSourceEntryVersion,
-            aiInputFingerprint: data.weeklyReview.aiInputFingerprint,
           },
           update: {
             periodStart: data.weeklyReview.periodStart ?? existing.weeklyReview?.periodStart,
@@ -327,7 +322,6 @@ export class PrismaJournalRepository implements IJournalRepository {
             aiGeneratedAt: data.weeklyReview.aiGeneratedAt === undefined ? existing.weeklyReview?.aiGeneratedAt : data.weeklyReview.aiGeneratedAt,
             aiPromptVersion: data.weeklyReview.aiPromptVersion === undefined ? existing.weeklyReview?.aiPromptVersion : data.weeklyReview.aiPromptVersion,
             aiSourceEntryVersion: data.weeklyReview.aiSourceEntryVersion === undefined ? existing.weeklyReview?.aiSourceEntryVersion : data.weeklyReview.aiSourceEntryVersion,
-            aiInputFingerprint: data.weeklyReview.aiInputFingerprint === undefined ? existing.weeklyReview?.aiInputFingerprint : data.weeklyReview.aiInputFingerprint,
           },
         });
       }
@@ -348,7 +342,6 @@ export class PrismaJournalRepository implements IJournalRepository {
             aiGeneratedAt: data.dailyReview.aiGeneratedAt,
             aiPromptVersion: data.dailyReview.aiPromptVersion,
             aiSourceEntryVersion: data.dailyReview.aiSourceEntryVersion,
-            aiInputFingerprint: data.dailyReview.aiInputFingerprint,
           },
           update: {
             periodDate: data.dailyReview.periodDate,
@@ -362,7 +355,6 @@ export class PrismaJournalRepository implements IJournalRepository {
             aiGeneratedAt: data.dailyReview.aiGeneratedAt,
             aiPromptVersion: data.dailyReview.aiPromptVersion,
             aiSourceEntryVersion: data.dailyReview.aiSourceEntryVersion,
-            aiInputFingerprint: data.dailyReview.aiInputFingerprint,
           },
         });
       }
@@ -426,7 +418,6 @@ export class PrismaJournalRepository implements IJournalRepository {
     summarySnapshot: Record<string, unknown>,
     comparisonSnapshot: Record<string, unknown> | undefined,
     insightsSnapshot: Record<string, unknown>,
-    aiInputFingerprint: string,
   ): Promise<JournalEntryModel | null> {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.journalEntry.findFirst({
@@ -445,7 +436,6 @@ export class PrismaJournalRepository implements IJournalRepository {
         aiGeneratedAt: new Date(),
         aiPromptVersion: 'review-insights-v1',
         aiSourceEntryVersion: sourceEntryVersion,
-        aiInputFingerprint,
       };
       if (current.kind === 'DAILY_REVIEW') {
         await tx.journalDailyReview.update({ where: { entryId }, data: aiFields });
@@ -550,7 +540,6 @@ export class PrismaJournalRepository implements IJournalRepository {
             aiGeneratedAt: snap.weeklyReview.aiGeneratedAt ? new Date(snap.weeklyReview.aiGeneratedAt) : null,
             aiPromptVersion: snap.weeklyReview.aiPromptVersion ?? null,
             aiSourceEntryVersion: snap.weeklyReview.aiSourceEntryVersion ?? null,
-            aiInputFingerprint: snap.weeklyReview.aiInputFingerprint ?? null,
           }
         : undefined,
       dailyReview: snap.dailyReview
@@ -566,7 +555,6 @@ export class PrismaJournalRepository implements IJournalRepository {
             aiGeneratedAt: snap.dailyReview.aiGeneratedAt ? new Date(snap.dailyReview.aiGeneratedAt) : null,
             aiPromptVersion: snap.dailyReview.aiPromptVersion ?? null,
             aiSourceEntryVersion: snap.dailyReview.aiSourceEntryVersion ?? null,
-            aiInputFingerprint: snap.dailyReview.aiInputFingerprint ?? null,
           }
         : undefined,
     });

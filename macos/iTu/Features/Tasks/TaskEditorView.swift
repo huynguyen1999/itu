@@ -851,7 +851,7 @@ struct TaskDueDatePickerView: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             HStack(spacing: 10) {
                 Text(monthTitle)
                     .font(.system(size: 14, weight: .semibold))
@@ -864,12 +864,12 @@ struct TaskDueDatePickerView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.white.opacity(0.9))
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 5) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 3) {
                 ForEach(weekdaySymbols.indices, id: \.self) { index in
                     Text(weekdaySymbols[index])
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(.white.opacity(0.45))
-                        .frame(height: 16)
+                        .frame(height: 14)
                 }
 
                 ForEach(0..<42, id: \.self) { index in
@@ -977,7 +977,7 @@ struct TaskDueDatePickerView: View {
             Text(calendar.component(.day, from: day), format: .number)
                 .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
                 .foregroundStyle(isSelected ? .white : .white.opacity(isCurrentMonth ? 0.92 : 0.35))
-                .frame(width: 28, height: 28)
+                .frame(width: 28, height: 26)
                 .background(isSelected ? Color(hex: 0x3B82F6) : .clear)
                 .clipShape(Circle())
         }

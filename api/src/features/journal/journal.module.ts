@@ -14,6 +14,6 @@ import { AiProviderModule } from '@infrastructure/ai/ai-provider.module';
   imports: [AuthModule, PersistenceModule, MediaModule, AiProviderModule],
   controllers: [JournalController, PreferencesController],
   providers: [JournalService, PreferencesService, ReviewContextBuilder, ReviewInsightsService],
-  exports: [JournalService, PreferencesService, ReviewContextBuilder, ReviewInsightsService],
+  exports: [JournalService, PreferencesService, ReviewContextBuilder],
 })
 export class JournalModule {}

@@ -3,18 +3,17 @@ import { describe, expect, it } from 'vitest';
 import { ReviewAiInsights } from './ReviewAiInsights';
 
 describe('ReviewAiInsights', () => {
-  it('shows queued work instead of looking idle', () => {
-    const markup = renderToStaticMarkup(<ReviewAiInsights job={{ id: 'job-1', status: 'QUEUED' }} />);
+  it('shows pending work instead of looking idle', () => {
+    const markup = renderToStaticMarkup(<ReviewAiInsights isPending />);
 
-    expect(markup).toContain('AI insights queued');
-    expect(markup).toContain('Waiting for the review worker to start.');
+    expect(markup).toContain('Generating AI insights');
+    expect(markup).toContain('Analyzing your saved activity and reflections.');
     expect(markup).toContain('aria-busy="true"');
   });
 
   it('renders a completed result', () => {
     const markup = renderToStaticMarkup(
       <ReviewAiInsights
-        job={{ id: 'job-1', status: 'COMPLETED' }}
         result={{
           version: 1,
           headline: 'A focused day',

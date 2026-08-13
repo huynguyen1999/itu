@@ -223,7 +223,6 @@ extension OfflineStore {
                         aiGeneratedAt: existing?.aiGeneratedAt,
                         aiPromptVersion: existing?.aiPromptVersion,
                         aiSourceEntryVersion: existing?.aiSourceEntryVersion,
-                        aiInputFingerprint: existing?.aiInputFingerprint
                     )
                 }
                 if case let .object(fields)? = mutation.payload["dailyReview"] {
@@ -244,7 +243,6 @@ extension OfflineStore {
                         aiGeneratedAt: existing?.aiGeneratedAt,
                         aiPromptVersion: existing?.aiPromptVersion,
                         aiSourceEntryVersion: existing?.aiSourceEntryVersion,
-                        aiInputFingerprint: existing?.aiInputFingerprint
                     )
                 }
                 state.journalNotes[index].version = max(state.journalNotes[index].version, (mutation.baseVersion ?? state.journalNotes[index].version) + 1)

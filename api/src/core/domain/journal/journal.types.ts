@@ -40,7 +40,6 @@ export interface JournalWeeklyReviewModel {
   aiGeneratedAt?: Date | null;
   aiPromptVersion?: string | null;
   aiSourceEntryVersion?: number | null;
-  aiInputFingerprint?: string | null;
 }
 
 export interface JournalDailyReviewModel {
@@ -56,7 +55,6 @@ export interface JournalDailyReviewModel {
   aiGeneratedAt?: Date | null;
   aiPromptVersion?: string | null;
   aiSourceEntryVersion?: number | null;
-  aiInputFingerprint?: string | null;
 }
 
 export interface JournalEntryRevisionModel {

@@ -415,7 +415,6 @@ final class AppModel {
     @ObservationIgnored var habitOccurrenceLoadingKeys: Set<String> = []
     @ObservationIgnored var cachedTaskSections: [AppSection: [ProductivityTask]] = [:]
     @ObservationIgnored var cachedHomeTodayTasks: [ProductivityTask]?
-    @ObservationIgnored var cachedPlanningProjections: [String: [ProductivityTask]] = [:]
     @ObservationIgnored var cachedPlanningRenderProjections: [String: PlanningRenderProjection] = [:]
     @ObservationIgnored var archivedSkillIDs: Set<String> = []
     @ObservationIgnored var cachedTaskProjectionDay: String?
@@ -505,7 +504,6 @@ final class AppModel {
             tasks = snapshot.tasks
             cachedTaskSections.removeAll(keepingCapacity: true)
             cachedHomeTodayTasks = nil
-            cachedPlanningProjections.removeAll(keepingCapacity: true)
             cachedPlanningRenderProjections.removeAll(keepingCapacity: true)
             cachedTaskProjectionDay = nil
         }

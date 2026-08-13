@@ -122,7 +122,6 @@ extension AppModel {
             tasks = []
             cachedTaskSections.removeAll()
             cachedHomeTodayTasks = nil
-            cachedPlanningProjections.removeAll()
             cachedPlanningRenderProjections.removeAll()
             archivedSkillIDs.removeAll()
             cachedTaskProjectionDay = nil

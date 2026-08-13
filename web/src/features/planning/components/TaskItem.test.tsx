@@ -270,6 +270,20 @@ describe('TaskItem', () => {
     expect(markup).not.toContain('1 Day Left');
   });
 
+  it('does not mark a task due earlier today as overdue', () => {
+    const todayAtMidnight = new Date();
+    todayAtMidnight.setHours(0, 0, 0, 0);
+    const markup = renderTask({
+      task: {
+        ...task,
+        dueAt: todayAtMidnight.toISOString(),
+      },
+    });
+
+    expect(markup).toContain('Due today');
+    expect(markup).not.toContain('is-urgent');
+  });
+
   it('renders "1 Day Left" for tasks due tomorrow', () => {
     const tomorrowAt18 = new Date();
     tomorrowAt18.setDate(tomorrowAt18.getDate() + 1);

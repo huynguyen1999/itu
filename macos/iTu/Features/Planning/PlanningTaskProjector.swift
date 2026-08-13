@@ -13,7 +13,6 @@ struct PlanningTaskGroup: Identifiable, Sendable {
 }
 
 struct PlanningRenderProjection: Sendable {
-    let allTasks: [ProductivityTask]
     let overdueTasks: [ProductivityTask]
     let activeGroups: [PlanningTaskGroup]
     let completedTasks: [ProductivityTask]
@@ -54,7 +53,6 @@ enum PlanningTaskProjector {
             }
         }
         return PlanningRenderProjection(
-            allTasks: sorted,
             overdueTasks: overdue,
             activeGroups: group(active, by: settings.groupMode, sections: sections, lists: lists, tags: tags, tagIdsByTaskID: tagIdsByTaskID),
             completedTasks: completed,

@@ -38,12 +38,14 @@ final class PlanningTests: XCTestCase {
         let model = AppModel()
         model.offlineStore = store
         model.apply(try await store.load())
-        _ = model.planningTasks(for: .inbox, filterQuery: "", taskListId: nil)
+        let settings = model.settingsStore.planningSettings(for: .inbox)
+        _ = model.planningRenderProjection(for: .inbox, filterQuery: "", taskListId: nil, settings: settings)
 
         await model.cycleTaskStatus(created)
 
         XCTAssertEqual(
-            model.planningTasks(for: .inbox, filterQuery: "", taskListId: nil).first?.status,
+            model.planningRenderProjection(for: .inbox, filterQuery: "", taskListId: nil, settings: settings)
+                .activeGroups.flatMap(\.tasks).first?.status,
             .inProgress
         )
     }

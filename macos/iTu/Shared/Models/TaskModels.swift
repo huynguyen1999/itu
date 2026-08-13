@@ -340,6 +340,15 @@ enum iTuDateSupport {
             ?? (try? Date(value, strategy: dayParser))
     }
 
+    static func calendarDayDifference(from: Date, to: Date) -> Int {
+        let calendar = Calendar.current
+        return calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: from),
+            to: calendar.startOfDay(for: to)
+        ).day ?? 0
+    }
+
     static func string(from date: Date) -> String {
         iso8601.format(date)
     }

@@ -1,7 +1,7 @@
 import { ReviewInsightsService } from './review-insights.service';
 
 describe('ReviewInsightsService', () => {
-  it('builds context, calls Gemini once, and persists a fingerprinted result', async () => {
+  it('builds context, calls Gemini once, and persists the result', async () => {
     const entry = {
       id: 'entry-1',
       kind: 'DAILY_REVIEW',
@@ -43,7 +43,6 @@ describe('ReviewInsightsService', () => {
       context.metrics,
       undefined,
       expect.any(Object),
-      expect.stringMatching(/^[a-f0-9]{64}$/),
     );
   });
 });
