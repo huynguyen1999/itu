@@ -159,12 +159,13 @@ final class SyncCoordinator {
         isSyncing = true
         syncingGeneration = runGeneration
         defer {
-            guard syncingGeneration == runGeneration else { return }
-            isSyncing = false
-            syncingGeneration = nil
-            if followupRequested {
-                followupRequested = false
-                requestFlush(urgent: true)
+            if syncingGeneration == runGeneration {
+                isSyncing = false
+                syncingGeneration = nil
+                if followupRequested {
+                    followupRequested = false
+                    requestFlush(urgent: true)
+                }
             }
         }
 

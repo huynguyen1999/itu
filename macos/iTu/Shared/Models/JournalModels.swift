@@ -56,7 +56,7 @@ enum iTuCalendarSupport {
     }
 
     static func weekRange(containing date: Date = Date(), weekStartDay: String) -> (start: String, end: String) {
-        var cal = calendar(firstWeekday: weekStartDay.uppercased() == "SUNDAY" ? 1 : 2)
+        let cal = calendar(firstWeekday: weekStartDay.uppercased() == "SUNDAY" ? 1 : 2)
         let day = cal.startOfDay(for: date)
         let weekday = cal.component(.weekday, from: day)
         let offset = (weekday - cal.firstWeekday + 7) % 7
