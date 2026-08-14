@@ -5,7 +5,7 @@ import { createUlid } from '@core/application/ulid';
 
 type Tx = Record<string, any>;
 
-export const COMMITMENT_CONFIG = {
+const COMMITMENT_CONFIG = {
   featureFlag: 'COMMITMENT_FEATURE_ENABLED',
   gentleRate: 0.5,
   standardRate: 1,

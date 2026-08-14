@@ -24,18 +24,14 @@ import { growthSkillWeightsTotal } from '@/shared/growthRewardMath';
 import { isSelectableGrowthEntry } from '@/shared/growthEntryFilters';
 import { canonicalizeGrowthTaskRewardAwards } from './growthTaskRewardDefaults';
 
-export type GrowthTab = 'attributes' | 'skills' | 'shop' | 'ledger' | 'settings';
-
-export { Shop } from './components/growth-shop';
-export { CreateGrowthDialog } from './components/GrowthDialogs';
 export {
-  Ledger,
   groupLedgerEntries,
   growthLedgerXpKind,
   growthLedgerXpLabel,
   isDerivedAttributeLedgerEntry,
 } from './components/GrowthLedger';
-export type { GrowthLedgerXpKind } from './components/GrowthLedger';
+
+export type GrowthTab = 'attributes' | 'skills' | 'shop' | 'ledger' | 'settings';
 
 const growthNavigation = [
   { to: '/growth/attributes', label: 'Attributes', icon: ChartNoAxesCombined, tab: 'attributes', end: false },
@@ -213,7 +209,7 @@ function ProgressEntries({
   );
 }
 
-export function SettingsView({
+function SettingsView({
   data,
   onUpdateAccountBaseXp,
   onOpenReset,

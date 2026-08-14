@@ -70,7 +70,7 @@ flowchart TB
 
 ## API and local state
 
-[`APIClient.swift`](../../macos/iTu/Shared/API/APIClient.swift) owns authenticated REST requests, synchronization, usage endpoints, and WebSocket URL construction. [`SessionCache.swift`](../../macos/iTu/Shared/API/SessionCache.swift) persists authentication material using the native session-storage policy.
+[`APIClient.swift`](../../macos/iTu/Shared/API/APIClient.swift) is the stable actor facade and owns authenticated REST transport, refresh handling, decoding, and WebSocket URL construction. Endpoint families live in `APIClient+*.swift` extensions (for example, [`APIClient+Journal.swift`](../../macos/iTu/Shared/API/APIClient+Journal.swift)) without changing call sites or exposing session state. [`SessionCache.swift`](../../macos/iTu/Shared/API/SessionCache.swift) persists authentication material using the native session-storage policy.
 
 [`OfflineStore.swift`](../../macos/iTu/Shared/Persistence/OfflineStore.swift) is an actor holding one Codable offline snapshot. Feature extensions mutate that snapshot, append sync mutations, and write it atomically. The snapshot contains synchronized entities, the outbox, conflicts, and cursor; feature-specific persistence logic stays in `OfflineStore+*.swift`.
 

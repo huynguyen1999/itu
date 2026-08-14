@@ -160,4 +160,48 @@ final class CalendarParityTests: XCTestCase {
         XCTAssertEqual(model.skills.map(\.id), [visibleSkill.id])
         XCTAssertEqual(model.calendarPreferences, preferences)
     }
+
+    func testCalendarEventDescriptionParsingSeparatesEscapedNewlines() {
+        let desc = "Class: TO+-Skill-Talk\\nProgram: Talk Show\\nTeacher: Lương Mỹ Nhàn\\nRoom: Ground\\nTime: 10:30:00 - 12:00:00"
+        let lines = desc
+            .components(separatedBy: .newlines)
+            .flatMap { $0.components(separatedBy: "\\n") }
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        XCTAssertEqual(lines.count, 5)
+        XCTAssertEqual(lines[0], "Class: TO+-Skill-Talk")
+        XCTAssertEqual(lines[1], "Program: Talk Show")
+        XCTAssertEqual(lines[2], "Teacher: Lương Mỹ Nhàn")
+        XCTAssertEqual(lines[3], "Room: Ground")
+        XCTAssertEqual(lines[4], "Time: 10:30:00 - 12:00:00")
+    }
+
+    func testCalendarEventDetailViewInitializesWithExternalEvent() {
+        let start = Date(timeIntervalSince1970: 1723631400) // 2024-08-14
+        let end = Date(timeIntervalSince1970: 1723636800)
+        let item = CalendarItem(
+            id: "ext-1",
+            title: "TFIC - AI Daily Life",
+            start: start,
+            end: end,
+            kind: "EXTERNAL_EVENT",
+            taskID: nil,
+            readOnly: true,
+            allDay: false,
+            sourceID: "calendar:1",
+            sourceName: "TalkFirst",
+            color: "#167F71",
+            priority: nil,
+            description: "Class: TO+-Skill-Talk\\nProgram: Talk Show",
+            location: "Ground",
+            timeZone: "Asia/Ho_Chi_Minh",
+            status: nil
+        )
+
+        var closed = false
+        let view = CalendarEventDetailView(item: item, onClose: { closed = true })
+        XCTAssertNotNil(view)
+        XCTAssertFalse(closed)
+    }
 }

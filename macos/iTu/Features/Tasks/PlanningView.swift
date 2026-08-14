@@ -41,6 +41,11 @@ struct PlanningView: View {
         .onAppear {
             model.settingsStore.lastPlanningView = planningViewKey
         }
+        .task {
+            await model.refreshCoordinator.run(.tasks) {
+                await model.refreshTasks()
+            }
+        }
         .overlay {
             Button("") { focusSearch() }
                 .keyboardShortcut("f", modifiers: .command)

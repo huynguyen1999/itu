@@ -763,7 +763,7 @@ function lifecycleOrdinal(entryKey?: string | null): number {
   return match ? Number(match[1]) : 0;
 }
 
-export async function createLedgerOnce(
+async function createLedgerOnce(
   tx: Tx,
   data: LedgerEntryInput,
 ): Promise<boolean> {

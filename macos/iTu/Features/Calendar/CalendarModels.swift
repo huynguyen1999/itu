@@ -74,9 +74,49 @@ struct CalendarTimelineItem: Decodable, Identifiable, Sendable {
     }
 }
 
+struct ExternalCalendarModel: Codable, Identifiable, Sendable, Hashable {
+    let id: String
+    let provider: String
+    let name: String
+    let url: String?
+    let color: String
+    let visible: Bool
+    let lastSuccessfulSyncAt: String?
+    let lastError: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, provider, name, url, color, visible, lastSuccessfulSyncAt, lastError
+    }
+}
+
 struct CalendarPreferencesModel: Codable, Equatable, Sendable {
     var zoom: String = "WEEK"
     var visibleKinds: [String] = ["TASK_DURATION", "TASK_DUE", "FOCUS_SESSION", "EXTERNAL_EVENT"]
     var showCompleted = true
     var collapsedGroupIds: [String] = []
+    var weekStart: String = "MONDAY"
+
+    init(
+        zoom: String = "WEEK",
+        visibleKinds: [String] = ["TASK_DURATION", "TASK_DUE", "FOCUS_SESSION", "EXTERNAL_EVENT"],
+        showCompleted: Bool = true,
+        collapsedGroupIds: [String] = [],
+        weekStart: String = "MONDAY"
+    ) {
+        self.zoom = zoom
+        self.visibleKinds = visibleKinds
+        self.showCompleted = showCompleted
+        self.collapsedGroupIds = collapsedGroupIds
+        self.weekStart = weekStart
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        zoom = try container.decodeIfPresent(String.self, forKey: .zoom) ?? "WEEK"
+        visibleKinds = try container.decodeIfPresent([String].self, forKey: .visibleKinds) ?? ["TASK_DURATION", "TASK_DUE", "FOCUS_SESSION", "EXTERNAL_EVENT"]
+        showCompleted = try container.decodeIfPresent(Bool.self, forKey: .showCompleted) ?? true
+        collapsedGroupIds = try container.decodeIfPresent([String].self, forKey: .collapsedGroupIds) ?? []
+        weekStart = try container.decodeIfPresent(String.self, forKey: .weekStart) ?? "MONDAY"
+    }
 }
+

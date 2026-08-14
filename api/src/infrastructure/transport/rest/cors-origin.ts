@@ -2,7 +2,7 @@ import { CONFIG_KEYS, DEFAULT_URLS } from '@core/application/constants/app.const
 
 const DEFAULT_ALLOWED_HOSTS = new Set(['localhost', '127.0.0.1', 'homelab.tailscale', 'homelab.org']);
 
-export function isAllowedCorsOrigin(origin?: string): boolean {
+function isAllowedCorsOrigin(origin?: string): boolean {
   if (!origin) return true;
   if (configuredOrigins().has(origin)) return true;
 

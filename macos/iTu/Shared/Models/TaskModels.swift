@@ -333,10 +333,48 @@ enum iTuDateSupport {
         timeZone: .current,
         calendar: .current
     )
+    static let calendarTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.calendar = .autoupdatingCurrent
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
+    static let calendarShortDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.calendar = .autoupdatingCurrent
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.dateFormat = "MMM d"
+        return formatter
+    }()
+    static let upcomingShortWeekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.calendar = .autoupdatingCurrent
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.dateFormat = "EEE, MMM d"
+        return formatter
+    }()
+    static let upcomingWeekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.calendar = .autoupdatingCurrent
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.dateFormat = "EEEE"
+        return formatter
+    }()
 
     static func parse(_ value: String) -> Date? {
-        (try? iso8601Fractional.parse(value))
-            ?? (try? iso8601.parse(value))
+        if value.count == 10 {
+            return (try? Date(value, strategy: dayParser)) ?? (try? iso8601.parse(value))
+        }
+        if value.contains(".") {
+            return (try? iso8601Fractional.parse(value)) ?? (try? iso8601.parse(value))
+        }
+        return (try? iso8601.parse(value))
+            ?? (try? iso8601Fractional.parse(value))
             ?? (try? Date(value, strategy: dayParser))
     }
 

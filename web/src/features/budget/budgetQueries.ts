@@ -15,13 +15,6 @@ export function useBudgetCategories() {
   });
 }
 
-export function useBudgetPeriod(period: string) {
-  return useQuery({
-    queryKey: ['budget', 'period', period],
-    queryFn: () => api.getBudgetPeriod(period),
-  });
-}
-
 export function useBudgetTransactions(filters?: { period?: string; categoryId?: string; type?: 'EXPENSE' | 'INCOME' }) {
   return useQuery({
     queryKey: ['budget', 'transactions', filters],

@@ -7,18 +7,18 @@ final class CompanionTests: XCTestCase {
     private var router: AppNavigationRouter!
     private var viewModel: CompanionViewModel!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         model = AppModel()
         router = AppNavigationRouter(model: model, openMainWindow: {})
         viewModel = CompanionViewModel(model: model, router: router, dismissCompanion: {})
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         viewModel = nil
         router = nil
         model = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     func testPresentationResetsToTasksAndHabits() {

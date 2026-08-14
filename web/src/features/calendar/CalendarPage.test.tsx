@@ -185,7 +185,7 @@ describe('CalendarPage', () => {
     const markup = renderToStaticMarkup(<CalendarPage />);
 
     expect(markup).toContain('h-[calc(100vh-220px)]');
-    expect(markup).toContain('sticky top-16 z-40');
+    expect(markup).toContain('sticky top-12 z-40');
     calendarFixture.preferences = undefined;
     calendarFixture.timelineItems = [];
   });

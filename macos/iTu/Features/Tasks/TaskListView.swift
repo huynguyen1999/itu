@@ -30,7 +30,7 @@ struct TaskListView: View {
         let completedSectionTasks = projection.completedTasks
 
         return ScrollView {
-            VStack(spacing: 20) {
+            LazyVStack(spacing: 20) {
                 // Quick Capture Bar matching Web Plan page
                 if section != .completed {
                     quickCaptureBar
@@ -145,9 +145,12 @@ struct TaskListView: View {
                         )
                     }
                 }
+                if model.hasMoreTaskPages {
+                    taskPageFooter
+                }
             }
             .padding(24)
-            .frame(maxWidth: 900)
+        .frame(maxWidth: 900)
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(
@@ -268,7 +271,7 @@ struct TaskListView: View {
                     .padding(.vertical, 32)
                     .iTuPanel(radius: 14)
                 } else {
-                    LazyVStack(spacing: 0) {
+                    VStack(spacing: 0) {
                         ForEach(tasks) { task in
                             taskRow(task, archivedSkillIDs: archivedSkillIDs, hideDetails: hideDetails, onReorder: onReorder)
 
@@ -298,6 +301,9 @@ struct TaskListView: View {
             growthRule: model.growthEarningRules[task.id],
             archivedSkillIDs: archivedSkillIDs,
             hideDetails: hideDetails,
+            onStatusAction: {
+                Task { await model.cycleTaskStatus(task) }
+            },
             onEdit: { openTaskEditor(task) }
         )
         if model.sortOption == .manual {
@@ -314,6 +320,20 @@ struct TaskListView: View {
                 }
         } else {
             row
+        }
+    }
+
+    private var taskPageFooter: some View {
+        HStack {
+            if model.isLoadingMoreTasks {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 32)
+        .onAppear {
+            Task { await model.loadMoreTasks() }
         }
     }
 
@@ -352,14 +372,11 @@ struct TaskRow: View {
     @State private var isStatusHovered = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        let dueDate = task.dueAt.flatMap(iTuDateSupport.parse)
+        return HStack(spacing: 12) {
             // Status Button cycling: Planned -> In Progress (blue play icon!) -> Completed -> Planned
             Button {
-                if let onStatusAction {
-                    onStatusAction()
-                } else {
-                    Task { await model.cycleTaskStatus(task) }
-                }
+                onStatusAction?()
             } label: {
                 ZStack {
                     Circle()
@@ -399,16 +416,17 @@ struct TaskRow: View {
                         WrappingHStack(horizontalSpacing: 6, verticalSpacing: 5) {
                             if let dueAt = task.dueAt {
                                 TaskChip(
-                                    title: formattedDueDate(dueAt),
+                                    title: formattedDueDate(dueAt, parsedDate: dueDate),
                                     systemImage: "calendar",
-                                    foreground: dueColor(dueAt),
-                                    background: dueBackground(dueAt)
+                                    foreground: dueColor(dueDate),
+                                    background: dueBackground(dueDate)
                                 )
                             }
 
-                            if let reminder = task.reminders?.first(where: { $0.status == "SCHEDULED" || $0.status == "SNOOZED" }) {
+                            if let reminder = task.reminders?.first(where: { $0.status == "SCHEDULED" || $0.status == "SNOOZED" }),
+                               let reminderDate = iTuDateSupport.parse(reminder.remindAt) {
                                 TaskChip(
-                                    title: formattedDate(reminder.remindAt, includeOverdue: false),
+                                    title: formattedDate(reminder.remindAt, parsedDate: reminderDate, includeOverdue: false),
                                     systemImage: "bell.fill",
                                     foreground: iTuTheme.teal,
                                     background: iTuTheme.mintTint
@@ -454,26 +472,21 @@ struct TaskRow: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(
-            ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isHovered ? iTuTheme.surface : Color.clear)
+        )
+        .overlay {
+            if isHovered {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isHovered ? iTuTheme.surface : Color.clear)
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isHovered ? iTuTheme.border : Color.clear, lineWidth: 1)
+                    .stroke(iTuTheme.border, lineWidth: 1)
             }
-        )
-        .shadow(
-            color: iTuTheme.forest.opacity(isHovered ? 0.10 : 0),
-            radius: isHovered ? 6 : 0,
-            y: isHovered ? 3 : 0
-        )
-        .animation(.easeOut(duration: 0.15), value: isHovered)
+        }
         .contentShape(Rectangle())
         .onTapGesture(perform: onEdit)
         .taskActionMenu(for: task, onOpenDetails: onEdit)
         .onHover { hovering in
             isHovered = hovering
         }
-        .pointingHandCursor()
     }
 
     // MARK: - Status Icon Rendering (Including Processing / In Progress Status)
@@ -578,43 +591,38 @@ struct TaskRow: View {
         }
     }
 
-    private func dueColor(_ value: String) -> Color {
-        isOverdue(value) ? iTuTheme.coral : iTuTheme.teal
+    private func dueColor(_ date: Date?) -> Color {
+        isOverdue(date) ? iTuTheme.coral : iTuTheme.teal
     }
 
-    private func dueBackground(_ value: String) -> Color {
-        isOverdue(value) ? iTuTheme.coralTint : iTuTheme.mintTint
+    private func dueBackground(_ date: Date?) -> Color {
+        isOverdue(date) ? iTuTheme.coralTint : iTuTheme.mintTint
     }
 
-    private func isOverdue(_ value: String) -> Bool {
-        guard let date = parseDate(value) else { return false }
+    private func isOverdue(_ date: Date?) -> Bool {
+        guard let date else { return false }
         return date < Date() && !Calendar.current.isDateInToday(date)
     }
 
-    private func formattedDueDate(_ value: String) -> String {
+    private func formattedDueDate(_ value: String, parsedDate: Date?) -> String {
         guard task.status == .completed || task.status == .canceled else {
-            return formattedDate(value)
+            return formattedDate(value, parsedDate: parsedDate)
         }
 
-        guard let date = parseDate(value) else { return value }
+        guard let date = parsedDate else { return value }
         return date.formatted(iTuDateSupport.dueDay)
     }
 
-    // Robust Date Formatter handling ISO8601 with/without fractional seconds
-    private func formattedDate(_ value: String, includeOverdue: Bool = true) -> String {
-        guard let date = parseDate(value) else { return value }
+    private func formattedDate(_ value: String, parsedDate: Date?, includeOverdue: Bool = true) -> String {
+        guard let date = parsedDate else { return value }
         if Calendar.current.isDateInToday(date) {
             return "Today"
         }
-        if includeOverdue && isOverdue(value) {
+        if includeOverdue && isOverdue(date) {
             let days = iTuDateSupport.calendarDayDifference(from: date, to: Date())
             return "\(days) Day\(days == 1 ? "" : "s") Overdue"
         }
         return date.formatted(.dateTime.day().month(.abbreviated))
-    }
-
-    private func parseDate(_ value: String) -> Date? {
-        iTuDateSupport.parse(value)
     }
 }
 
@@ -711,35 +719,46 @@ private struct TaskChip: View {
 
 // MARK: - Growth Reward Summary (Matching the web task list and task editor)
 
-struct GrowthRewardSummaryView: View {
-    let rule: GrowthEarningRuleDTO?
-    var compact = false
-    var dense = false
-    var archivedSkillIDs: Set<String> = []
+struct GrowthRewardPresentation {
+    let accountXp: Int
+    let coinReward: Int
+    let xpGroups: [(amount: Int, awards: [GrowthEarningRuleSkillAwardDTO])]
+    let itemAwards: [GrowthEarningRuleItemDTO]
 
-    private var rewardCount: Int {
-        let xpCount = xpGroups.count
-        let itemCount = rule?.itemAwards.filter { $0.quantity > 0 }.count ?? 0
-        return xpCount + itemCount + ((rule?.accountXp ?? 0) > 0 ? 1 : 0) + ((rule?.coinReward ?? 0) > 0 ? 1 : 0)
+    var rewardCount: Int {
+        xpGroups.count + itemAwards.count + (accountXp > 0 ? 1 : 0) + (coinReward > 0 ? 1 : 0)
     }
 
-    private var xpGroups: [(amount: Int, awards: [GrowthEarningRuleSkillAwardDTO])] {
-        guard let rule else { return [] }
+    init(rule: GrowthEarningRuleDTO?, archivedSkillIDs: Set<String>) {
+        accountXp = rule?.accountXp ?? 0
+        coinReward = rule?.coinReward ?? 0
+        itemAwards = rule?.itemAwards.filter { $0.quantity > 0 } ?? []
+        guard let rule else {
+            xpGroups = []
+            return
+        }
         let selected = GrowthRewardMath.selectedAwards(rule.skillAwards, archivedSkillIDs: archivedSkillIDs)
         let allocations = GrowthRewardMath.split(
             accountXp: rule.accountXp,
             awards: selected,
             archivedSkillIDs: archivedSkillIDs
         )
-        let groups = Dictionary(grouping: zip(selected, allocations).filter { $0.1 > 0 }, by: { $0.1 })
-        return groups
+        xpGroups = Dictionary(grouping: zip(selected, allocations).filter { $0.1 > 0 }, by: { $0.1 })
             .map { (amount: $0.key, awards: $0.value.map { $0.0 }) }
             .sorted { $0.amount > $1.amount }
     }
+}
+
+struct GrowthRewardSummaryView: View {
+    let rule: GrowthEarningRuleDTO?
+    var compact = false
+    var dense = false
+    var archivedSkillIDs: Set<String> = []
 
     var body: some View {
+        let presentation = GrowthRewardPresentation(rule: rule, archivedSkillIDs: archivedSkillIDs)
         if compact {
-            rewardChips
+            rewardChips(presentation)
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -747,16 +766,16 @@ struct GrowthRewardSummaryView: View {
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(Color(hex: 0x7C3AED))
                     Spacer()
-                    Text(rewardCount == 0 ? "No rewards" : "On completion")
+                    Text(presentation.rewardCount == 0 ? "No rewards" : "On completion")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(iTuTheme.inkDim)
                 }
-                if rewardCount == 0 {
+                if presentation.rewardCount == 0 {
                     Text("No Growth rewards configured for this task.")
                         .font(.system(size: 12))
                         .foregroundStyle(iTuTheme.inkDim)
                 } else {
-                    rewardChips
+                    rewardChips(presentation)
                 }
             }
             .padding(16)
@@ -765,23 +784,23 @@ struct GrowthRewardSummaryView: View {
     }
 
     @ViewBuilder
-    private var rewardChips: some View {
-        if rewardCount > 0 {
+    private func rewardChips(_ presentation: GrowthRewardPresentation) -> some View {
+        if presentation.rewardCount > 0 {
             Group {
-                if let accountXp = rule?.accountXp, accountXp > 0 {
-                    GrowthAccountRewardChipView(amount: accountXp, dense: dense)
+                if presentation.accountXp > 0 {
+                    GrowthAccountRewardChipView(amount: presentation.accountXp, dense: dense)
                 }
-                ForEach(Array(xpGroups.enumerated()), id: \.offset) { _, group in
+                ForEach(Array(presentation.xpGroups.enumerated()), id: \.offset) { _, group in
                     GrowthRewardChipView(
                         xpAmount: group.amount,
                         awards: group.awards,
                         dense: dense
                     )
                 }
-                if let coinReward = rule?.coinReward, coinReward > 0 {
-                    GrowthCoinRewardChipView(amount: coinReward, dense: dense)
+                if presentation.coinReward > 0 {
+                    GrowthCoinRewardChipView(amount: presentation.coinReward, dense: dense)
                 }
-                ForEach(rule?.itemAwards.filter { $0.quantity > 0 } ?? [], id: \.itemId) { award in
+                ForEach(presentation.itemAwards, id: \.itemId) { award in
                     GrowthItemRewardChipView(award: award)
                 }
             }

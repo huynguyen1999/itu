@@ -3,7 +3,8 @@ import type { CalendarTimelineItem, ProductivityTask } from '@/shared/api/client
 import { getStoredTaskPreferences } from '@/shared/api/preferencesApi';
 import { moveDueTask, moveDurationTask, resizeTaskEnd, resizeTaskStart, scheduleUnscheduledTask, type TaskScheduleEdit, type TaskScheduleShape } from '@/shared/tasks/taskSchedule';
 import { CALENDAR_DAY_WIDTH, CALENDAR_GUTTER_WIDTH, snapTimestamp, type TimelineZoom } from '../timeline';
-import { calendarTimelineKey, type ResizePreviewState } from './useCalendarData';
+import { calendarTimelineKey } from './useCalendarData';
+import type { ResizePreviewState } from '../calendar.types';
 
 type CalendarTaskMutation = { id: string; patch: Record<string, unknown> };
 type QueryClientLike = { setQueryData: (queryKey: readonly unknown[], updater: (current: CalendarTimelineData | undefined) => CalendarTimelineData | undefined) => void };

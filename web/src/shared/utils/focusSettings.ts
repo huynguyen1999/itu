@@ -13,7 +13,7 @@ export interface FocusUserSettings {
 
 const SETTINGS_KEY = 'itu.focus.user-settings';
 
-export const DEFAULT_FOCUS_SETTINGS: FocusUserSettings = {
+const DEFAULT_FOCUS_SETTINGS: FocusUserSettings = {
   defaultWorkMinutes: 30,
   shortBreakMinutes: 5,
   longBreakMinutes: 15,

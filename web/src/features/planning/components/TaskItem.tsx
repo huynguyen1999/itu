@@ -7,7 +7,7 @@ import { Button } from '@/shared/ui/button';
 import { GrowthRewardChip, type GrowthRewardChipModel } from '@/shared/ui/GrowthRewardChip';
 import { nextTaskStatus } from '../utils/taskStatus';
 
-export { GrowthRewardChip, groupedGrowthRewardChips } from '@/shared/ui/GrowthRewardChip';
+export { groupedGrowthRewardChips } from '@/shared/ui/GrowthRewardChip';
 export type { GrowthRewardChipModel } from '@/shared/ui/GrowthRewardChip';
 
 export type TaskDensity = 'standard' | 'matrix';
@@ -128,7 +128,9 @@ export function TaskItem({
   const done = task.status === 'COMPLETED';
   const inProgress = task.status === 'IN_PROGRESS';
   const canceled = task.status === 'CANCELED';
-  const hasReminder = Boolean(task.reminders?.length);
+  const activeReminder = task.reminders?.find(
+    (reminder) => !reminder.status || reminder.status === 'SCHEDULED' || reminder.status === 'SNOOZED',
+  );
   const taskPriority = task.priority ?? 'NONE';
   const nextStatus = nextTaskStatus(task.status);
 
@@ -229,6 +231,15 @@ export function TaskItem({
                 {formatDue(task.dueAt, done)}
               </span>
             )}
+            {activeReminder && (
+              <span
+                className="itu-task-chip is-reminder"
+                title={`Reminder: ${formatReminder(activeReminder.remindAt)}`}
+              >
+                <Bell />
+                {formatReminder(activeReminder.remindAt)}
+              </span>
+            )}
             {syncPresentation.label && (
               <span className={`itu-task-chip is-sync-${syncPresentation.kind}`} aria-live="polite">
                 {syncPresentation.kind === 'failed' ? (
@@ -255,12 +266,6 @@ export function TaskItem({
 
         {showDetails && (
           <div className="itu-task-item__details">
-            {hasReminder && (
-              <span className="itu-task-item__detail-icon" title="Reminder set">
-                <Bell />
-                <span className="sr-only">Reminder set</span>
-              </span>
-            )}
             {task.estimatedMinutes && (
               <span className="itu-task-item__detail-icon">
                 <Clock3 />
@@ -334,8 +339,25 @@ function isOverdue(value: string) {
   return calendarDayDifference(new Date(value), new Date()) > 0;
 }
 
+function formatReminder(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Reminder';
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startOfRemindDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const days = calendarDayDifference(startOfToday, startOfRemindDay);
+  const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  if (days === 0) return timeStr;
+  if (days === 1) return `Tmrw, ${timeStr}`;
+  if (days === -1) return `Yest, ${timeStr}`;
+  const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return `${dateStr}, ${timeStr}`;
+}
+
 function calendarDayDifference(from: Date, to: Date) {
   const fromDay = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
   const toDay = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate());
   return Math.round((toDay - fromDay) / 86_400_000);
 }
+

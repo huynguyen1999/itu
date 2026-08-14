@@ -2,6 +2,7 @@ import Foundation
 
 struct AccountHydrationResult: Sendable {
     let snapshot: OfflineSnapshot
+    let taskPage: TaskPage?
     let usagePreferences: UsagePreferences?
     let habitTimeBlocks: [HabitTimeBlockModel]?
     let studySessionHistory: [StudySessionHistoryItem]?
@@ -21,7 +22,7 @@ final class AccountHydrator: @unchecked Sendable {
     }
 
     func hydrate() async throws -> AccountHydrationResult {
-        async let tasks = fetch { try await self.apiClient.fetchTasks() }
+        async let tasks = fetch { try await self.apiClient.fetchTaskPage() }
         async let lists = fetch { try await self.apiClient.fetchTaskLists() }
         async let sections = fetch { try await self.apiClient.fetchTaskSections() }
         async let tags = fetch { try await self.apiClient.fetchTaskTags() }
@@ -64,8 +65,9 @@ final class AccountHydrator: @unchecked Sendable {
             }
         }
 
+        let fetchedTaskPage = await tasks
         var resource = AccountHydrationResources(
-            tasks: await tasks, lists: await lists, sections: await sections, tags: await tags,
+            tasks: fetchedTaskPage?.data, lists: await lists, sections: await sections, tags: await tags,
             metadata: await metadata, habits: await habits, growth: await growth, skills: await skills,
             attributes: await attributes, rewards: await rewards, inventory: await inventory,
             ledger: await ledger, decks: fetchedDecks, cards: cardsByDeck, profile: await profile,
@@ -84,6 +86,7 @@ final class AccountHydrator: @unchecked Sendable {
         let snapshot = try await offlineStore.applyHydration(resource)
         return AccountHydrationResult(
             snapshot: snapshot,
+            taskPage: fetchedTaskPage,
             usagePreferences: await usagePreferences,
             habitTimeBlocks: await timeBlocks,
             studySessionHistory: await history,

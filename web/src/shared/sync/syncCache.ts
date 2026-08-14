@@ -650,7 +650,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-export function shouldPersistQuery(queryKey: QueryKey): boolean {
+function shouldPersistQuery(queryKey: QueryKey): boolean {
   const prefix = queryKey[0];
   return typeof prefix === 'string' && !['notifications'].includes(prefix);
 }

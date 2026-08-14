@@ -1,5 +1,5 @@
-export const FOCUS_AUDIO_SETTINGS_KEY = 'itu.focus.audio-settings';
-export const FOCUS_SOUND_CATALOG_KEY = 'itu.focus.sound-catalog';
+const FOCUS_AUDIO_SETTINGS_KEY = 'itu.focus.audio-settings';
+const FOCUS_SOUND_CATALOG_KEY = 'itu.focus.sound-catalog';
 
 export const OFFLINE_FOCUS_SOUNDS = [
   {

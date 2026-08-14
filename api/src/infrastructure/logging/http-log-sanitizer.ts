@@ -42,7 +42,7 @@ export function shouldLogHttpBodies(): boolean {
   return (process.env.LOG_LEVEL ?? 'debug').trim().toLowerCase() === 'debug';
 }
 
-export function httpBodyLogLimitBytes(): number {
+function httpBodyLogLimitBytes(): number {
   const parsed = Number(process.env.LOG_HTTP_BODY_LIMIT_BYTES ?? DEFAULT_BODY_LOG_LIMIT_BYTES);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_BODY_LOG_LIMIT_BYTES;
 }

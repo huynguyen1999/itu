@@ -133,6 +133,21 @@ sequenceDiagram
 
 Unsupported or explicitly online operations use a direct REST fallback. The offline mutation input therefore includes both the optimistic value and the online fallback; features should call the API facade rather than the sync endpoint directly.
 
+Shared sync owns lifecycle, transport, queues, conflicts, persistence, and
+generic cache reconciliation. Product interpretation belongs to the owning
+feature. For example, Planning owns task behavior and Growth owns Growth
+receipts; the sync layer does not decide feature business policy.
+
+## Planning and Calendar composition
+
+[`MatrixPage.tsx`](../../web/src/features/planning/MatrixPage.tsx) composes
+matrix data, selection, ordering, toolbar/dialog controls, and the
+[`MatrixTaskGrid.tsx`](../../web/src/features/planning/components/MatrixTaskGrid.tsx)
+surface. [`CalendarTimeline.tsx`](../../web/src/features/calendar/components/CalendarTimeline.tsx)
+coordinates timeline state while Day/Week/Month view pieces live in
+`CalendarTimelineViews.tsx`. The existing task, calendar, drag, and resize
+algorithms remain feature-local and unchanged.
+
 ## Cross-tab and cross-device refresh
 
 ```mermaid
@@ -165,3 +180,8 @@ flowchart LR
 - Browser-extension tracking is configured from web settings but runs independently of the web client.
 - Money is transported as decimal strings; product date boundaries use the
   `Asia/Ho_Chi_Minh` Product Calendar while instants remain UTC.
+
+Feature-to-feature imports are migration-sensitive: new consumers should use a
+feature's public root export instead of reaching into another feature's
+implementation files. Existing deep imports are reported by the architecture
+check until their ownership is clarified.

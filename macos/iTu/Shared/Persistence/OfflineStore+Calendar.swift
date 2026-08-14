@@ -11,7 +11,7 @@ extension OfflineStore {
 
     func applyCalendarChanges(_ changes: [SyncChange]) throws {
         for change in changes where change.entityType.lowercased().replacingOccurrences(of: "_", with: "") == "calendarpreferences" {
-            guard !state.mutations.contains(where: { $0.kind == "calendarpreferences.update" && $0.entityId == change.entityId }) else { continue }
+            guard !state.mutations.contains(where: { $0.kind == "calendarpreferences.update" && ($0.entityId == change.entityId || change.entityId == "calendar" || $0.entityId == "calendar") }) else { continue }
             guard !change.deleted, let data = change.data else { continue }
             let resource: JSONValue = {
                 guard case let .object(fields) = data, let nested = fields["calendarPreferences"] else { return data }

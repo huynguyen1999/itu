@@ -24,6 +24,11 @@ struct HomeOverviewView: View {
         }
         .iTuPinnedHeader { headerBar }
         .background(iTuTheme.canvas)
+        .task {
+            await model.refreshCoordinator.run(.tasks) {
+                await model.refreshTasks()
+            }
+        }
     }
 
     private func openTaskEditor(_ task: ProductivityTask) {

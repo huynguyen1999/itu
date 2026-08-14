@@ -1,6 +1,6 @@
 import type { ProductivityTask, TaskPriority } from '@/shared/api/types';
 
-export type MatrixSortMode =
+type MatrixSortMode =
   | 'manual'
   | 'due'
   | 'priority'
@@ -23,7 +23,7 @@ export interface MatrixSettings {
   priorityFilter: Array<TaskPriority | 'ALL'>;
 }
 
-export const defaultMatrixSettings: MatrixSettings = {
+const defaultMatrixSettings: MatrixSettings = {
   urgentDueWithinDays: 2,
   urgentPriorities: ['HIGH'],
   importantPriorities: ['HIGH'],

@@ -1,7 +1,7 @@
 import type { TaskInput, TaskPriority } from './api/types';
 import { getStoredTaskPreferences } from './api/preferencesApi';
 
-export type DefaultTaskDate = 'NONE' | 'TODAY' | 'TOMORROW';
+type DefaultTaskDate = 'NONE' | 'TODAY' | 'TOMORROW';
 
 export interface TaskDefaults {
   date: DefaultTaskDate;

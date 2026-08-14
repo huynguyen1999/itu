@@ -3,6 +3,7 @@ import SwiftUI
 struct CalendarMonthView: View {
     let anchor: Date
     let items: [CalendarItem]
+    var weekStartDay: String = "MONDAY"
     var onSelect: (CalendarItem) -> Void
 
     @State private var popoverDate: Date? = nil
@@ -21,13 +22,24 @@ struct CalendarMonthView: View {
         var id: String { item.id }
     }
 
+    private var isSundayStart: Bool {
+        weekStartDay.uppercased() == "SUNDAY"
+    }
+
+    private var weekdayHeaders: [String] {
+        isSundayStart
+            ? ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
+            : ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+    }
+
     private var weeks: [[Date]] {
-        let cal = Calendar.current
+        var cal = Calendar.current
+        cal.firstWeekday = isSundayStart ? 1 : 2
         let monthRange = cal.range(of: .day, in: .month, for: anchor)!
         let comp = cal.dateComponents([.year, .month], from: anchor)
         let firstOfMonth = cal.date(from: comp)!
-        let firstWeekday = cal.component(.weekday, from: firstOfMonth)
-        let offset = (firstWeekday - 1) // 0-based offset for Sunday start
+        let weekday = cal.component(.weekday, from: firstOfMonth)
+        let offset = (weekday - cal.firstWeekday + 7) % 7
 
         var days: [Date] = []
         for i in 0..<(offset + monthRange.count) {
@@ -54,7 +66,7 @@ struct CalendarMonthView: View {
             VStack(spacing: 0) {
                 // Month Weekday Header
                 HStack(spacing: 0) {
-                    ForEach(["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"], id: \.self) { day in
+                    ForEach(weekdayHeaders, id: \.self) { day in
                         Text(day)
                             .font(.system(size: 10, weight: .bold, design: .monospaced))
                             .foregroundStyle(iTuTheme.inkDim)

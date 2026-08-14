@@ -63,11 +63,35 @@ export class PrismaProductivityRepository implements IProductivityRepository {
       take,
       ...(filter?.cursor && { cursor: { id: filter.cursor }, skip: 1 }),
       ...(filter?.includeTaskCount
-        ? { include: { _count: { select: { tasks: { where: { deletedAt: null } } } } } }
+        ? {
+            include: {
+              _count: {
+                select: {
+                  tasks: {
+                    where: {
+                      deletedAt: null,
+                      status: { notIn: [TaskStatus.COMPLETED, TaskStatus.CANCELED, TaskStatus.ARCHIVED] },
+                    },
+                  },
+                },
+              },
+            },
+          }
         : {}),
     })) as Array<{ _count?: { tasks: number } } & Record<string, unknown>>;
     if (!filter?.includeTaskCount) return lists;
-    return lists.map(({ _count, ...list }) => ({ ...list, taskCount: _count?.tasks ?? 0 }));
+    const unassignedCount = await this.db.task.count({
+      where: {
+        userId,
+        taskListId: null,
+        deletedAt: null,
+        status: { notIn: [TaskStatus.COMPLETED, TaskStatus.CANCELED, TaskStatus.ARCHIVED] },
+      },
+    });
+    return lists.map(({ _count, ...list }) => ({
+      ...list,
+      taskCount: (_count?.tasks ?? 0) + (list.isDefault ? unassignedCount : 0),
+    }));
   }
 
   async findTaskListById(userId: string, id: string) {
@@ -172,7 +196,21 @@ export class PrismaProductivityRepository implements IProductivityRepository {
           },
         ];
       } else if (filter.view === TASK_VIEW_FILTERS.INBOX) {
-        where.status = TaskStatus.INBOX;
+        where.AND = [
+          ...((where.AND as Prisma.TaskWhereInput[]) ?? []),
+          {
+            OR: [
+              { taskListId: null },
+              { taskList: { isDefault: true } },
+            ],
+          },
+          {
+            OR: [
+              { status: { in: [TaskStatus.COMPLETED, TaskStatus.CANCELED] } },
+              { status: TaskStatus.INBOX, scheduledStartAt: null },
+            ],
+          },
+        ];
       } else if (filter.taskListId) {
         where.taskListId = filter.taskListId;
       } else if (filter.sectionId) {

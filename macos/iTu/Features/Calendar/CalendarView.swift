@@ -5,8 +5,9 @@ enum CalendarZoom: String, CaseIterable, Identifiable {
     case day = "DAY", week = "WEEK", month = "MONTH"
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
-    func range(for date: Date) -> (from: Date, to: Date) {
-        var cal = Calendar.current; cal.firstWeekday = 2
+    func range(for date: Date, weekStart: String = "MONDAY") -> (from: Date, to: Date) {
+        var cal = Calendar.current
+        cal.firstWeekday = (weekStart.uppercased() == "SUNDAY") ? 1 : 2
         let day = cal.startOfDay(for: date)
         switch self {
         case .day: return (day, cal.date(byAdding: .day, value: 1, to: day) ?? day)
@@ -65,12 +66,67 @@ struct CalendarView: View {
         Binding(get: { zoom }, set: { zoomRaw = $0.rawValue })
     }
 
-    private var range: (from: Date, to: Date) { zoom.range(for: anchor) }
+    private var range: (from: Date, to: Date) { zoom.range(for: anchor, weekStart: model.calendarPreferences.weekStart) }
     private var visibleKinds: Set<String> { Set(model.calendarPreferences.visibleKinds) }
+
+    private var allRawItems: [CalendarItem] {
+        let taskItems = model.tasks.compactMap { task -> CalendarItem? in
+            if !model.calendarPreferences.showCompleted && task.status == .completed { return nil }
+            let groupID = taskGroupID(task)
+            if let start = task.scheduledStartAt.flatMap(iTuDateSupport.parse),
+               let end = task.scheduledEndAt.flatMap(iTuDateSupport.parse) {
+                return CalendarItem(
+                    id: task.id, title: task.title, start: start, end: end,
+                    kind: "TASK_DURATION", taskID: task.id, readOnly: false,
+                    allDay: false, dueAt: task.dueAt.flatMap(iTuDateSupport.parse),
+                    sourceID: groupID, sourceName: taskGroupName(task),
+                    color: taskGroupColor(task), priority: task.priority.rawValue,
+                    description: task.descriptionMarkdown, location: nil, timeZone: nil,
+                    status: task.status.rawValue
+                )
+            }
+            guard let due = task.dueAt.flatMap(iTuDateSupport.parse) else { return nil }
+            return CalendarItem(
+                id: task.id, title: task.title, start: due, end: nil,
+                kind: "TASK_DUE", taskID: task.id, readOnly: false, allDay: true,
+                dueAt: due, sourceID: groupID, sourceName: taskGroupName(task),
+                color: taskGroupColor(task), priority: task.priority.rawValue,
+                description: task.descriptionMarkdown, location: nil, timeZone: nil,
+                status: task.status.rawValue
+            )
+        }
+        let focusItems = model.focusTimer.history.compactMap { session -> CalendarItem? in
+            guard session.status != .abandoned,
+                  let start = iTuDateSupport.parse(session.adjustedStartedAt ?? session.startedAt) else { return nil }
+            let end = (session.adjustedCompletedAt ?? session.completedAt).flatMap(iTuDateSupport.parse) ?? Date()
+            return CalendarItem(
+                id: session.id, title: session.customTitle ?? session.taskTitleSnapshot ?? "Focus session",
+                start: start, end: end, kind: "FOCUS_SESSION", taskID: session.taskId,
+                readOnly: true, allDay: false, sourceID: "focus", sourceName: "Focus", color: "#8B6FC9", priority: nil,
+                description: session.reflection, location: nil, timeZone: nil,
+                status: session.status.rawValue
+            )
+        }
+        let imported = externalItems.compactMap { item -> CalendarItem? in
+            let sourceID = "calendar:\(item.sourceId ?? item.id)"
+            guard item.kind == "EXTERNAL_EVENT", let start = iTuDateSupport.parse(item.startAt) else { return nil }
+            return CalendarItem(
+                id: item.id, title: item.title, start: start, end: item.endAt.flatMap(iTuDateSupport.parse),
+                kind: item.kind, taskID: nil, readOnly: true, allDay: item.allDay, dueAt: item.dueAt.flatMap(iTuDateSupport.parse),
+                sourceID: sourceID, sourceName: item.sourceName ?? "Calendar Subscription",
+                color: item.color, priority: nil,
+                description: item.description, location: item.location, timeZone: item.timeZone,
+                status: item.status
+            )
+        }
+        return (taskItems + focusItems + imported).filter {
+            visibleKinds.contains($0.kind) && $0.start < range.to && ($0.end ?? $0.start) >= range.from
+        }
+    }
 
     private var sourceGroups: [CalendarGroup] {
         var groups: [String: CalendarGroup] = [:]
-        for item in items {
+        for item in allRawItems {
             let id = item.sourceID ?? "project:inbox"
             let title = item.sourceName?.isEmpty == false
                 ? item.sourceName!
@@ -92,50 +148,13 @@ struct CalendarView: View {
     }
 
     private var items: [CalendarItem] {
-        let taskItems = model.tasks.compactMap { task -> CalendarItem? in
-            if !model.calendarPreferences.showCompleted && task.status == .completed { return nil }
-            if let start = task.scheduledStartAt.flatMap(iTuDateSupport.parse),
-               let end = task.scheduledEndAt.flatMap(iTuDateSupport.parse) {
-                return CalendarItem(
-                    id: task.id, title: task.title, start: start, end: end,
-                    kind: "TASK_DURATION", taskID: task.id, readOnly: false,
-                    allDay: false, dueAt: task.dueAt.flatMap(iTuDateSupport.parse),
-                    sourceID: taskGroupID(task), sourceName: taskGroupName(task),
-                    color: taskGroupColor(task), priority: task.priority.rawValue
-                )
-            }
-            guard let due = task.dueAt.flatMap(iTuDateSupport.parse) else { return nil }
-            return CalendarItem(
-                id: task.id, title: task.title, start: due, end: nil,
-                kind: "TASK_DUE", taskID: task.id, readOnly: false, allDay: true,
-                dueAt: due, sourceID: taskGroupID(task), sourceName: taskGroupName(task),
-                color: taskGroupColor(task), priority: task.priority.rawValue
-            )
-        }
-        let focusItems = model.focusTimer.history.compactMap { session -> CalendarItem? in
-            guard session.status != .abandoned,
-                  let start = iTuDateSupport.parse(session.adjustedStartedAt ?? session.startedAt) else { return nil }
-            let end = (session.adjustedCompletedAt ?? session.completedAt).flatMap(iTuDateSupport.parse) ?? Date()
-            return CalendarItem(
-                id: session.id, title: session.customTitle ?? session.taskTitleSnapshot ?? "Focus session",
-                start: start, end: end, kind: "FOCUS_SESSION", taskID: session.taskId,
-                readOnly: true, allDay: false, sourceID: "focus", sourceName: "Focus", color: "#8B6FC9", priority: nil
-            )
-        }
-        let imported = externalItems.compactMap { item -> CalendarItem? in
-            guard item.kind == "EXTERNAL_EVENT", let start = iTuDateSupport.parse(item.startAt) else { return nil }
-            return CalendarItem(
-                id: item.id, title: item.title, start: start, end: item.endAt.flatMap(iTuDateSupport.parse),
-                kind: item.kind, taskID: nil, readOnly: true, allDay: item.allDay, dueAt: item.dueAt.flatMap(iTuDateSupport.parse),
-                sourceID: "calendar:\(item.sourceId ?? item.id)", sourceName: item.sourceName ?? "Calendar Subscription",
-                color: item.color, priority: nil,
-                description: item.description, location: item.location, timeZone: item.timeZone
-            )
-        }
-        return (taskItems + focusItems + imported).filter {
-            visibleKinds.contains($0.kind) && $0.start < range.to && ($0.end ?? $0.start) >= range.from
+        let collapsed = Set(model.calendarPreferences.collapsedGroupIds)
+        return allRawItems.filter { item in
+            let sourceID = item.sourceID ?? "project:inbox"
+            return !collapsed.contains(sourceID)
         }
     }
+
 
     private var days: [Date] {
         let cal = Calendar.current
@@ -168,33 +187,40 @@ struct CalendarView: View {
             zoomRaw = (CalendarZoom(rawValue: model.calendarPreferences.zoom) ?? .week).rawValue
             didHydratePreferences = true
         }
-        .popover(item: $detailItem) { item in detailCard(item) }
+        .popover(item: $detailItem) { item in
+            CalendarEventDetailView(item: item, onClose: { detailItem = nil })
+        }
     }
 
     @ViewBuilder
     private var mainCalendarBody: some View {
-        switch zoom {
-        case .day:
-            CalendarDayView(
-                day: days.first ?? anchor,
-                items: items,
-                onSelect: selectItem,
-                onScheduleUpdate: handleScheduleUpdate
-            )
-        case .week:
-            CalendarWeekView(
-                days: days,
-                items: items,
-                onSelect: selectItem
-            )
-        case .month:
-            CalendarMonthView(
-                anchor: anchor,
-                items: items,
-                onSelect: selectItem
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        Group {
+            switch zoom {
+            case .day:
+                CalendarDayView(
+                    day: days.first ?? anchor,
+                    items: items,
+                    onSelect: selectItem,
+                    onScheduleUpdate: handleScheduleUpdate
+                )
+            case .week:
+                CalendarWeekView(
+                    days: days,
+                    items: items,
+                    onSelect: selectItem,
+                    onScheduleUpdate: handleScheduleUpdate
+                )
+            case .month:
+                CalendarMonthView(
+                    anchor: anchor,
+                    items: items,
+                    weekStartDay: model.calendarPreferences.weekStart,
+                    onSelect: selectItem
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
         }
+        .padding(.horizontal, 16)
     }
 
     private var header: some View {
@@ -202,7 +228,7 @@ struct CalendarView: View {
             Image(systemName: "calendar").foregroundStyle(iTuTheme.teal)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Calendar").font(.system(size: 20, weight: .bold, design: .rounded))
-                Text("See your week at a glance, then adjust plans as they change.")
+                Text("A calm, source-first view of what has your attention.")
                     .font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim)
             }
             Spacer()
@@ -216,7 +242,7 @@ struct CalendarView: View {
                 }
             Button("Calendar settings", systemImage: "gearshape") { settingsOpen.toggle() }
                 .labelStyle(.iconOnly).buttonStyle(.plain).help("Calendar settings")
-                .popover(isPresented: $settingsOpen, arrowEdge: .top) { settingsPopover }
+                .popover(isPresented: $settingsOpen, arrowEdge: .top) { CalendarSettingsPopover() }
             Button("Arrange Tasks", systemImage: arrangeTasksOpen ? "sidebar.right" : "sidebar.right.closed") { arrangeTasksOpen.toggle() }
                 .labelStyle(.iconOnly).buttonStyle(.plain).help("Arrange Tasks")
         }
@@ -224,24 +250,33 @@ struct CalendarView: View {
     }
 
     private var overviewBar: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("SCHEDULE OVERVIEW").font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundStyle(iTuTheme.mint)
-                HStack(spacing: 10) {
-                    Text(rangeLabel).font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
-                    Text("\(items.count) in view").font(.system(size: 11, design: .monospaced)).foregroundStyle(.white.opacity(0.65))
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    Text(rangeLabel)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(iTuTheme.ink)
+                    Text("· \(items.count) items in view")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(iTuTheme.inkDim)
                 }
-                Text("Tasks, Due Dates, Focus Sessions, and external events in one view.")
-                    .font(.system(size: 11)).foregroundStyle(.white.opacity(0.68))
+                Text("Tasks, due dates, focus sessions, and external calendar feeds in one unified view.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(iTuTheme.inkDim)
             }
             Spacer()
-            legend("Tasks", color: iTuTheme.mint)
-            legend("Due Dates", color: iTuTheme.amber)
-            legend("Focus", color: Color(hex: 0x8B6FC9))
+            HStack(spacing: 12) {
+                legend("Tasks", color: iTuTheme.mint)
+                legend("Due Dates", color: iTuTheme.amber)
+                legend("Focus", color: Color(hex: 0x8B6FC9))
+            }
         }
-        .padding(.horizontal, 20).padding(.vertical, 14)
-        .background(LinearGradient(colors: [iTuTheme.forest, iTuTheme.forestDeep], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(iTuTheme.surfaceMuted)
+        .overlay(alignment: .bottom) { Rectangle().fill(iTuTheme.borderSoft).frame(height: 1) }
     }
+
 
     private var sourceLegend: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -258,21 +293,43 @@ struct CalendarView: View {
     }
 
     private func sourceChip(_ group: CalendarGroup) -> some View {
+        let isCollapsed = model.calendarPreferences.collapsedGroupIds.contains(group.id)
         let color = Color.calendarColor(kind: group.items.first?.kind ?? "", sourceColor: group.color)
-        return HStack(spacing: 7) {
-            Circle().fill(color).frame(width: 9, height: 9)
-            Text(group.title).lineLimit(1)
-            Text("· " + String(group.items.count)).foregroundStyle(iTuTheme.inkDim)
+        return Button {
+            toggleGroupCollapse(group.id)
+        } label: {
+            HStack(spacing: 7) {
+                Circle().fill(isCollapsed ? color.opacity(0.3) : color).frame(width: 9, height: 9)
+                Text(group.title)
+                    .lineLimit(1)
+                    .foregroundStyle(isCollapsed ? iTuTheme.inkDim : iTuTheme.ink)
+                Text("· " + String(group.items.count))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+            .font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(isCollapsed ? iTuTheme.surfaceMuted : color.opacity(0.08), in: Capsule())
+            .overlay {
+                Capsule().stroke(isCollapsed ? iTuTheme.borderSoft : color.opacity(0.75), lineWidth: 1)
+            }
         }
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(iTuTheme.ink)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(color.opacity(0.08), in: Capsule())
-        .overlay { Capsule().stroke(color.opacity(0.75), lineWidth: 1) }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(group.title + ", " + String(group.items.count) + " items")
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(group.title), \(group.items.count) items\(isCollapsed ? ", hidden" : "")")
     }
+
+    private func toggleGroupCollapse(_ id: String) {
+        var collapsed = model.calendarPreferences.collapsedGroupIds
+        if collapsed.contains(id) {
+            collapsed.removeAll { $0 == id }
+        } else {
+            collapsed.append(id)
+        }
+        Task {
+            await model.updateCalendarPreferences(["collapsedGroupIds": .array(collapsed.map(JSONValue.string))])
+        }
+    }
+
 
     private func legend(_ title: String, color: Color) -> some View {
         Label(title, systemImage: "circle.fill").font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.78)).symbolRenderingMode(.palette).foregroundStyle(color, .clear)
@@ -440,23 +497,5 @@ struct CalendarView: View {
             kinds.removeAll { $0 == kind }
         }
         Task { await model.updateCalendarPreferences(["visibleKinds": .array(kinds.map(JSONValue.string))]) }
-    }
-
-    private func detailCard(_ item: CalendarItem) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(item.title).font(.system(size: 16, weight: .bold))
-                Spacer()
-                Button("Close") { detailItem = nil }.buttonStyle(.plain)
-            }
-            if let desc = item.description, !desc.isEmpty {
-                Text(desc).font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim)
-            }
-            if let loc = item.location, !loc.isEmpty {
-                Label(loc, systemImage: "mappin.and.ellipse").font(.system(size: 12))
-            }
-            Text("Read-only calendar item").font(.system(size: 10, design: .monospaced)).foregroundStyle(iTuTheme.inkFaint)
-        }
-        .padding(16).frame(width: 300)
     }
 }

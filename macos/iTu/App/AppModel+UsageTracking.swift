@@ -42,7 +42,7 @@ extension AppModel {
         }
 
         tracker.onSegmentCreated = { [weak self] segment in
-            guard let self else { return }
+            guard self != nil else { return }
             Task {
                 try? await sessionStore.appendSegments([segment])
             }
@@ -89,8 +89,8 @@ extension AppModel {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
+                guard let self else { return }
+                Task { @MainActor in
                     await Task.yield()
                     _ = await self.uploadUsage()
                 }
@@ -180,9 +180,10 @@ extension AppModel {
     func startDurabilityCheckpointTimer() {
         usageCheckpointTimer?.invalidate()
         usageCheckpointTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.usageTracker?.tick()
-                self?.websiteUsageTracker?.tick()
+            guard let self else { return }
+            Task { @MainActor in
+                self.usageTracker?.tick()
+                self.websiteUsageTracker?.tick()
             }
         }
     }

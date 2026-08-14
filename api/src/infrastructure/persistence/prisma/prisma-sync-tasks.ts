@@ -34,7 +34,6 @@ import {
   resolveReminderAnchor,
   validateTaskSchedule,
 } from '@core/application/use-cases/task-date-rules';
-export { conflictingSyncFields } from './prisma-sync.helpers';
 
 
 export class PrismaSyncTasks {

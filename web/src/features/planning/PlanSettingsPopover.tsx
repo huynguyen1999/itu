@@ -17,7 +17,7 @@ export interface PlanViewSettings {
   useDefaultPlanPreferences: boolean;
 }
 
-export const DEFAULT_PLAN_VIEW_SETTINGS: PlanViewSettings = {
+const DEFAULT_PLAN_VIEW_SETTINGS: PlanViewSettings = {
   groupBy: 'DUE_DATE',
   sortBy: 'DUE_DATE',
   hideCompleted: false,

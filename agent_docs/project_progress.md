@@ -1,5 +1,21 @@
 # Project Progress
 
+## In progress: code-health guardrails and refactor program
+
+- Baseline recorded in [`agent_docs/code_health_baseline.md`](code_health_baseline.md) at commit `34266d23d204052a123e8756dca9d36db0eb31dc`.
+- Root API, Web, and Architecture workflows now cover the relevant source paths. The existing signed macOS workflow infrastructure is absent, so no unsigned or misleading macOS CI job was added.
+- ESLint 9 flat configs, Knip report-only scripts, dependency-cruiser boundary/cycle checks, and the large-file ratchet are in place.
+- Calendar exposes its existing cache projection through a public feature entrypoint; Planning now owns task queries and selection in focused hooks; macOS `APIClient` now keeps transport/session/auth state in a 15 KB actor core while endpoint families live in `APIClient+*.swift` extensions.
+
+## Completed: selected code-health refactors
+
+- Knip cleanup removed confirmed dead files, unused runtime/dev dependencies, and internal-only exports. Remaining Knip findings are exported API/domain contract types or deliberate compatibility exports.
+- Matrix now composes `MatrixToolbar`, `MatrixTaskDialog`, and `MatrixTaskGrid`; `MatrixPage.tsx` is approximately 12.5 KB while retaining its existing task, filter, drag, and create behavior.
+- Usage now keeps a stable `UsageService` facade over focused query, macOS ingestion, website usage, and app-identity services. Validation/normalization remains pure and shared.
+- Calendar timeline rendering is split between a 12.8 KB coordinator and `CalendarTimelineViews.tsx`; `CalendarPage` remains unchanged as the composition root.
+- SwiftLint and Periphery configs plus a non-blocking GitHub Actions job are available under `macos/`; local execution skips cleanly when those optional tools are not installed.
+- Verification for this package: API 75 suites / 337 tests, typecheck, build, and dependency boundaries; Web 60 files / 314 tests, typecheck, build, dependency boundaries, and architecture checks. Knip reports no unused files or dependencies.
+
 ## Completed: Phase 1 Review Insights
 
 - Added durable `DAILY_REVIEW` Journal entries, extended Weekly Review reflections/comparisons, sync/revision persistence, and an additive Prisma migration.

@@ -2550,7 +2550,8 @@
   color: var(--itu-ink-dim);
 }
 
-.itu-reward-chip.is-xp {
+.itu-reward-chip.is-xp,
+.itu-task-chip.is-reminder {
   border-color: color-mix(in srgb, var(--itu-teal-500) 30%, transparent);
   background: var(--itu-mint-100);
   color: var(--itu-teal-700);
@@ -2733,6 +2734,7 @@
 }
 
 .dark .itu-reward-chip.is-xp,
+.dark .itu-task-chip.is-reminder,
 .dark .itu-task-item__tag {
   color: var(--itu-teal-400);
 }

@@ -4,7 +4,7 @@ import { Layout } from './shared/ui/Layout';
 import { AuthPage } from './features/auth';
 import { DecksPage, DeckDetailPage } from './features/decks';
 import { ProfilePage } from './features/profile';
-import { ReviewPage } from './features/review';
+import { ReviewPage } from './features/review/ReviewPage';
 import { SessionHistoryPage } from './features/history';
 import { TrashPage } from './features/trash';
 import { SettingsPage } from './features/settings';

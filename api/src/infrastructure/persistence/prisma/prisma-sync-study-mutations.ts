@@ -19,7 +19,6 @@ import {
   requiredInt,
   requiredString,
 } from './prisma-sync.helpers';
-export { conflictingSyncFields } from './prisma-sync.helpers';
 
 
 export class PrismaSyncStudyMutations {

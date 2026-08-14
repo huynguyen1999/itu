@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
   Bell,
@@ -60,6 +60,9 @@ import { PlanSettingsPopover } from './PlanSettingsPopover';
 import { usePlanning } from './PlanningContext';
 import { readPlanningViewSettings, savePlanningViewSettings } from './utils/planningViewSettings';
 import type { TaskPreferences } from '@/shared/api/preferencesApi';
+import { useTaskSelection } from './hooks/useTaskSelection';
+import { usePlanningTasks } from './hooks/usePlanningTasks';
+import type { GroupMode, SortMode } from './planning.types';
 
 export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox' | 'upcoming' }) {
   const queryClient = useQueryClient();
@@ -76,14 +79,14 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
   const undoToast = useUndoToast();
   const planning = usePlanning();
   const { selectedTaskList, setSelectedTaskList, selectedTag, setSelectedTag, searchQuery, setSearchQuery } = planning;
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(() => new Set());
   const [contextMenu, setContextMenu] = useState<{
     task: ProductivityTask;
     position: { x: number; y: number };
   } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [searchDraft, setSearchDraft] = useState(searchQuery);
+  const taskLoadMoreRef = useRef<HTMLDivElement>(null);
+  const isFetchingNextPageRef = useRef(false);
   const [quickTask, setQuickTask] = useState('');
   const [quickDueAt, setQuickDueAt] = useState('');
   const [quickPriority, setQuickPriority] = useState<TaskPriority>(() => getStoredTaskDefaults().priority);
@@ -96,7 +99,6 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
   const [showSectionCreator, setShowSectionCreator] = useState(false);
   const [viewSettings, setViewSettings] = useState(() => readPlanningViewSettings(view));
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-  const [allTasksData, setAllTasksData] = useState<ProductivityTask[]>([]);
 
   const selectedProject = selectedTaskList;
   const setSelectedProject = setSelectedTaskList;
@@ -136,41 +138,30 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
     searchRef.current?.blur();
   }
 
-  const effectiveView = selectedTaskList || selectedTag || view === 'inbox' ? 'all' : view;
-  const tasks = useInfiniteQuery({
-    queryKey: ['tasks', effectiveView, selectedTaskList, selectedTag, searchQuery, 'paginated'],
-    queryFn: async ({ pageParam }) => {
-      const page = await api.tasks({
-        view: effectiveView,
-        taskListId: selectedTaskList ?? undefined,
-        tagId: selectedTag ?? undefined,
-        q: searchQuery || undefined,
-        cursor: pageParam,
-      });
-      return Array.isArray(page) ? { data: page, meta: { hasNextPage: false, nextCursor: null } } : page;
-    },
-    initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => lastPage.meta.nextCursor ?? undefined,
-    retry: 1,
+  const { tasks, allTasksData, setAllTasksData, projects, inboxListId, tags, sections } = usePlanningTasks({
+    view,
+    selectedTaskList,
+    selectedTag,
+    searchQuery,
   });
+  isFetchingNextPageRef.current = tasks.isFetchingNextPage;
 
-  // Accumulate paginated task data
   useEffect(() => {
-    if (tasks.data) {
-      setAllTasksData(tasks.data.pages.flatMap((page) => page.data));
-    }
-  }, [tasks.data]);
+    const sentinel = taskLoadMoreRef.current;
+    if (!sentinel || !tasks.hasNextPage) return;
+    const root = sentinel.closest<HTMLElement>('.itu-task-scroll');
 
-  const sidebarTasks = useQuery({
-    queryKey: ['tasks', 'all'],
-    queryFn: () => api.tasks({ view: 'all' }),
-    retry: 1,
-    enabled: !!selectedTaskId,
-  });
-  const projects = useQuery({ queryKey: ['task-lists'], queryFn: () => api.taskLists() });
-  const inboxListId = projects.data?.find((project) => project.isDefault)?.id ?? null;
-  const tags = useQuery({ queryKey: ['task-tags'], queryFn: () => api.taskTags() });
-  const sections = useQuery({ queryKey: ['task-sections'], queryFn: () => api.taskSections() });
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting && root?.scrollTop && !isFetchingNextPageRef.current) {
+          void tasks.fetchNextPage();
+        }
+      },
+      { root, rootMargin: '0px 0px 240px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [tasks.fetchNextPage, tasks.hasNextPage]);
 
   const createTask = useMutation({
     mutationFn: async () => {
@@ -226,19 +217,6 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
     },
   });
 
-  useEffect(() => {
-    if (selectedTaskId && !allTasksData.some((task) => task.id === selectedTaskId)) setSelectedTaskId(null);
-  }, [selectedTaskId, allTasksData]);
-
-  useEffect(() => {
-    const availableIds = new Set(allTasksData.map((task) => task.id));
-    setSelectedTaskIds((current) => {
-      const next = new Set([...current].filter((id) => availableIds.has(id)));
-      return next.size === current.size ? current : next;
-    });
-  }, [allTasksData]);
-
-  const selectedTask = allTasksData.find((task) => task.id === selectedTaskId) ?? null;
   const title = selectedProject
     ? (projects.data?.find((project) => project.id === selectedProject)?.title ?? 'Project')
     : selectedTag
@@ -285,18 +263,22 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
     [groupMode, hideCompleted, inboxListId, sections.data, selectedProject, sortMode, allTasksData, view],
   );
   const visibleTasks = useMemo(() => groupedTasks.flatMap(([, items]) => items), [groupedTasks]);
-  const selectedTasks = useMemo(
-    () => allTasksData.filter((task) => selectedTaskIds.has(task.id)),
-    [selectedTaskIds, allTasksData],
-  );
-  const toggleTaskSelection = (taskId: string) => {
-    setSelectedTaskIds((current) => {
-      const next = new Set(current);
-      if (next.has(taskId)) next.delete(taskId);
-      else next.add(taskId);
-      return next;
-    });
-  };
+  const {
+    selectedTaskId,
+    setSelectedTaskId,
+    selectedTaskIds,
+    selectedTask,
+    selectedTasks,
+    toggleTaskSelection,
+    clearSelection,
+    selectAllOrClear,
+  } = useTaskSelection(allTasksData, visibleTasks);
+  const sidebarTasks = useQuery({
+    queryKey: ['tasks', 'all'],
+    queryFn: () => api.tasks({ view: 'all' }),
+    retry: 1,
+    enabled: !!selectedTaskId,
+  });
   const bulkUpdateTasks = useMutation({
     mutationFn: (patch: Pick<Partial<TaskInput>, 'priority' | 'dueAt'>) =>
       Promise.all(selectedTasks.map((task) => api.updateTask(task.id, { ...patch, version: task.version }))),
@@ -312,7 +294,7 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
     mutationFn: (tasksToDelete: ProductivityTask[]) =>
       Promise.all(tasksToDelete.map((task) => api.deleteTask(task.id))),
     onSuccess: (_, deletedTasks) => {
-      setSelectedTaskIds(new Set());
+      clearSelection();
       const undoAction = {
         label: deletedTasks.length === 1 ? 'Deleted 1 task' : `Deleted ${deletedTasks.length} tasks`,
         undo: async () => {
@@ -605,11 +587,7 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
               size="sm"
               variant="ghost"
               onClick={() =>
-                setSelectedTaskIds(
-                  selectedTaskIds.size === visibleTasks.length
-                    ? new Set()
-                    : new Set(visibleTasks.map((task) => task.id)),
-                )
+                selectAllOrClear()
               }
             >
               {selectedTaskIds.size === visibleTasks.length ? 'Clear selection' : 'Select all'}
@@ -631,7 +609,7 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
               size="icon"
               variant="ghost"
               aria-label="Clear task selection"
-              onClick={() => setSelectedTaskIds(new Set())}
+              onClick={clearSelection}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -733,15 +711,18 @@ export function PlanningPage({ view = 'all' }: { view?: 'all' | 'today' | 'inbox
               />
             ))}
           {tasks.hasNextPage && (
-            <div className="flex justify-center py-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void tasks.fetchNextPage()}
-                disabled={tasks.isFetchingNextPage}
-              >
-                {tasks.isFetchingNextPage ? 'Loading...' : 'Load more tasks'}
-              </Button>
+            <div
+              ref={taskLoadMoreRef}
+              className="flex min-h-10 items-center justify-center py-4"
+              role="status"
+              aria-live="polite"
+            >
+              {tasks.isFetchingNextPage && (
+                <>
+                  <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
+                  <span className="sr-only">Loading more tasks</span>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -1129,18 +1110,6 @@ function InlineCreator({
   );
 }
 
-export type GroupMode = 'time' | 'project' | 'tag' | 'status' | 'priority' | 'created' | 'section' | 'none';
-export type SortMode =
-  | 'manual'
-  | 'due'
-  | 'priority'
-  | 'created'
-  | 'created-desc'
-  | 'created-asc'
-  | 'modified-desc'
-  | 'modified-asc'
-  | 'title';
-
 export interface KanbanTaskGroup {
   title: string;
   tasks: ProductivityTask[];
@@ -1294,7 +1263,7 @@ export function sortTasks(tasks: ProductivityTask[], mode: SortMode) {
   });
 }
 
-export function groupLabel(mode: GroupMode) {
+function groupLabel(mode: GroupMode) {
   return {
     time: 'Time',
     project: 'List',
@@ -1307,7 +1276,7 @@ export function groupLabel(mode: GroupMode) {
   }[mode];
 }
 
-export function sortLabel(mode: SortMode) {
+function sortLabel(mode: SortMode) {
   return {
     manual: 'Manual order',
     due: 'Due date',

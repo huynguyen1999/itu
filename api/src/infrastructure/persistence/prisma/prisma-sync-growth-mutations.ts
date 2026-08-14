@@ -21,7 +21,6 @@ import {
   requiredString,
   validatedGrowthInt,
 } from './prisma-sync.helpers';
-export { conflictingSyncFields } from './prisma-sync.helpers';
 
 
 export class PrismaSyncGrowthMutations {
@@ -718,4 +717,3 @@ export class PrismaSyncGrowthMutations {
   }
 
 }
-

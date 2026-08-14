@@ -17,7 +17,7 @@ export const FocusSessionStatus = {
 export type FocusSessionStatusValue = (typeof FocusSessionStatus)[keyof typeof FocusSessionStatus];
 
 /* ─── Eisenhower Matrix Quadrants ─── */
-export const EISENHOWER = {
+const EISENHOWER = {
   DO_FIRST: 'doFirst',
   SCHEDULE: 'schedule',
   DELEGATE: 'delegate',
@@ -35,7 +35,7 @@ export const ONBOARDING_STATE = {
 export type OnboardingStateValue = (typeof ONBOARDING_STATE)[keyof typeof ONBOARDING_STATE];
 
 /* ─── Habit Occurrence Source ─── */
-export const HABIT_SOURCE = {
+const HABIT_SOURCE = {
   TASK_COMPLETION: 'TASK_COMPLETION',
   DIRECT_CHECK_IN: 'DIRECT_CHECK_IN',
 } as const;

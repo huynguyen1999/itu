@@ -9,12 +9,12 @@
 export const DEFAULT_HABIT_ICON = '✅';
 export const DEFAULT_HABIT_COLOR = 'EMERALD';
 
-export interface HabitIconOption {
+interface HabitIconOption {
   value: string;
   label: string;
 }
 
-export const habitIconOptions: HabitIconOption[] = [
+const habitIconOptions: HabitIconOption[] = [
   // Daily core
   { value: '✅', label: 'Check in' },
   { value: '🎯', label: 'Target' },
@@ -66,14 +66,14 @@ export function isHabitIcon(value?: string | null): boolean {
   return !!value && habitIconSet.has(value);
 }
 
-export interface HabitColorOption {
+interface HabitColorOption {
   value: string;
   label: string;
   iconClass: string;
   railClass: string;
 }
 
-export const habitColorOptions: HabitColorOption[] = [
+const habitColorOptions: HabitColorOption[] = [
   {
     value: 'EMERALD',
     label: 'Emerald',
@@ -128,7 +128,7 @@ export function isHabitColor(value?: string | null): value is string {
   return !!value && habitColorOptions.some((option) => option.value === value);
 }
 
-export function habitColorClass(color?: string | null) {
+function habitColorClass(color?: string | null) {
   return (
     (isHabitColor(color) ? habitColorOptions.find((option) => option.value === color) : null) ?? habitColorOptions[0]
   );

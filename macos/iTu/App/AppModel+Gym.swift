@@ -227,7 +227,7 @@ extension AppModel {
     func updateGymWorkout(id: String, patch: [String: JSONValue]) async -> Bool {
         guard let old = gymWorkouts.first(where: { $0.id == id }) else { return false }
         let value: WorkoutModel
-        if let encoded = try? JSONEncoder().encode(old), case var .object(fields) = (try? JSONDecoder().decode(JSONValue.self, from: encoded)), let merged = try? JSONEncoder().encode(JSONValue.object(fields.merging(patch) { _, latest in latest })), let decoded = try? JSONDecoder().decode(WorkoutModel.self, from: merged) {
+        if let encoded = try? JSONEncoder().encode(old), case let .object(fields) = (try? JSONDecoder().decode(JSONValue.self, from: encoded)), let merged = try? JSONEncoder().encode(JSONValue.object(fields.merging(patch) { _, latest in latest })), let decoded = try? JSONDecoder().decode(WorkoutModel.self, from: merged) {
             var copy = decoded
             copy = WorkoutModel(id: copy.id, userId: copy.userId, title: copy.title, status: copy.status, startedAt: copy.startedAt, endedAt: copy.endedAt, durationMinutes: copy.durationMinutes, exercises: copy.exercises, version: (old.version ?? 1) + 1, deletedAt: copy.deletedAt, deletedByDeviceId: copy.deletedByDeviceId)
             value = copy

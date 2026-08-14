@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
-import type { GymWorkoutUpdate } from './gymQueries';
 import { enqueueGymExerciseImage } from './exerciseImageQueue';
 
 export function mergeGymWorkoutCache(current: unknown, updated: unknown): unknown {
@@ -149,22 +148,6 @@ export function useFinishGymWorkout() {
         current ? { ...current, status: 'COMPLETED', endedAt: new Date().toISOString() } : current,
       );
       queryClient.invalidateQueries({ queryKey: ['gym'] });
-    },
-  });
-}
-
-export function useUpdateGymWorkout() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: GymWorkoutUpdate }) => api.updateGymWorkout(id, data),
-    onSuccess: (updated, variables) => {
-      if (updated) {
-        queryClient.setQueryData(['gym', 'workout', variables.id], (current: unknown) =>
-          mergeGymWorkoutCache(current, updated),
-        );
-      }
-      queryClient.invalidateQueries({ queryKey: ['gym', 'overview'] });
-      queryClient.invalidateQueries({ queryKey: ['gym', 'workouts'] });
     },
   });
 }

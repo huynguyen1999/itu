@@ -74,11 +74,6 @@ export class MoveCardsDto {
   targetDeckId!: string;
 }
 
-export class UploadCardImageDto {
-  @IsEnum(CardSide)
-  side!: CardSide;
-}
-
 export class CardImageResponseDto {
   id!: string;
   cardId!: string;

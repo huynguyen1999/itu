@@ -60,4 +60,78 @@ describe('PrismaProductivityRepository', () => {
     );
     expect(transaction).not.toHaveBeenCalled();
   });
+
+  it('counts only active tasks and adds unassigned tasks to the default Inbox list in listTaskLists', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { id: 'inbox-id', title: 'Inbox', isDefault: true, _count: { tasks: 3 } },
+      { id: 'work-id', title: 'Work', isDefault: false, _count: { tasks: 5 } },
+    ]);
+    const count = jest.fn().mockResolvedValue(2);
+    const db = {
+      taskList: { findMany },
+      task: { count },
+    };
+    const repository = new PrismaProductivityRepository(db as never, {} as never);
+
+    const result = await repository.listTaskLists('user-1', { includeTaskCount: true });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          _count: {
+            select: {
+              tasks: {
+                where: {
+                  deletedAt: null,
+                  status: { notIn: ['COMPLETED', 'CANCELED', 'ARCHIVED'] },
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+    expect(count).toHaveBeenCalledWith({
+      where: {
+        userId: 'user-1',
+        taskListId: null,
+        deletedAt: null,
+        status: { notIn: ['COMPLETED', 'CANCELED', 'ARCHIVED'] },
+      },
+    });
+    expect(result).toEqual([
+      { id: 'inbox-id', title: 'Inbox', isDefault: true, taskCount: 5 }, // 3 + 2 unassigned
+      { id: 'work-id', title: 'Work', isDefault: false, taskCount: 5 },
+    ]);
+  });
+
+  it('filters inbox view tasks by unassigned/default list and unscheduled/terminal status', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const db = {
+      task: { findMany },
+    };
+    const repository = new PrismaProductivityRepository(db as never, {} as never);
+
+    await repository.listTasks('user-1', { view: 'inbox' });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: 'user-1',
+          deletedAt: null,
+          AND: expect.arrayContaining([
+            {
+              OR: [{ taskListId: null }, { taskList: { isDefault: true } }],
+            },
+            {
+              OR: [
+                { status: { in: ['COMPLETED', 'CANCELED'] } },
+                { status: 'INBOX', scheduledStartAt: null },
+              ],
+            },
+          ]),
+        }),
+      }),
+    );
+  });
 });

@@ -24,7 +24,7 @@ export function fetchWithTimeout(
   return fetch(input, { ...init, signal });
 }
 
-export function streamFetchTimeoutMs() {
+function streamFetchTimeoutMs() {
   return numberEnv(CONFIG_KEYS.httpStreamTimeoutMs, HTTP_CLIENT_CONSTANTS.defaultStreamTimeoutMs);
 }
 

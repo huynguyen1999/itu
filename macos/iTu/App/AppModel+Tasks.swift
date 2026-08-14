@@ -2,10 +2,90 @@ import Foundation
 
 @MainActor
 extension AppModel {
+    func configureTaskPagination(_ page: TaskPage?) {
+        let wasConfigured = taskPaginationConfigured
+        taskPaginationConfigured = page != nil
+        taskPageCursor = page?.nextCursor
+        hasMoreTaskPages = page?.hasNextPage == true && page?.nextCursor != nil
+        isLoadingMoreTasks = false
+        if wasConfigured != taskPaginationConfigured { invalidateTaskProjections() }
+    }
+
+    func refreshTasks() async {
+        guard user != nil else { return }
+        let runGeneration = sessionGeneration
+        let store = offlineStore
+        let accountID = user?.id
+        do {
+            async let tasks = apiClient.fetchTaskPage()
+            async let lists = apiClient.fetchTaskLists()
+            async let sections = apiClient.fetchTaskSections()
+            async let tags = apiClient.fetchTaskTags()
+            async let metadata = apiClient.fetchTaskMetadata()
+            async let earningRules = apiClient.fetchGrowthEarningRules(sourceType: .task)
+
+            let fetchedTaskPage = try await tasks
+            let fetchedLists = try await lists
+            let fetchedSections = try await sections
+            let fetchedTags = try await tags
+            let fetchedMetadata = try await metadata
+            let fetchedRules = try? await earningRules
+
+            guard !Task.isCancelled,
+                  runGeneration == sessionGeneration,
+                  offlineStore === store,
+                  user?.id == accountID else { return }
+
+            let resources = AccountHydrationResources(
+                tasks: fetchedTaskPage.data,
+                lists: fetchedLists,
+                sections: fetchedSections,
+                tags: fetchedTags,
+                metadata: fetchedMetadata,
+                taskRules: fetchedRules
+            )
+            let snapshot = try await store.applyHydration(resources)
+            guard !Task.isCancelled,
+                  runGeneration == sessionGeneration,
+                  offlineStore === store,
+                  user?.id == accountID else { return }
+            apply(snapshot)
+            configureTaskPagination(fetchedTaskPage)
+        } catch {
+            // Keep cached tasks visible when server/network is unavailable
+        }
+    }
+
+    func loadMoreTasks() async {
+        guard !isLoadingMoreTasks,
+              hasMoreTaskPages,
+              let cursor = taskPageCursor else { return }
+        isLoadingMoreTasks = true
+        defer { isLoadingMoreTasks = false }
+
+        let runGeneration = sessionGeneration
+        let store = offlineStore
+        let accountID = user?.id
+        do {
+            let page = try await apiClient.fetchTaskPage(cursor: cursor)
+            guard !Task.isCancelled,
+                  runGeneration == sessionGeneration,
+                  offlineStore === store,
+                  user?.id == accountID else { return }
+            configureTaskPagination(page)
+            apply(try await store.appendTaskPage(page.data))
+        } catch {
+            guard runGeneration == sessionGeneration else { return }
+            errorMessage = "Could not load more tasks: \(error.localizedDescription)"
+        }
+    }
+
     private func invalidateTaskProjections() {
         cachedTaskSections.removeAll(keepingCapacity: true)
         cachedHomeTodayTasks = nil
         cachedPlanningRenderProjections.removeAll(keepingCapacity: true)
+        cachedMatrixRenderProjections.removeAll(keepingCapacity: true)
+        cachedMatrixProjectionMinute = nil
     }
 
     private func invalidateTaskProjectionsIfDayChanged() {
@@ -355,7 +435,8 @@ extension AppModel {
         if let cached = cachedTaskSections[section] {
             return cached
         }
-        let visible = tasks.filter { $0.deletedAt == nil && $0.parentId == nil }
+        let sourceTasks = taskPaginationConfigured ? tasks : Array(tasks.prefix(20))
+        let visible = sourceTasks.filter { $0.deletedAt == nil && $0.parentId == nil }
         let filtered: [ProductivityTask]
         let calendar = Calendar.current
         switch section {
@@ -413,7 +494,15 @@ extension AppModel {
     ) -> PlanningRenderProjection {
         invalidateTaskProjectionsIfDayChanged()
         let query = filterQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let key = "\(section.rawValue)|\(taskListId ?? "")|\(query)|\(settings.sortMode.rawValue)|\(settings.groupMode.rawValue)|\(settings.hideCompleted)|\(hideCompletedTasks)"
+        let key = PlanningRenderProjectionKey(
+            section: section.rawValue,
+            taskListId: taskListId,
+            query: query,
+            sortMode: settings.sortMode.rawValue,
+            groupMode: settings.groupMode.rawValue,
+            hideCompleted: settings.hideCompleted,
+            modelHideCompleted: hideCompletedTasks
+        )
         if let cached = cachedPlanningRenderProjections[key] { return cached }
 
         var visible = tasks(for: section)
@@ -431,6 +520,42 @@ extension AppModel {
             archivedSkillIDs: archivedSkillIDs
         )
         cachedPlanningRenderProjections[key] = projection
+        return projection
+    }
+
+    func matrixRenderProjection(
+        query: String,
+        priorityFilter: TaskPriority?,
+        settings: MatrixSettings
+    ) -> MatrixProjection {
+        let now = Date()
+        let minuteBucket = Int(now.timeIntervalSince1970 / 60)
+        if cachedMatrixProjectionMinute != minuteBucket {
+            cachedMatrixRenderProjections.removeAll(keepingCapacity: true)
+            cachedMatrixProjectionMinute = minuteBucket
+        }
+
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let key = MatrixProjectionKey(
+            normalizedQuery: normalizedQuery,
+            priorityFilter: priorityFilter?.rawValue,
+            urgentDueWithinDays: settings.urgentDueWithinDays,
+            urgentPriorities: settings.urgentPriorities.map(\.rawValue),
+            importantPriorities: settings.importantPriorities.map(\.rawValue),
+            manualOverrideWins: settings.manualOverrideWins,
+            sortOption: settings.sortOption.rawValue,
+            minuteBucket: minuteBucket
+        )
+        if let cached = cachedMatrixRenderProjections[key] { return cached }
+
+        let projection = MatrixProjection.build(
+            tasks: tasks,
+            settings: settings,
+            query: normalizedQuery,
+            priorityFilter: priorityFilter,
+            now: now
+        )
+        cachedMatrixRenderProjections[key] = projection
         return projection
     }
 

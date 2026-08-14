@@ -98,6 +98,13 @@ Explicitly report any command that could not run. Use the shared NestJS/Winston 
 - Prefer Prisma-generated enums or local `as const` objects over inline business strings.
 - Replace long nested condition chains with lookup tables, dispatch maps, or pattern arrays.
 
+### Code-health tooling
+
+- Run `yarn code:unused` in `api/` and `web/` to review Knip findings; do not delete dynamic, generated, public-contract, or framework-discovered code without checking its reachability.
+- Run `yarn code:deps` in `api/` and `web/` for dependency direction and cycle checks.
+- The large-file ratchet in `tools/check-architecture.mjs` warns on existing concentration and rejects newly oversized production files or growth beyond the checked-in baseline.
+- Run `bash macos/scripts/code-health.sh` when SwiftLint and Periphery are installed. Native reports are non-blocking until the existing codebase is within the configured thresholds.
+
 ## 8. Design Principles
 
 ### 8.1 Modular Design (required)
@@ -205,3 +212,10 @@ When a change modifies a feature, behavior, API contract, terminology, or status
 - Before declaring a change web-only or API-only, check `macos/ROADMAP.md` and `macos/PARITY_AUDIT.md` for the current native parity contract.
 - If a change is intentionally web-only or API-only, state the reason (for example, "native parity tracked in `macos/ROADMAP.md` as a follow-up") in the completion report and Definition of Done.
 - Follow `agent_docs/swiftui_client_guidelines.md` when implementing the macOS side.
+
+## 13. Code-health guardrails
+
+- `tools/check-architecture.mjs` is the canonical boundary and concentration check.
+- `tools/architecture-large-files-baseline.json` grandfathers existing oversized production files; new oversized files fail, and baseline files may not grow materially.
+- `api/` and `web/` expose report-only `code:unused` scripts backed by Knip and `code:deps` scripts backed by dependency-cruiser.
+- ESLint 9 complexity and size rules are warnings until the existing debt is reduced; do not split files solely to silence a warning.

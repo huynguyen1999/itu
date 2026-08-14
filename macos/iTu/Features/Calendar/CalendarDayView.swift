@@ -37,7 +37,8 @@ struct CalendarDayView: View {
                     kind: item.kind, taskID: item.taskID, readOnly: item.readOnly,
                     allDay: item.allDay, dueAt: item.dueAt, sourceID: item.sourceID,
                     sourceName: item.sourceName, color: item.color, priority: item.priority,
-                    description: item.description, location: item.location, timeZone: item.timeZone
+                    description: item.description, location: item.location, timeZone: item.timeZone,
+                    status: item.status
                 )
             }
             return item
@@ -54,6 +55,35 @@ struct CalendarDayView: View {
         let totalGridHeight = 24 * hourHeight
 
         VStack(spacing: 0) {
+            // Day Header Axis
+            HStack(alignment: .center, spacing: 0) {
+                Text("TIME")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(iTuTheme.inkDim)
+                    .frame(width: rulerWidth, height: 50)
+                    .background(iTuTheme.surfaceMuted)
+                    .overlay(alignment: .trailing) {
+                        Rectangle().fill(iTuTheme.borderSoft).frame(width: 1)
+                    }
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(iTuTheme.borderSoft).frame(height: 1)
+                    }
+
+                dayHeader(date: day, isToday: isToday)
+                    .frame(height: 50)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(isToday ? iTuTheme.mintTint.opacity(0.12) : iTuTheme.surfaceMuted)
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(iTuTheme.borderSoft).frame(width: 1)
+                    }
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(iTuTheme.borderSoft).frame(height: 1)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(formatWeekday(day)), \(Calendar.current.component(.day, from: day)) \(formatMonth(day)) \(formatYear(day))\(isToday ? ", Today" : "")")
+            }
+            .background(iTuTheme.surfaceMuted)
+
             // Due Today Strip
             if !dueTodayItems.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -264,6 +294,50 @@ struct CalendarDayView: View {
             }
         }
         .offset(x: x, y: top)
+    }
+
+    private func dayHeader(date: Date, isToday: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(formatWeekday(date))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(isToday ? iTuTheme.teal : iTuTheme.inkDim)
+
+            HStack(alignment: .center, spacing: 4) {
+                Text("\(Calendar.current.component(.day, from: date))")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(isToday ? .white : iTuTheme.ink)
+                    .frame(width: 22, height: 22)
+                    .background(isToday ? Circle().fill(iTuTheme.teal) : nil)
+
+                Text(formatMonth(date))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isToday ? iTuTheme.teal : iTuTheme.inkDim)
+
+                Text(formatYear(date))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func formatWeekday(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: date).uppercased()
+    }
+
+    private func formatMonth(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM"
+        return formatter.string(from: date)
+    }
+
+    private func formatYear(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy"
+        return formatter.string(from: date)
     }
 
     private func formatHour(_ hour: Int) -> String {

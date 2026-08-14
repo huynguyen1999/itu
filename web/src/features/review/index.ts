@@ -1,1 +1,1 @@
-export { ReviewPage } from './ReviewPage';
+export { studyCompletionMessage, studyReceiptAccountXp } from './studyReward';

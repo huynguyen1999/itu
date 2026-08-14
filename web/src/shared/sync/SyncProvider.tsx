@@ -466,7 +466,7 @@ export function useSync() {
   return context;
 }
 
-export function handleSyncInvalidation(syncQueue: Pick<SyncQueue, 'pull'>, message: SyncInvalidationMessage): void {
+function handleSyncInvalidation(syncQueue: Pick<SyncQueue, 'pull'>, message: SyncInvalidationMessage): void {
   void syncQueue.pull(message.cursor);
 }
 

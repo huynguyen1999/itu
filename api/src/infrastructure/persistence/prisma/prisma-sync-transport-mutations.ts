@@ -21,7 +21,6 @@ import {
   stale,
   stringArray,
 } from './prisma-sync.helpers';
-export { conflictingSyncFields } from './prisma-sync.helpers';
 
 
 export class PrismaSyncTransportMutations {
@@ -315,4 +314,3 @@ export class PrismaSyncTransportMutations {
 
 
 }
-

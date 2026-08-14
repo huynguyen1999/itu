@@ -15,7 +15,7 @@ const CardSuggestionItemSchema = z.object({
 
 const CardSuggestionArraySchema = z.array(CardSuggestionItemSchema).min(1).max(20);
 
-export const CardSuggestionSchema = z
+const CardSuggestionSchema = z
   .union([
     z.object({
       cards: CardSuggestionArraySchema,
@@ -24,19 +24,19 @@ export const CardSuggestionSchema = z
   ])
   .transform((value) => (Array.isArray(value) ? value : value.cards));
 
-export const CardGradingSchema = z.object({
+const CardGradingSchema = z.object({
   cardId: z.string(),
   correctness: z.enum(['CORRECT', 'PARTIALLY_CORRECT', 'INCORRECT']),
   explanation: z.string(),
 });
 
-export const FeedbackSchema = z.object({
+const FeedbackSchema = z.object({
   summary: z.string(),
   cardGradings: z.array(CardGradingSchema).default([]),
   confidence: z.coerce.number().min(0).max(1).optional(),
 });
 
-export const GradingSchema = z.object({
+const GradingSchema = z.object({
   cardGradings: z.array(CardGradingSchema).default([]),
   confidence: z.coerce.number().min(0).max(1).optional(),
   gradePoint: z.coerce.number().min(0).max(100).optional(),
@@ -114,7 +114,7 @@ export function buildSessionGradingPrompt(input: ReviewSessionInput): string {
   ].join('\n');
 }
 
-export function parseCardsFromText(text: string): SuggestedCard[] {
+function parseCardsFromText(text: string): SuggestedCard[] {
   const cards: SuggestedCard[] = [];
   const blocks = text.split(/(?:^|\n)(?:---|\*\*\*|=== CARD ===|Card \d+:)\s*\n?/i);
 
@@ -184,7 +184,7 @@ export function parseCardSuggestionsJson(text: string): SuggestedCard[] {
   }
 }
 
-export function parseFeedbackJson(text: string): SessionFeedbackResult {
+function parseFeedbackJson(text: string): SessionFeedbackResult {
   const cleanText = text
     .replace(/^```json\s*/i, '')
     .replace(/```$/, '')

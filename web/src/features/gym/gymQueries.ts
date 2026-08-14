@@ -19,7 +19,7 @@ export interface GymExercise {
   imageUrl?: string | null;
 }
 
-export interface GymPreviousSet {
+interface GymPreviousSet {
   weight?: number | null;
   reps?: number | null;
   durationSeconds?: number | null;
@@ -74,7 +74,7 @@ export interface GymOverview {
   recentWorkouts: GymWorkout[];
 }
 
-export interface GymWorkoutUpdate {
+interface GymWorkoutUpdate {
   title: string;
   exercises: GymWorkoutExercise[];
 }

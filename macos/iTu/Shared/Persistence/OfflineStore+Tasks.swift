@@ -2,6 +2,22 @@ import Foundation
 
 extension OfflineStore {
     @discardableResult
+    func appendTaskPage(_ fetchedTasks: [ProductivityTask]) throws -> OfflineSnapshot {
+        guard !fetchedTasks.isEmpty else { return state }
+        let optimistic = Dictionary(uniqueKeysWithValues: state.tasks.map { ($0.id, $0) })
+        for task in fetchedTasks {
+            if let index = state.tasks.firstIndex(where: { $0.id == task.id }) {
+                state.tasks[index] = task
+            } else {
+                state.tasks.append(task)
+            }
+        }
+        try reapplyPendingTaskMutations(optimisticTasksByID: optimistic)
+        try persist()
+        return state
+    }
+
+    @discardableResult
     func updateTaskLists(_ fetchedLists: [TaskListModel]) throws -> OfflineSnapshot {
         let optimisticByID = Dictionary(uniqueKeysWithValues: state.taskLists.map { ($0.id, $0) })
         state.taskLists = fetchedLists

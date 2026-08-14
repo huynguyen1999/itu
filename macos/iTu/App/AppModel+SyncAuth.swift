@@ -123,8 +123,10 @@ extension AppModel {
             cachedTaskSections.removeAll()
             cachedHomeTodayTasks = nil
             cachedPlanningRenderProjections.removeAll()
+            cachedMatrixRenderProjections.removeAll()
             archivedSkillIDs.removeAll()
             cachedTaskProjectionDay = nil
+            cachedMatrixProjectionMinute = nil
             habits = []
             habitOccurrences = []
             habitOccurrencesByHabitAndDay.removeAll()
@@ -296,6 +298,7 @@ extension AppModel {
                       user?.id == userID,
                       offlineStore === store else { return }
                 apply(result.snapshot)
+                configureTaskPagination(result.taskPage)
                 if let serverUsagePreferences = result.usagePreferences {
                     settingsStore.mergeUsagePreferencesFromServer(serverUsagePreferences)
                     applyUsagePreferences(settingsStore.usagePreferences, sync: false)

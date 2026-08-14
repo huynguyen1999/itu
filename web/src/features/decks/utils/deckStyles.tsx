@@ -1,7 +1,7 @@
 import { Beaker, BookOpen, Brain, Calculator, Code2, Globe2, Inbox, Languages, Leaf } from 'lucide-react';
 import type { DeckColor, DeckIcon } from '@/shared/api/types';
 
-export const deckIconOptions: Array<{ value: DeckIcon; label: string; icon: typeof Inbox }> = [
+const deckIconOptions: Array<{ value: DeckIcon; label: string; icon: typeof Inbox }> = [
   { value: 'INBOX', label: 'Inbox', icon: Inbox },
   { value: 'BOOK', label: 'Book', icon: BookOpen },
   { value: 'BRAIN', label: 'Brain', icon: Brain },
@@ -13,7 +13,7 @@ export const deckIconOptions: Array<{ value: DeckIcon; label: string; icon: type
   { value: 'GLOBE', label: 'Globe', icon: Globe2 },
 ];
 
-export const deckColorOptions: Array<{
+const deckColorOptions: Array<{
   value: DeckColor;
   label: string;
   iconClass: string;

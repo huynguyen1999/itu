@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../../shared/api/client';
 import type { DueItem, ReviewGrade } from '../../shared/api/client';
-import { AiFeedbackPanel } from '../ai/AiFeedbackPanel';
+import { AiFeedbackPanel } from '@/features/ai';
 import { MarkdownPreview } from '../../shared/markdown/MarkdownPreview';
 import { AuthenticatedImage } from '../../shared/ui/AuthenticatedImage';
 import { Card, CardContent } from '@/shared/ui/card';

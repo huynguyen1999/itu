@@ -228,7 +228,7 @@ export const growthSolidColorClasses: Record<string, string> = {
   ORANGE: 'bg-orange-600 text-white',
 };
 
-export function growthIcon(value?: string) {
+function growthIcon(value?: string) {
   return growthIconOptions.find((option) => option.value === value)?.icon ?? Sparkles;
 }
 

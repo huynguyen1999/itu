@@ -15,6 +15,7 @@ import {
   type WeekStart,
 } from '../monthGrid';
 import { updateTaskInCalendarCache } from '../calendarProjection';
+import type { ResizePreviewState } from '../calendar.types';
 
 export type CalendarPreferences = {
   zoom: TimelineZoom;
@@ -24,7 +25,7 @@ export type CalendarPreferences = {
   weekStart: WeekStart;
 };
 
-export const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
+const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
   zoom: 'WEEK',
   visibleKinds: ['TASK_DURATION', 'TASK_DUE', 'FOCUS_SESSION', 'EXTERNAL_EVENT'],
   showCompleted: true,
@@ -33,14 +34,6 @@ export const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
 };
 
 export const calendarTimelineKey = (from: string, to: string) => ['calendar', 'timeline', from, to] as const;
-
-export type ResizePreviewState = {
-  itemId: string;
-  taskId: string;
-  edge: 'start' | 'end';
-  startAt: string;
-  endAt: string;
-};
 
 export function useCalendarData() {
   const queryClient = useQueryClient();
@@ -122,4 +115,4 @@ export function useCalendarData() {
   };
 }
 
-export type CalendarData = ReturnType<typeof useCalendarData>;
+type CalendarData = ReturnType<typeof useCalendarData>;

@@ -8,7 +8,7 @@ import type {
   SearchJournalFilter,
 } from './journal.types';
 
-export const journalQueries = {
+const journalQueries = {
   entries: (filter?: SearchJournalFilter) =>
     queryOptions({
       queryKey: ['journal-entries', filter ?? {}],

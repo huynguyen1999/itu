@@ -21,7 +21,7 @@ export const DEFAULT_STATISTICS_DISPLAY_SETTINGS: StatisticsDisplaySettings = {
   showZeroValueSeries: false,
 };
 
-export const STATISTICS_SETTINGS_STORAGE_KEY = 'itu.statistics-settings';
+const STATISTICS_SETTINGS_STORAGE_KEY = 'itu.statistics-settings';
 
 export function getStoredStatisticsSettings(): StatisticsDisplaySettings {
   try {

@@ -242,14 +242,6 @@ export class UpsertHabitCommitmentPolicyDto {
   @IsOptional() @IsDateString() effectiveFrom?: string;
 }
 
-export class UpdateHabitChecklistDto {
-  @IsArray()
-  @ArrayMaxSize(30)
-  @ValidateNested({ each: true })
-  @Type(() => HabitChecklistItemDto)
-  items!: HabitChecklistItemDto[];
-}
-
 export class HabitChecklistActionDto {
   @IsBoolean() completed!: boolean;
 }

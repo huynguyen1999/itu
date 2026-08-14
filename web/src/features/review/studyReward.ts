@@ -1,6 +1,6 @@
 import type { GrowthAwardReceipt } from '@/shared/api/types';
 
-export const STUDY_ACCOUNT_XP_CAP = 20;
+const STUDY_ACCOUNT_XP_CAP = 20;
 
 /** Mirrors the server's correctness-neutral study reward rule. */
 export function studyAccountXpForReviewedCount(reviewedCount: number) {

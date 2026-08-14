@@ -76,7 +76,7 @@ export function getCategoryColorClasses(color?: string) {
   return { icon: option[2], background: option[3], dot: option[4] };
 }
 
-export function getCategoryIcon(name?: string): LucideIcon {
+function getCategoryIcon(name?: string): LucideIcon {
   const key = getCategoryIconKey(name);
   return CATEGORY_ICON_OPTIONS.find(([option]) => option === key)?.[1] ?? Tag;
 }

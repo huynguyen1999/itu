@@ -2,8 +2,8 @@ export type TimelineZoom = 'DAY' | 'WEEK' | 'MONTH';
 export type TimelineItemKind = 'TASK_DURATION' | 'TASK_DUE' | 'FOCUS_SESSION' | 'EXTERNAL_EVENT';
 
 export const CALENDAR_DAY_WIDTH = 180;
-export const CALENDAR_HOUR_HEIGHT = 60;
-export const CALENDAR_ALL_DAY_HEIGHT = 38;
+const CALENDAR_HOUR_HEIGHT = 60;
+const CALENDAR_ALL_DAY_HEIGHT = 38;
 export const CALENDAR_GUTTER_WIDTH = 64;
 
 export function formatRangeLabel(
@@ -32,12 +32,12 @@ export function isSameLocalDay(first: Date | string, second: Date | string): boo
   );
 }
 
-export function toDayNumber(timestamp: Date | string): number {
+function toDayNumber(timestamp: Date | string): number {
   const d = new Date(timestamp);
   return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
 }
 
-export function getEffectiveEndDayNumber(startAt: Date | string, endAt?: Date | string | null): number {
+function getEffectiveEndDayNumber(startAt: Date | string, endAt?: Date | string | null): number {
   if (!endAt) return toDayNumber(startAt);
   const end = new Date(endAt);
   const start = new Date(startAt);
@@ -218,7 +218,7 @@ export function gridTimestampFromPoint(
   return date;
 }
 
-export function pixelsPerHour(zoom: TimelineZoom): number {
+function pixelsPerHour(zoom: TimelineZoom): number {
   return zoom === 'DAY' ? 96 : zoom === 'WEEK' ? 24 : 8;
 }
 
@@ -299,7 +299,7 @@ export function assignOverlapLane(
   return lanes;
 }
 
-export function computeDynamicItemTops(
+function computeDynamicItemTops(
   items: Array<{ left: number; width: number; height: number }>,
   lanes: number[],
   baseTop: number = 10,

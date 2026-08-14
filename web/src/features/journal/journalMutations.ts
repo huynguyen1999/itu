@@ -220,31 +220,6 @@ export function useCreateJournalTagMutation() {
   });
 }
 
-export function useRestoreJournalEntryMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      return api.enqueueOfflineMutation(
-        {
-          kind: 'journal.restore',
-          entityId: id,
-          payload: { id },
-          optimistic: { id, deletedAt: null },
-        },
-        async () => {
-          const res = await api.post(`/journal/entries/${id}/restore`);
-          return res.data;
-        },
-      );
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['journal-entries'] });
-      void queryClient.invalidateQueries({ queryKey: ['trash'] });
-    },
-  });
-}
-
 export function useRestoreJournalRevisionMutation() {
   const queryClient = useQueryClient();
 

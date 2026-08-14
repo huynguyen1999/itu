@@ -9,21 +9,18 @@ import { PageHeader } from '@/shared/ui/PageHeader';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Label } from '@/shared/ui/label';
 import { DatePickerPopover } from '@/shared/ui/DatePickerPopover';
-import { parseTaskTitleInput } from '../planning/utils/parseTaskTitleInput';
-import { TaskList } from '../planning/components/TaskList';
-import { TaskDetailModal } from '../planning/components/TaskDetailModal';
-import { TaskContextMenu } from '../planning/components/TaskContextMenu';
+import { parseTaskTitleInput, TaskContextMenu, TaskDetailModal, TaskList } from '@/features/planning';
 import {
   formatTaskDate,
   TaskOptionChip,
   taskPriorityLabel,
   TaskSettingsMenu,
-} from '../planning/components/TaskSettingsMenu';
+} from '@/features/planning';
 import { getStoredTaskDefaults } from '@/shared/taskDefaults';
 import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
 import { TodaySettingsPopover, DEFAULT_TODAY_SETTINGS, type TodaySettings } from './TodaySettingsPopover';
-import { HomeOverview } from '../dashboard/HomeOverview';
-import { HabitDetail, HabitIconBadge } from '../habits';
+import { HomeOverview } from '@/features/dashboard';
+import { HabitDetail, HabitIconBadge } from '@/features/habits';
 
 export function TodayPage() {
   const [todaySettings, setTodaySettings] = useState<TodaySettings>(DEFAULT_TODAY_SETTINGS);

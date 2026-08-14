@@ -160,7 +160,7 @@ The publisher and consumer run in the same process but communicate through Rabbi
 
 ## Usage and extension boundary
 
-Authenticated clients manage tracking preferences, read summaries, and upload macOS device summaries through [`usage.controller.ts`](../../api/src/infrastructure/transport/rest/controllers/usage.controller.ts). The extension uses only `POST /usage/websites/ingest`, protected by [`browser-extension-dsn.guard.ts`](../../api/src/infrastructure/transport/rest/guards/browser-extension-dsn.guard.ts). [`usage.service.ts`](../../api/src/core/application/use-cases/usage.service.ts) validates ranges, ownership, opt-in state, normalization, and retention semantics.
+Authenticated clients manage tracking preferences, read summaries, and upload macOS device summaries through [`usage.controller.ts`](../../api/src/infrastructure/transport/rest/controllers/usage.controller.ts). The extension uses only `POST /usage/websites/ingest`, protected by [`browser-extension-dsn.guard.ts`](../../api/src/infrastructure/transport/rest/guards/browser-extension-dsn.guard.ts). [`usage.service.ts`](../../api/src/core/application/use-cases/usage.service.ts) remains the stable facade, composed from focused query, macOS ingestion, website usage, and app-identity use cases. Pure date, timezone, URL, and range validation lives in [`usage-validation.ts`](../../api/src/core/application/use-cases/usage-validation.ts).
 
 The macOS Statistics client reads Website Usage Summaries through the dedicated
 usage routes; local pending deltas are merged on the client before rendering.
@@ -175,3 +175,12 @@ usage routes; local pending deltas are merged on the client before rendering.
 - Send data through `POST /sync`; use WebSockets only to signal that a pull is needed.
 - Store only hashed browser-extension DSN credentials and restrict them to ingestion.
 - Keep sensitive bodies and credentials out of logs through the logging sanitizer.
+
+Usage application services should represent coherent use cases: reporting,
+macOS batch ingestion, website activity, and app identity persistence stay
+separate even when the controller-facing `UsageService` facade remains stable.
+
+The root code-health workflow also runs dependency-cruiser against production
+TypeScript. API core-to-infrastructure violations fail the check; existing
+circular dependencies are currently warnings until they can be removed without
+changing behavior.

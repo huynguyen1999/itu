@@ -43,6 +43,6 @@ export function validateGrowthAttributeMappings(mappings: GrowthAttributeMapping
   return { valid: errors.length === 0, errors };
 }
 
-export function growthMappingSlotLabel(slot: GrowthAttributeMappingSlot) {
+function growthMappingSlotLabel(slot: GrowthAttributeMappingSlot) {
   return slot === 'PRIMARY' ? 'Primary' : 'Secondary';
 }

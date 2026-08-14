@@ -113,6 +113,8 @@ function buildComparisonEvidence(current: Record<string, unknown>, previous: Rec
     ['comparison.focus.total_minutes', 'FOCUS', 'focus', 'minutes'],
     ['comparison.habits.completion_rate', 'HABIT', 'habits', 'completionRate'],
     ['comparison.gym.workouts', 'GYM', 'gym', 'workouts'],
+    ['comparison.appUsage.active_seconds', 'APP', 'appUsage', 'activeSeconds'],
+    ['comparison.websiteUsage.active_seconds', 'WEBSITE', 'websiteUsage', 'activeSeconds'],
   ].map(([id, source, domain, metric]) => ({
     id,
     source,

@@ -1,3 +1,1 @@
-export { CreateGrowthDialog, GrowthPage, SettingsView, Shop } from './GrowthPage';
-export { GrowthResetDialog } from './components/growth-reset-dialog';
-export { GrowthIconMark, growthColorClasses } from '@/shared/ui/GrowthIcons';
+export { GrowthPage } from './GrowthPage';

@@ -17,6 +17,7 @@ The API, web, macOS, and workflow directories are independent Git repositories o
 
 - `api/src/core/domain`: framework-independent domain models, enums, and errors.
 - `api/src/core/application`: use cases, business rules, constants, pagination, and ports. Production core code does not import infrastructure, `PrismaClient`/`PrismaService`, `Prisma.TransactionClient`, or Prisma input/client types; generated `@prisma/client` business-enum imports remain where needed.
+- Usage application behavior is split between `UsageQueryService`, `UsageIngestionService`, `UsageWebsiteService`, and `UsageIdentityService`; `UsageService` remains the controller-facing facade and `usage-validation.ts` contains pure validation/normalization.
 - Calendar application services consume typed repository and integration ports. Calendar persistence, HTTP/ICS/Google OAuth and token crypto adapters, and the periodic sync scheduler remain under infrastructure.
 - `api/src/core/application/ulid.ts`: application ULID generator; `api/src/infrastructure/persistence/prisma/ulid.ts` re-exports it for infrastructure callers.
 - `api/src/infrastructure/transport`: REST controllers, guards, and DTO validation.
@@ -33,6 +34,8 @@ The API, web, macOS, and workflow directories are independent Git repositories o
 - `web/src/shared/ui/Layout.tsx` receives feature slots; `web/src/App.tsx` composes the planning sidebar and global focus timer into those slots.
 - `web/src/features/planning/components/PlanningSidebar.tsx`: planning-owned sidebar surface; it is composed by `App` rather than owned by shared UI.
 - `web/src/features/calendar/CalendarPage.tsx` is a thin composition root. Calendar data/preferences and task interactions live in feature hooks; toolbar, settings, timeline, and arrangement surfaces live in feature components. Day, Week, and Month behavior remains unchanged.
+- `web/src/features/planning/MatrixPage.tsx` is a composition root over `MatrixToolbar`, `MatrixTaskDialog`, `MatrixTaskGrid`, selection, and existing task-ordering helpers.
+- `web/src/features/calendar/components/CalendarTimeline.tsx` coordinates timeline state; `CalendarTimelineViews.tsx` owns Day/Week/Month rendering pieces without moving calendar algorithms into shared code.
 - Reusable Growth presentation and reward-editing utilities live in `web/src/shared/ui/GrowthIcons.tsx`, `GrowthRewardChip.tsx`, and `GrowthRewardEditor.tsx`, with shared Growth calculations/filtering in `web/src/shared/growthRewardMath.ts`, `growthEntryFilters.ts`, and `constants/growth.constants.ts`.
 - `web/src/features/growth/GrowthPage.tsx` composes feature-local `components/GrowthLedger.tsx`, `GrowthDialogs.tsx`, `GrowthSkillCard.tsx`, `GrowthSettings.tsx`, and `GrowthPrimitives.tsx`.
 - `web/src/shared/api`: typed API client and contracts. `client.ts` is the stable facade composed from `apiContext.ts`, `syncApi.ts`, `productivityApi.ts`, `focusProductivityApi.ts`, `authApi.ts`, `growthApi.ts`, and `deckStudyApi.ts`; feature imports and public methods remain stable.
@@ -44,13 +47,25 @@ The API, web, macOS, and workflow directories are independent Git repositories o
 
 Feature code should remain inside its feature directory; reusable behavior belongs in `shared`. TanStack Query owns server state.
 
+Cross-feature imports should use the exporting feature's public entrypoint (for
+example, `@/features/calendar`) rather than a deep implementation path. The
+architecture checker reports existing deep imports as migration warnings.
+
+Code-health enforcement lives in `tools/check-architecture.mjs` and
+`tools/architecture-large-files-baseline.json`. Root workflows run the
+boundary check, dependency-cruiser cycle/boundary checks, and report-only Knip
+unused-code checks; oversized files are grandfathered but may not grow beyond
+the recorded baseline allowance. Knip currently reports no unused files or
+dependencies; remaining exported types are retained API/domain contracts.
+
 ## macOS ownership
 
 - `macos/iTu/Features`: native feature surfaces for authentication, conflicts, focus, Growth, habits, home, learning, menu bar, notifications, settings, shell, statistics, and tasks.
 - `macos/iTu/App/AppModel.swift` and `AppModel+*.swift` split the same `AppModel` type into feature-responsibility extensions; `macos/iTu/Shared/Persistence/OfflineStore.swift` and `OfflineStore+*.swift` use the same pattern for persistence responsibilities.
 - AppModel extensions keep Budget, Gym, Notifications, and Trash responsibilities separate; matching OfflineStore extensions keep their persistence and pending-mutation replay separate while preserving the shared facade.
 - `macos/iTu.xcodeproj/project.pbxproj` uses synchronized root groups for `iTu` and `iTuTests`, so files under those groups are auto-included by the Xcode targets.
-- `macos/iTu/Shared/API`: API client and session cache.
+- `macos/iTu/Shared/API`: the `APIClient` transport/session actor facade, endpoint-family extensions, and session cache.
+- `macos/.swiftlint.yml` and `macos/.periphery.yml` define non-blocking native code-health checks; `macos/scripts/code-health.sh` runs them when the tools are installed.
 - `macos/iTu/Shared/Models`: typed native models and settings state.
 - `macos/iTu/Shared/Persistence`: offline snapshot and mutation persistence.
 - `macos/iTu/Shared/Sync`: synchronization coordinator and ULID support.

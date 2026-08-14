@@ -97,4 +97,24 @@ final class PlanningProjectorTests: XCTestCase {
         XCTAssertEqual(projection[.q3].canceledTasks.map(\.id), ["q3"])
         XCTAssertEqual(projection.mappedCount, 2)
     }
+
+    func testUpcomingProjectionBucketsTasksInOnePass() {
+        let calendar = Calendar.current
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 14, hour: 9))!
+        let today = calendar.date(byAdding: .hour, value: 2, to: now)!
+        let daySix = calendar.date(byAdding: .day, value: 6, to: now)!
+        let outside = calendar.date(byAdding: .day, value: 7, to: now)!
+        let tasks = [
+            ProductivityTask.optimistic(id: "today", title: "Today", dueAt: iTuDateSupport.string(from: today)),
+            ProductivityTask.optimistic(id: "day-six", title: "Day six", dueAt: iTuDateSupport.string(from: daySix)),
+            ProductivityTask.optimistic(id: "outside", title: "Outside", dueAt: iTuDateSupport.string(from: outside))
+        ]
+
+        let groups = UpcomingProjection.build(tasks: tasks, now: now)
+
+        XCTAssertEqual(groups.count, 7)
+        XCTAssertEqual(groups[0].tasks.map(\.id), ["today"])
+        XCTAssertEqual(groups[6].tasks.map(\.id), ["day-six"])
+        XCTAssertTrue(groups.flatMap(\.tasks).allSatisfy { $0.id != "outside" })
+    }
 }

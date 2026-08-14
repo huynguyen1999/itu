@@ -165,6 +165,6 @@ export class StudyService implements IStudyUseCase {
   }
 }
 
-export function isCorrectGrade(grade: ReviewGrade): boolean {
+function isCorrectGrade(grade: ReviewGrade): boolean {
   return grade !== ReviewGrade.AGAIN;
 }

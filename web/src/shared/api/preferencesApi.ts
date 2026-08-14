@@ -153,7 +153,7 @@ export const DEFAULT_LEARN_PREFERENCES: LearnPreferences = {
   dailyNewCardLimit: 20,
 };
 
-export const DEFAULT_JOURNAL_PREFERENCES: JournalPreferences = {
+const DEFAULT_JOURNAL_PREFERENCES: JournalPreferences = {
   defaultEditorMode: 'LIVE',
   autoCreateDailyNote: true,
   autoOpenTodayNote: true,
@@ -161,7 +161,7 @@ export const DEFAULT_JOURNAL_PREFERENCES: JournalPreferences = {
   autoCreateWeeklyReview: true,
 };
 
-export const DEFAULT_MONEY_PREFERENCES: MoneyPreferences = {
+const DEFAULT_MONEY_PREFERENCES: MoneyPreferences = {
   defaultCurrency: 'VND',
   defaultTransactionType: 'EXPENSE',
   rememberPaymentMethod: true,
@@ -185,7 +185,7 @@ export const DEFAULT_GYM_PREFERENCES: GymPreferences = {
   weeklyWorkoutGoal: 3,
 };
 
-export const DEFAULT_USAGE_PREFERENCES: UsagePreferences = {
+const DEFAULT_USAGE_PREFERENCES: UsagePreferences = {
   trackingEnabled: false,
   websiteTrackingEnabled: false,
   retentionDays: 90,
@@ -193,7 +193,7 @@ export const DEFAULT_USAGE_PREFERENCES: UsagePreferences = {
   excludedBundleIds: [],
 };
 
-export const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
+const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
   zoom: 'WEEK',
   visibleKinds: ['TASK_DURATION', 'TASK_DUE', 'FOCUS_SESSION', 'EXTERNAL_EVENT'],
   showCompleted: true,

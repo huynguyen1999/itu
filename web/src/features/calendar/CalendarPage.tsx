@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type CalendarTimelineItem, type ProductivityTask } from '@/shared/api/client';
 import { PageHeader } from '@/shared/ui/PageHeader';
-import { TaskDetailModal } from '../planning/components/TaskDetailModal';
+import { TaskDetailModal } from '@/features/planning';
 import { ArrangeTasksPanel } from './components/ArrangeTasksPanel';
 import { CalendarSettings } from './components/CalendarSettings';
-import { CalendarTimeline, groupCalendarItems, ReadonlyDetails, type CalendarGroup } from './components/CalendarTimeline';
+import { CalendarTimeline, groupCalendarItems, ReadonlyDetails } from './components/CalendarTimeline';
 import { CalendarToolbar } from './components/CalendarToolbar';
 import { useCalendarData } from './hooks/useCalendarData';
 import { useCalendarTaskInteractions } from './hooks/useCalendarTaskInteractions';
@@ -75,4 +75,3 @@ export function CalendarPage() {
 }
 
 export { groupCalendarItems };
-export type { CalendarGroup };

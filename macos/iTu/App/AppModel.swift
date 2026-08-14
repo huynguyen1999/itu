@@ -174,6 +174,7 @@ enum UndoRegistration: Sendable {
 }
 
 enum RefreshDomain: Hashable {
+    case tasks
     case focus
     case calendar(String)
     case statistics
@@ -186,6 +187,7 @@ enum RefreshDomain: Hashable {
 
     var rawValue: String {
         switch self {
+        case .tasks: "tasks"
         case .focus: "focus"
         case .calendar(let range): "calendar:\(range)"
         case .statistics: "statistics"
@@ -241,6 +243,10 @@ final class AppModel {
 
     var user: UserProfile?
     var tasks: [ProductivityTask] = []
+    var taskPaginationConfigured = false
+    var taskPageCursor: String?
+    var hasMoreTaskPages = false
+    var isLoadingMoreTasks = false
     var conflicts: [SyncConflict] = []
     var syncPhase: SyncPhase = .offline
     var selectedSection: AppSection = .home
@@ -415,9 +421,11 @@ final class AppModel {
     @ObservationIgnored var habitOccurrenceLoadingKeys: Set<String> = []
     @ObservationIgnored var cachedTaskSections: [AppSection: [ProductivityTask]] = [:]
     @ObservationIgnored var cachedHomeTodayTasks: [ProductivityTask]?
-    @ObservationIgnored var cachedPlanningRenderProjections: [String: PlanningRenderProjection] = [:]
+    @ObservationIgnored var cachedPlanningRenderProjections: [PlanningRenderProjectionKey: PlanningRenderProjection] = [:]
+    @ObservationIgnored var cachedMatrixRenderProjections: [MatrixProjectionKey: MatrixProjection] = [:]
     @ObservationIgnored var archivedSkillIDs: Set<String> = []
     @ObservationIgnored var cachedTaskProjectionDay: String?
+    @ObservationIgnored var cachedMatrixProjectionMinute: Int?
     @ObservationIgnored private(set) var sessionGeneration = 0
 
     /// Invalidates in-flight account work before changing the authenticated
@@ -437,6 +445,12 @@ final class AppModel {
         habitOccurrenceRefreshDates.removeAll()
         habitOccurrenceLoadingKeys.removeAll()
         habitOccurrencesLoading = false
+        taskPageCursor = nil
+        hasMoreTaskPages = false
+        taskPaginationConfigured = false
+        isLoadingMoreTasks = false
+        cachedMatrixRenderProjections.removeAll(keepingCapacity: true)
+        cachedMatrixProjectionMinute = nil
     }
 
     func switchAccountIfNeeded(to profile: UserProfile) async throws {
@@ -505,7 +519,9 @@ final class AppModel {
             cachedTaskSections.removeAll(keepingCapacity: true)
             cachedHomeTodayTasks = nil
             cachedPlanningRenderProjections.removeAll(keepingCapacity: true)
+            cachedMatrixRenderProjections.removeAll(keepingCapacity: true)
             cachedTaskProjectionDay = nil
+            cachedMatrixProjectionMinute = nil
         }
         if conflicts != snapshot.conflicts { conflicts = snapshot.conflicts }
         if taskLists != snapshot.taskLists { taskLists = snapshot.taskLists; cachedPlanningRenderProjections.removeAll(keepingCapacity: true) }

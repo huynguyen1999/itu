@@ -6,7 +6,7 @@ export interface DaySpan {
   end: Date;
 }
 
-export interface WeekSegment {
+interface WeekSegment {
   id: string;
   dayStart: number; // 0..6 within the week
   dayEnd: number; // exclusive, 1..7

@@ -39,7 +39,7 @@ export function GrowthRewardReceiptHost() {
   );
 }
 
-export function GrowthRewardReceipt({
+function GrowthRewardReceipt({
   receipt,
   current,
   total,

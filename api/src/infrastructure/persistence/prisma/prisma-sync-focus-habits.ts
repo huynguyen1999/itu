@@ -29,7 +29,6 @@ import {
   stringArray,
   HABIT_ACTION_MARKER_PREFIX,
 } from './prisma-sync.helpers';
-export { conflictingSyncFields } from './prisma-sync.helpers';
 
 
 export class PrismaSyncFocusHabits {

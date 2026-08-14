@@ -2,8 +2,8 @@ import type { CSSProperties } from 'react';
 import type { CalendarTimelineItem } from '@/shared/api/client';
 import { formatSingleDate, formatSingleTime, isSameLocalDay, timelineItemColor } from './timeline';
 
-export type CalendarEventCardDensity = 'regular' | 'compact';
-export type CalendarEventCardVariant = 'timeline' | 'board' | 'monthChip' | 'regular' | 'compact';
+type CalendarEventCardDensity = 'regular' | 'compact';
+type CalendarEventCardVariant = 'timeline' | 'board' | 'monthChip' | 'regular' | 'compact';
 
 export interface CalendarEventCardProps {
   item: CalendarTimelineItem;
@@ -18,6 +18,7 @@ export interface CalendarEventCardProps {
   overflowsPrev?: boolean;
   overflowsNext?: boolean;
   onSelect: (item: CalendarTimelineItem) => void;
+  onHover?: (item: CalendarTimelineItem, element: HTMLElement | null) => void;
   onDragStart?: (item: CalendarTimelineItem, event: React.DragEvent<HTMLElement>) => void;
   onResize?: (item: CalendarTimelineItem, edge: 'start' | 'end', event: React.PointerEvent) => void;
   onResizeStep?: (item: CalendarTimelineItem, edge: 'start' | 'end', direction: -1 | 1) => void;
@@ -77,6 +78,7 @@ export function CalendarEventCard({
   overflowsPrev,
   overflowsNext,
   onSelect,
+  onHover,
   onDragStart,
   onResize,
   onResizeStep,
@@ -129,12 +131,21 @@ export function CalendarEventCard({
         role="button"
         tabIndex={0}
         draggable={!item.readOnly && Boolean(onDragStart) && !isResizing}
-        onDragStart={(event) => onDragStart?.(item, event)}
-        onClick={() => onSelect(item)}
+        onMouseEnter={(event) => onHover?.(item, event.currentTarget)}
+        onMouseLeave={() => onHover?.(item, null)}
+        onDragStart={(event) => {
+          onHover?.(item, null);
+          onDragStart?.(item, event);
+        }}
+        onClick={() => {
+          onHover?.(item, null);
+          onSelect(item);
+        }}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
+            onHover?.(item, null);
             onSelect(item);
           }
         }}
@@ -247,12 +258,21 @@ export function CalendarEventCard({
       role="button"
       tabIndex={0}
       draggable={!item.readOnly && Boolean(onDragStart) && !isResizing}
-      onDragStart={(event) => onDragStart?.(item, event)}
-      onClick={() => onSelect(item)}
+      onMouseEnter={(event) => onHover?.(item, event.currentTarget)}
+      onMouseLeave={() => onHover?.(item, null)}
+      onDragStart={(event) => {
+        onHover?.(item, null);
+        onDragStart?.(item, event);
+      }}
+      onClick={() => {
+        onHover?.(item, null);
+        onSelect(item);
+      }}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
+          onHover?.(item, null);
           onSelect(item);
         }
       }}

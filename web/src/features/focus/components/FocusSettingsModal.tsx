@@ -12,12 +12,7 @@ import { saveFocusSoundCatalog } from '../sounds';
 import type { FocusSound, FocusSoundPreference } from '@/shared/api/types';
 import { getStoredFocusSettings, saveStoredFocusSettings, type FocusUserSettings } from '@/shared/utils/focusSettings';
 
-export {
-  DEFAULT_FOCUS_SETTINGS,
-  getStoredFocusSettings,
-  saveStoredFocusSettings,
-  type FocusUserSettings,
-} from '@/shared/utils/focusSettings';
+export { getStoredFocusSettings, type FocusUserSettings } from '@/shared/utils/focusSettings';
 
 interface FocusSettingsModalProps {
   open: boolean;

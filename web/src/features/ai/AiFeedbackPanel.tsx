@@ -9,7 +9,7 @@ import { Skeleton } from '@/shared/ui/skeleton';
 import { BrainCircuit, CheckCircle2, Settings2, Target } from 'lucide-react';
 import { MarkdownPreview } from '../../shared/markdown/MarkdownPreview';
 import { useSync } from '@/shared/sync/SyncProvider';
-import { studyCompletionMessage, studyReceiptAccountXp } from '../review/studyReward';
+import { studyCompletionMessage, studyReceiptAccountXp } from '@/features/review';
 import { parseSseEventLine } from '../../shared/utils/sse';
 
 interface DisplayFeedback {

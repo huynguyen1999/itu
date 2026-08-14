@@ -1,4 +1,4 @@
-import type { GroupMode, SortMode } from '../PlanningPage';
+import type { GroupMode, SortMode } from '../planning.types';
 
 const PLANNING_VIEW_SETTINGS_KEY = 'itu.planning.view-settings-v2';
 const LEGACY_PLANNING_VIEW_SETTINGS_KEY = 'itu.planning.view-settings';
@@ -20,7 +20,7 @@ export interface PlanningPreferencesV2 {
   views: Record<PlanningViewKey, PlanningViewSettings>;
 }
 
-export const defaultViewSettingsFor = (view: PlanningViewKey): PlanningViewSettings => {
+const defaultViewSettingsFor = (view: PlanningViewKey): PlanningViewSettings => {
   switch (view) {
     case 'all':
       return { sortMode: 'priority', groupMode: 'project', displayMode: 'list', hideCompleted: false, hideDetails: false, collapsedGroups: {} };
@@ -63,7 +63,7 @@ function sanitizeViewSettings(raw: unknown, viewKey: PlanningViewKey): PlanningV
   };
 }
 
-export function readPlanningPreferencesV2(): PlanningPreferencesV2 {
+function readPlanningPreferencesV2(): PlanningPreferencesV2 {
   try {
     const rawV2 = window.localStorage.getItem(PLANNING_VIEW_SETTINGS_KEY);
     if (rawV2) {
@@ -116,7 +116,7 @@ export function readPlanningPreferencesV2(): PlanningPreferencesV2 {
   };
 }
 
-export function savePlanningPreferencesV2(prefs: PlanningPreferencesV2) {
+function savePlanningPreferencesV2(prefs: PlanningPreferencesV2) {
   window.localStorage.setItem(PLANNING_VIEW_SETTINGS_KEY, JSON.stringify(prefs));
 }
 

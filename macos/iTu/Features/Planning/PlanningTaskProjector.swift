@@ -19,6 +19,16 @@ struct PlanningRenderProjection: Sendable {
     let archivedSkillIDs: Set<String>
 }
 
+struct PlanningRenderProjectionKey: Hashable, Sendable {
+    let section: String
+    let taskListId: String?
+    let query: String
+    let sortMode: String
+    let groupMode: String
+    let hideCompleted: Bool
+    let modelHideCompleted: Bool
+}
+
 enum PlanningTaskProjector {
     static func render(
         tasks: [ProductivityTask],

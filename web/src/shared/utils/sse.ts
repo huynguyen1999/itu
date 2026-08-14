@@ -1,4 +1,4 @@
-export const SSE_CONSTANTS = {
+const SSE_CONSTANTS = {
   dataPrefix: 'data: ',
   errorEvent: 'event: error',
 } as const;

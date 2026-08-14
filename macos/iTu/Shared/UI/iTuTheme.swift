@@ -89,59 +89,21 @@ struct iTuGradientCardModifier: ViewModifier {
 
 struct PointingHandCursorModifier: ViewModifier {
     @Environment(\.isEnabled) private var isEnabled
+    @State private var isCursorPushed = false
 
     func body(content: Content) -> some View {
         content
-            .background {
-                PointingHandCursorRect(isEnabled: isEnabled)
-                    .allowsHitTesting(false)
+            .onHover { inside in
+                if inside && isEnabled {
+                    if !isCursorPushed {
+                        NSCursor.pointingHand.push()
+                        isCursorPushed = true
+                    }
+                } else if isCursorPushed {
+                    NSCursor.pop()
+                    isCursorPushed = false
+                }
             }
-    }
-}
-
-struct PointingHandCursorRect: NSViewRepresentable {
-    let isEnabled: Bool
-
-    func makeNSView(context: Context) -> PointingHandCursorNSView {
-        PointingHandCursorNSView(isEnabled: isEnabled)
-    }
-
-    func updateNSView(_ nsView: PointingHandCursorNSView, context: Context) {
-        nsView.isEnabled = isEnabled
-        nsView.window?.invalidateCursorRects(for: nsView)
-    }
-}
-
-final class PointingHandCursorNSView: NSView {
-    var isEnabled: Bool {
-        didSet {
-            window?.invalidateCursorRects(for: self)
-        }
-    }
-
-    init(isEnabled: Bool) {
-        self.isEnabled = isEnabled
-        super.init(frame: .zero)
-    }
-
-    required init?(coder: NSCoder) {
-        isEnabled = true
-        super.init(coder: coder)
-    }
-
-    override func resetCursorRects() {
-        discardCursorRects()
-        guard isEnabled else { return }
-        addCursorRect(bounds, cursor: .pointingHand)
-    }
-
-    override func layout() {
-        super.layout()
-        window?.invalidateCursorRects(for: self)
-    }
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
     }
 }
 

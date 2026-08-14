@@ -1,7 +1,7 @@
 import { AiCredentialStatus } from '@core/domain/enums';
 import { DomainException } from '@core/domain/exceptions';
 
-export const DEFAULT_GEMINI_COOLDOWN_MS = 60_000;
+const DEFAULT_GEMINI_COOLDOWN_MS = 60_000;
 
 export type GeminiErrorClassification = {
   status: AiCredentialStatus;
@@ -78,7 +78,7 @@ export function errorText(error: unknown): string {
   return JSON.stringify(error) || 'Gemini request failed';
 }
 
-export function httpStatus(error: unknown): number | undefined {
+function httpStatus(error: unknown): number | undefined {
   if (!error || typeof error !== 'object') return undefined;
   const value = (error as { status?: unknown }).status;
   return typeof value === 'number' ? value : undefined;

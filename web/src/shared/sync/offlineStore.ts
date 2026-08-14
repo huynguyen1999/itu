@@ -1,5 +1,5 @@
 import type { DehydratedState } from '@tanstack/react-query';
-import type { ClientSyncMutation, SyncConflict } from './syncQueue';
+import type { ClientSyncMutation, SyncConflict } from './sync.types';
 import { createUlid } from './syncIdentity';
 
 const DATABASE_NAME = 'itu-offline-sync';
@@ -12,7 +12,7 @@ const LEASE_STORE = 'lease';
 const JOURNAL_ATTACHMENT_BLOB_STORE = 'journal-attachment-blobs';
 const JOURNAL_ATTACHMENT_UPLOAD_STATE_STORE = 'journal-attachment-upload-state';
 
-export interface SyncLease {
+interface SyncLease {
   ownerId: string;
   token: string;
   expiresAt: number;
@@ -28,7 +28,7 @@ export interface JournalAttachmentBlobRecord {
   createdAt: number;
 }
 
-export interface JournalAttachmentUploadStateRecord {
+interface JournalAttachmentUploadStateRecord {
   attachmentId: string;
   attemptCount: number;
   lastAttemptAt?: string;
@@ -51,7 +51,7 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
   });
 }
 
-export class OfflineSyncStore {
+class OfflineSyncStore {
   private databasePromise: Promise<IDBDatabase> | null = null;
 
   private database(): Promise<IDBDatabase> {

@@ -298,4 +298,57 @@ describe('TaskItem', () => {
     expect(markup).toContain('1 Day Left');
     expect(markup).not.toContain('Due today');
   });
+
+  it('renders an inline reminder chip in metadata for active scheduled reminders', () => {
+    const remindDate = new Date();
+    remindDate.setHours(14, 30, 0, 0);
+    const markup = renderTask({
+      task: {
+        ...task,
+        reminders: [
+          {
+            id: 'rem-1',
+            remindAt: remindDate.toISOString(),
+            status: 'SCHEDULED',
+            persistent: false,
+          },
+        ],
+      },
+    });
+
+    expect(markup).toContain('is-reminder');
+    expect(markup).toContain('itu-task-item__metadata');
+    expect(markup).not.toContain('itu-task-item__detail-icon');
+  });
+
+  it('does not render reminder chip for inactive, delivered, or dismissed reminders', () => {
+    const markup = renderTask({
+      task: {
+        ...task,
+        reminders: [
+          {
+            id: 'rem-1',
+            remindAt: '2026-08-10T10:00:00.000Z',
+            status: 'DELIVERED',
+            persistent: false,
+          },
+          {
+            id: 'rem-2',
+            remindAt: '2026-08-11T10:00:00.000Z',
+            status: 'DISMISSED',
+            persistent: false,
+          },
+          {
+            id: 'rem-3',
+            remindAt: '2026-08-12T10:00:00.000Z',
+            status: 'CANCELED',
+            persistent: false,
+          },
+        ],
+      },
+    });
+
+    expect(markup).not.toContain('is-reminder');
+  });
 });
+

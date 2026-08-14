@@ -28,7 +28,6 @@ import {
   syncValuesEqual,
   HABIT_ACTION_MARKER_PREFIX,
 } from './prisma-sync.helpers';
-export { conflictingSyncFields } from './prisma-sync.helpers';
 
 const SYNC_MUTATION_TRANSACTION_OPTIONS = {
   maxWait: 5_000,
@@ -517,3 +516,4 @@ export function coalesceSyncChanges(changes: RawSyncChange[]): RawSyncChange[] {
   for (const change of changes) coalesced.set(`${change.entityType}:${change.entityId}`, change);
   return [...coalesced.values()].sort((left, right) => left.cursor - right.cursor);
 }
+export { conflictingSyncFields } from './prisma-sync.helpers';

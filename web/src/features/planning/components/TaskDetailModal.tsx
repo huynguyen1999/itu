@@ -20,7 +20,7 @@ import {
   type PendingReminderChange,
   type ReminderCreateInput,
 } from '../utils/taskReminderDraft';
-import { updateTaskInCalendarCache } from '@/features/calendar/calendarProjection';
+import { updateTaskInCalendarCache } from '@/features/calendar';
 
 export function TaskDetailModal({
   task,

@@ -64,16 +64,6 @@ export function useArchiveBudgetCategory() {
   });
 }
 
-export function useReorderBudgetCategories() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (categoryIds: string[]) => api.reorderBudgetCategories({ categoryIds }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['budget', 'categories'] });
-    },
-  });
-}
-
 export function useUpdateBudgetPeriodLimit() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -91,18 +81,6 @@ export function useUpdateBudgetCategoryLimit() {
   return useMutation({
     mutationFn: ({ period, categoryId, limit }: { period: string; categoryId: string; limit: number }) =>
       api.updateBudgetCategoryLimit(period, categoryId, { limit }),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['budget', 'period', variables.period] });
-      queryClient.invalidateQueries({ queryKey: ['budget', 'overview'] });
-    },
-  });
-}
-
-export function useDeleteBudgetCategoryLimit() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ period, categoryId }: { period: string; categoryId: string }) =>
-      api.deleteBudgetCategoryLimit(period, categoryId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['budget', 'period', variables.period] });
       queryClient.invalidateQueries({ queryKey: ['budget', 'overview'] });

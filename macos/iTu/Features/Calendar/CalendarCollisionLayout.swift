@@ -97,3 +97,137 @@ struct CalendarCollisionLayout {
         return result
     }
 }
+
+struct PlacedHeaderItem: Identifiable, Sendable {
+    let item: CalendarItem
+    let startDay: Int
+    let endDay: Int
+    let span: Bool
+    let row: Int
+
+    var id: String { item.id }
+}
+
+struct CalendarWeekProjection: Sendable {
+    let allDayOrSpanning: [CalendarItem]
+    let placedHeaders: [PlacedHeaderItem]
+    let maxHeaderRow: Int
+    let timedItemsByDay: [[CalendarItem]]
+    let placedItemsByDay: [[String: PlacedItemInfo]]
+
+    static func build(days: [Date], items: [CalendarItem]) -> CalendarWeekProjection {
+        let calendar = Calendar.current
+        let bounds = days.map { day in
+            let start = calendar.startOfDay(for: day)
+            return (start, calendar.date(byAdding: .day, value: 1, to: start) ?? start)
+        }
+        var allDayOrSpanning: [CalendarItem] = []
+        var rawHeaders: [(item: CalendarItem, startDay: Int, endDay: Int, span: Bool)] = []
+        var timedItemsByDay = [[CalendarItem]](repeating: [], count: days.count)
+
+        for item in items {
+            let isSpanning = isMultiDaySpanning(item)
+            if item.allDay || item.kind == "TASK_DUE" || isSpanning {
+                allDayOrSpanning.append(item)
+
+                // Calculate which days in the week this header item covers
+                let itemStart = item.start
+                let rawEnd = item.end ?? item.start
+                let isMidnightEnd = calendar.component(.hour, from: rawEnd) == 0 &&
+                                    calendar.component(.minute, from: rawEnd) == 0 &&
+                                    calendar.component(.second, from: rawEnd) == 0 &&
+                                    rawEnd > itemStart
+                let effectiveEnd = isMidnightEnd ? rawEnd.addingTimeInterval(-1) : rawEnd
+
+                var startDay = days.count
+                for (index, bound) in bounds.enumerated() {
+                    if itemStart < bound.1 {
+                        startDay = index
+                        break
+                    }
+                }
+
+                var endDay = -1
+                for (index, bound) in bounds.enumerated().reversed() {
+                    if effectiveEnd >= bound.0 {
+                        endDay = index
+                        break
+                    }
+                }
+
+                let clampedStart = max(0, startDay)
+                let clampedEnd = min(days.count - 1, endDay)
+
+                if clampedStart <= clampedEnd && clampedStart < days.count && clampedEnd >= 0 {
+                    let span = clampedEnd > clampedStart || isSpanning
+                    rawHeaders.append((item: item, startDay: clampedStart, endDay: clampedEnd, span: span))
+                }
+                continue
+            }
+
+            let itemEnd = item.end ?? item.start.addingTimeInterval(1800)
+            for (index, bound) in bounds.enumerated() where item.start < bound.1 && itemEnd >= bound.0 {
+                timedItemsByDay[index].append(item)
+            }
+        }
+
+        // Sort headers by start day asc, then wider span desc, then title/id
+        let sortedHeaders = rawHeaders.sorted { a, b in
+            if a.startDay != b.startDay { return a.startDay < b.startDay }
+            let spanA = a.endDay - a.startDay
+            let spanB = b.endDay - b.startDay
+            if spanA != spanB { return spanA > spanB }
+            return a.item.id < b.item.id
+        }
+
+        // Row allocation with occupancy grid
+        var occupancy: [[Bool]] = Array(repeating: [], count: days.count)
+        var placedHeaders: [PlacedHeaderItem] = []
+        var maxRow = 0
+
+        for entry in sortedHeaders {
+            var row = 0
+            while (entry.startDay...entry.endDay).contains(where: { day in
+                row < occupancy[day].count && occupancy[day][row]
+            }) {
+                row += 1
+            }
+
+            for day in entry.startDay...entry.endDay {
+                while occupancy[day].count <= row {
+                    occupancy[day].append(false)
+                }
+                occupancy[day][row] = true
+            }
+
+            placedHeaders.append(
+                PlacedHeaderItem(
+                    item: entry.item,
+                    startDay: entry.startDay,
+                    endDay: entry.endDay,
+                    span: entry.span,
+                    row: row
+                )
+            )
+            maxRow = max(maxRow, row + 1)
+        }
+
+        let placedItemsByDay = timedItemsByDay.map { dayItems in
+            CalendarCollisionLayout.calculate(
+                items: dayItems.map { (id: $0.id, startAt: $0.start, endAt: $0.end) }
+            )
+        }
+        return CalendarWeekProjection(
+            allDayOrSpanning: allDayOrSpanning,
+            placedHeaders: placedHeaders,
+            maxHeaderRow: maxRow,
+            timedItemsByDay: timedItemsByDay,
+            placedItemsByDay: placedItemsByDay
+        )
+    }
+
+    private static func isMultiDaySpanning(_ item: CalendarItem) -> Bool {
+        guard let end = item.end else { return false }
+        return !Calendar.current.isDate(item.start, inSameDayAs: end)
+    }
+}

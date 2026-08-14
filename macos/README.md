@@ -54,6 +54,17 @@ xcodebuild \
   test
 ```
 
+### Swift code health
+
+Install SwiftLint and Periphery with Homebrew, then run the non-blocking local check:
+
+```sh
+brew install swiftlint periphery
+bash scripts/code-health.sh
+```
+
+The thresholds in `.swiftlint.yml` are warnings first. Periphery retains public declarations and SwiftUI previews so its report can be reviewed before any deletion.
+
 
 
 See [ROADMAP.md](./ROADMAP.md) for the remaining feature-parity and system-integration work.

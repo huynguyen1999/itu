@@ -6,7 +6,7 @@ export interface CollisionItem {
   width?: number;
 }
 
-export interface PlacedCollisionItem<T extends CollisionItem = CollisionItem> {
+interface PlacedCollisionItem<T extends CollisionItem = CollisionItem> {
   item: T;
   lane: number;
   laneCount: number; // total concurrent lanes in this item's overlap cluster

@@ -28,7 +28,7 @@ final class APIClientTests: XCTestCase {
     }
 
     func testExpiredAccessTokenRefreshesAndRetriesOriginalRequest() async throws {
-        let path = "/productivity/tasks?limit=100"
+        let path = "/productivity/tasks?limit=20"
         prepareCachedSession()
         StubURLProtocol.requests = []
         StubURLProtocol.scriptedResponses = [
@@ -48,7 +48,7 @@ final class APIClientTests: XCTestCase {
     }
 
     func testParallelExpiredRequestsShareOneRefresh() async throws {
-        let path = "/productivity/tasks?limit=100"
+        let path = "/productivity/tasks?limit=20"
         prepareCachedSession()
         StubURLProtocol.requests = []
         StubURLProtocol.scriptedResponses = [
@@ -152,8 +152,8 @@ final class APIClientTests: XCTestCase {
         )
 
         StubURLProtocol.responses = [
-            "/productivity/tasks?limit=100": firstPage,
-            "/productivity/tasks?limit=100&cursor=cursor-2": secondPage,
+            "/productivity/tasks?limit=20": firstPage,
+            "/productivity/tasks?limit=20&cursor=cursor-2": secondPage,
         ]
         defer { StubURLProtocol.responses = [:] }
 
@@ -493,7 +493,7 @@ final class APIClientTests: XCTestCase {
 }
 
 private final class StubURLProtocol: URLProtocol {
-    nonisolated(unsafe) private static let stateLock = NSLock()
+    private static let stateLock = NSLock()
     nonisolated(unsafe) static var responses: [String: Data] = [:]
     nonisolated(unsafe) static var scriptedResponses: [String: [(statusCode: Int, data: Data)]] = [:]
     nonisolated(unsafe) static var errors: [String: URLError] = [:]

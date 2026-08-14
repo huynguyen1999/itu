@@ -22,6 +22,7 @@ struct CalendarItem: Identifiable, Sendable, Hashable {
     let description: String?
     let location: String?
     let timeZone: String?
+    let status: String?
 
     init(
         id: String,
@@ -39,12 +40,14 @@ struct CalendarItem: Identifiable, Sendable, Hashable {
         priority: String?,
         description: String? = nil,
         location: String? = nil,
-        timeZone: String? = nil
+        timeZone: String? = nil,
+        status: String? = nil
     ) {
         self.id = id; self.title = title; self.start = start; self.end = end
         self.kind = kind; self.taskID = taskID; self.readOnly = readOnly; self.allDay = allDay
         self.dueAt = dueAt; self.sourceID = sourceID; self.sourceName = sourceName; self.color = color
         self.priority = priority; self.description = description; self.location = location; self.timeZone = timeZone
+        self.status = status
     }
 }
 
@@ -89,6 +92,10 @@ struct CalendarEventCard: View {
     private var showsDateLabels: Bool {
         hasDuration && !sameDay
     }
+
+    @State private var isHovered = false
+    @State private var showHoverPopover = false
+    @State private var hoverTask: Task<Void, Never>? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: isCompact ? 2 : 4) {
@@ -138,7 +145,25 @@ struct CalendarEventCard: View {
             .frame(width: isCompact ? 2.5 : 3.5)
         }
         .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+            hoverTask?.cancel()
+            if hovering {
+                hoverTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    guard !Task.isCancelled else { return }
+                    showHoverPopover = true
+                }
+            } else {
+                showHoverPopover = false
+            }
+        }
+        .popover(isPresented: $showHoverPopover, arrowEdge: .trailing) {
+            CalendarHoverPopoverView(item: item)
+        }
         .onTapGesture {
+            hoverTask?.cancel()
+            showHoverPopover = false
             onSelect?()
         }
         .accessibilityElement(children: .ignore)
@@ -146,15 +171,11 @@ struct CalendarEventCard: View {
     }
 
     private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return formatter.string(from: date)
+        iTuDateSupport.calendarTimeFormatter.string(from: date)
     }
 
     private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        return formatter.string(from: date)
+        iTuDateSupport.calendarShortDateFormatter.string(from: date)
     }
 
     @ViewBuilder

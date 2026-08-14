@@ -12,7 +12,6 @@ import {
 } from '@/shared/ui/dropdown-menu';
 import {
   SectionRail,
-  SectionRailBadge,
   SectionRailButton,
   SectionRailCreator,
   SectionRailDot,
@@ -23,6 +22,7 @@ import {
   SectionRailSections,
 } from '@/shared/ui/SectionRail';
 import { usePlanning } from '../PlanningContext';
+import { selectableTaskLists } from '../utils/taskLists';
 
 const planningNavigation = [
   { to: '/inbox', label: 'Inbox', icon: Inbox, end: false },
@@ -32,7 +32,7 @@ const planningNavigation = [
 
 export function PlanningSidebar() {
   const { setSelectedTaskList, setSelectedTag, selectedTaskList, selectedTag } = usePlanning();
-  const projects = useQuery({ queryKey: ['task-lists', 'with-counts'], queryFn: () => api.taskLists(true) });
+  const projects = useQuery({ queryKey: ['task-lists'], queryFn: () => api.taskLists() });
   const tags = useQuery({ queryKey: ['task-tags'], queryFn: () => api.taskTags() });
   const queryClient = useQueryClient();
   const [projectTitle, setProjectTitle] = useState('');
@@ -81,22 +81,19 @@ export function PlanningSidebar() {
 
       <SectionRailSections>
         <SectionRailSection title="Lists">
-          {projects.data
-            ?.filter((project) => !project.archivedAt)
-            .map((project) => (
-              <SectionRailButton
-                key={project.id}
-                active={selectedTaskList === project.id}
-                onClick={() => {
-                  setSelectedTaskList(project.id);
-                  setSelectedTag(null);
-                }}
-              >
-                <SectionRailDot color={projectColor(project.color)} />
-                <SectionRailLabel>{project.title}</SectionRailLabel>
-                <SectionRailBadge>{project.taskCount || ''}</SectionRailBadge>
-              </SectionRailButton>
-            ))}
+          {selectableTaskLists(projects.data).map((project) => (
+            <SectionRailButton
+              key={project.id}
+              active={selectedTaskList === project.id}
+              onClick={() => {
+                setSelectedTaskList(project.id);
+                setSelectedTag(null);
+              }}
+            >
+              <SectionRailDot color={projectColor(project.color)} />
+              <SectionRailLabel>{project.title}</SectionRailLabel>
+            </SectionRailButton>
+          ))}
           <SectionRailCreator
             placeholder="New list"
             value={projectTitle}
@@ -145,22 +142,19 @@ export function PlanningSidebar() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" sideOffset={8} className="itu-section-rail__menu">
             <DropdownMenuLabel>Lists</DropdownMenuLabel>
-            {projects.data
-              ?.filter((project) => !project.archivedAt)
-              .map((project) => (
-                <DropdownMenuItem
-                  key={project.id}
-                  onSelect={() => {
-                    setSelectedTaskList(project.id);
-                    setSelectedTag(null);
-                  }}
-                  className={selectedTaskList === project.id ? 'bg-primary/10 text-primary' : ''}
-                >
-                  <SectionRailDot color={projectColor(project.color)} />
-                  <span className="min-w-0 flex-1 truncate">{project.title}</span>
-                  <span className="text-xs text-muted-foreground">{project.taskCount || ''}</span>
-                </DropdownMenuItem>
-              ))}
+            {selectableTaskLists(projects.data).map((project) => (
+              <DropdownMenuItem
+                key={project.id}
+                onSelect={() => {
+                  setSelectedTaskList(project.id);
+                  setSelectedTag(null);
+                }}
+                className={selectedTaskList === project.id ? 'bg-primary/10 text-primary' : ''}
+              >
+                <SectionRailDot color={projectColor(project.color)} />
+                <span className="min-w-0 flex-1 truncate">{project.title}</span>
+              </DropdownMenuItem>
+            ))}
             <DropdownMenuSeparator />
             <form
               className="itu-section-rail__menu-creator"

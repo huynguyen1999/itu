@@ -1,0 +1,12 @@
+project: iTu.xcodeproj
+schemes:
+  - iTu
+exclude_tests: true
+index_exclude:
+  - "**/DerivedData/**"
+  - "**/build/**"
+  - "**/SourcePackages/checkouts/**"
+format: xcode
+strict: false
+retain_public: true
+retain_swift_ui_previews: true

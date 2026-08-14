@@ -1,5 +1,59 @@
 import SwiftUI
 
+struct UpcomingDayGroup {
+    let dateLabel: String
+    let subTitle: String
+    let isToday: Bool
+    let tasks: [ProductivityTask]
+}
+
+enum UpcomingProjection {
+    static func build(tasks: [ProductivityTask], now: Date = Date()) -> [UpcomingDayGroup] {
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: now)
+        let dates = (0..<7).map { dayOffset in
+            calendar.date(byAdding: .day, value: dayOffset, to: startOfToday) ?? startOfToday
+        }
+        var tasksByDay = [[ProductivityTask]](repeating: [], count: dates.count)
+        for task in tasks {
+            guard let dueAt = task.dueAt,
+                  let taskDate = iTuDateSupport.parse(dueAt),
+                  let dayOffset = calendar.dateComponents(
+                    [.day],
+                    from: startOfToday,
+                    to: calendar.startOfDay(for: taskDate)
+                  ).day,
+                  dates.indices.contains(dayOffset) else { continue }
+            tasksByDay[dayOffset].append(task)
+        }
+
+        return dates.enumerated().map { dayOffset, date in
+            let isToday = dayOffset == 0
+            let isTomorrow = dayOffset == 1
+            let label: String
+            let subTitle: String
+
+            if isToday {
+                label = "Today"
+                subTitle = iTuDateSupport.upcomingShortWeekdayFormatter.string(from: date)
+            } else if isTomorrow {
+                label = "Tomorrow"
+                subTitle = iTuDateSupport.upcomingShortWeekdayFormatter.string(from: date)
+            } else {
+                label = iTuDateSupport.upcomingWeekdayFormatter.string(from: date)
+                subTitle = iTuDateSupport.calendarShortDateFormatter.string(from: date)
+            }
+
+            return UpcomingDayGroup(
+                dateLabel: label,
+                subTitle: subTitle,
+                isToday: isToday,
+                tasks: tasksByDay[dayOffset]
+            )
+        }
+    }
+}
+
 struct UpcomingView: View {
     @Environment(AppModel.self) private var model
 
@@ -7,13 +61,16 @@ struct UpcomingView: View {
 
     var body: some View {
         let upcomingTasks = model.tasks(for: .upcoming)
-        let groupedByDay = groupTasksByUpcomingDays(upcomingTasks)
+        let groupedByDay = UpcomingProjection.build(tasks: upcomingTasks)
 
         return ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            LazyVStack(alignment: .leading, spacing: 24) {
                 // Days Sections
                 ForEach(groupedByDay, id: \.dateLabel) { dayGroup in
                     daySection(dayGroup)
+                }
+                if model.hasMoreTaskPages {
+                    taskPageFooter
                 }
             }
             .padding(24)
@@ -43,6 +100,11 @@ struct UpcomingView: View {
                 endPoint: .bottomTrailing
             )
         )
+        .task {
+            await model.refreshCoordinator.run(.tasks) {
+                await model.refreshTasks()
+            }
+        }
     }
 
     private func openTaskEditor(_ task: ProductivityTask) {
@@ -106,7 +168,13 @@ struct UpcomingView: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(group.tasks.enumerated()), id: \.element.id) { index, task in
-                        UpcomingTaskRow(task: task, onEdit: { openTaskEditor(task) })
+                        UpcomingTaskRow(
+                            task: task,
+                            onCycleStatus: {
+                                Task { await model.cycleTaskStatus(task) }
+                            },
+                            onEdit: { openTaskEditor(task) }
+                        )
 
                         if index < group.tasks.count - 1 {
                             Rectangle()
@@ -133,74 +201,32 @@ struct UpcomingView: View {
         }
     }
 
-    private struct UpcomingDayGroup {
-        let dateLabel: String
-        let subTitle: String
-        let isToday: Bool
-        let tasks: [ProductivityTask]
-    }
-
-    private func groupTasksByUpcomingDays(_ tasks: [ProductivityTask]) -> [UpcomingDayGroup] {
-        let calendar = Calendar.current
-        let startOfToday = calendar.startOfDay(for: Date())
-        let formatter = DateFormatter()
-
-        return (0..<7).map { dayOffset in
-            let date = calendar.date(byAdding: .day, value: dayOffset, to: startOfToday) ?? Date()
-            let isToday = dayOffset == 0
-            let isTomorrow = dayOffset == 1
-
-            let label: String
-            let subTitle: String
-
-            if isToday {
-                label = "Today"
-                formatter.dateFormat = "EEE, MMM d"
-                subTitle = formatter.string(from: date)
-            } else if isTomorrow {
-                label = "Tomorrow"
-                formatter.dateFormat = "EEE, MMM d"
-                subTitle = formatter.string(from: date)
-            } else {
-                formatter.dateFormat = "EEEE"
-                label = formatter.string(from: date)
-                formatter.dateFormat = "MMM d"
-                subTitle = formatter.string(from: date)
+    private var taskPageFooter: some View {
+        HStack {
+            if model.isLoadingMoreTasks {
+                ProgressView()
+                    .controlSize(.small)
             }
-
-            let dayTasks = tasks.filter { task in
-                guard let dueAt = task.dueAt,
-                      let taskDate = parseISO(dueAt) else { return false }
-                return calendar.isDate(taskDate, inSameDayAs: date)
-            }
-
-            return UpcomingDayGroup(
-                dateLabel: label,
-                subTitle: subTitle,
-                isToday: isToday,
-                tasks: dayTasks
-            )
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 32)
+        .onAppear {
+            Task { await model.loadMoreTasks() }
         }
     }
 
-    private func parseISO(_ str: String) -> Date? {
-        let fmt = ISO8601DateFormatter()
-        if let d = fmt.date(from: str) { return d }
-        fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return fmt.date(from: str)
-    }
 }
 
 private struct UpcomingTaskRow: View {
-    @Environment(AppModel.self) private var model
     let task: ProductivityTask
+    let onCycleStatus: () -> Void
     let onEdit: () -> Void
     @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 12) {
             Button {
-                Task { await model.cycleTaskStatus(task) }
+                onCycleStatus()
             } label: {
                 if task.status == .completed {
                     Image(systemName: "checkmark.circle.fill")
@@ -250,7 +276,6 @@ private struct UpcomingTaskRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onEdit)
         .taskActionMenu(for: task, onOpenDetails: onEdit)
-        .pointingHandCursor()
     }
 
     private func priorityColor(_ priority: TaskPriority) -> Color {

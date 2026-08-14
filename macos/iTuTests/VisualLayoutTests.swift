@@ -216,6 +216,107 @@ final class VisualLayoutTests: XCTestCase {
         XCTAssertGreaterThan(image.size.height, 26)
     }
 
+    func testCalendarWeekViewRendersWithDayHeaders() throws {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let days = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+        let items: [CalendarItem] = [
+            CalendarItem(
+                id: "item-1",
+                title: "Planning session",
+                start: today.addingTimeInterval(3600 * 9),
+                end: today.addingTimeInterval(3600 * 10),
+                kind: "TASK_DURATION",
+                taskID: "task-1",
+                readOnly: false,
+                allDay: false,
+                sourceID: "inbox",
+                sourceName: "Inbox",
+                color: nil,
+                priority: "high"
+            ),
+            CalendarItem(
+                id: "item-allday-1",
+                title: "Sprint Review Milestone",
+                start: days[2],
+                end: days[2].addingTimeInterval(86400),
+                kind: "TASK_DUE",
+                taskID: "task-2",
+                readOnly: false,
+                allDay: true,
+                dueAt: days[2].addingTimeInterval(3600 * 17),
+                sourceID: "inbox",
+                sourceName: "Inbox",
+                color: nil,
+                priority: "high"
+            ),
+            CalendarItem(
+                id: "item-spanning-1",
+                title: "Offsite Workshop",
+                start: days[3].addingTimeInterval(3600 * 9),
+                end: days[5].addingTimeInterval(3600 * 17),
+                kind: "EXTERNAL_EVENT",
+                taskID: nil,
+                readOnly: true,
+                allDay: false,
+                sourceID: "calendar:team",
+                sourceName: "Team",
+                color: "TEAL",
+                priority: nil
+            )
+        ]
+
+        let renderer = ImageRenderer(
+            content: CalendarWeekView(
+                days: days,
+                items: items,
+                onSelect: { _ in },
+                onScheduleUpdate: { _, _, _ in }
+            )
+            .frame(width: 1220, height: 700)
+        )
+        renderer.scale = 1
+
+        let image = try XCTUnwrap(renderer.nsImage)
+        XCTAssertEqual(image.size.width, 1220)
+        XCTAssertEqual(image.size.height, 700)
+    }
+
+    func testCalendarDayViewRendersWithDayHeader() throws {
+        let today = Calendar.current.startOfDay(for: Date())
+        let items: [CalendarItem] = [
+            CalendarItem(
+                id: "item-day-1",
+                title: "Daily sync",
+                start: today.addingTimeInterval(3600 * 10),
+                end: today.addingTimeInterval(3600 * 11),
+                kind: "TASK_DURATION",
+                taskID: "task-day-1",
+                readOnly: false,
+                allDay: false,
+                sourceID: "inbox",
+                sourceName: "Inbox",
+                color: nil,
+                priority: "high"
+            )
+        ]
+
+        let renderer = ImageRenderer(
+            content: CalendarDayView(
+                day: today,
+                items: items,
+                onSelect: { _ in },
+                onScheduleUpdate: { _, _, _ in }
+            )
+            .frame(width: 800, height: 700)
+        )
+        renderer.scale = 1
+
+        let image = try XCTUnwrap(renderer.nsImage)
+        XCTAssertEqual(image.size.width, 800)
+        XCTAssertEqual(image.size.height, 700)
+    }
+
     private func rewardChip(_ title: String) -> some View {
         Text(title)
             .font(.system(size: 10, weight: .bold))

@@ -1,0 +1,66 @@
+name: Architecture and Code Health
+
+on:
+  push:
+    paths:
+      - 'tools/**'
+      - 'api/src/**'
+      - 'api/package.json'
+      - 'api/yarn.lock'
+      - 'web/src/**'
+      - 'web/package.json'
+      - 'web/yarn.lock'
+      - 'macos/iTu/**'
+      - 'extension/**'
+      - 'agent_docs/architectures/**'
+      - '.github/workflows/architecture.yml'
+  pull_request:
+    paths:
+      - 'tools/**'
+      - 'api/src/**'
+      - 'api/package.json'
+      - 'api/yarn.lock'
+      - 'web/src/**'
+      - 'web/package.json'
+      - 'web/yarn.lock'
+      - 'macos/iTu/**'
+      - 'extension/**'
+      - 'agent_docs/architectures/**'
+      - '.github/workflows/architecture.yml'
+
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: |
+            api/yarn.lock
+            web/yarn.lock
+      - run: corepack enable
+      - run: node tools/check-architecture.mjs
+      - run: yarn install --frozen-lockfile
+        working-directory: api
+      - run: yarn install --frozen-lockfile
+        working-directory: web
+      - run: yarn code:deps
+        working-directory: api
+      - run: yarn code:deps
+        working-directory: web
+      - run: yarn code:unused
+        working-directory: api
+      - run: yarn code:unused
+        working-directory: web
+
+  swift-code-health:
+    runs-on: macos-14
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Swift code-health tools
+        run: brew install swiftlint periphery
+      - name: Run SwiftLint and Periphery
+        run: bash macos/scripts/code-health.sh

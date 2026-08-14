@@ -133,7 +133,7 @@ extension AppModel {
     }
 
     func generateReviewInsights(entryID: String) async -> String? {
-        guard let entry = currentSnapshot.journalNotes.first(where: { $0.id == entryID }) else { return "Review not found." }
+        guard currentSnapshot.journalNotes.contains(where: { $0.id == entryID }) else { return "Review not found." }
         guard syncPhase != .offline else { return "Review must be online before generating insights." }
         if !currentSnapshot.mutations.isEmpty {
             await synchronize()
