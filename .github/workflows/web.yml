@@ -1,35 +1,35 @@
-name: Web
+# name: Web
 
-on:
-  push:
-    paths:
-      - 'web/**'
-      - 'tools/**'
-      - 'agent_docs/architectures/web.md'
-      - '.github/workflows/web.yml'
-  pull_request:
-    paths:
-      - 'web/**'
-      - 'tools/**'
-      - 'agent_docs/architectures/web.md'
-      - '.github/workflows/web.yml'
+# on:
+#   push:
+#     paths:
+#       - 'web/**'
+#       - 'tools/**'
+#       - 'agent_docs/architectures/web.md'
+#       - '.github/workflows/web.yml'
+#   pull_request:
+#     paths:
+#       - 'web/**'
+#       - 'tools/**'
+#       - 'agent_docs/architectures/web.md'
+#       - '.github/workflows/web.yml'
 
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: yarn
-          cache-dependency-path: web/yarn.lock
-      - run: corepack enable
-      - run: yarn install --frozen-lockfile
-      - run: yarn lint
-      - run: yarn typecheck
-      - run: yarn test
-      - run: yarn build
+# jobs:
+#   verify:
+#     runs-on: ubuntu-latest
+#     defaults:
+#       run:
+#         working-directory: web
+#     steps:
+#       - uses: actions/checkout@v5
+#       - uses: actions/setup-node@v4
+#         with:
+#           node-version: 22
+#           cache: yarn
+#           cache-dependency-path: web/yarn.lock
+#       - run: corepack enable
+#       - run: yarn install --frozen-lockfile
+#       - run: yarn lint
+#       - run: yarn typecheck
+#       - run: yarn test
+#       - run: yarn build

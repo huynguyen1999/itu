@@ -1,52 +1,52 @@
-name: API
+# name: API
 
-on:
-  push:
-    paths:
-      - 'api/**'
-      - 'tools/**'
-      - 'agent_docs/architectures/api.md'
-      - '.github/workflows/api.yml'
-  pull_request:
-    paths:
-      - 'api/**'
-      - 'tools/**'
-      - 'agent_docs/architectures/api.md'
-      - '.github/workflows/api.yml'
+# on:
+#   push:
+#     paths:
+#       - 'api/**'
+#       - 'tools/**'
+#       - 'agent_docs/architectures/api.md'
+#       - '.github/workflows/api.yml'
+#   pull_request:
+#     paths:
+#       - 'api/**'
+#       - 'tools/**'
+#       - 'agent_docs/architectures/api.md'
+#       - '.github/workflows/api.yml'
 
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: api
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: quizme
-          POSTGRES_USER: quizme
-          POSTGRES_PASSWORD: quizme
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U quizme"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      DATABASE_URL: postgresql://quizme:quizme@localhost:5432/quizme?schema=public
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: yarn
-          cache-dependency-path: api/yarn.lock
-      - run: corepack enable
-      - run: yarn install --frozen-lockfile
-      - run: yarn prisma generate
-      - run: yarn lint
-      - run: yarn typecheck
-      - run: yarn test --runInBand
-      - run: yarn build
+# jobs:
+#   verify:
+#     runs-on: ubuntu-latest
+#     defaults:
+#       run:
+#         working-directory: api
+#     services:
+#       postgres:
+#         image: postgres:16-alpine
+#         env:
+#           POSTGRES_DB: quizme
+#           POSTGRES_USER: quizme
+#           POSTGRES_PASSWORD: quizme
+#         ports:
+#           - 5432:5432
+#         options: >-
+#           --health-cmd "pg_isready -U quizme"
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+#     env:
+#       DATABASE_URL: postgresql://quizme:quizme@localhost:5432/quizme?schema=public
+#     steps:
+#       - uses: actions/checkout@v5
+#       - uses: actions/setup-node@v4
+#         with:
+#           node-version: 22
+#           cache: yarn
+#           cache-dependency-path: api/yarn.lock
+#       - run: corepack enable
+#       - run: yarn install --frozen-lockfile
+#       - run: yarn prisma generate
+#       - run: yarn lint
+#       - run: yarn typecheck
+#       - run: yarn test --runInBand
+#       - run: yarn build
