@@ -46,3 +46,59 @@ enum JournalSupport {
         return max(1, Int(ceil(Double(words) / 200.0)))
     }
 }
+
+struct JournalAiInsightsModel: Equatable {
+    struct Finding: Equatable, Identifiable {
+        let id: String
+        let title: String
+        let body: String
+        let confidence: String
+        let evidence: [String]
+    }
+
+    let headline: String
+    let summary: String
+    let insights: [Finding]
+    let attentionNext: [String]
+
+    init?(json: JSONValue?) {
+        guard let json, case let .object(fields) = json else { return nil }
+        guard let headline = fields["headline"]?.stringValue,
+              let summary = fields["summary"]?.stringValue else { return nil }
+        self.headline = headline
+        self.summary = summary
+
+        var findings: [Finding] = []
+        if let insightsVal = fields["insights"], case let .array(arr) = insightsVal {
+            for (idx, item) in arr.enumerated() {
+                if case let .object(itemFields) = item {
+                    let title = itemFields["title"]?.stringValue ?? ""
+                    let body = itemFields["body"]?.stringValue ?? ""
+                    let confidence = itemFields["confidence"]?.stringValue ?? "medium"
+                    var evidenceList: [String] = []
+                    if let evVal = itemFields["evidence"], case let .array(evArr) = evVal {
+                        for ev in evArr {
+                            if case let .object(evFields) = ev, let label = evFields["label"]?.stringValue {
+                                evidenceList.append(label)
+                            } else if let str = ev.stringValue {
+                                evidenceList.append(str)
+                            }
+                        }
+                    }
+                    findings.append(Finding(id: "\(title)-\(idx)", title: title, body: body, confidence: confidence, evidence: evidenceList))
+                }
+            }
+        }
+        self.insights = findings
+
+        var next: [String] = []
+        if let attentionVal = fields["attentionNext"], case let .array(arr) = attentionVal {
+            for item in arr {
+                if let str = item.stringValue {
+                    next.append(str)
+                }
+            }
+        }
+        self.attentionNext = next
+    }
+}

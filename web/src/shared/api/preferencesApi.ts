@@ -196,7 +196,7 @@ const DEFAULT_USAGE_PREFERENCES: UsagePreferences = {
 const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
   zoom: 'WEEK',
   visibleKinds: ['TASK_DURATION', 'TASK_DUE', 'FOCUS_SESSION', 'EXTERNAL_EVENT'],
-  showCompleted: true,
+  showCompleted: false,
   collapsedGroupIds: [],
   weekStart: 'SYSTEM',
 };

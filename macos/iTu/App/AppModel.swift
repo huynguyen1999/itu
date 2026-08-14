@@ -1,6 +1,12 @@
 import Foundation
 import Observation
 
+enum AuthenticationState: Equatable, Sendable {
+    case restoring
+    case authenticated
+    case unauthenticated
+}
+
 enum AppSection: String, CaseIterable, Identifiable {
     case home
     case today
@@ -257,7 +263,7 @@ final class AppModel {
     var hideCompletedTasks: Bool = false
     var hideRowDetails: Bool = false
     var activeFocusTask: ProductivityTask?
-    var isBootstrapping = true
+    var authenticationState: AuthenticationState = .restoring
     var isAuthenticating = false
     var errorMessage: String?
     let settingsStore = SettingsStore()
@@ -383,6 +389,7 @@ final class AppModel {
     init() {
         let cachedUser = SessionCache.loadUser()
         user = cachedUser
+        authenticationState = cachedUser == nil ? .restoring : .authenticated
         FocusCommandService.shared.register(timer: focusTimer, cycleEngine: focusCycleEngine, settingsStore: settingsStore)
         FocusURLRouter.shared.setHydrated(true, authenticated: cachedUser != nil)
         apiClient = APIClient()

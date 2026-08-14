@@ -1,9 +1,8 @@
 import Foundation
-import Security
 
 enum SessionCache {
     private static let userKey = "lastAuthenticatedUser"
-    private static let serviceName = "com.itu.macos.session"
+    static let credentialStore: any CredentialStore = KeychainCredentialStore()
 
     static func loadUser() -> UserProfile? {
         guard let data = UserDefaults.standard.data(forKey: userKey) else { return nil }
@@ -15,61 +14,38 @@ enum SessionCache {
         UserDefaults.standard.set(data, forKey: userKey)
     }
 
-    static func saveTokens(accessToken: String, refreshToken: String? = nil) {
-        saveKeychainItem(key: "accessToken", value: accessToken)
+    static func saveTokens(accessToken: String, refreshToken: String? = nil) throws {
         if let refreshToken {
-            saveKeychainItem(key: "refreshToken", value: refreshToken)
+            try credentialStore.save(refreshToken, for: .refreshToken)
         }
+        try credentialStore.save(accessToken, for: .accessToken)
     }
 
-    static func loadTokens() -> (accessToken: String?, refreshToken: String?) {
-        let access = loadKeychainItem(key: "accessToken")
-        let refresh = loadKeychainItem(key: "refreshToken")
-        return (access, refresh)
+    static func loadTokens() throws -> (accessToken: String?, refreshToken: String?) {
+        (
+            accessToken: try credentialStore.load(.accessToken),
+            refreshToken: try credentialStore.load(.refreshToken)
+        )
     }
 
-    static func clearUser() {
+    static func clearCachedProfile() {
         UserDefaults.standard.removeObject(forKey: userKey)
-        deleteKeychainItem(key: "accessToken")
-        deleteKeychainItem(key: "refreshToken")
     }
 
-    // MARK: - Keychain Helpers
-
-    private static func saveKeychainItem(key: String, value: String) {
-        guard let data = value.data(using: .utf8) else { return }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: key
-        ]
-        SecItemDelete(query as CFDictionary)
-        var newQuery = query
-        newQuery[kSecValueData as String] = data
-        newQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(newQuery as CFDictionary, nil)
+    static func clearCredentials() throws {
+        var firstError: Error?
+        for key in [CredentialKey.accessToken, .refreshToken] {
+            do {
+                try credentialStore.delete(key)
+            } catch {
+                firstError = firstError ?? error
+            }
+        }
+        if let firstError { throw firstError }
     }
 
-    private static func loadKeychainItem(key: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var dataTypeRef: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
-        guard status == errSecSuccess, let data = dataTypeRef as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    private static func deleteKeychainItem(key: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: key
-        ]
-        SecItemDelete(query as CFDictionary)
+    static func clearSession() throws {
+        clearCachedProfile()
+        try clearCredentials()
     }
 }

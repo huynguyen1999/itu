@@ -5,7 +5,7 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if model.isBootstrapping {
+            if model.authenticationState == .restoring {
                 VStack(spacing: 14) {
                     iTuBrandMark(size: 42)
                     ProgressView()
@@ -17,7 +17,7 @@ struct RootView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(iTuTheme.canvas)
-            } else if model.user == nil {
+            } else if model.authenticationState == .unauthenticated {
                 AuthView()
             } else {
                 MainView()

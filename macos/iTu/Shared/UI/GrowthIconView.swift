@@ -225,6 +225,7 @@ private struct RemoteGrowthIconView: View {
 private actor GrowthIconDataStore {
     static let shared = GrowthIconDataStore()
     private var memory: [String: Data] = [:]
+    private let session = APIClient.makeSession()
 
     func data(for source: String) async -> Data? {
         if let cached = memory[source] { return cached }
@@ -235,10 +236,10 @@ private actor GrowthIconDataStore {
         }
         guard let url = resolvedURL(for: source) else { return nil }
         var request = URLRequest(url: url)
-        if let token = SessionCache.loadTokens().accessToken {
+        if let token = try? SessionCache.loadTokens().accessToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
+        guard let (data, response) = try? await session.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200,
               NSImage(data: data) != nil else { return nil }
         memory[source] = data

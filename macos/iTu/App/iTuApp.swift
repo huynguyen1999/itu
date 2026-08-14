@@ -29,6 +29,7 @@ struct iTuApp: App {
                     guard phase == .active else { return }
                     Task {
                         await SystemNotificationManager.shared.refreshStatus()
+                        await model.retryCredentialRestorationIfNeeded()
                         if model.user != nil {
                             await model.loadServerState()
                         }
@@ -95,5 +96,4 @@ private struct StatusItemInstaller: ViewModifier {
         }
     }
 }
-
 

@@ -1,5 +1,5 @@
 import { AuthService } from './auth.service';
-import { AUTH_ERROR_CODES } from '@core/application/constants/app.constants';
+import { AUTH_CONSTANTS, AUTH_ERROR_CODES } from '@core/application/constants/app.constants';
 import type {
   IOAuthHandoffRepository,
   IRefreshSessionRepository,
@@ -280,7 +280,7 @@ describe('AuthService', () => {
         userId: user.id,
         expiresAt: new Date(Date.now() + 60_000),
         revokedAt: new Date(),
-        rotationGraceUntil: new Date(Date.now() + 60_000),
+        rotationGraceUntil: new Date(Date.now() + AUTH_CONSTANTS.refreshRotationGraceMs),
         rotationRecoveryUsedAt: null,
       });
 
@@ -318,7 +318,7 @@ describe('AuthService', () => {
         userId: user.id,
         expiresAt: new Date(Date.now() + 60_000),
         revokedAt: new Date(),
-        rotationGraceUntil: new Date(Date.now() + 60_000),
+        rotationGraceUntil: new Date(Date.now() + AUTH_CONSTANTS.refreshRotationGraceMs),
         rotationRecoveryUsedAt: null,
       });
       refreshSessionsMock.recoverRotation.mockResolvedValue(false);

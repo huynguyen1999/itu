@@ -1,8 +1,40 @@
 import Foundation
+import Security
 import XCTest
 @testable import iTu
 
 final class APIClientTests: XCTestCase {
+    func testCredentialStoreDistinguishesMissingFromFailure() throws {
+        let store = InMemoryCredentialStore(values: [:])
+        XCTAssertNil(try store.load(.refreshToken))
+
+        store.failingLoadKey = .refreshToken
+        XCTAssertThrowsError(try store.load(.refreshToken)) { error in
+            XCTAssertEqual(error as? KeychainError, .osStatus(errSecAuthFailed))
+        }
+    }
+
+    func testCredentialStoreSurfacesWriteAndDeleteFailures() {
+        let store = InMemoryCredentialStore(values: [:])
+        store.failingSaveKey = .refreshToken
+        XCTAssertThrowsError(try store.save("refresh", for: .refreshToken))
+
+        store.failingSaveKey = nil
+        store.values[.refreshToken] = "refresh"
+        store.failingDeleteKey = .refreshToken
+        XCTAssertThrowsError(try store.delete(.refreshToken))
+    }
+
+    func testCreatingAPIClientDoesNotRefreshAtStartup() async {
+        StubURLProtocol.requests = []
+        let client = makeTestClient(credentialStore: InMemoryCredentialStore(values: [.refreshToken: "refresh"]))
+
+        _ = await client.token()
+
+        XCTAssertTrue(StubURLProtocol.requests.isEmpty)
+        resetAuthTestState()
+    }
+
     func testAuthSessionDecodesRefreshToken() throws {
         let data = Data(
             """
@@ -43,8 +75,8 @@ final class APIClientTests: XCTestCase {
         _ = try await makeTestClient().fetchTasks()
 
         XCTAssertEqual(StubURLProtocol.requests.map(\.path), [path, "/auth/refresh", path])
-        XCTAssertEqual(SessionCache.loadTokens().accessToken, "new-access")
-        XCTAssertEqual(SessionCache.loadTokens().refreshToken, "new-refresh")
+        XCTAssertEqual(try SessionCache.loadTokens().accessToken, "new-access")
+        XCTAssertEqual(try SessionCache.loadTokens().refreshToken, "new-refresh")
     }
 
     func testParallelExpiredRequestsShareOneRefresh() async throws {
@@ -93,7 +125,7 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(SessionCache.loadUser()?.id, "user-1")
     }
 
-    func testTerminalRefreshFailureClearsCachedAuthentication() async throws {
+    func testTerminalRefreshFailureLeavesCleanupToSessionCoordinator() async throws {
         prepareCachedSession()
         StubURLProtocol.scriptedResponses = [
             "/auth/refresh": [(401, Data("{\"code\":\"REFRESH_TOKEN_REVOKED\",\"message\":\"revoked\"}".utf8))]
@@ -107,8 +139,8 @@ final class APIClientTests: XCTestCase {
             XCTAssertTrue(error.isTerminalAuthFailure)
         }
 
-        XCTAssertNil(SessionCache.loadUser())
-        XCTAssertNil(SessionCache.loadTokens().refreshToken)
+        XCTAssertEqual(SessionCache.loadUser()?.id, "user-1")
+        XCTAssertEqual(try SessionCache.loadTokens().refreshToken, "old-refresh")
     }
 
     func testLostRefreshResponseCanRecoverOnTheNextAttempt() async throws {
@@ -127,7 +159,101 @@ final class APIClientTests: XCTestCase {
         let recovered = try await client.restoreSession()
 
         XCTAssertEqual(recovered.user.id, "user-1")
-        XCTAssertEqual(SessionCache.loadTokens().refreshToken, "recovered-refresh")
+        XCTAssertEqual(try SessionCache.loadTokens().refreshToken, "recovered-refresh")
+    }
+
+    func testFiveHundredDoesNotClearCredentials() async throws {
+        prepareCachedSession()
+        StubURLProtocol.scriptedResponses = [
+            "/productivity/tasks?limit=20": [(500, Data("{\"code\":\"SERVICE_UNAVAILABLE\"}".utf8))]
+        ]
+        defer { resetAuthTestState() }
+
+        _ = try? await makeTestClient().fetchTasks()
+
+        XCTAssertEqual(try SessionCache.loadTokens().refreshToken, "old-refresh")
+        XCTAssertEqual(SessionCache.loadUser()?.id, "user-1")
+    }
+
+    func testUnknown401DoesNotClearRefreshCredential() async throws {
+        prepareCachedSession()
+        StubURLProtocol.scriptedResponses = [
+            "/productivity/tasks?limit=20": [(401, Data("{\"code\":\"UNKNOWN_AUTH\"}".utf8))],
+            "/auth/refresh": [(401, Data("{\"code\":\"UNKNOWN_AUTH\"}".utf8))]
+        ]
+        defer { resetAuthTestState() }
+
+        _ = try? await makeTestClient().fetchTasks()
+
+        XCTAssertEqual(try SessionCache.loadTokens().refreshToken, "old-refresh")
+        XCTAssertEqual(SessionCache.loadUser()?.id, "user-1")
+    }
+
+    func testRefreshPersistsRotatedRefreshTokenBeforeAccessToken() async throws {
+        let store = InMemoryCredentialStore(values: [.refreshToken: "old-refresh"])
+        StubURLProtocol.scriptedResponses = [
+            "/auth/refresh": [(200, authSessionData(accessToken: "new-access", refreshToken: "new-refresh"))]
+        ]
+        SessionCache.saveUser(testUser)
+        defer { resetAuthTestState() }
+
+        _ = try await makeTestClient(credentialStore: store).restoreSession()
+
+        let refreshIndex = try XCTUnwrap(store.operations.firstIndex(of: "save:refreshToken"))
+        let accessIndex = try XCTUnwrap(store.operations.firstIndex(of: "save:accessToken"))
+        XCTAssertLessThan(refreshIndex, accessIndex)
+    }
+
+    func testRefreshCredentialPersistenceFailureIsSurfacedAndPreservesOldToken() async throws {
+        let store = InMemoryCredentialStore(values: [.refreshToken: "old-refresh"])
+        store.failingSaveKey = .refreshToken
+        StubURLProtocol.scriptedResponses = [
+            "/auth/refresh": [(200, authSessionData(accessToken: "new-access", refreshToken: "new-refresh"))]
+        ]
+        SessionCache.saveUser(testUser)
+        defer { resetAuthTestState() }
+
+        do {
+            _ = try await makeTestClient(credentialStore: store).restoreSession()
+            XCTFail("Expected credential persistence failure")
+        } catch is CredentialPersistenceError {
+            // Expected: the server response must not be reported as a successful refresh.
+        }
+
+        XCTAssertEqual(store.values[.refreshToken], "old-refresh")
+    }
+
+    func testNativeAPISessionDoesNotSendStaleRefreshCookie() async throws {
+        let staleCookie = try XCTUnwrap(HTTPCookie(properties: [
+            .domain: "localhost",
+            .path: "/",
+            .name: "itu_refresh",
+            .value: "stale-refresh"
+        ]))
+        HTTPCookieStorage.shared.setCookie(staleCookie)
+        var configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        configuration.httpCookieStorage = HTTPCookieStorage.shared
+        configuration.httpShouldSetCookies = true
+        StubURLProtocol.responses = ["/auth/logout": Data("{}".utf8)]
+        StubURLProtocol.requestHeaders = []
+        defer {
+            HTTPCookieStorage.shared.deleteCookie(staleCookie)
+            resetAuthTestState()
+        }
+
+        let client = APIClient(
+            session: APIClient.makeSession(configuration: configuration),
+            credentialStore: InMemoryCredentialStore(values: [:])
+        )
+        let _: EmptyResponse = try await client.request(
+            path: "/auth/logout",
+            method: "POST",
+            authorize: false,
+            retryAfterUnauthorized: false
+        )
+
+        XCTAssertNil(StubURLProtocol.requestHeaders.first?["Cookie"])
     }
 
     func testFetchTasksReadsAllCursorPages() async throws {
@@ -435,24 +561,28 @@ final class APIClientTests: XCTestCase {
         ])
     }
 
-    private func makeTestClient() -> APIClient {
+    private func makeTestClient(credentialStore: (any CredentialStore)? = nil) -> APIClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
-        return APIClient(session: URLSession(configuration: configuration))
+        return APIClient(
+            session: URLSession(configuration: configuration),
+            credentialStore: credentialStore ?? SessionCache.credentialStore
+        )
     }
 
     private func prepareCachedSession() {
-        SessionCache.clearUser()
+        try? SessionCache.clearSession()
         SessionCache.saveUser(testUser)
-        SessionCache.saveTokens(accessToken: "expired-access", refreshToken: "old-refresh")
+        try? SessionCache.saveTokens(accessToken: "expired-access", refreshToken: "old-refresh")
     }
 
     private func resetAuthTestState() {
-        SessionCache.clearUser()
+        try? SessionCache.clearSession()
         StubURLProtocol.responses = [:]
         StubURLProtocol.scriptedResponses = [:]
         StubURLProtocol.errors = [:]
         StubURLProtocol.requests = []
+        StubURLProtocol.requestHeaders = []
     }
 
     private var testUser: UserProfile {
@@ -498,6 +628,7 @@ private final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var scriptedResponses: [String: [(statusCode: Int, data: Data)]] = [:]
     nonisolated(unsafe) static var errors: [String: URLError] = [:]
     nonisolated(unsafe) static var requests: [(path: String, method: String)] = []
+    nonisolated(unsafe) static var requestHeaders: [[String: String]] = []
     nonisolated(unsafe) static var requestBodies: [Data] = []
 
     override class func canInit(with request: URLRequest) -> Bool {
@@ -532,6 +663,7 @@ private final class StubURLProtocol: URLProtocol {
 
         Self.stateLock.lock()
         Self.requests.append((key, request.httpMethod ?? "GET"))
+        Self.requestHeaders.append(request.allHTTPHeaderFields ?? [:])
         if let requestBody { Self.requestBodies.append(requestBody) }
         if let error = Self.errors[key] {
             Self.stateLock.unlock()
@@ -562,4 +694,34 @@ private final class StubURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {}
+}
+
+private final class InMemoryCredentialStore: CredentialStore, @unchecked Sendable {
+    var values: [CredentialKey: String]
+    var operations: [String] = []
+    var failingLoadKey: CredentialKey?
+    var failingSaveKey: CredentialKey?
+    var failingDeleteKey: CredentialKey?
+
+    init(values: [CredentialKey: String]) {
+        self.values = values
+    }
+
+    func load(_ key: CredentialKey) throws -> String? {
+        operations.append("load:\(key.rawValue)")
+        if key == failingLoadKey { throw KeychainError.osStatus(errSecAuthFailed) }
+        return values[key]
+    }
+
+    func save(_ value: String, for key: CredentialKey) throws {
+        operations.append("save:\(key.rawValue)")
+        if key == failingSaveKey { throw KeychainError.osStatus(errSecAuthFailed) }
+        values[key] = value
+    }
+
+    func delete(_ key: CredentialKey) throws {
+        operations.append("delete:\(key.rawValue)")
+        if key == failingDeleteKey { throw KeychainError.osStatus(errSecAuthFailed) }
+        values.removeValue(forKey: key)
+    }
 }

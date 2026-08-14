@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 struct APIError: LocalizedError, Sendable {
     let statusCode: Int
@@ -26,6 +27,18 @@ struct APIError: LocalizedError, Sendable {
         "ACCOUNT_DISABLED",
         "ACCOUNT_DELETED"
     ]
+}
+
+enum CredentialPersistenceError: LocalizedError, Sendable {
+    case keychain(KeychainError)
+    case failure(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .keychain(error): error.localizedDescription
+        case let .failure(message): "Credential persistence failed: \(message)"
+        }
+    }
 }
 
 private struct APIErrorBody: Decodable {
@@ -58,17 +71,30 @@ struct AiCredential: Codable, Identifiable, Equatable, Sendable {
 
 actor APIClient {
     private let session: URLSession
+    private let credentialStore: any CredentialStore
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let logger = Logger(subsystem: "com.itu.macos", category: "auth")
     private var accessToken: String?
     private var refreshTask: Task<AuthSession, Error>?
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    init(session: URLSession? = nil, credentialStore: any CredentialStore = KeychainCredentialStore()) {
+        self.session = session ?? Self.makeSession()
+        self.credentialStore = credentialStore
         encoder = JSONEncoder()
         decoder = JSONDecoder()
-        let tokens = SessionCache.loadTokens()
-        accessToken = tokens.accessToken
+        do {
+            accessToken = try credentialStore.load(.accessToken)
+        } catch {
+            accessToken = nil
+            logger.error("auth.keychain.read.failure")
+        }
+    }
+
+    nonisolated static func makeSession(configuration: URLSessionConfiguration = .default) -> URLSession {
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        return URLSession(configuration: configuration)
     }
 
     func login(identifier: String, password: String) async throws -> AuthSession {
@@ -82,8 +108,8 @@ actor APIClient {
             body: body,
             authorize: false
         )
+        try persistSession(session)
         accessToken = session.accessToken
-        storeSession(session)
         return session
     }
 
@@ -103,39 +129,55 @@ actor APIClient {
             body: body,
             authorize: false
         )
+        try persistSession(session)
         accessToken = session.accessToken
-        storeSession(session)
         return session
     }
 
     func restoreSession() async throws -> AuthSession {
-        if accessToken == nil {
-            accessToken = SessionCache.loadTokens().accessToken
-        }
         do {
-            let session = try await refresh()
-            return session
+            return try await refresh()
         } catch {
+            if error is CredentialPersistenceError || error is KeychainError {
+                throw error
+            }
             if let apiError = error as? APIError, apiError.isTerminalAuthFailure {
-                accessToken = nil
-                SessionCache.clearUser()
                 throw error
             }
             if let user = SessionCache.loadUser() {
                 return AuthSession(
                     user: user,
                     accessToken: accessToken ?? "",
-                    refreshToken: SessionCache.loadTokens().refreshToken ?? ""
+                    refreshToken: (try? credentialStore.load(.refreshToken)) ?? ""
                 )
             }
             throw error
         }
     }
 
-    func logout() async {
-        _ = try? await request(path: "/auth/logout", method: "POST") as EmptyResponse
+    func hasRefreshToken() throws -> Bool {
+        try credentialStore.load(.refreshToken) != nil
+    }
+
+    func logout() async throws {
+        logger.debug("auth.logout.started")
+        guard let refreshToken = try credentialStore.load(.refreshToken) else {
+            logger.debug("auth.logout.no_refresh_token")
+            return
+        }
+        do {
+            let _: EmptyResponse = try await request(
+                path: "/auth/logout",
+                method: "POST",
+                body: ["refreshToken": .string(refreshToken)] as [String: JSONValue],
+                authorize: false,
+                retryAfterUnauthorized: false
+            )
+            logger.debug("auth.logout.server_revoke_succeeded")
+        } catch {
+            logger.debug("auth.logout.server_revoke_skipped")
+        }
         accessToken = nil
-        SessionCache.clearUser()
     }
 
     func updateProfile(displayName: String?, username: String?) async throws -> AuthSession {
@@ -147,8 +189,8 @@ actor APIClient {
                 "username": username.map(JSONValue.string) ?? .null
             ] as [String: JSONValue]
         )
+        try persistSession(session)
         accessToken = session.accessToken
-        storeSession(session)
         return session
     }
 
@@ -173,11 +215,14 @@ actor APIClient {
             method: "DELETE",
             body: ["password": password.map(JSONValue.string) ?? .null] as [String: JSONValue]
         ) as EmptyResponse
-        SessionCache.clearUser()
     }
 
     func token() -> String? {
         accessToken
+    }
+
+    func clearAccessToken() {
+        accessToken = nil
     }
 
     func requestRawBody<ResponseBody: Decodable>(
@@ -264,8 +309,11 @@ actor APIClient {
         if let refreshTask {
             return try await refreshTask.value
         }
-        let storedRefresh = SessionCache.loadTokens().refreshToken
-        let body: [String: JSONValue]? = storedRefresh != nil ? ["refreshToken": .string(storedRefresh!)] : nil
+        logger.debug("auth.refresh.started")
+        guard let storedRefresh = try credentialStore.load(.refreshToken) else {
+            throw APIError(statusCode: 401, message: "No refresh credential is available", code: nil)
+        }
+        let body: [String: JSONValue] = ["refreshToken": .string(storedRefresh)]
         let task = Task<AuthSession, Error> {
             do {
                 let refreshed: AuthSession = try await self.request(
@@ -275,13 +323,21 @@ actor APIClient {
                     authorize: false,
                     retryAfterUnauthorized: false
                 )
+                try self.persistSession(refreshed)
                 self.accessToken = refreshed.accessToken
-                self.storeSession(refreshed)
+                self.logger.debug("auth.refresh.success")
                 return refreshed
             } catch {
-                if let apiError = error as? APIError, apiError.isTerminalAuthFailure {
-                    self.accessToken = nil
-                    SessionCache.clearUser()
+                if let apiError = error as? APIError {
+                    if apiError.isTerminalAuthFailure {
+                        self.logger.debug("auth.refresh.terminal_failure")
+                    } else {
+                        self.logger.debug("auth.refresh.server_failure status=\(apiError.statusCode, privacy: .public)")
+                    }
+                } else if error is URLError {
+                    self.logger.debug("auth.refresh.network_failure")
+                } else if error is CredentialPersistenceError || error is KeychainError {
+                    self.logger.error("auth.keychain.persistence_failure")
                 }
                 throw error
             }
@@ -291,11 +347,16 @@ actor APIClient {
         return try await task.value
     }
 
-    private func storeSession(_ session: AuthSession) {
-        SessionCache.saveTokens(
-            accessToken: session.accessToken,
-            refreshToken: session.refreshToken
-        )
+    private func persistSession(_ session: AuthSession) throws {
+        do {
+            try credentialStore.save(session.refreshToken, for: .refreshToken)
+            try credentialStore.save(session.accessToken, for: .accessToken)
+            SessionCache.saveUser(session.user)
+        } catch let error as KeychainError {
+            throw CredentialPersistenceError.keychain(error)
+        } catch {
+            throw CredentialPersistenceError.failure(error.localizedDescription)
+        }
     }
 
     func request<RequestBody: Encodable, ResponseBody: Decodable>(

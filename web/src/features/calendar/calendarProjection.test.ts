@@ -66,6 +66,7 @@ describe('projectTaskToCalendarItem', () => {
       status: 'COMPLETED',
       dueAt: '2026-08-12T21:00:00Z',
     };
+    expect(projectTaskToCalendarItem(task)).toBeNull();
     expect(projectTaskToCalendarItem(task, { showCompleted: false })).toBeNull();
     expect(projectTaskToCalendarItem(task, { showCompleted: true })?.kind).toBe('TASK_DUE');
   });

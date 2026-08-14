@@ -6,9 +6,8 @@ import {
 } from '@core/application/ports/out/repositories.port';
 import type { CreateRefreshSessionData, RefreshSessionRecord } from '@core/application/ports/out/repository-types.port';
 import type { OAuthHandoffPayload } from '@core/application/ports/out/repository-types.port';
+import { AUTH_CONSTANTS } from '@core/application/constants/app.constants';
 import { PrismaService } from './prisma.service';
-
-const ROTATION_GRACE_MS = 60_000;
 
 @Injectable()
 export class PrismaRefreshSessionRepository implements IRefreshSessionRepository {
@@ -39,7 +38,8 @@ export class PrismaRefreshSessionRepository implements IRefreshSessionRepository
         where: { id: sessionId, revokedAt: null },
         data: {
           revokedAt: now,
-          rotationGraceUntil: new Date(now.getTime() + ROTATION_GRACE_MS),
+          // Covers a client losing the successful refresh response after rotation commits.
+          rotationGraceUntil: new Date(now.getTime() + AUTH_CONSTANTS.refreshRotationGraceMs),
         },
       });
       if (result.count !== 1) return false;

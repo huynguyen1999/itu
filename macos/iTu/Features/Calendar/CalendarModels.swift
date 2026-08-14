@@ -92,14 +92,14 @@ struct ExternalCalendarModel: Codable, Identifiable, Sendable, Hashable {
 struct CalendarPreferencesModel: Codable, Equatable, Sendable {
     var zoom: String = "WEEK"
     var visibleKinds: [String] = ["TASK_DURATION", "TASK_DUE", "FOCUS_SESSION", "EXTERNAL_EVENT"]
-    var showCompleted = true
+    var showCompleted = false
     var collapsedGroupIds: [String] = []
     var weekStart: String = "MONDAY"
 
     init(
         zoom: String = "WEEK",
         visibleKinds: [String] = ["TASK_DURATION", "TASK_DUE", "FOCUS_SESSION", "EXTERNAL_EVENT"],
-        showCompleted: Bool = true,
+        showCompleted: Bool = false,
         collapsedGroupIds: [String] = [],
         weekStart: String = "MONDAY"
     ) {
@@ -114,7 +114,7 @@ struct CalendarPreferencesModel: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         zoom = try container.decodeIfPresent(String.self, forKey: .zoom) ?? "WEEK"
         visibleKinds = try container.decodeIfPresent([String].self, forKey: .visibleKinds) ?? ["TASK_DURATION", "TASK_DUE", "FOCUS_SESSION", "EXTERNAL_EVENT"]
-        showCompleted = try container.decodeIfPresent(Bool.self, forKey: .showCompleted) ?? true
+        showCompleted = try container.decodeIfPresent(Bool.self, forKey: .showCompleted) ?? false
         collapsedGroupIds = try container.decodeIfPresent([String].self, forKey: .collapsedGroupIds) ?? []
         weekStart = try container.decodeIfPresent(String.self, forKey: .weekStart) ?? "MONDAY"
     }

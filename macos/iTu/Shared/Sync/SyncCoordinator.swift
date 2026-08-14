@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class SyncCoordinator {
     private let apiClient: APIClient
+    private let webSocketSession: URLSession
     private var offlineStore: OfflineStore?
     private let deviceId: String
     var syncDeviceId: String { deviceId }
@@ -27,6 +28,7 @@ final class SyncCoordinator {
 
     init(apiClient: APIClient, offlineStore: OfflineStore? = nil) {
         self.apiClient = apiClient
+        webSocketSession = APIClient.makeSession()
         self.offlineStore = offlineStore
         if let stored = UserDefaults.standard.string(forKey: "syncDeviceId") {
             deviceId = stored
@@ -264,7 +266,7 @@ final class SyncCoordinator {
             URLQueryItem(name: "clientInstanceId", value: clientInstanceId)
         ]
         guard let url = components?.url else { return }
-        let webSocket = URLSession.shared.webSocketTask(with: url)
+        let webSocket = webSocketSession.webSocketTask(with: url)
         socketTask = webSocket
         webSocket.resume()
         let connectionGeneration = generation

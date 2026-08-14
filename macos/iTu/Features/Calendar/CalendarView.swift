@@ -62,15 +62,12 @@ struct CalendarView: View {
         Date(timeIntervalSinceReferenceDate: anchorTimestamp)
     }
 
-    private var zoomBinding: Binding<CalendarZoom> {
-        Binding(get: { zoom }, set: { zoomRaw = $0.rawValue })
-    }
-
     private var range: (from: Date, to: Date) { zoom.range(for: anchor, weekStart: model.calendarPreferences.weekStart) }
     private var visibleKinds: Set<String> { Set(model.calendarPreferences.visibleKinds) }
 
     private var allRawItems: [CalendarItem] {
         let taskItems = model.tasks.compactMap { task -> CalendarItem? in
+            if task.status == .canceled || task.status == .archived { return nil }
             if !model.calendarPreferences.showCompleted && task.status == .completed { return nil }
             let groupID = taskGroupID(task)
             if let start = task.scheduledStartAt.flatMap(iTuDateSupport.parse),
@@ -155,7 +152,6 @@ struct CalendarView: View {
         }
     }
 
-
     private var days: [Date] {
         let cal = Calendar.current
         var result: [Date] = []
@@ -169,13 +165,20 @@ struct CalendarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            overviewBar
-            sourceLegend
-            HStack(spacing: 0) {
-                mainCalendarBody
-                if arrangeTasksOpen { arrangeTasks }
+            pageHeader
+
+            HStack(alignment: .top, spacing: 16) {
+                timelineCard
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+
+                if arrangeTasksOpen {
+                    arrangeTasksDrawer
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 20)
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
         }
         .background(iTuTheme.canvas)
         .task(id: "\(range.from.timeIntervalSince1970)-\(range.to.timeIntervalSince1970)") {
@@ -190,7 +193,278 @@ struct CalendarView: View {
         .popover(item: $detailItem) { item in
             CalendarEventDetailView(item: item, onClose: { detailItem = nil })
         }
+        .animation(.snappy(duration: 0.22), value: arrangeTasksOpen)
     }
+
+    // MARK: - Page Header (Web Parity)
+
+    private var pageHeader: some View {
+        HStack(alignment: .bottom, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                iTuSectionLabel(title: "PRODUCTIVITY", color: iTuTheme.teal)
+                Text("Calendar")
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundStyle(iTuTheme.ink)
+                Text("A calm, source-first view of what has your attention.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+
+            Spacer(minLength: 16)
+
+            HStack(spacing: 10) {
+                // Arrange tasks button
+                Button {
+                    withAnimation(.snappy(duration: 0.22)) {
+                        arrangeTasksOpen.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("Arrange tasks")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: 32)
+                    .background(arrangeTasksOpen ? iTuTheme.mintTint : iTuTheme.surface)
+                    .foregroundStyle(arrangeTasksOpen ? iTuTheme.teal : iTuTheme.ink)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(arrangeTasksOpen ? iTuTheme.teal.opacity(0.5) : iTuTheme.border, lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .pointingHandCursor()
+                .accessibilityLabel("Arrange tasks")
+                .accessibilityAddTraits(arrangeTasksOpen ? .isSelected : [])
+
+                // Navigation & Zoom Segmented Pill Container
+                HStack(spacing: 2) {
+                    Button {
+                        move(-1)
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(iTuTheme.ink)
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHandCursor()
+                    .accessibilityLabel("Previous range")
+
+                    Button {
+                        anchorTimestamp = Date().timeIntervalSinceReferenceDate
+                    } label: {
+                        Text("Today")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(iTuTheme.ink)
+                            .padding(.horizontal, 9)
+                            .frame(height: 26)
+                            .background(iTuTheme.surface)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(iTuTheme.borderSoft, lineWidth: 1)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHandCursor()
+
+                    Button {
+                        move(1)
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(iTuTheme.ink)
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHandCursor()
+                    .accessibilityLabel("Next range")
+
+                    Rectangle()
+                        .fill(iTuTheme.borderSoft)
+                        .frame(width: 1, height: 16)
+                        .padding(.horizontal, 2)
+
+                    HStack(spacing: 2) {
+                        ForEach(CalendarZoom.allCases) { z in
+                            let isSelected = zoom == z
+                            Button {
+                                zoomRaw = z.rawValue
+                                Task { await model.updateCalendarPreferences(["zoom": .string(z.rawValue)]) }
+                            } label: {
+                                Text(z.title)
+                                    .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                                    .foregroundStyle(isSelected ? Color.white : iTuTheme.inkDim)
+                                    .padding(.horizontal, 10)
+                                    .frame(height: 26)
+                                    .background(isSelected ? iTuTheme.teal : Color.clear)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                            .pointingHandCursor()
+                            .accessibilityLabel("\(z.title) view")
+                        }
+                    }
+
+                    Rectangle()
+                        .fill(iTuTheme.borderSoft)
+                        .frame(width: 1, height: 16)
+                        .padding(.horizontal, 2)
+
+                    Button {
+                        settingsOpen.toggle()
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(iTuTheme.ink)
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHandCursor()
+                    .help("Calendar settings")
+                    .accessibilityLabel("Calendar settings")
+                    .popover(isPresented: $settingsOpen, arrowEdge: .bottom) {
+                        CalendarSettingsPopover()
+                    }
+                }
+                .padding(3)
+                .background(iTuTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(iTuTheme.border, lineWidth: 1)
+                }
+                .shadow(color: iTuTheme.forest.opacity(0.04), radius: 2, y: 1)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+        .padding(.bottom, 14)
+    }
+
+    // MARK: - Main Timeline Card (Web Parity)
+
+    private var timelineCard: some View {
+        VStack(spacing: 0) {
+            if zoom != .day {
+                cardHeaderBanner
+            }
+
+            if !sourceGroups.isEmpty {
+                sourceChipsBar
+            }
+
+            mainCalendarBody
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+
+            cardFooter
+        }
+        .background(iTuTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(iTuTheme.border, lineWidth: 1)
+        }
+        .shadow(color: iTuTheme.forest.opacity(0.06), radius: 6, y: 2)
+    }
+
+    private var cardHeaderBanner: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("SCHEDULE OVERVIEW · SOURCE TIMELINE")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .tracking(1.2)
+                    .foregroundStyle(iTuTheme.mint)
+                Text(rangeLabel)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.white)
+            }
+            Spacer()
+            Text("\(items.count) items · \(sourceGroups.count) sources")
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(Color.white.opacity(0.7))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            LinearGradient(
+                colors: [iTuTheme.forest, iTuTheme.forestDeep],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.white.opacity(0.1)).frame(height: 1)
+        }
+    }
+
+    private var sourceChipsBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(sourceGroups) { group in
+                    let isCollapsed = model.calendarPreferences.collapsedGroupIds.contains(group.id)
+                    let chipColor = Color.calendarColor(kind: group.items.first?.kind ?? "", sourceColor: group.color)
+
+                    Button {
+                        toggleGroupCollapse(group.id)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(isCollapsed ? chipColor.opacity(0.35) : chipColor)
+                                .frame(width: 6, height: 6)
+                            Text(group.title)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(isCollapsed ? iTuTheme.inkDim.opacity(0.6) : iTuTheme.ink)
+                            Text("· \(group.items.count)")
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundStyle(iTuTheme.inkDim)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(isCollapsed ? iTuTheme.surfaceMuted : chipColor.opacity(0.08))
+                        .clipShape(Capsule())
+                        .overlay {
+                            Capsule()
+                                .stroke(isCollapsed ? iTuTheme.borderSoft : chipColor.opacity(0.7), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHandCursor()
+                    .accessibilityLabel("\(group.title), \(group.items.count) items\(isCollapsed ? ", hidden" : "")")
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+        }
+        .background(iTuTheme.surface)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(iTuTheme.borderSoft).frame(height: 1)
+        }
+    }
+
+    private var cardFooter: some View {
+        HStack {
+            Text("Tasks can move and resize. Focus Sessions and subscriptions are read-only.")
+                .font(.system(size: 11))
+                .foregroundStyle(iTuTheme.inkDim)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(iTuTheme.surface)
+        .overlay(alignment: .top) {
+            Rectangle().fill(iTuTheme.borderSoft).frame(height: 1)
+        }
+    }
+
+    // MARK: - Calendar Grid Views
 
     @ViewBuilder
     private var mainCalendarBody: some View {
@@ -220,103 +494,118 @@ struct CalendarView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
-        .padding(.horizontal, 16)
     }
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "calendar").foregroundStyle(iTuTheme.teal)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Calendar").font(.system(size: 20, weight: .bold, design: .rounded))
-                Text("A calm, source-first view of what has your attention.")
-                    .font(.system(size: 12)).foregroundStyle(iTuTheme.inkDim)
-            }
-            Spacer()
-            Button("Previous", systemImage: "chevron.left") { move(-1) }.labelStyle(.iconOnly).buttonStyle(.plain).accessibilityLabel("Previous range")
-            Button("Today") { anchorTimestamp = Date().timeIntervalSinceReferenceDate }.buttonStyle(iTuSecondaryButtonStyle(height: 28))
-            Button("Next", systemImage: "chevron.right") { move(1) }.labelStyle(.iconOnly).buttonStyle(.plain).accessibilityLabel("Next range")
-            Picker("Zoom", selection: zoomBinding) { ForEach(CalendarZoom.allCases) { Text($0.title).tag($0) } }
-                .pickerStyle(.segmented).frame(width: 190)
-                .onChange(of: zoom) { _, value in
-                    Task { await model.updateCalendarPreferences(["zoom": .string(value.rawValue)]) }
-                }
-            Button("Calendar settings", systemImage: "gearshape") { settingsOpen.toggle() }
-                .labelStyle(.iconOnly).buttonStyle(.plain).help("Calendar settings")
-                .popover(isPresented: $settingsOpen, arrowEdge: .top) { CalendarSettingsPopover() }
-            Button("Arrange Tasks", systemImage: arrangeTasksOpen ? "sidebar.right" : "sidebar.right.closed") { arrangeTasksOpen.toggle() }
-                .labelStyle(.iconOnly).buttonStyle(.plain).help("Arrange Tasks")
-        }
-        .padding(.horizontal, 24).padding(.vertical, 16)
-    }
+    // MARK: - Arrange Tasks Drawer (Web Parity)
 
-    private var overviewBar: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Text(rangeLabel)
-                        .font(.system(size: 15, weight: .bold))
+    private var arrangeTasksDrawer: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    iTuSectionLabel(title: "ARRANGE TASKS", color: iTuTheme.teal)
+                    Text("Give unfinished work a place")
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(iTuTheme.ink)
-                    Text("· \(items.count) items in view")
-                        .font(.system(size: 11, design: .monospaced))
+                    Text("Drag-only: drop a task onto the timeline.")
+                        .font(.system(size: 11))
                         .foregroundStyle(iTuTheme.inkDim)
                 }
-                Text("Tasks, due dates, focus sessions, and external calendar feeds in one unified view.")
+                Spacer()
+                Text("\(arrangeableTasks.count)")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(iTuTheme.mintTint)
+                    .foregroundStyle(iTuTheme.teal)
+                    .clipShape(Capsule())
+            }
+
+            // Search
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
                     .font(.system(size: 11))
                     .foregroundStyle(iTuTheme.inkDim)
-            }
-            Spacer()
-            HStack(spacing: 12) {
-                legend("Tasks", color: iTuTheme.mint)
-                legend("Due Dates", color: iTuTheme.amber)
-                legend("Focus", color: Color(hex: 0x8B6FC9))
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(iTuTheme.surfaceMuted)
-        .overlay(alignment: .bottom) { Rectangle().fill(iTuTheme.borderSoft).frame(height: 1) }
-    }
-
-
-    private var sourceLegend: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(sourceGroups) { group in
-                    sourceChip(group)
+                TextField("Search tasks…", text: $arrangeSearch)
+                    .font(.system(size: 12))
+                    .textFieldStyle(.plain)
+                if !arrangeSearch.isEmpty {
+                    Button {
+                        arrangeSearch = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(iTuTheme.inkDim)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(iTuTheme.surfaceMuted)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(iTuTheme.borderSoft, lineWidth: 1)
+            }
+
+            // Task List
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    if arrangeableTasks.isEmpty {
+                        VStack(spacing: 6) {
+                            Text("No unscheduled tasks")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(iTuTheme.inkDim)
+                            Text("All planned tasks have dates assigned.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(iTuTheme.inkFaint)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
+                    } else {
+                        ForEach(arrangeableTasks) { task in
+                            HStack(spacing: 8) {
+                                Image(systemName: "line.3.horizontal")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(iTuTheme.inkDim)
+                                Text(task.title)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(iTuTheme.ink)
+                                    .lineLimit(1)
+                                Spacer()
+                                if let minutes = task.estimatedMinutes {
+                                    Text("\(minutes)m")
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(iTuTheme.inkDim)
+                                }
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(iTuTheme.surface)
+                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .stroke(iTuTheme.borderSoft, lineWidth: 1)
+                            }
+                            .onDrag { NSItemProvider(object: task.id as NSString) }
+                            .accessibilityLabel("Drag \(task.title) to schedule it")
+                        }
+                    }
+                }
+            }
         }
+        .padding(14)
+        .frame(width: 260)
         .background(iTuTheme.surface)
-        .overlay(alignment: .bottom) { Rectangle().fill(iTuTheme.borderSoft).frame(height: 1) }
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(iTuTheme.border, lineWidth: 1)
+        }
+        .shadow(color: iTuTheme.forest.opacity(0.06), radius: 6, y: 2)
     }
 
-    private func sourceChip(_ group: CalendarGroup) -> some View {
-        let isCollapsed = model.calendarPreferences.collapsedGroupIds.contains(group.id)
-        let color = Color.calendarColor(kind: group.items.first?.kind ?? "", sourceColor: group.color)
-        return Button {
-            toggleGroupCollapse(group.id)
-        } label: {
-            HStack(spacing: 7) {
-                Circle().fill(isCollapsed ? color.opacity(0.3) : color).frame(width: 9, height: 9)
-                Text(group.title)
-                    .lineLimit(1)
-                    .foregroundStyle(isCollapsed ? iTuTheme.inkDim : iTuTheme.ink)
-                Text("· " + String(group.items.count))
-                    .foregroundStyle(iTuTheme.inkDim)
-            }
-            .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(isCollapsed ? iTuTheme.surfaceMuted : color.opacity(0.08), in: Capsule())
-            .overlay {
-                Capsule().stroke(isCollapsed ? iTuTheme.borderSoft : color.opacity(0.75), lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(group.title), \(group.items.count) items\(isCollapsed ? ", hidden" : "")")
-    }
+    // MARK: - Actions & Helpers
 
     private func toggleGroupCollapse(_ id: String) {
         var collapsed = model.calendarPreferences.collapsedGroupIds
@@ -328,11 +617,6 @@ struct CalendarView: View {
         Task {
             await model.updateCalendarPreferences(["collapsedGroupIds": .array(collapsed.map(JSONValue.string))])
         }
-    }
-
-
-    private func legend(_ title: String, color: Color) -> some View {
-        Label(title, systemImage: "circle.fill").font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.78)).symbolRenderingMode(.palette).foregroundStyle(color, .clear)
     }
 
     private func sourceRank(_ id: String) -> Int {
@@ -356,7 +640,6 @@ struct CalendarView: View {
         let isoStart = formatter.string(from: newStart)
         let isoEnd = formatter.string(from: newEnd)
 
-        // Optimistically update model.tasks
         if let index = model.tasks.firstIndex(where: { $0.id == taskID }) {
             var updated = model.tasks[index]
             updated.scheduledStartAt = isoStart
@@ -440,62 +723,5 @@ struct CalendarView: View {
             task.dueAt == nil && task.scheduledStartAt == nil && task.scheduledEndAt == nil &&
             (arrangeSearch.isEmpty || task.title.localizedCaseInsensitiveContains(arrangeSearch))
         }
-    }
-
-    private var arrangeTasks: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Arrange tasks").font(.system(size: 14, weight: .semibold))
-                Spacer()
-                Text("\(arrangeableTasks.count)").font(.system(size: 11, design: .monospaced)).foregroundStyle(iTuTheme.teal)
-            }
-            Text("Drop unfinished work onto the timeline to give it a place.").font(.system(size: 11)).foregroundStyle(iTuTheme.inkDim)
-            TextField("Search", text: $arrangeSearch).textFieldStyle(.roundedBorder)
-            ScrollView {
-                LazyVStack(spacing: 6) {
-                    ForEach(arrangeableTasks) { task in
-                        HStack(spacing: 7) {
-                            Image(systemName: "line.3.horizontal").foregroundStyle(iTuTheme.inkFaint)
-                            Text(task.title).font(.system(size: 11, weight: .medium)).lineLimit(2)
-                            Spacer()
-                        }
-                        .padding(8).background(iTuTheme.surface).clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                        .onDrag { NSItemProvider(object: task.id as NSString) }
-                        .accessibilityLabel("Drag \(task.title) to schedule it")
-                    }
-                }
-            }
-        }
-        .padding(14).frame(width: 245).background(iTuTheme.surfaceMuted)
-        .overlay(alignment: .leading) { Rectangle().fill(iTuTheme.border).frame(width: 1) }
-    }
-
-    private var settingsPopover: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Calendar settings").font(.system(size: 14, weight: .semibold))
-            Toggle("Show completed", isOn: Binding(
-                get: { model.calendarPreferences.showCompleted },
-                set: { value in Task { await model.updateCalendarPreferences(["showCompleted": .bool(value)]) } }
-            ))
-            Divider()
-            Text("Visible kinds").font(.system(size: 11, weight: .semibold)).foregroundStyle(iTuTheme.inkDim)
-            ForEach(CalendarKind.allCases) { kind in
-                Toggle(kind.title, isOn: Binding(
-                    get: { visibleKinds.contains(kind.rawValue) },
-                    set: { value in updateVisibleKind(kind.rawValue, visible: value) }
-                ))
-            }
-        }
-        .padding(16).frame(width: 220)
-    }
-
-    private func updateVisibleKind(_ kind: String, visible: Bool) {
-        var kinds = model.calendarPreferences.visibleKinds
-        if visible {
-            if !kinds.contains(kind) { kinds.append(kind) }
-        } else {
-            kinds.removeAll { $0 == kind }
-        }
-        Task { await model.updateCalendarPreferences(["visibleKinds": .array(kinds.map(JSONValue.string))]) }
     }
 }

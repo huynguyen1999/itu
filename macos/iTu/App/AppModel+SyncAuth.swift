@@ -1,35 +1,82 @@
 import Foundation
+import os
+
+private let authLifecycleLogger = Logger(subsystem: "com.itu.macos", category: "auth")
 
 @MainActor
 extension AppModel {
     func bootstrap() async {
+        authLifecycleLogger.debug("auth.bootstrap.started")
         await loadLocalState()
-        isBootstrapping = false
         guard user != nil else {
+            authLifecycleLogger.debug("auth.cached_user.missing")
+            do {
+                guard try await apiClient.hasRefreshToken() else {
+                    authLifecycleLogger.debug("auth.refresh_token.missing")
+                    authenticationState = .unauthenticated
+                    return
+                }
+                authLifecycleLogger.debug("auth.refresh_token.present")
+            } catch {
+                authLifecycleLogger.error("auth.keychain.read.failure")
+                errorMessage = error.localizedDescription
+                return
+            }
+            authenticationState = .restoring
+            installCredentialRestorationRetry()
+            await restoreCredential()
             return
         }
+        authLifecycleLogger.debug("auth.cached_user.present")
+        authenticationState = .authenticated
 
         let runGeneration = sessionGeneration
         Task { [weak self] in
             guard let self else { return }
-            do {
-                let session = try await apiClient.restoreSession()
-                guard !Task.isCancelled, runGeneration == sessionGeneration else { return }
-                try await switchAccountIfNeeded(to: session.user)
-                guard !Task.isCancelled, user?.id == session.user.id else { return }
-                startSyncLoop()
-                startUsageTracking()
-                await synchronize()
-                guard !Task.isCancelled, runGeneration == sessionGeneration else { return }
-                await loadServerState()
-            } catch let error as APIError where error.isTerminalAuthFailure {
-                guard runGeneration == sessionGeneration else { return }
-                handleTerminalAuthenticationFailure()
-            } catch {
-                startSyncLoop()
-                syncPhase = .offline
+            await continueAuthenticatedLifecycle(runGeneration: runGeneration)
+        }
+    }
+
+    func retryCredentialRestorationIfNeeded() async {
+        guard authenticationState == .restoring, user == nil else { return }
+        await restoreCredential()
+    }
+
+    private func installCredentialRestorationRetry() {
+        ConnectivityMonitor.shared.onReconnected = { [weak self] in
+            Task { @MainActor [weak self] in
+                await self?.retryCredentialRestorationIfNeeded()
             }
         }
+    }
+
+    private func restoreCredential() async {
+        let runGeneration = sessionGeneration
+        do {
+            let session = try await apiClient.restoreSession()
+            guard !Task.isCancelled, runGeneration == sessionGeneration else { return }
+            try await switchAccountIfNeeded(to: session.user)
+            guard !Task.isCancelled, user?.id == session.user.id else { return }
+            authenticationState = .authenticated
+            await continueAuthenticatedLifecycle(runGeneration: runGeneration)
+        } catch let error as APIError where error.isTerminalAuthFailure {
+            guard runGeneration == sessionGeneration else { return }
+            await terminateSession(reason: "terminal auth failure")
+        } catch {
+            authLifecycleLogger.debug("auth.session.restoration_pending")
+            errorMessage = error.localizedDescription
+            authenticationState = .restoring
+            installCredentialRestorationRetry()
+        }
+    }
+
+    private func continueAuthenticatedLifecycle(runGeneration: Int) async {
+        guard !Task.isCancelled, runGeneration == sessionGeneration, user != nil else { return }
+        startSyncLoop()
+        startUsageTracking()
+        await synchronize()
+        guard !Task.isCancelled, runGeneration == sessionGeneration else { return }
+        await loadServerState()
     }
 
     func authenticate(identifier: String, password: String, displayName: String?, isRegistration: Bool) async {
@@ -49,6 +96,7 @@ extension AppModel {
             guard !Task.isCancelled, runGeneration == sessionGeneration else { return }
             try await switchAccountIfNeeded(to: session.user)
             guard !Task.isCancelled, user?.id == session.user.id else { return }
+            authenticationState = .authenticated
             startSyncLoop()
             startUsageTracking()
             await synchronize(showErrors: true)
@@ -60,18 +108,15 @@ extension AppModel {
 
     func logout() async {
         invalidateSession()
-        let runGeneration = sessionGeneration
         syncCoordinator.stop()
         await flushUsageForLifecycle()
-        guard runGeneration == sessionGeneration else { return }
         stopUsageTracking()
-        await apiClient.logout()
-        guard runGeneration == sessionGeneration else { return }
-        SessionCache.clearUser()
-        user = nil
-        focusTimer.apply(active: nil)
-        syncPhase = .offline
-        updateFocusPolicy()
+        do {
+            try await apiClient.logout()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        await terminateSession(reason: "explicit logout")
     }
 
     func updateProfile(displayName: String, username: String?) async -> Bool {
@@ -116,9 +161,7 @@ extension AppModel {
             stopUsageTracking()
             try await apiClient.deleteAccount(password: password)
             guard runGeneration == sessionGeneration, user?.id == accountID else { return false }
-            user = nil
-            focusTimer.apply(active: nil)
-            updateFocusPolicy()
+            await terminateSession(reason: "account deleted")
             tasks = []
             cachedTaskSections.removeAll()
             cachedHomeTodayTasks = nil
@@ -252,7 +295,7 @@ extension AppModel {
             }
         } catch let error as APIError where error.isTerminalAuthFailure {
             guard runGeneration == sessionGeneration, user?.id == userID, offlineStore === store else { return }
-            handleTerminalAuthenticationFailure()
+            await handleTerminalAuthenticationFailure()
         } catch {
             guard runGeneration == sessionGeneration, user?.id == userID, offlineStore === store else { return }
             apply(await store.snapshot())
@@ -269,12 +312,24 @@ extension AppModel {
         }
     }
 
-    private func handleTerminalAuthenticationFailure() {
+    private func handleTerminalAuthenticationFailure() async {
+        await terminateSession(reason: "terminal auth failure")
+    }
+
+    func terminateSession(reason: String) async {
+        authLifecycleLogger.debug("auth.session.terminated reason=\(reason, privacy: .public)")
+        invalidateSession()
         stopUsageTracking()
         syncCoordinator.stop()
-        SessionCache.clearUser()
+        await apiClient.clearAccessToken()
+        do {
+            try SessionCache.clearSession()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
         user = nil
         focusTimer.apply(active: nil)
+        authenticationState = .unauthenticated
         syncPhase = .offline
         updateFocusPolicy()
     }

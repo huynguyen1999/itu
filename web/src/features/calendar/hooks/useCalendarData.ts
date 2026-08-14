@@ -28,7 +28,7 @@ export type CalendarPreferences = {
 const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
   zoom: 'WEEK',
   visibleKinds: ['TASK_DURATION', 'TASK_DUE', 'FOCUS_SESSION', 'EXTERNAL_EVENT'],
-  showCompleted: true,
+  showCompleted: false,
   collapsedGroupIds: [],
   weekStart: 'SYSTEM',
 };
@@ -96,7 +96,15 @@ export function useCalendarData() {
 
   const rawItems = timeline.data?.items ?? [];
   const items = useMemo(() => rawItems
-    .filter((item) => visibleKinds.includes(item.kind) && (showCompleted || !item.kind.startsWith('TASK_') || item.status !== 'COMPLETED'))
+    .filter((item) => {
+      if (!visibleKinds.includes(item.kind)) return false;
+      if (item.kind.startsWith('TASK_')) {
+        const statusUpper = typeof item.status === 'string' ? item.status.toUpperCase() : '';
+        if (statusUpper === 'ARCHIVED' || statusUpper === 'CANCELED') return false;
+        if (!showCompleted && statusUpper === 'COMPLETED') return false;
+      }
+      return true;
+    })
     .map((item) => resizePreview && item.id === resizePreview.itemId ? { ...item, startAt: resizePreview.startAt, endAt: resizePreview.endAt } : item),
     [rawItems, visibleKinds, showCompleted, resizePreview],
   );

@@ -116,8 +116,12 @@ export class AuthController {
    */
   @ApiOperation({ operationId: 'logout' })
   @Post(REST_ROUTES.logout)
-  async logout(@Req() req: AuthenticatedRequest, @Res({ passthrough: true }) res: FastifyReply) {
-    await this.auth.logout(this.refreshTokenFromRequest(req));
+  async logout(
+    @Req() req: AuthenticatedRequest,
+    @Body('refreshToken') bodyRefreshToken: string | undefined,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    await this.auth.logout(this.refreshTokenFromRequest(req) ?? bodyRefreshToken);
     this.clearRefreshCookie(res);
     return { ok: true };
   }

@@ -60,6 +60,7 @@ export const AUTH_CONSTANTS = {
   accessTokenTtl: '15m',
   refreshTokenTtl: '180d',
   refreshTokenTtlMs: 180 * 24 * 60 * 60 * 1000,
+  refreshRotationGraceMs: 5 * 60 * 1000,
 } as const;
 
 export const AUTH_ERROR_CODES = {

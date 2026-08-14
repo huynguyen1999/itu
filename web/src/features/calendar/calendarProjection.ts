@@ -8,11 +8,12 @@ export function projectTaskToCalendarItem(
     color?: string | null;
   },
 ): CalendarTimelineItem | null {
-  const showCompleted = options?.showCompleted ?? true;
-  if (!showCompleted && task.status === 'COMPLETED') {
+  const showCompleted = options?.showCompleted ?? false;
+  const statusUpper = typeof task.status === 'string' ? task.status.toUpperCase() : '';
+  if (!showCompleted && statusUpper === 'COMPLETED') {
     return null;
   }
-  if (task.status === 'ARCHIVED') {
+  if (statusUpper === 'ARCHIVED' || statusUpper === 'CANCELED') {
     return null;
   }
 

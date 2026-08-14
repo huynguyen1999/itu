@@ -26,10 +26,10 @@ final class CalendarParityTests: XCTestCase {
         XCTAssertFalse(item.readOnly)
     }
 
-    func testCalendarPreferencesDefaultShowsEveryKindAndCompletedTasks() {
+    func testCalendarPreferencesDefaultHidesCompletedTasks() {
         let preferences = CalendarPreferencesModel()
         XCTAssertEqual(preferences.zoom, "WEEK")
-        XCTAssertTrue(preferences.showCompleted)
+        XCTAssertFalse(preferences.showCompleted)
         XCTAssertEqual(Set(preferences.visibleKinds), Set(["TASK_DURATION", "TASK_DUE", "FOCUS_SESSION", "EXTERNAL_EVENT"]))
         XCTAssertTrue(preferences.collapsedGroupIds.isEmpty)
     }

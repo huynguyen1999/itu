@@ -35,12 +35,13 @@ describe('WeeklyReviewPage', () => {
       </MemoryRouter>,
     );
 
-    expect(markup).toContain('0 completed');
+    expect(markup).toContain('done');
     expect(markup).toContain('0h 0m');
-    expect(markup).toContain('0 / 0');
-    expect(markup).toContain('0 workouts');
+    expect(markup).toContain('/0');
+    expect(markup).toContain('sess.');
     expect(markup).toContain('₫0');
     expect(markup).not.toContain('12h 20m');
     expect(markup).not.toContain('2,850,000');
+    expect(markup).not.toContain('Tiny Experiment');
   });
 });
