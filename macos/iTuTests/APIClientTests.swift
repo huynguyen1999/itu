@@ -223,6 +223,20 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(store.values[.refreshToken], "old-refresh")
     }
 
+    func testRestoreSessionThrowsWhenNoCachedUserAndServerFails() async throws {
+        try? SessionCache.clearSession()
+        let store = InMemoryCredentialStore(values: [.refreshToken: "orphaned-refresh"])
+        StubURLProtocol.errors = ["/auth/refresh": URLError(.cannotConnectToHost)]
+        defer { resetAuthTestState() }
+
+        do {
+            _ = try await makeTestClient(credentialStore: store).restoreSession()
+            XCTFail("Expected restoreSession to throw when no cached user and server fails")
+        } catch {
+            XCTAssertNil(SessionCache.loadUser())
+        }
+    }
+
     func testNativeAPISessionDoesNotSendStaleRefreshCookie() async throws {
         let staleCookie = try XCTUnwrap(HTTPCookie(properties: [
             .domain: "localhost",

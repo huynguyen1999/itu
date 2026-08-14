@@ -93,6 +93,22 @@ struct AuthView: View {
                 .background(iTuTheme.borderSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
+                if let errorMessage = model.errorMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .foregroundStyle(iTuTheme.coral)
+                            .font(.system(size: 13))
+                        Text(errorMessage)
+                            .font(.system(size: 12))
+                            .foregroundStyle(iTuTheme.coral)
+                            .lineLimit(3)
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(iTuTheme.coralTint.opacity(0.6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+
                 VStack(spacing: 14) {
                     if isRegistration {
                         iTuField(title: "Display name", systemImage: "person", text: $displayName)

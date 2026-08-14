@@ -20,6 +20,7 @@ extension AppModel {
             } catch {
                 authLifecycleLogger.error("auth.keychain.read.failure")
                 errorMessage = error.localizedDescription
+                authenticationState = .unauthenticated
                 return
             }
             authenticationState = .restoring
@@ -65,8 +66,13 @@ extension AppModel {
         } catch {
             authLifecycleLogger.debug("auth.session.restoration_pending")
             errorMessage = error.localizedDescription
-            authenticationState = .restoring
-            installCredentialRestorationRetry()
+            if user == nil {
+                guard runGeneration == sessionGeneration else { return }
+                await terminateSession(reason: "restoration failure without cached profile")
+            } else {
+                authenticationState = .restoring
+                installCredentialRestorationRetry()
+            }
         }
     }
 

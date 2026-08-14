@@ -14,6 +14,27 @@ struct RootView: View {
                     Text("Loading your offline workspace…")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(iTuTheme.inkDim)
+
+                    if let errorMessage = model.errorMessage {
+                        Text(errorMessage)
+                            .font(.system(size: 11))
+                            .foregroundStyle(iTuTheme.coral)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                            .padding(.top, 2)
+                    }
+
+                    Button {
+                        Task {
+                            await model.terminateSession(reason: "user proceeded to sign in")
+                        }
+                    } label: {
+                        Text("Continue to Sign In")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(iTuTheme.teal)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 6)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(iTuTheme.canvas)
