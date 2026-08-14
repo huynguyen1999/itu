@@ -9,7 +9,6 @@ struct TaskListView: View {
     var taskListId: String? = nil
 
     @State private var newTaskTitle = ""
-    @State private var groupExpandedStates: [String: Bool] = [:]
     @State private var draggedTaskId: String?
 
     private var planningViewKey: PlanningViewKey {
@@ -22,21 +21,22 @@ struct TaskListView: View {
     }
 
     var body: some View {
+        let _ = AppPerformanceSignposts.emitTaskListBody()
         let settings = model.settingsStore.planningSettings(for: planningViewKey)
         let projection = model.planningRenderProjection(for: section, filterQuery: filterQuery, taskListId: taskListId, settings: settings)
-        let archivedSkillIDs = projection.archivedSkillIDs
-        let overdueTasks = projection.overdueTasks
-        let activeGroups = projection.activeGroups
-        let completedSectionTasks = projection.completedTasks
+        let items = PlanningTaskProjector.flatten(projection, collapsedGroups: settings.collapsedGroups)
+        let isEmpty = projection.overdueTasks.isEmpty
+            && projection.activeGroups.isEmpty
+            && (projection.completedTasks.isEmpty || model.hideCompletedTasks)
 
         return ScrollView {
-            LazyVStack(spacing: 20) {
-                // Quick Capture Bar matching Web Plan page
+            LazyVStack(spacing: 0) {
                 if section != .completed {
                     quickCaptureBar
+                        .padding(.bottom, 20)
                 }
 
-                if overdueTasks.isEmpty && activeGroups.isEmpty && (completedSectionTasks.isEmpty || model.hideCompletedTasks) {
+                if isEmpty {
                     VStack(spacing: 8) {
                         Text("No tasks found")
                             .font(.system(size: 13, weight: .medium))
@@ -45,112 +45,19 @@ struct TaskListView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 32)
                     .iTuPanel(radius: 14)
+                    .padding(.bottom, 20)
                 } else {
-                    // Pinned Overdue Group for Today View
-                    if !overdueTasks.isEmpty {
-                        let groupId = "overdue-group"
-                        taskGroupSection(
-                            title: "Overdue",
-                            tasks: overdueTasks,
-                            archivedSkillIDs: archivedSkillIDs,
-                            hideDetails: settings.hideDetails,
-                            isExpanded: Binding(
-                                get: { !settings.collapsedGroups.contains(groupId) },
-                                set: { isExpanded in
-                                    var updated = settings
-                                    if isExpanded {
-                                        updated.collapsedGroups.remove(groupId)
-                                    } else {
-                                        updated.collapsedGroups.insert(groupId)
-                                    }
-                                    model.settingsStore.updatePlanningSettings(for: planningViewKey, settings: updated)
-                                }
-                            ),
-                            onReorder: { draggedId, beforeId in
-                                let allIds = overdueTasks.map(\.id)
-                                let ordered = reorderedVisibleIds(
-                                    pending: allIds,
-                                    completed: [],
-                                    draggedId: draggedId,
-                                    beforeId: beforeId
-                                )
-                                Task { await model.reorderTasks(ordered) }
-                            }
-                        )
-                    }
-
-                    // Active Tasks Groups
-                    ForEach(activeGroups) { group in
-                        let groupId = group.id
-                        taskGroupSection(
-                            title: group.title,
-                            tasks: group.tasks,
-                            archivedSkillIDs: archivedSkillIDs,
-                            hideDetails: settings.hideDetails,
-                            isExpanded: Binding(
-                                get: { !settings.collapsedGroups.contains(groupId) },
-                                set: { isExpanded in
-                                    var updated = settings
-                                    if isExpanded {
-                                        updated.collapsedGroups.remove(groupId)
-                                    } else {
-                                        updated.collapsedGroups.insert(groupId)
-                                    }
-                                    model.settingsStore.updatePlanningSettings(for: planningViewKey, settings: updated)
-                                }
-                            ),
-                            onReorder: { draggedId, beforeId in
-                                let allIds = group.tasks.map(\.id)
-                                let ordered = reorderedVisibleIds(
-                                    pending: allIds,
-                                    completed: [],
-                                    draggedId: draggedId,
-                                    beforeId: beforeId
-                                )
-                                Task { await model.reorderTasks(ordered) }
-                            }
-                        )
-                    }
-
-                    // Completed & Won't Do Group (Separated like Web version)
-                    if !completedSectionTasks.isEmpty && !model.hideCompletedTasks {
-                        let groupId = "completed-wont-do"
-                        taskGroupSection(
-                            title: "Completed & Won’t Do",
-                            tasks: completedSectionTasks,
-                            archivedSkillIDs: archivedSkillIDs,
-                            hideDetails: settings.hideDetails,
-                            isExpanded: Binding(
-                                get: { !settings.collapsedGroups.contains(groupId) },
-                                set: { isExpanded in
-                                    var updated = settings
-                                    if isExpanded {
-                                        updated.collapsedGroups.remove(groupId)
-                                    } else {
-                                        updated.collapsedGroups.insert(groupId)
-                                    }
-                                    model.settingsStore.updatePlanningSettings(for: planningViewKey, settings: updated)
-                                }
-                            ),
-                            onReorder: { draggedId, beforeId in
-                                let allIds = completedSectionTasks.map(\.id)
-                                let ordered = reorderedVisibleIds(
-                                    pending: [],
-                                    completed: allIds,
-                                    draggedId: draggedId,
-                                    beforeId: beforeId
-                                )
-                                Task { await model.reorderTasks(ordered) }
-                            }
-                        )
+                    ForEach(items) { item in
+                        planningListItemView(item, settings: settings, projection: projection)
                     }
                 }
+
                 if model.hasMoreTaskPages {
                     taskPageFooter
                 }
             }
             .padding(24)
-        .frame(maxWidth: 900)
+            .frame(maxWidth: 900)
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(
@@ -160,6 +67,110 @@ struct TaskListView: View {
                 endPoint: .bottomTrailing
             )
         )
+    }
+
+    @ViewBuilder
+    private func planningListItemView(
+        _ item: PlanningListItem,
+        settings: PlanningViewSettings,
+        projection: PlanningRenderProjection
+    ) -> some View {
+        switch item {
+        case let .groupHeader(header):
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    var updated = settings
+                    if header.isExpanded {
+                        updated.collapsedGroups.insert(header.id)
+                    } else {
+                        updated.collapsedGroups.remove(header.id)
+                    }
+                    model.settingsStore.updatePlanningSettings(for: planningViewKey, settings: updated)
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: header.isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                    Text(header.title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(iTuTheme.inkDim)
+                    Text("\(header.count)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 4)
+            .padding(.bottom, header.isExpanded ? 10 : 20)
+
+        case let .emptyGroup(empty):
+            VStack(spacing: 8) {
+                Text("No tasks in \(empty.title.lowercased())")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 32)
+            .iTuPanel(radius: 14)
+            .padding(.bottom, 20)
+
+        case let .task(item):
+            let row = TaskRow(
+                task: item.task,
+                presentation: item.presentation,
+                rowPosition: item.position,
+                onStatusAction: {
+                    Task {
+                        guard let task = model.tasks.first(where: { $0.id == item.task.id }) else { return }
+                        await model.cycleTaskStatus(task)
+                    }
+                },
+                onEdit: { openTaskEditor(item.task) }
+            )
+            if settings.sortMode == .manual {
+                row
+                    .onDrag {
+                        draggedTaskId = item.task.id
+                        return NSItemProvider(object: item.task.id as NSString)
+                    }
+                    .onDrop(of: [UTType.text], isTargeted: nil) { _ in
+                        guard let draggedTaskId, draggedTaskId != item.task.id else { return false }
+                        reorderTask(
+                            draggedTaskId: draggedTaskId,
+                            beforeTaskId: item.task.id,
+                            groupID: item.groupID,
+                            projection: projection
+                        )
+                        self.draggedTaskId = nil
+                        return true
+                    }
+            } else {
+                row
+            }
+        }
+    }
+
+    private func reorderTask(
+        draggedTaskId: String,
+        beforeTaskId: String,
+        groupID: String,
+        projection: PlanningRenderProjection
+    ) {
+        let tasks: [ProductivityTask]
+        switch groupID {
+        case "overdue-group": tasks = projection.overdueTasks
+        case "completed-wont-do": tasks = projection.completedTasks
+        default: tasks = projection.activeGroups.first(where: { $0.id == groupID })?.tasks ?? []
+        }
+        let ordered = reorderedVisibleIds(
+            pending: groupID == "completed-wont-do" ? [] : tasks.map(\.id),
+            completed: groupID == "completed-wont-do" ? tasks.map(\.id) : [],
+            draggedId: draggedTaskId,
+            beforeId: beforeTaskId
+        )
+        Task { await model.reorderTasks(ordered) }
     }
 
     private func openTaskEditor(_ task: ProductivityTask) {
@@ -223,106 +234,6 @@ struct TaskListView: View {
         .iTuPanel(radius: 16)
     }
 
-    // MARK: - Task Group Section
-
-    private func taskGroupSection(
-        title: String,
-        tasks: [ProductivityTask],
-        archivedSkillIDs: Set<String>,
-        hideDetails: Bool,
-        isExpanded: Binding<Bool>,
-        onReorder: @escaping (String, String) -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Group Header Button (Collapsible)
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.wrappedValue.toggle()
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(iTuTheme.inkFaint)
-
-                    Text(title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(iTuTheme.inkDim)
-
-                    Text("\(tasks.count)")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(iTuTheme.inkFaint)
-
-                    Spacer()
-                }
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 4)
-
-            // Group List Content
-            if isExpanded.wrappedValue {
-                if tasks.isEmpty {
-                    VStack(spacing: 8) {
-                        Text("No tasks in \(title.lowercased())")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(iTuTheme.inkDim)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 32)
-                    .iTuPanel(radius: 14)
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(tasks) { task in
-                            taskRow(task, archivedSkillIDs: archivedSkillIDs, hideDetails: hideDetails, onReorder: onReorder)
-
-                            if task.id != tasks.last?.id {
-                                Rectangle()
-                                    .fill(iTuTheme.borderSoft)
-                                    .frame(height: 1)
-                                    .padding(.leading, 48)
-                            }
-                        }
-                    }
-                    .iTuPanel(radius: 14)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func taskRow(
-        _ task: ProductivityTask,
-        archivedSkillIDs: Set<String>,
-        hideDetails: Bool,
-        onReorder: @escaping (String, String) -> Void
-    ) -> some View {
-        let row = TaskRow(
-            task: task,
-            growthRule: model.growthEarningRules[task.id],
-            archivedSkillIDs: archivedSkillIDs,
-            hideDetails: hideDetails,
-            onStatusAction: {
-                Task { await model.cycleTaskStatus(task) }
-            },
-            onEdit: { openTaskEditor(task) }
-        )
-        if model.sortOption == .manual {
-            row
-                .onDrag {
-                    draggedTaskId = task.id
-                    return NSItemProvider(object: task.id as NSString)
-                }
-                .onDrop(of: [UTType.text], isTargeted: nil) { _ in
-                    guard let draggedTaskId, draggedTaskId != task.id else { return false }
-                    onReorder(draggedTaskId, task.id)
-                    self.draggedTaskId = nil
-                    return true
-                }
-        } else {
-            row
-        }
-    }
-
     private var taskPageFooter: some View {
         HStack {
             if model.isLoadingMoreTasks {
@@ -360,139 +271,259 @@ struct TaskListView: View {
 // MARK: - Task Row with Processing Status & Full Context Menu
 
 struct TaskRow: View {
-    @Environment(AppModel.self) private var model
     let task: ProductivityTask
-    let growthRule: GrowthEarningRuleDTO?
-    let archivedSkillIDs: Set<String>
-    let hideDetails: Bool
+    let presentation: TaskRowPresentation
+    let rowPosition: PlanningRowPosition
     var onStatusAction: (() -> Void)? = nil
     var statusActionDescription: String? = nil
     let onEdit: () -> Void
-    @State private var isHovered = false
-    @State private var isStatusHovered = false
+
+    init(
+        task: ProductivityTask,
+        presentation: TaskRowPresentation,
+        rowPosition: PlanningRowPosition = .only,
+        onStatusAction: (() -> Void)? = nil,
+        statusActionDescription: String? = nil,
+        onEdit: @escaping () -> Void
+    ) {
+        self.task = task
+        self.presentation = presentation
+        self.rowPosition = rowPosition
+        self.onStatusAction = onStatusAction
+        self.statusActionDescription = statusActionDescription
+        self.onEdit = onEdit
+    }
+
+    init(
+        task: ProductivityTask,
+        growthRule: GrowthEarningRuleDTO?,
+        archivedSkillIDs: Set<String>,
+        hideDetails: Bool,
+        onStatusAction: (() -> Void)? = nil,
+        statusActionDescription: String? = nil,
+        onEdit: @escaping () -> Void
+    ) {
+        self.init(
+            task: task,
+            presentation: TaskRowPresenter.make(
+                task: task,
+                growthRule: growthRule,
+                archivedSkillIDs: archivedSkillIDs,
+                day: Date(),
+                hideDetails: hideDetails
+            ),
+            onStatusAction: onStatusAction,
+            statusActionDescription: statusActionDescription,
+            onEdit: onEdit
+        )
+    }
 
     var body: some View {
-        let dueDate = task.dueAt.flatMap(iTuDateSupport.parse)
-        return HStack(spacing: 12) {
-            // Status Button cycling: Planned -> In Progress (blue play icon!) -> Completed -> Planned
-            Button {
-                onStatusAction?()
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(isStatusHovered ? iTuTheme.mintTint : Color.clear)
-                    Circle()
-                        .stroke(isStatusHovered ? iTuTheme.teal : Color.clear, lineWidth: 1.5)
-                    statusButtonIcon
-                    if isStatusHovered {
-                        statusButtonPreview
-                    }
-                }
-                .frame(width: 30, height: 30)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .frame(width: 30, height: 30)
-            .contentShape(Rectangle())
-            .scaleEffect(isStatusHovered ? 1.06 : 1.0)
-            .animation(.easeOut(duration: 0.12), value: isStatusHovered)
-            .onHover { hovering in
-                isStatusHovered = hovering
-            }
-            .zIndex(1)
-            .pointingHandCursor()
-            .help(statusActionDescription ?? "Status: \(task.status.displayName) → \(nextStatus.displayName)")
-            .accessibilityLabel("Status: \(task.status.displayName). \(statusActionDescription ?? "Change to \(nextStatus.displayName)")")
+        let _ = AppPerformanceSignposts.recordTaskRowBody()
+        TaskRowInteractionContainer(position: rowPosition) {
+            HStack(spacing: 12) {
+                TaskStatusButton(
+                    status: presentation.status,
+                    onAction: onStatusAction,
+                    actionDescription: statusActionDescription
+                )
 
-            VStack(alignment: .leading, spacing: 5) {
-                    Text(task.title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .strikethrough(task.status == .completed)
-                        .foregroundStyle(task.status == .completed ? iTuTheme.inkFaint : iTuTheme.ink)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                TaskRowStaticContent(presentation: presentation)
 
-                    if !hideDetails {
-                        WrappingHStack(horizontalSpacing: 6, verticalSpacing: 5) {
-                            if let dueAt = task.dueAt {
-                                TaskChip(
-                                    title: formattedDueDate(dueAt, parsedDate: dueDate),
-                                    systemImage: "calendar",
-                                    foreground: dueColor(dueDate),
-                                    background: dueBackground(dueDate)
-                                )
-                            }
-
-                            if let reminder = task.reminders?.first(where: { $0.status == "SCHEDULED" || $0.status == "SNOOZED" }),
-                               let reminderDate = iTuDateSupport.parse(reminder.remindAt) {
-                                TaskChip(
-                                    title: formattedDate(reminder.remindAt, parsedDate: reminderDate, includeOverdue: false),
-                                    systemImage: "bell.fill",
-                                    foreground: iTuTheme.teal,
-                                    background: iTuTheme.mintTint
-                                )
-                            }
-
-                            // Priority Badge inline
-                            if task.priority != .none {
-                                TaskChip(
-                                    title: priorityLabel(task.priority),
-                                    systemImage: "flag.fill",
-                                    foreground: priorityColor,
-                                    background: priorityBackground
-                                )
-                            }
-
-                            if let growthRule {
-                                GrowthRewardSummaryView(
-                                    rule: growthRule,
-                                    compact: true,
-                                    dense: true,
-                                    archivedSkillIDs: archivedSkillIDs
-                                )
-                            }
-                        }
-
-                        if !task.descriptionMarkdown.isEmpty {
-                            Text(task.descriptionMarkdown)
-                                .font(.system(size: 11))
-                                .foregroundStyle(iTuTheme.inkDim)
-                                .lineLimit(1)
-                        }
-                    }
-            }
-            .help("Open task details")
-            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-            .layoutPriority(1)
-
-            // Edit Action Menu Button presenting the shared web context popover
-            TaskActionMenuButton(task: task, onOpenDetails: onEdit)
-                .layoutPriority(0)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isHovered ? iTuTheme.surface : Color.clear)
-        )
-        .overlay {
-            if isHovered {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(iTuTheme.border, lineWidth: 1)
+                TaskActionMenuButton(task: task, onOpenDetails: onEdit)
+                    .layoutPriority(0)
             }
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: onEdit)
         .taskActionMenu(for: task, onOpenDetails: onEdit)
-        .onHover { hovering in
-            isHovered = hovering
+        .onAppear { AppPerformanceSignposts.recordTaskRowAppear() }
+        .onDisappear { AppPerformanceSignposts.recordTaskRowDisappear() }
+    }
+}
+
+private struct TaskRowInteractionContainer<Content: View>: View {
+    let position: PlanningRowPosition
+    let content: Content
+    @State private var isHovered = false
+
+    init(position: PlanningRowPosition, @ViewBuilder content: () -> Content) {
+        self.position = position
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background {
+                rowShape
+                    .fill(isHovered ? iTuTheme.surfaceMuted : iTuTheme.surface)
+            }
+            .overlay {
+                rowShape
+                    .stroke(isHovered ? iTuTheme.border : iTuTheme.borderSoft, lineWidth: 1)
+            }
+            .overlay(alignment: .bottom) {
+                if position != .last && position != .only {
+                    Rectangle()
+                        .fill(iTuTheme.borderSoft)
+                        .frame(height: 1)
+                        .padding(.leading, 48)
+                }
+            }
+            .onHover { isHovered = $0 }
+    }
+
+    private var rowShape: UnevenRoundedRectangle {
+        let top = position == .first || position == .only ? 14.0 : 0.0
+        let bottom = position == .last || position == .only ? 14.0 : 0.0
+        return UnevenRoundedRectangle(
+            topLeadingRadius: top,
+            bottomLeadingRadius: bottom,
+            bottomTrailingRadius: bottom,
+            topTrailingRadius: top
+        )
+    }
+}
+
+struct TaskRowStaticContent: View, Equatable {
+    let presentation: TaskRowPresentation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(presentation.title)
+                .font(.system(size: 14, weight: .semibold))
+                .strikethrough(presentation.isCompleted)
+                .foregroundStyle(presentation.isCompleted ? iTuTheme.inkFaint : iTuTheme.ink)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if presentation.metadataCount > 0 {
+                metadata
+            }
+
+            if let description = presentation.description {
+                Text(description)
+                    .font(.system(size: 11))
+                    .foregroundStyle(iTuTheme.inkDim)
+                    .lineLimit(1)
+            }
+        }
+        .help("Open task details")
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(1)
+    }
+
+    @ViewBuilder
+    private var metadata: some View {
+        if presentation.metadataCount <= 3 {
+            HStack(spacing: 6) {
+                metadataContent
+            }
+        } else {
+            WrappingHStack(horizontalSpacing: 6, verticalSpacing: 5) {
+                metadataContent
+            }
         }
     }
 
-    // MARK: - Status Icon Rendering (Including Processing / In Progress Status)
+    @ViewBuilder
+    private var metadataContent: some View {
+        if let due = presentation.due {
+            taskChip(due)
+        }
+        if let reminder = presentation.reminder {
+            taskChip(reminder)
+        }
+        if let priority = presentation.priority {
+            taskChip(priority)
+        }
+        ForEach(presentation.rewards) { reward in
+            rewardChip(reward)
+        }
+    }
+
+    @ViewBuilder
+    private func taskChip(_ chip: TaskChipPresentation) -> some View {
+        TaskChip(
+            title: chip.title,
+            systemImage: chip.systemImage,
+            foreground: chipForeground(chip.kind),
+            background: chipBackground(chip.kind)
+        )
+    }
+
+    @ViewBuilder
+    private func rewardChip(_ reward: TaskRewardPresentation) -> some View {
+        switch reward {
+        case let .accountXP(amount):
+            GrowthAccountRewardChipView(amount: amount, dense: true)
+        case let .skillXP(amount, awards):
+            GrowthRewardChipView(xpAmount: amount, awards: awards, dense: true)
+        case let .coins(amount):
+            GrowthCoinRewardChipView(amount: amount, dense: true)
+        case let .item(award):
+            GrowthItemRewardChipView(award: award)
+        }
+    }
+
+    private func chipForeground(_ kind: TaskChipKind) -> Color {
+        switch kind {
+        case .due, .reminder, .lowPriority: iTuTheme.teal
+        case .overdueDue, .highPriority: iTuTheme.coral
+        case .mediumPriority: iTuTheme.amber
+        }
+    }
+
+    private func chipBackground(_ kind: TaskChipKind) -> Color {
+        switch kind {
+        case .due, .reminder, .lowPriority: iTuTheme.mintTint
+        case .overdueDue, .highPriority: iTuTheme.coralTint
+        case .mediumPriority: iTuTheme.amberTint
+        }
+    }
+}
+
+private struct TaskStatusButton: View {
+    let status: TaskStatus
+    let onAction: (() -> Void)?
+    let actionDescription: String?
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            onAction?()
+        } label: {
+            ZStack {
+                if isHovered {
+                    Circle()
+                        .fill(iTuTheme.mintTint)
+                    Circle()
+                        .stroke(iTuTheme.teal, lineWidth: 1.5)
+                    statusIcon
+                    statusPreview
+                } else {
+                    statusIcon
+                }
+            }
+            .frame(width: 30, height: 30)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: 30, height: 30)
+        .contentShape(Rectangle())
+        .scaleEffect(isHovered ? 1.06 : 1.0)
+        .animation(.easeOut(duration: 0.12), value: isHovered)
+        .onHover { isHovered = $0 }
+        .zIndex(1)
+        .pointingHandCursor()
+        .help(actionDescription ?? "Status: \(status.displayName) → \(nextStatus.displayName)")
+        .accessibilityLabel("Status: \(status.displayName). \(actionDescription ?? "Change to \(nextStatus.displayName)")")
+    }
 
     private var nextStatus: TaskStatus {
-        switch task.status {
+        switch status {
         case .inbox, .planned: .inProgress
         case .inProgress: .completed
         case .completed, .canceled, .archived: .planned
@@ -500,7 +531,7 @@ struct TaskRow: View {
     }
 
     @ViewBuilder
-    private var statusButtonPreview: some View {
+    private var statusPreview: some View {
         switch nextStatus {
         case .inProgress:
             Image(systemName: "play.circle.fill")
@@ -526,103 +557,33 @@ struct TaskRow: View {
     }
 
     @ViewBuilder
-    private var statusButtonIcon: some View {
-        switch task.status {
+    private var statusIcon: some View {
+        switch status {
         case .inProgress:
-            // Processing status: Blue/teal play circle icon matching Web App
             Image(systemName: "play.circle.fill")
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(iTuTheme.teal)
                 .frame(width: 26, height: 26)
-
         case .completed:
-            // Completed status: Mint green checkmark circle
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(iTuTheme.mint)
                 .frame(width: 26, height: 26)
-
         case .canceled:
             Image(systemName: "xmark.circle.fill")
                 .font(.system(size: 22))
                 .foregroundStyle(iTuTheme.coral)
                 .frame(width: 26, height: 26)
-
         case .archived:
             Image(systemName: "archivebox.circle.fill")
                 .font(.system(size: 22))
                 .foregroundStyle(iTuTheme.inkFaint)
                 .frame(width: 26, height: 26)
-
         case .inbox, .planned:
-            // Empty circle for planned/inbox
             Circle()
                 .stroke(iTuTheme.inkFaint.opacity(0.55), lineWidth: 1.5)
                 .frame(width: 22, height: 22)
         }
-    }
-
-    private var showsMetadata: Bool {
-        task.priority != .none || task.important || task.dueAt != nil || task.estimatedMinutes != nil
-    }
-
-    private var priorityColor: Color {
-        switch task.priority {
-        case .none, .low: iTuTheme.teal
-        case .medium: iTuTheme.amber
-        case .high: iTuTheme.coral
-        }
-    }
-
-    private var priorityBackground: Color {
-        switch task.priority {
-        case .none, .low: iTuTheme.mintTint
-        case .medium: iTuTheme.amberTint
-        case .high: iTuTheme.coralTint
-        }
-    }
-
-    private func priorityLabel(_ priority: TaskPriority) -> String {
-        switch priority {
-        case .high: "high"
-        case .medium: "medium"
-        case .low: "low"
-        case .none: ""
-        }
-    }
-
-    private func dueColor(_ date: Date?) -> Color {
-        isOverdue(date) ? iTuTheme.coral : iTuTheme.teal
-    }
-
-    private func dueBackground(_ date: Date?) -> Color {
-        isOverdue(date) ? iTuTheme.coralTint : iTuTheme.mintTint
-    }
-
-    private func isOverdue(_ date: Date?) -> Bool {
-        guard let date else { return false }
-        return date < Date() && !Calendar.current.isDateInToday(date)
-    }
-
-    private func formattedDueDate(_ value: String, parsedDate: Date?) -> String {
-        guard task.status == .completed || task.status == .canceled else {
-            return formattedDate(value, parsedDate: parsedDate)
-        }
-
-        guard let date = parsedDate else { return value }
-        return date.formatted(iTuDateSupport.dueDay)
-    }
-
-    private func formattedDate(_ value: String, parsedDate: Date?, includeOverdue: Bool = true) -> String {
-        guard let date = parsedDate else { return value }
-        if Calendar.current.isDateInToday(date) {
-            return "Today"
-        }
-        if includeOverdue && isOverdue(date) {
-            let days = iTuDateSupport.calendarDayDifference(from: date, to: Date())
-            return "\(days) Day\(days == 1 ? "" : "s") Overdue"
-        }
-        return date.formatted(.dateTime.day().month(.abbreviated))
     }
 }
 
@@ -754,9 +715,22 @@ struct GrowthRewardSummaryView: View {
     var compact = false
     var dense = false
     var archivedSkillIDs: Set<String> = []
+    private let presentation: GrowthRewardPresentation
+
+    init(
+        rule: GrowthEarningRuleDTO?,
+        compact: Bool = false,
+        dense: Bool = false,
+        archivedSkillIDs: Set<String> = []
+    ) {
+        self.rule = rule
+        self.compact = compact
+        self.dense = dense
+        self.archivedSkillIDs = archivedSkillIDs
+        presentation = GrowthRewardPresentation(rule: rule, archivedSkillIDs: archivedSkillIDs)
+    }
 
     var body: some View {
-        let presentation = GrowthRewardPresentation(rule: rule, archivedSkillIDs: archivedSkillIDs)
         if compact {
             rewardChips(presentation)
         } else {

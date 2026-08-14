@@ -84,6 +84,200 @@ final class PlanningProjectorTests: XCTestCase {
         XCTAssertEqual(projection.completedTasks.map(\.id), ["completed"])
     }
 
+    func testFlattenedProjectionKeepsCollapsedGroupsLazy() {
+        let tasks = PlanningPerformanceFixtures.tasks(active: 20)
+        let projection = PlanningTaskProjector.render(
+            tasks: tasks,
+            section: .inbox,
+            settings: PlanningViewSettings(groupMode: .none),
+            hideCompleted: false
+        )
+
+        let collapsed = PlanningTaskProjector.flatten(projection, collapsedGroups: ["all"])
+        XCTAssertEqual(collapsed.map(\.id), ["group:all"])
+
+        let expanded = PlanningTaskProjector.flatten(projection, collapsedGroups: [])
+        XCTAssertEqual(expanded.count, 21)
+        XCTAssertEqual(expanded.first?.id, "group:all")
+        XCTAssertEqual(expanded.dropFirst().first?.id, "task:all:fixture-task-000")
+        XCTAssertEqual(expanded.last?.id, "task:all:fixture-task-019")
+    }
+
+    func testPresenterPreparesMetadataAndGrowthRewardsOutsideTheRow() {
+        let calendar = Calendar(identifier: .gregorian)
+        let day = calendar.date(from: DateComponents(year: 2026, month: 8, day: 14, hour: 12))!
+        var task = ProductivityTask.optimistic(
+            id: "presenter-task",
+            title: "Presenter task",
+            descriptionMarkdown: "Details",
+            priority: .high,
+            dueAt: iTuDateSupport.string(from: calendar.date(byAdding: .day, value: -2, to: day)!)
+        )
+        task.reminders = [
+            TaskReminderModel(id: "ignored", remindAt: "not-a-date", status: "DISMISSED", persistent: false),
+            TaskReminderModel(id: "scheduled", remindAt: iTuDateSupport.string(from: day), status: "SCHEDULED", persistent: false)
+        ]
+        let skill = GrowthSkillDTO(
+            id: "skill-1", key: nil, name: "Focus", level: 1, maxLevel: 5,
+            currentXp: 0, nextLevelXp: 100, category: nil, kind: "SKILL",
+            description: nil, icon: "target", color: nil, baseXp: 100, version: 1
+        )
+        let rule = GrowthEarningRuleDTO(
+            id: "rule-1", sourceType: .task, sourceId: task.id, coinReward: 5,
+            accountXp: 10, enabled: true, scalingMode: .fixed, maxRewardCap: nil,
+            version: 1,
+            skillAwards: [GrowthEarningRuleSkillAwardDTO(skillId: "skill-1", xpReward: 30, skill: skill)],
+            itemAwards: []
+        )
+
+        let presentation = TaskRowPresenter.make(
+            task: task,
+            growthRule: rule,
+            archivedSkillIDs: [],
+            day: day,
+            hideDetails: false,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(presentation.due?.title, "2 Days Overdue")
+        XCTAssertEqual(presentation.due?.kind, .overdueDue)
+        XCTAssertEqual(presentation.reminder?.title, "Today")
+        XCTAssertEqual(presentation.priority?.kind, .highPriority)
+        XCTAssertEqual(presentation.description, "Details")
+        XCTAssertEqual(presentation.rewards.count, 3)
+        XCTAssertTrue(presentation.rewards.contains { if case .accountXP(10) = $0 { true } else { false } })
+        XCTAssertTrue(presentation.rewards.contains { if case .coins(5) = $0 { true } else { false } })
+    }
+
+    func testPresenterHidesDetailsWithoutChangingTaskIdentity() {
+        var task = ProductivityTask.optimistic(
+            id: "hidden-details",
+            title: "Hidden details",
+            descriptionMarkdown: "Do not show"
+        )
+        task.dueAt = "2026-08-14"
+        let presentation = TaskRowPresenter.make(
+            task: task,
+            growthRule: nil,
+            archivedSkillIDs: [],
+            day: Date(timeIntervalSince1970: 0),
+            hideDetails: true
+        )
+
+        XCTAssertEqual(presentation.id, task.id)
+        XCTAssertEqual(presentation.title, task.title)
+        XCTAssertNil(presentation.due)
+        XCTAssertNil(presentation.description)
+    }
+
+    func testPresenterHandlesFutureCompletedCanceledAndSnoozedMetadata() {
+        let calendar = Calendar(identifier: .gregorian)
+        let day = calendar.date(from: DateComponents(year: 2026, month: 8, day: 14, hour: 12))!
+        let futureDate = calendar.date(byAdding: .day, value: 3, to: day)!
+
+        var future = ProductivityTask.optimistic(
+            id: "future-task",
+            title: "Future",
+            dueAt: iTuDateSupport.string(from: futureDate)
+        )
+        future.reminders = [
+            TaskReminderModel(id: "snoozed", remindAt: iTuDateSupport.string(from: futureDate), status: "SNOOZED", persistent: false)
+        ]
+        let futurePresentation = TaskRowPresenter.make(
+            task: future,
+            growthRule: nil,
+            archivedSkillIDs: [],
+            day: day,
+            hideDetails: false,
+            calendar: calendar
+        )
+        XCTAssertEqual(futurePresentation.due?.kind, .due)
+        XCTAssertEqual(futurePresentation.reminder?.kind, .reminder)
+
+        var completed = ProductivityTask.optimistic(
+            id: "completed-task",
+            title: "Completed",
+            dueAt: iTuDateSupport.string(from: calendar.date(byAdding: .day, value: -1, to: day)!)
+        )
+        completed.status = .completed
+        let completedPresentation = TaskRowPresenter.make(
+            task: completed,
+            growthRule: nil,
+            archivedSkillIDs: [],
+            day: day,
+            hideDetails: false,
+            calendar: calendar
+        )
+        XCTAssertEqual(completedPresentation.due?.title, calendar.date(byAdding: .day, value: -1, to: day)!.formatted(iTuDateSupport.dueDay))
+
+        var canceled = ProductivityTask.optimistic(id: "canceled-task", title: "Canceled")
+        canceled.status = .canceled
+        canceled.reminders = [TaskReminderModel(id: "dismissed", remindAt: "not-a-date", status: "DISMISSED", persistent: false)]
+        let canceledPresentation = TaskRowPresenter.make(
+            task: canceled,
+            growthRule: nil,
+            archivedSkillIDs: [],
+            day: day,
+            hideDetails: false,
+            calendar: calendar
+        )
+        XCTAssertNil(canceledPresentation.due)
+        XCTAssertNil(canceledPresentation.reminder)
+    }
+
+    func testPresenterExcludesArchivedSkillsAndKeepsItemRewards() {
+        let task = ProductivityTask.optimistic(id: "reward-task", title: "Rewards")
+        let activeSkill = GrowthSkillDTO(
+            id: "active-skill", key: nil, name: "Active", level: 1, maxLevel: 5,
+            currentXp: 0, nextLevelXp: 100, category: nil, kind: "SKILL",
+            description: nil, icon: "target", color: nil, baseXp: 100, version: 1
+        )
+        let archivedSkill = GrowthSkillDTO(
+            id: "archived-skill", key: nil, name: "Archived", level: 1, maxLevel: 5,
+            currentXp: 0, nextLevelXp: 100, category: nil, kind: "SKILL",
+            description: nil, icon: "archivebox", color: nil, baseXp: 100, version: 1
+        )
+        let item = GrowthEarningRuleItemDTO(
+            itemId: "potion", quantity: 2,
+            item: GrowthAwardItemDTO(id: "potion", name: "Potion", icon: "drop.fill", color: nil)
+        )
+        let rule = GrowthEarningRuleDTO(
+            id: "reward-rule", sourceType: .task, sourceId: task.id, coinReward: 0,
+            accountXp: 10, enabled: true, scalingMode: .fixed, maxRewardCap: nil, version: 1,
+            skillAwards: [
+                GrowthEarningRuleSkillAwardDTO(skillId: "active-skill", xpReward: 10, skill: activeSkill),
+                GrowthEarningRuleSkillAwardDTO(skillId: "archived-skill", xpReward: 10, skill: archivedSkill)
+            ],
+            itemAwards: [item]
+        )
+
+        let presentation = TaskRowPresenter.make(
+            task: task,
+            growthRule: rule,
+            archivedSkillIDs: ["archived-skill"],
+            day: Date(timeIntervalSince1970: 0),
+            hideDetails: false
+        )
+
+        XCTAssertEqual(presentation.rewards.count, 3)
+        XCTAssertTrue(presentation.rewards.contains {
+            if case let .skillXP(_, awards) = $0 { return awards.map(\.skillId) == ["active-skill"] }
+            return false
+        })
+        XCTAssertTrue(presentation.rewards.contains {
+            if case let .item(award) = $0 { return award.itemId == item.itemId }
+            return false
+        })
+    }
+
+    func testPerformanceFixturesCoverRequestedSizes() {
+        for count in [20, 50, 100, 200] {
+            XCTAssertEqual(PlanningPerformanceFixtures.tasks(active: count).count, count)
+        }
+        XCTAssertEqual(PlanningPerformanceFixtures.tasks(active: 100, completed: 100).count, 200)
+        XCTAssertEqual(PlanningPerformanceFixtures.tasks(active: 200, completed: 200).count, 400)
+    }
+
     func testMatrixProjectionClassifiesAndPartitionsTasks() {
         let importantUrgent = ProductivityTask.optimistic(id: "q1", title: "First", priority: .high, important: true, urgentOverride: true)
         let important = ProductivityTask.optimistic(id: "q2", title: "Later", priority: .high, important: true, urgentOverride: false)

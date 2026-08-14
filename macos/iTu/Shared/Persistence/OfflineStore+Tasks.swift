@@ -2,15 +2,20 @@ import Foundation
 
 extension OfflineStore {
     @discardableResult
-    func appendTaskPage(_ fetchedTasks: [ProductivityTask]) throws -> OfflineSnapshot {
+    func appendTaskPage(_ fetchedTasks: [ProductivityTask], metadata: [TaskMetadataDTO] = []) throws -> OfflineSnapshot {
         guard !fetchedTasks.isEmpty else { return state }
         let optimistic = Dictionary(uniqueKeysWithValues: state.tasks.map { ($0.id, $0) })
+        var indexes = Dictionary(uniqueKeysWithValues: state.tasks.enumerated().map { ($0.element.id, $0.offset) })
         for task in fetchedTasks {
-            if let index = state.tasks.firstIndex(where: { $0.id == task.id }) {
+            if let index = indexes[task.id] {
                 state.tasks[index] = task
             } else {
+                indexes[task.id] = state.tasks.count
                 state.tasks.append(task)
             }
+        }
+        for item in metadata {
+            state.tagIdsByTaskID[item.id] = item.tags.map { $0.tag.id }
         }
         try reapplyPendingTaskMutations(optimisticTasksByID: optimistic)
         try persist()

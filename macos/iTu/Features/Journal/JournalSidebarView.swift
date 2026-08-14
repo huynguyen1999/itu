@@ -12,7 +12,7 @@ struct JournalSidebarView: View {
     }
 
     private var dailyNotesCount: Int {
-        allNotes.filter { $0.kind == "DAILY" }.count
+        allNotes.filter { ($0.kind == "NOTE" || $0.kind == "DAILY") && $0.dailyReview == nil && $0.weeklyReview == nil }.count
     }
 
     private var dailyReviewsCount: Int {

@@ -184,6 +184,41 @@ final class JournalParityTests: XCTestCase {
         let retained = await store.snapshot()
         XCTAssertTrue(retained.pendingJournalAttachments["att-1"] != nil)
     }
+
+    func testDailyNoteTrashAndRestoreOfflineSnapshot() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let store = OfflineStore(accountID: "daily-note-trash", baseURL: directory)
+        let note = JournalNoteModel(
+            id: "daily-note-1",
+            userId: "user",
+            kind: "NOTE",
+            title: "Daily Note: 2026-08-14",
+            contentMarkdown: "## Notes\n- task 1",
+            entryDate: "2026-08-14",
+            updatedAt: "2026-08-14T10:00:00Z"
+        )
+        let create = SyncMutation(id: "create-mut", kind: "journal.create", entityId: note.id, baseVersion: nil, baseValues: nil, payload: [:], occurredAt: note.updatedAt, attemptCount: nil, lastAttemptAt: nil, nextRetryAt: nil, lastErrorCode: nil)
+        _ = try await store.saveJournalNote(note, mutation: create)
+
+        var deleted = note
+        deleted.deletedAt = "2026-08-14T11:00:00Z"
+        deleted.version = note.version + 1
+        let deleteMutation = SyncMutation(id: "del-mut", kind: "journal.delete", entityId: note.id, baseVersion: note.version, baseValues: nil, payload: [:], occurredAt: deleted.deletedAt!, attemptCount: nil, lastAttemptAt: nil, nextRetryAt: nil, lastErrorCode: nil)
+        let deletedSnapshot = try await store.saveJournalNote(deleted, mutation: deleteMutation)
+
+        XCTAssertEqual(deletedSnapshot.journalNotes.first?.deletedAt, "2026-08-14T11:00:00Z")
+        XCTAssertEqual(deletedSnapshot.mutations.map(\.kind), ["journal.create", "journal.delete"])
+
+        var restored = deleted
+        restored.deletedAt = nil
+        restored.version = deleted.version + 1
+        let restoreMutation = SyncMutation(id: "res-mut", kind: "journal.restore", entityId: note.id, baseVersion: deleted.version, baseValues: nil, payload: ["deletedAt": .null], occurredAt: "2026-08-14T12:00:00Z", attemptCount: nil, lastAttemptAt: nil, nextRetryAt: nil, lastErrorCode: nil)
+        let restoredSnapshot = try await store.saveJournalNote(restored, mutation: restoreMutation)
+
+        XCTAssertNil(restoredSnapshot.journalNotes.first?.deletedAt)
+        XCTAssertEqual(restoredSnapshot.mutations.map(\.kind), ["journal.create", "journal.delete", "journal.restore"])
+    }
 }
 
 private final class JournalUploadURLProtocol: URLProtocol {

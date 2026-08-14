@@ -12,11 +12,54 @@ struct PlanningTaskGroup: Identifiable, Sendable {
     }
 }
 
+enum PlanningRowPosition: Equatable, Sendable {
+    case first
+    case middle
+    case last
+    case only
+}
+
 struct PlanningRenderProjection: Sendable {
     let overdueTasks: [ProductivityTask]
     let activeGroups: [PlanningTaskGroup]
     let completedTasks: [ProductivityTask]
     let archivedSkillIDs: Set<String>
+    let rowPresentations: [String: TaskRowPresentation]
+}
+
+struct PlanningGroupHeaderItem: Identifiable, Sendable {
+    let id: String
+    let title: String
+    let count: Int
+    let isExpanded: Bool
+}
+
+struct PlanningEmptyGroupItem: Identifiable, Sendable {
+    let id: String
+    let title: String
+}
+
+struct PlanningTaskRowItem: Identifiable, Sendable {
+    let groupID: String
+    let task: ProductivityTask
+    let presentation: TaskRowPresentation
+    let position: PlanningRowPosition
+
+    var id: String { "task:\(groupID):\(task.id)" }
+}
+
+enum PlanningListItem: Identifiable, Sendable {
+    case groupHeader(PlanningGroupHeaderItem)
+    case task(PlanningTaskRowItem)
+    case emptyGroup(PlanningEmptyGroupItem)
+
+    var id: String {
+        switch self {
+        case let .groupHeader(item): "group:\(item.id)"
+        case let .task(item): item.id
+        case let .emptyGroup(item): "empty:\(item.id)"
+        }
+    }
 }
 
 struct PlanningRenderProjectionKey: Hashable, Sendable {
@@ -25,6 +68,7 @@ struct PlanningRenderProjectionKey: Hashable, Sendable {
     let query: String
     let sortMode: String
     let groupMode: String
+    let hideDetails: Bool
     let hideCompleted: Bool
     let modelHideCompleted: Bool
 }
@@ -39,13 +83,15 @@ enum PlanningTaskProjector {
         tagIdsByTaskID: [String: [String]] = [:],
         settings: PlanningViewSettings,
         hideCompleted: Bool,
-        archivedSkillIDs: Set<String> = []
+        archivedSkillIDs: Set<String> = [],
+        growthRules: [String: GrowthEarningRuleDTO] = [:],
+        presentationDay: Date = Date()
     ) -> PlanningRenderProjection {
         let visible = hideCompleted
             ? tasks.filter { $0.status != .completed && $0.status != .canceled }
             : tasks
         let sorted = sort(visible, by: settings.sortMode)
-        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let startOfToday = Calendar.current.startOfDay(for: presentationDay)
         var overdue: [ProductivityTask] = []
         var active: [ProductivityTask] = []
         var completed: [ProductivityTask] = []
@@ -66,8 +112,60 @@ enum PlanningTaskProjector {
             overdueTasks: overdue,
             activeGroups: group(active, by: settings.groupMode, sections: sections, lists: lists, tags: tags, tagIdsByTaskID: tagIdsByTaskID),
             completedTasks: completed,
-            archivedSkillIDs: archivedSkillIDs
+            archivedSkillIDs: archivedSkillIDs,
+            rowPresentations: Dictionary(uniqueKeysWithValues: visible.map { task in
+                (
+                    task.id,
+                    TaskRowPresenter.make(
+                        task: task,
+                        growthRule: growthRules[task.id],
+                        archivedSkillIDs: archivedSkillIDs,
+                        day: presentationDay,
+                        hideDetails: settings.hideDetails
+                    )
+                )
+            })
         )
+    }
+
+    static func flatten(
+        _ projection: PlanningRenderProjection,
+        collapsedGroups: Set<String>
+    ) -> [PlanningListItem] {
+        var items: [PlanningListItem] = []
+
+        func appendGroup(id: String, title: String, tasks: [ProductivityTask]) {
+            let isExpanded = !collapsedGroups.contains(id)
+            items.append(.groupHeader(PlanningGroupHeaderItem(id: id, title: title, count: tasks.count, isExpanded: isExpanded)))
+            guard isExpanded else { return }
+            guard !tasks.isEmpty else {
+                items.append(.emptyGroup(PlanningEmptyGroupItem(id: id, title: title)))
+                return
+            }
+
+            for (index, task) in tasks.enumerated() {
+                let position: PlanningRowPosition
+                switch tasks.count {
+                case 1: position = .only
+                case _ where index == 0: position = .first
+                case _ where index == tasks.count - 1: position = .last
+                default: position = .middle
+                }
+                let presentation = projection.rowPresentations[task.id]!
+                items.append(.task(PlanningTaskRowItem(groupID: id, task: task, presentation: presentation, position: position)))
+            }
+        }
+
+        if !projection.overdueTasks.isEmpty {
+            appendGroup(id: "overdue-group", title: "Overdue", tasks: projection.overdueTasks)
+        }
+        for group in projection.activeGroups {
+            appendGroup(id: group.id, title: group.title, tasks: group.tasks)
+        }
+        if !projection.completedTasks.isEmpty {
+            appendGroup(id: "completed-wont-do", title: "Completed & Won’t Do", tasks: projection.completedTasks)
+        }
+        return items
     }
 
     static func project(

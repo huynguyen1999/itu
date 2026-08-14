@@ -21,14 +21,12 @@ extension AppModel {
             async let lists = apiClient.fetchTaskLists()
             async let sections = apiClient.fetchTaskSections()
             async let tags = apiClient.fetchTaskTags()
-            async let metadata = apiClient.fetchTaskMetadata()
             async let earningRules = apiClient.fetchGrowthEarningRules(sourceType: .task)
 
             let fetchedTaskPage = try await tasks
             let fetchedLists = try await lists
             let fetchedSections = try await sections
             let fetchedTags = try await tags
-            let fetchedMetadata = try await metadata
             let fetchedRules = try? await earningRules
 
             guard !Task.isCancelled,
@@ -41,7 +39,7 @@ extension AppModel {
                 lists: fetchedLists,
                 sections: fetchedSections,
                 tags: fetchedTags,
-                metadata: fetchedMetadata,
+                metadata: fetchedTaskPage.metadata,
                 taskRules: fetchedRules
             )
             let snapshot = try await store.applyHydration(resources)
@@ -73,7 +71,9 @@ extension AppModel {
                   offlineStore === store,
                   user?.id == accountID else { return }
             configureTaskPagination(page)
-            apply(try await store.appendTaskPage(page.data))
+            AppPerformanceSignposts.recordPaginationAppend()
+            apply(try await store.appendTaskPage(page.data, metadata: page.metadata))
+            AppPerformanceSignposts.recordPaginationApply()
         } catch {
             guard runGeneration == sessionGeneration else { return }
             errorMessage = "Could not load more tasks: \(error.localizedDescription)"
@@ -500,11 +500,13 @@ extension AppModel {
             query: query,
             sortMode: settings.sortMode.rawValue,
             groupMode: settings.groupMode.rawValue,
+            hideDetails: settings.hideDetails,
             hideCompleted: settings.hideCompleted,
             modelHideCompleted: hideCompletedTasks
         )
         if let cached = cachedPlanningRenderProjections[key] { return cached }
 
+        AppPerformanceSignposts.recordPlanProjectionBuild()
         var visible = tasks(for: section)
         if let taskListId { visible = visible.filter { $0.taskListId == taskListId } }
         if !query.isEmpty { visible = visible.filter { $0.title.lowercased().contains(query) } }
@@ -517,8 +519,11 @@ extension AppModel {
             tagIdsByTaskID: tagIdsByTaskID,
             settings: settings,
             hideCompleted: hideCompletedTasks || settings.hideCompleted,
-            archivedSkillIDs: archivedSkillIDs
+            archivedSkillIDs: archivedSkillIDs,
+            growthRules: growthEarningRules,
+            presentationDay: Date()
         )
+        AppPerformanceSignposts.recordPlanRowPresentationBuild(count: projection.rowPresentations.count)
         cachedPlanningRenderProjections[key] = projection
         return projection
     }

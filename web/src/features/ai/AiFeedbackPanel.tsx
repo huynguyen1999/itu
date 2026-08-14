@@ -8,7 +8,7 @@ import { Button } from '@/shared/ui/button';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { BrainCircuit, CheckCircle2, Settings2, Target } from 'lucide-react';
 import { MarkdownPreview } from '../../shared/markdown/MarkdownPreview';
-import { useSync } from '@/shared/sync/SyncProvider';
+import { useGrowthSync } from '@/features/growth';
 import { studyCompletionMessage, studyReceiptAccountXp } from '@/features/review';
 import { parseSseEventLine } from '../../shared/utils/sse';
 
@@ -47,7 +47,7 @@ export function AiFeedbackPanel({
   const [sessionSaved, setSessionSaved] = useState(false);
   const [wantsAiReview, setWantsAiReview] = useState(false);
   const [completedReviewedCount, setCompletedReviewedCount] = useState(reviewedCount);
-  const { growthReceipts } = useSync();
+  const { growthReceipts } = useGrowthSync();
   const completionReceipt = growthReceipts.find(
     (receipt) => receipt.sourceType === 'REVIEW_DECK' && receipt.sourceId === sessionId,
   );

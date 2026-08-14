@@ -207,7 +207,7 @@ final class CompanionViewModel {
         for habit in model.habits.filter({ $0.archivedAt == nil && $0.name.localizedLowercase.contains(needle) }).prefix(5) {
             results.append(CompanionSearchItem(id: "habit-\(habit.id)", section: .habits, title: habit.name, subtitle: "Habit", icon: "repeat") { [weak self] in self?.openSection(.habits) })
         }
-        for note in model.journalNotes.filter({ $0.title.localizedLowercase.contains(needle) || $0.contentMarkdown.localizedLowercase.contains(needle) }).prefix(5) {
+        for note in model.journalNotes.filter({ $0.deletedAt == nil && $0.dailyReview == nil && $0.weeklyReview == nil && $0.kind != "DAILY_REVIEW" && $0.kind != "WEEKLY_REVIEW" && ($0.title.localizedLowercase.contains(needle) || $0.contentMarkdown.localizedLowercase.contains(needle)) }).prefix(5) {
             results.append(CompanionSearchItem(id: "note-\(note.id)", section: .notes, title: note.title, subtitle: note.entryDate, icon: "doc.text") { [weak self] in self?.openSection(.journal) })
         }
         for deck in model.decks.filter({ $0.title.localizedLowercase.contains(needle) || $0.description.localizedLowercase.contains(needle) }).prefix(5) {
@@ -475,7 +475,14 @@ final class CompanionViewModel {
     }
 
     static func todayNote(in notes: [JournalNoteModel], day: String) -> JournalNoteModel? {
-        notes.filter { iTuDateSupport.localDayString(from: $0.entryDate) == day }
-            .max { $0.updatedAt < $1.updatedAt }
+        notes.filter {
+            $0.deletedAt == nil &&
+            $0.dailyReview == nil &&
+            $0.weeklyReview == nil &&
+            $0.kind != "DAILY_REVIEW" &&
+            $0.kind != "WEEKLY_REVIEW" &&
+            iTuDateSupport.localDayString(from: $0.entryDate) == day
+        }
+        .max { $0.updatedAt < $1.updatedAt }
     }
 }

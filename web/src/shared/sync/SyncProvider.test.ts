@@ -1,7 +1,8 @@
 import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import type { GrowthAwardReceipt } from '../api/types';
-import { Sync, growthCompletionTransition, mergeGrowthReceiptEntries } from './SyncProvider';
+import { growthCompletionTransition, mergeGrowthReceiptEntries } from '../../features/growth/sync/GrowthSyncBridge';
+import { Sync } from './SyncProvider';
 
 function receipt(title: string, amount: number): GrowthAwardReceipt {
   return {
@@ -22,7 +23,7 @@ function receipt(title: string, amount: number): GrowthAwardReceipt {
   };
 }
 
-describe('growth receipt lifecycle reconciliation', () => {
+describe('sync lifecycle and growth receipt reconciliation', () => {
   it('recognizes a habit check-in that completes its target', () => {
     expect(
       growthCompletionTransition(
@@ -131,12 +132,13 @@ describe('growth receipt lifecycle reconciliation', () => {
         },
       ],
     });
-    await vi.waitFor(() => expect(invalidateQueries).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(invalidateQueries).toHaveBeenCalled());
+    const callsBeforeLifecycleChange = invalidateQueries.mock.calls.length;
     internals.lifecycleGeneration += 1;
     release();
     await handling;
 
-    expect(invalidateQueries).toHaveBeenCalledTimes(1);
+    expect(invalidateQueries.mock.calls.length).toBe(callsBeforeLifecycleChange);
     vi.unstubAllGlobals();
   });
 });

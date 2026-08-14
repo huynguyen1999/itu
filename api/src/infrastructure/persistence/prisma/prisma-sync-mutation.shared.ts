@@ -27,16 +27,6 @@ export const HABIT_SYNC_INCLUDE = {
   commitmentPolicy: true,
 } satisfies Prisma.HabitInclude;
 
-export function validFocusMinutes(
-  session: Pick<Prisma.FocusSessionGetPayload<{}>, 'startedAt' | 'completedAt' | 'adjustedStartedAt' | 'adjustedCompletedAt' | 'accumulatedPauseSecs'>,
-): number {
-  const effectiveStartedAt = session.adjustedStartedAt ?? session.startedAt;
-  const effectiveCompletedAt = session.adjustedCompletedAt ?? session.completedAt;
-  if (!effectiveCompletedAt) return 0;
-  const elapsedSeconds = Math.floor((effectiveCompletedAt.getTime() - effectiveStartedAt.getTime()) / 1000);
-  return Math.max(0, Math.floor((elapsedSeconds - Math.max(0, session.accumulatedPauseSecs ?? 0)) / 60));
-}
-
 export async function recordSyncChange(
   tx: Tx,
   userId: string,

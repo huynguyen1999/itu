@@ -370,7 +370,7 @@ function bucketKey(dateKey: string, rangeStart: string, mode: 'day' | 'week' | '
 function bucketLabel(dateKey: string, mode: 'day' | 'week' | 'month') {
   const date = parseDateKey(dateKey);
   return date.toLocaleDateString(
-    undefined,
+    'en-US',
     mode === 'month' ? { month: 'short', year: '2-digit' } : { month: 'short', day: 'numeric' },
   );
 }
@@ -396,4 +396,70 @@ function localDateKey(date: Date) {
 function parseDateKey(value: string) {
   const [year, month, day] = value.split('-').map(Number);
   return new Date(year, month - 1, day);
+}
+
+
+export function formatMinutes(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (hours === 0) return `${remainder}m`;
+  return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
+}
+
+export function formatActiveDuration(seconds: number) {
+  const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
+  if (safeSeconds < 60) return `${safeSeconds}s`;
+  return formatMinutes(Math.floor(safeSeconds / 60));
+}
+
+export function formatWebsitePath(url: string) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname || '/'}${parsed.search}${parsed.hash}`;
+  } catch {
+    return url;
+  }
+}
+
+export function formatSessionTime(value: string, timezone: string) {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: timezone,
+    }).format(new Date(value));
+  } catch {
+    return new Date(value).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }
+}
+
+export function axisActiveDuration(seconds: number) {
+  return seconds >= 3_600 ? `${Math.round(seconds / 3_600)}h` : `${Math.round(seconds / 60)}m`;
+}
+
+export function formatNumber(value: number) {
+  return value.toLocaleString();
+}
+
+export function chartColor(color: string) {
+  if (/^#[0-9a-f]{6}$/i.test(color)) return color;
+  return (
+    {
+      TEAL: '#0f766e',
+      EMERALD: '#059669',
+      BLUE: '#2563eb',
+      INDIGO: '#4f46e5',
+      VIOLET: '#7c3aed',
+      ROSE: '#e11d48',
+      AMBER: '#d97706',
+      SLATE: '#475569',
+    }[color] ?? '#0f766e'
+  );
 }

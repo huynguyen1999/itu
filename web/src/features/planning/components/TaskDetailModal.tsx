@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CornerDownRight, Flag, ListTodo, Plus, Play, Trash2, X } from 'lucide-react';
+import { Check, Flag, Play, Trash2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import type { ProductivityTask, TaskPriority, TaskReminder } from '@/shared/api/types';
@@ -21,6 +21,7 @@ import {
   type ReminderCreateInput,
 } from '../utils/taskReminderDraft';
 import { updateTaskInCalendarCache } from '@/features/calendar';
+import { TaskSubtasksSection, TaskTagsSection } from './TaskDetailSections';
 
 export function TaskDetailModal({
   task,
@@ -411,121 +412,20 @@ export function TaskDetailModal({
             {/* Subtasks Section */}
             <GrowthRewardEditor ref={growthEditorRef} sourceType="TASK" sourceId={task.id} />
 
-            {/* Subtasks Section */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold">
-                <span className="flex items-center gap-1.5">
-                  <ListTodo className="h-4 w-4 text-primary" />
-                  Subtasks ({subtasks.filter((s) => s.status === 'COMPLETED').length}/{subtasks.length})
-                </span>
-              </div>
+            <TaskSubtasksSection
+              subtasks={subtasks}
+              newSubtaskTitle={newSubtaskTitle}
+              onNewSubtaskTitleChange={setNewSubtaskTitle}
+              onCreate={(subtaskTitle) => createSubtask.mutate(subtaskTitle)}
+              onToggle={(subtask, isDone) => toggleSubtask.mutate({ subtask, isDone })}
+              onDelete={(subtaskId) => deleteSubtask.mutate(subtaskId)}
+            />
 
-              <div className="space-y-1.5">
-                {subtasks.map((st) => {
-                  const stDone = st.status === 'COMPLETED';
-                  return (
-                    <div
-                      key={st.id}
-                      className="group flex items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs border border-border/60 hover:border-border transition-colors"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <button
-                          type="button"
-                          onClick={() => toggleSubtask.mutate({ subtask: st, isDone: stDone })}
-                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                            stDone ? 'bg-primary border-primary text-primary-foreground' : 'border-input'
-                          }`}
-                        >
-                          {stDone && <Check className="h-3 w-3 stroke-[3]" />}
-                        </button>
-                        <span
-                          className={`truncate text-foreground ${stDone ? 'line-through text-muted-foreground' : ''}`}
-                        >
-                          {st.title}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => deleteSubtask.mutate(st.id)}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-rose-500 transition-opacity"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-
-                {/* Add Subtask Input */}
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (newSubtaskTitle.trim()) createSubtask.mutate(newSubtaskTitle);
-                  }}
-                  className="flex items-center gap-2 rounded-lg border border-dashed border-input px-3 py-1.5 hover:border-primary transition-colors"
-                >
-                  <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  <input
-                    value={newSubtaskTitle}
-                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                    placeholder="Add subtask and press Enter..."
-                    className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  />
-                  {newSubtaskTitle.trim() && (
-                    <Button size="sm" type="submit" variant="ghost" className="h-6 px-2 text-xs text-primary">
-                      Add
-                    </Button>
-                  )}
-                </form>
-              </div>
-            </div>
-
-            {/* Tags Section */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                {task.tags.map(({ tag }) => (
-                  <span
-                    key={tag.id}
-                    className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs text-primary font-medium"
-                  >
-                    #{tag.name}
-                    <button
-                      type="button"
-                      onClick={() => toggleTag.mutate(tag.id)}
-                      className="hover:text-rose-500 ml-0.5"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-
-                {/* Add Tag Dropdown */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 rounded-full border border-input bg-muted/40 px-2.5 py-0.5 text-xs text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
-                    >
-                      <Plus className="h-3 w-3" /> Tag
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    {allTags.data?.map((tag) => {
-                      const isSelected = task.tags.some((t) => t.tag.id === tag.id);
-                      return (
-                        <DropdownMenuItem
-                          key={tag.id}
-                          onSelect={() => toggleTag.mutate(tag.id)}
-                          className="flex items-center justify-between text-xs cursor-pointer"
-                        >
-                          <span>#{tag.name}</span>
-                          {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
+            <TaskTagsSection
+              tags={task.tags}
+              allTags={allTags.data ?? []}
+              onToggle={(tagId) => toggleTag.mutate(tagId)}
+            />
           </div>
 
           {/* Modal Footer Bar */}

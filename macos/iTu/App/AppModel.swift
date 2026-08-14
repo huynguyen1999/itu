@@ -573,7 +573,10 @@ final class AppModel {
         if growthProfile != snapshot.growthProfile { growthProfile = snapshot.growthProfile }
         if growthRewardPresets != snapshot.growthRewardPresets { growthRewardPresets = snapshot.growthRewardPresets }
         if growthTaskRewardDefaults != snapshot.growthTaskRewardDefaults { growthTaskRewardDefaults = snapshot.growthTaskRewardDefaults }
-        if growthEarningRules != snapshot.growthEarningRules { growthEarningRules = snapshot.growthEarningRules }
+        if growthEarningRules != snapshot.growthEarningRules {
+            growthEarningRules = snapshot.growthEarningRules
+            cachedPlanningRenderProjections.removeAll(keepingCapacity: true)
+        }
         if growthAttributeMappings != snapshot.growthAttributeMappings { growthAttributeMappings = snapshot.growthAttributeMappings }
     }
 

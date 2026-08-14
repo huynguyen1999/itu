@@ -10,6 +10,7 @@ vi.mock('@tanstack/react-query', () => ({
 vi.mock('../journalQueries', () => ({
   useJournalEntry: () => ({ data: undefined, isLoading: false }),
   useDailySummary: () => ({ data: undefined, isLoading: false }),
+  useJournalEntries: () => ({ data: [], isLoading: false }),
 }));
 
 vi.mock('../journalMutations', () => ({

@@ -20,7 +20,7 @@ struct JournalOverviewView: View {
     }
 
     private var todayNote: JournalNoteModel? {
-        allNotes.first { $0.kind == "DAILY" && $0.entryDate == todayStr }
+        allNotes.first { ($0.kind == "NOTE" || $0.kind == "DAILY") && $0.dailyReview == nil && $0.weeklyReview == nil && $0.entryDate == todayStr }
     }
 
     private var todayReview: JournalNoteModel? {
@@ -129,6 +129,21 @@ struct JournalOverviewView: View {
                                 noteCard(note)
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    onSelectNote(note)
+                                } label: {
+                                    Label("Open Note", systemImage: "doc.text")
+                                }
+                                Divider()
+                                Button(role: .destructive) {
+                                    Task {
+                                        await model.deleteJournalNote(id: note.id)
+                                    }
+                                } label: {
+                                    Label("Move to Trash", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                 }

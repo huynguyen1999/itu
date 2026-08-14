@@ -5,16 +5,32 @@ import {
   useMemo,
   useRef,
   useState,
-  type Dispatch,
-  type SetStateAction,
 } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Coins, Gift, Pencil, Search, TrendingUp, X, Zap } from 'lucide-react';
+import { Coins, Gift, Search, TrendingUp, X, Zap } from 'lucide-react';
 import { api } from '@/shared/api/client';
-import type { GrowthEarningRule, GrowthScalingMode, GrowthSourceType } from '@/shared/api/types';
-import { growthSkillWeightsTotal, selectGrowthRewardWeights } from '@/shared/growthRewardMath';
+import type { GrowthScalingMode, GrowthSourceType } from '@/shared/api/types';
+import {
+  buildGrowthRuleDraft,
+  clampWeightValue,
+  defaultGrowthWeights,
+  growthAwardsUseSharedXp,
+  growthRewardValueIsSelected,
+  growthRuleComparable,
+  growthSkillWeightsTotal,
+  isPositiveGrowthRewardValue,
+  selectGrowthRewardWeights,
+} from '@/shared/growthRewardMath';
+export {
+  buildGrowthRuleDraft,
+  clampWeightValue,
+  defaultGrowthWeights,
+  growthAwardsUseSharedXp,
+  growthRewardValueIsSelected,
+} from '@/shared/growthRewardMath';
 import { isSelectableGrowthEntry } from '@/shared/growthEntryFilters';
 import { Button } from '@/shared/ui/button';
+import { GrowthRewardSummary } from '@/shared/ui/GrowthRewardSummary';
 import { Input } from '@/shared/ui/input';
 import { cn } from '@/lib/utils';
 import { GrowthIconMark, growthSolidColorClasses } from '@/shared/ui/GrowthIcons';
@@ -142,7 +158,7 @@ export const GrowthRewardEditor = forwardRef<
     setXp((current) => {
       if (!growthRewardValueIsSelected(current, entryId)) {
         const selectedIds = Object.entries(current)
-          .filter(([, value]) => positiveRewardValue(value))
+          .filter(([, value]) => isPositiveGrowthRewardValue(value))
           .map(([id]) => id);
         if (selectedIds.length >= 3) return current;
         if (selectedIds.length === 0) return { [entryId]: '100' };
@@ -171,95 +187,20 @@ export const GrowthRewardEditor = forwardRef<
     });
   };
 
-  // ── Collapsed view ──────────────────────────────────────────────
   if (!editing) {
-    const rewardCount = selectedEntries.length + selectedItems.length + (Number(coins) > 0 ? 1 : 0);
-    const xpGroups = Array.from(
-      selectedEntries.reduce((groups, entry) => {
-        const amount = Number(xp[entry.id]) || 0;
-        const current = groups.get(amount) ?? [];
-        current.push(entry);
-        groups.set(amount, current);
-        return groups;
-      }, new Map<number, typeof selectedEntries>()),
-    ).sort(([leftAmount], [rightAmount]) => rightAmount - leftAmount);
-
     return (
-      <section className="rounded-xl border border-violet-300/40 bg-gradient-to-br from-violet-500/7 to-teal-400/7 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Gift className="h-4 w-4 text-violet-500" />
-              <h3 className="text-xs font-bold uppercase tracking-[0.14em]">Growth rewards</h3>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {rewardCount
-                ? `${rewardCount} reward ${rewardCount === 1 ? 'type' : 'types'} on completion`
-                : 'No Growth rewards'}
-            </p>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="min-h-11 gap-2"
-            onClick={() => {
-              setEditing(true);
-              // focus search when opening editor
-              requestAnimationFrame(() => searchRef.current?.focus());
-            }}
-          >
-            <Pencil className="h-3.5 w-3.5" /> Edit
-          </Button>
-        </div>
-        {rewardCount ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {xpGroups.map(([amount, groupedEntries]) => (
-              <span
-                key={`${amount}:${groupedEntries.map((entry) => entry.id).join(':')}`}
-                className="inline-flex h-8 items-center gap-2 rounded-full border border-teal-300/50 bg-teal-500/10 px-2.5 text-xs font-bold text-teal-800 dark:text-teal-200"
-                title={`${groupedEntries.map((entry) => entry.name).join(', ')} +${amount} XP`}
-              >
-                <span className="inline-flex -space-x-1.5">
-                  {groupedEntries.slice(0, 4).map((entry) => {
-                    const colorClass = growthSolidColorClasses[entry.color] ?? growthSolidColorClasses.TEAL;
-                    return (
-                      <span
-                        key={entry.id}
-                        className={`relative inline-flex h-5 w-5 items-center justify-center overflow-hidden rounded-full ring-2 ring-background ${colorClass}`}
-                      >
-                        <GrowthIconMark icon={entry.icon} className="h-3 w-3" />
-                      </span>
-                    );
-                  })}
-                </span>
-                {groupedEntries.length > 4 ? <span>+{groupedEntries.length - 4}</span> : null}
-                <span>+{amount} XP</span>
-              </span>
-            ))}
-            {Number(coins) > 0 ? (
-              <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-amber-300/60 bg-amber-400/10 px-2.5 text-xs font-bold text-amber-800 dark:text-amber-200">
-                <Coins className="h-3.5 w-3.5" />+{coins}
-              </span>
-            ) : null}
-            {selectedItems.map((item) => (
-              <span
-                key={item.id}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-violet-300/50 bg-violet-500/10 px-2.5 text-xs font-bold text-violet-800 dark:text-violet-200"
-              >
-                <GrowthIconMark icon={item.icon} className="h-3.5 w-3.5" />×{itemQuantities[item.id]}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {Number(accountXp) > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-teal-300/50 bg-teal-500/10 px-2.5 text-xs font-bold text-teal-800 dark:text-teal-200">
-              <Zap className="h-3.5 w-3.5" />+{accountXp} Account XP
-            </span>
-          </div>
-        ) : null}
-      </section>
+      <GrowthRewardSummary
+        selectedEntries={selectedEntries}
+        selectedItems={selectedItems}
+        xp={xp}
+        coins={coins}
+        accountXp={accountXp}
+        itemQuantities={itemQuantities}
+        onEdit={() => {
+          setEditing(true);
+          requestAnimationFrame(() => searchRef.current?.focus());
+        }}
+      />
     );
   }
 
@@ -554,144 +495,16 @@ export const GrowthRewardEditor = forwardRef<
   );
 });
 
-export function growthAwardsUseSharedXp(awards: Array<{ xpReward: number }>): boolean {
-  return awards.length < 2 || awards.every((award) => award.xpReward === awards[0]?.xpReward);
-}
-
-export function growthRewardValueIsSelected(values: Record<string, string>, id: string): boolean {
-  return positiveRewardValue(values[id]);
-}
-
-function positiveRewardValue(value: string | undefined): boolean {
-  const amount = Number(value);
-  return Number.isFinite(amount) && amount > 0;
-}
-
-function setRewardValue(setter: Dispatch<SetStateAction<Record<string, string>>>, id: string, value: string) {
+function setRewardValue(
+  setter: (update: (current: Record<string, string>) => Record<string, string>) => void,
+  id: string,
+  value: string,
+) {
   setter((current) => {
     if (value === '') return { ...current, [id]: value };
-    if (positiveRewardValue(value)) return { ...current, [id]: value };
+    if (isPositiveGrowthRewardValue(value)) return { ...current, [id]: value };
     const next = { ...current };
     delete next[id];
     return next;
   });
-}
-
-/**
- * Clamp an entered skill weight so the combined weights never exceed 100.
- * When the typed value would push the total over 100, it falls back to the
- * largest value that keeps the total at 100. Empty/non-positive inputs
- * deselect the entry (same behaviour as `setRewardValue`).
- */
-export function clampWeightValue(current: Record<string, string>, id: string, value: string): Record<string, string> {
-  if (value === '') return { ...current, [id]: value };
-  if (!positiveRewardValue(value)) {
-    const next = { ...current };
-    delete next[id];
-    return next;
-  }
-  const otherTotal = Object.entries(current)
-    .filter(([key, v]) => key !== id && positiveRewardValue(v))
-    .reduce((sum, [, v]) => sum + (Number(v) || 0), 0);
-  const maxAllowed = Math.max(0, 100 - otherTotal);
-  return { ...current, [id]: String(Math.min(Number(value), maxAllowed)) };
-}
-
-export function buildGrowthRuleDraft({
-  sourceType,
-  sourceId,
-  ruleId,
-  coins,
-  accountXp,
-  scalingMode,
-  maxRewardCap,
-  selectedEntries,
-  selectedItems,
-  xp,
-  itemQuantities,
-}: {
-  sourceType: GrowthSourceType;
-  sourceId: string;
-  ruleId?: string;
-  coins: string;
-  accountXp: string;
-  scalingMode: GrowthScalingMode;
-  maxRewardCap: string;
-  selectedEntries: GrowthEarningRule['skillAwards'][number]['skill'][];
-  selectedItems: GrowthEarningRule['itemAwards'][number]['item'][];
-  xp: Record<string, string>;
-  itemQuantities: Record<string, string>;
-}) {
-  const skillAwards = selectGrowthRewardWeights(
-    selectedEntries.map((entry) => ({
-      skillId: entry.id,
-      xpReward: Math.max(0, Math.trunc(Number(xp[entry.id]) || 0)),
-    })),
-  );
-  const payload = {
-    sourceType,
-    sourceId,
-    ruleId,
-    coinReward: Math.max(0, Math.trunc(Number(coins) || 0)),
-    accountXp: Math.max(0, Math.trunc(Number(accountXp) || 0)),
-    enabled: true,
-    scalingMode,
-    maxRewardCap: maxRewardCap ? Math.max(1, Number(maxRewardCap) || 0) : null,
-    skillAwards,
-    itemAwards: selectedItems
-      .map((item) => ({
-        itemId: item.id,
-        quantity: Math.max(0, Math.trunc(Number(itemQuantities[item.id]) || 0)),
-      }))
-      .filter((award) => award.quantity > 0),
-  };
-
-  const optimistic: GrowthEarningRule = {
-    id: ruleId ?? `${sourceType}:${sourceId}`,
-    sourceType,
-    sourceId,
-    coinReward: payload.coinReward,
-    accountXp: payload.accountXp,
-    enabled: true,
-    scalingMode,
-    maxRewardCap: payload.maxRewardCap,
-    version: 1,
-    skillAwards: payload.skillAwards.map((award) => ({
-      ...award,
-      skill: selectedEntries.find((entry) => entry.id === award.skillId)!,
-    })),
-    itemAwards: payload.itemAwards.map((award) => ({
-      ...award,
-      item: selectedItems.find((item) => item.id === award.itemId)!,
-    })),
-  };
-
-  return { payload, optimistic };
-}
-
-function growthRuleComparable(
-  rule?: Pick<
-    GrowthEarningRule,
-    'coinReward' | 'accountXp' | 'enabled' | 'scalingMode' | 'maxRewardCap' | 'skillAwards' | 'itemAwards'
-  >,
-) {
-  return {
-    coinReward: rule?.coinReward ?? 0,
-    accountXp: rule?.accountXp ?? 100,
-    enabled: rule?.enabled ?? true,
-    scalingMode: rule?.scalingMode ?? 'FIXED',
-    maxRewardCap: rule?.maxRewardCap ?? null,
-    skillAwards: [...(rule?.skillAwards ?? [])]
-      .map((award) => ({ skillId: award.skillId, xpReward: award.xpReward }))
-      .sort((left, right) => left.skillId.localeCompare(right.skillId)),
-    itemAwards: [...(rule?.itemAwards ?? [])]
-      .map((award) => ({ itemId: award.itemId, quantity: award.quantity }))
-      .sort((left, right) => left.itemId.localeCompare(right.itemId)),
-  };
-}
-
-export function defaultGrowthWeights(count: number): number[] {
-  if (count <= 1) return [100];
-  if (count === 2) return [70, 30];
-  return [60, 25, 15];
 }

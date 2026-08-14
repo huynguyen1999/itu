@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { ArrowRight, CheckCheck, Coins, Gift, TrendingUp, X, Zap } from 'lucide-react';
 import type { GrowthAwardReceipt } from '@/shared/api/types';
-import { useSync } from '@/shared/sync/SyncProvider';
+import { useGrowthSync } from '../sync/GrowthSyncBridge';
 import { Button } from '@/shared/ui/button';
 import { GrowthIconMark, growthColorClasses } from '@/shared/ui/GrowthIcons';
 
@@ -26,7 +26,7 @@ export function growthReceiptXpLabel(kind: ReceiptXpKind) {
 }
 
 export function GrowthRewardReceiptHost() {
-  const { growthReceipts, dismissGrowthReceipt, dismissAllGrowthReceipts } = useSync();
+  const { growthReceipts, dismissGrowthReceipt, dismissAllGrowthReceipts } = useGrowthSync();
   const receipt = growthReceipts[0];
   if (!receipt) return null;
 

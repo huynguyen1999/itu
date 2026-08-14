@@ -1,19 +1,7 @@
-import { useEffect, useState, useMemo, type ReactNode } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Calendar,
-  CheckCircle2,
-  ChevronDown,
-  Clock,
-  Dumbbell,
-  Flame,
-  Globe,
-  LoaderCircle,
-  Sparkles,
-  Wallet,
-  Zap,
-} from 'lucide-react';
+import { ChevronDown, LoaderCircle, Sparkles } from 'lucide-react';
 import { useJournalEntry, useWeeklySummary } from '../journalQueries';
 import { useCreateJournalEntryMutation, useUpdateJournalEntryMutation } from '../journalMutations';
 import { JournalMarkdownEditor } from '../components/JournalMarkdownEditor';
@@ -23,6 +11,7 @@ import { Button } from '@/shared/ui/button';
 import { getJournalWeekRange, getLocalTodayDateString } from '../journalDate';
 import { useSync } from '@/shared/sync/SyncProvider';
 import type { ReviewInsightsResult } from '../journal.types';
+import { WeeklyReviewLedger } from './WeeklyReviewLedger';
 
 export function WeeklyReviewPage() {
   const { entryId } = useParams();
@@ -53,7 +42,14 @@ export function WeeklyReviewPage() {
       setPeriodStart(range.start);
       setPeriodEnd(range.end);
     }
-  }, [initialRange.end, initialRange.start, isNew, periodEnd, periodStart, preferencesQuery.data?.journal.weekStartDay]);
+  }, [
+    initialRange.end,
+    initialRange.start,
+    isNew,
+    periodEnd,
+    periodStart,
+    preferencesQuery.data?.journal.weekStartDay,
+  ]);
 
   const {
     data: weeklyMetrics,
@@ -74,20 +70,9 @@ export function WeeklyReviewPage() {
 
   const { state: syncState, pendingMutations, flush, syncQueue } = useSync();
   const reviewPending = pendingMutations.some(
-    (mutation) => mutation.entityId === id && (mutation.kind === 'journal.create' || mutation.kind === 'journal.update'),
+    (mutation) =>
+      mutation.entityId === id && (mutation.kind === 'journal.create' || mutation.kind === 'journal.update'),
   );
-
-  const tasksCompleted = weeklyMetrics?.tasks?.completed ?? 0;
-  const focusMinutes = weeklyMetrics?.focus?.minutes ?? 0;
-  const habitsCompleted = weeklyMetrics?.habits?.completed ?? 0;
-  const habitsScheduled = weeklyMetrics?.habits?.scheduled ?? 0;
-  const workoutsCount = weeklyMetrics?.workouts?.sessions ?? weeklyMetrics?.gym?.workouts ?? 0;
-  const spendingVnd = weeklyMetrics?.expenses?.VND ?? weeklyMetrics?.budget?.spendingByCurrency?.VND ?? 0;
-  const learningReviews = weeklyMetrics?.learning?.reviews ?? 0;
-  const appActiveSeconds = (weeklyMetrics?.reviewContext?.metrics as { appUsage?: { activeSeconds?: number } } | undefined)?.appUsage?.activeSeconds;
-  const websiteActiveSeconds = (weeklyMetrics?.reviewContext?.metrics as { websiteUsage?: { activeSeconds?: number } } | undefined)?.websiteUsage?.activeSeconds;
-
-  const comparisons = weeklyMetrics?.reviewContext?.previousPeriod?.comparison as Record<string, { current: number; previous: number; absoluteDelta: number; percentDelta: number | null; direction: string }> | undefined;
 
   useEffect(() => {
     if (!existingEntry?.weeklyReview) return;
@@ -140,7 +125,8 @@ export function WeeklyReviewPage() {
     try {
       await handleSave();
       await flush();
-      if ((await syncQueue.listPendingMutations()).length) throw new Error('Sync your latest data before generating insights.');
+      if ((await syncQueue.listPendingMutations()).length)
+        throw new Error('Sync your latest data before generating insights.');
       await api.generateReviewInsights(id);
       await refetchEntry();
       setIsInsightsOpen(true);
@@ -194,11 +180,13 @@ export function WeeklyReviewPage() {
   }
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
-  const currentContextMetrics = (weeklyMetrics as { reviewContext?: { metrics?: unknown } } | undefined)?.reviewContext?.metrics;
+  const currentContextMetrics = (weeklyMetrics as { reviewContext?: { metrics?: unknown } } | undefined)?.reviewContext
+    ?.metrics;
   const stale = Boolean(
     existingEntry?.weeklyReview?.aiInsightsSnapshot &&
-      (existingEntry.weeklyReview.aiSourceEntryVersion !== existingEntry.version ||
-        (currentContextMetrics && JSON.stringify(currentContextMetrics) !== JSON.stringify(existingEntry.weeklyReview.summarySnapshot))),
+    (existingEntry.weeklyReview.aiSourceEntryVersion !== existingEntry.version ||
+      (currentContextMetrics &&
+        JSON.stringify(currentContextMetrics) !== JSON.stringify(existingEntry.weeklyReview.summarySnapshot))),
   );
 
   const rawInsights = existingEntry?.weeklyReview?.aiInsightsSnapshot as unknown;
@@ -310,118 +298,12 @@ export function WeeklyReviewPage() {
         </p>
       ) : null}
 
-      {/* Ledger - Compact First Row */}
-      <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between border-b border-border/50 px-4 py-2.5">
-          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            This week&apos;s ledger
-          </span>
-          <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground/70">
-            {isSummaryLoading ? (
-              <span>Loading metrics…</span>
-            ) : isSummaryError ? (
-              <button
-                type="button"
-                onClick={() => void refetchSummary()}
-                className="text-destructive hover:underline"
-              >
-                Retry metrics
-              </button>
-            ) : (
-              <span>vs. last week</span>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 divide-y divide-border/50 sm:grid-cols-4 sm:divide-y-0 lg:grid-cols-8">
-          {/* Tasks */}
-          <LedgerItem
-            icon={<CheckCircle2 className="h-3 w-3 text-primary" />}
-            label="Tasks"
-            value={
-              <>
-                {tasksCompleted} <small className="text-[10px] font-normal text-muted-foreground">done</small>
-              </>
-            }
-            delta={getComparisonDelta(comparisons?.['tasks.completed'], 'done', 'was')}
-          />
-
-          {/* Focus */}
-          <LedgerItem
-            icon={<Clock className="h-3 w-3 text-primary" />}
-            label="Focus"
-            value={`${Math.floor(focusMinutes / 60)}h ${focusMinutes % 60}m`}
-            delta={getFocusDelta(comparisons?.['focus.minutes'])}
-          />
-
-          {/* Habits */}
-          <LedgerItem
-            icon={<Zap className="h-3 w-3 text-amber-500" />}
-            label="Habits"
-            value={
-              <>
-                {habitsCompleted}
-                <small className="text-[10px] font-normal text-muted-foreground">/{habitsScheduled}</small>
-              </>
-            }
-            delta={{
-              text: `${habitsScheduled > 0 ? Math.round((habitsCompleted / habitsScheduled) * 100) : 0}% rate`,
-              type: habitsScheduled > 0 && habitsCompleted / habitsScheduled >= 0.7 ? 'up' : 'flat',
-            }}
-          />
-
-          {/* Training */}
-          <LedgerItem
-            icon={<Dumbbell className="h-3 w-3 text-primary" />}
-            label="Training"
-            value={
-              <>
-                {workoutsCount} <small className="text-[10px] font-normal text-muted-foreground">sess.</small>
-              </>
-            }
-            delta={getComparisonDelta(comparisons?.['gym.workouts'], 'sess.')}
-          />
-
-          {/* Spending */}
-          <LedgerItem
-            icon={<Wallet className="h-3 w-3 text-primary" />}
-            label="Spending"
-            value={`₫${formatCompactMoney(spendingVnd)}`}
-            delta={{
-              text: spendingVnd > 0 ? 'tracked' : 'no prior data',
-              type: 'flat',
-            }}
-          />
-
-          {/* Learning */}
-          <LedgerItem
-            icon={<Sparkles className="h-3 w-3 text-primary" />}
-            label="Learning"
-            value={
-              <>
-                {learningReviews} <small className="text-[10px] font-normal text-muted-foreground">rev.</small>
-              </>
-            }
-            delta={getComparisonDelta(comparisons?.['learning.reviews'], 'rev.', 'was')}
-          />
-
-          {/* Apps */}
-          <LedgerItem
-            icon={<Flame className="h-3 w-3 text-amber-500" />}
-            label="Apps"
-            value={formatDuration(appActiveSeconds)}
-            delta={{ text: 'tracked', type: 'flat' }}
-          />
-
-          {/* Websites */}
-          <LedgerItem
-            icon={<Globe className="h-3 w-3 text-primary" />}
-            label="Websites"
-            value={formatDuration(websiteActiveSeconds)}
-            delta={{ text: 'tracked', type: 'flat' }}
-          />
-        </div>
-      </section>
+      <WeeklyReviewLedger
+        metrics={weeklyMetrics}
+        isLoading={isSummaryLoading}
+        isError={isSummaryError}
+        onRetry={() => void refetchSummary()}
+      />
 
       {/* Main Grid: Left Column (Questions + Markdown) & Right Column (AI Insights) */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1.65fr_1fr]">
@@ -626,39 +508,6 @@ export function WeeklyReviewPage() {
   );
 }
 
-function LedgerItem({
-  icon,
-  label,
-  value,
-  delta,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: ReactNode;
-  delta: { text: string; type: 'up' | 'down' | 'flat' };
-}) {
-  return (
-    <div className="flex flex-col gap-1 p-3 sm:border-l sm:border-border/50 sm:first:border-l-0">
-      <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
-        <span className="opacity-90">{icon}</span>
-        <span>{label}</span>
-      </div>
-      <div className="font-mono text-sm font-medium tracking-tight text-foreground sm:text-base">{value}</div>
-      <div
-        className={`w-fit rounded-full px-1.5 py-0.5 font-mono text-[9.5px] ${
-          delta.type === 'up'
-            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-            : delta.type === 'down'
-              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-              : 'bg-muted/70 text-muted-foreground'
-        }`}
-      >
-        {delta.text}
-      </div>
-    </div>
-  );
-}
-
 function JournalEntryRow({
   prompt,
   value,
@@ -708,49 +557,6 @@ function getWeekTitle(date: Date): string {
   }
   const weekNum = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
   return `Weekly Review — Week ${weekNum}`;
-}
-
-function formatDuration(value: unknown) {
-  const seconds = typeof value === 'number' ? value : 0;
-  return seconds >= 3600 ? `${Math.round(seconds / 3600)}h` : `${Math.round(seconds / 60)}m`;
-}
-
-function formatCompactMoney(amount: number): string {
-  if (!amount || isNaN(amount)) return '0';
-  if (amount >= 1_000_000_000) return `${(amount / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`;
-  if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
-  if (amount >= 1_000) return `${(amount / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
-  return amount.toLocaleString();
-}
-
-function getComparisonDelta(
-  comparison?: { absoluteDelta: number; previous: number },
-  unit = '',
-  wasLabel = 'was',
-): { text: string; type: 'up' | 'down' | 'flat' } {
-  if (!comparison) return { text: 'tracked', type: 'flat' };
-  const { absoluteDelta, previous } = comparison;
-  if (absoluteDelta > 0) {
-    return {
-      text: `↑${absoluteDelta}${unit ? ` ${unit}` : ''} · ${wasLabel} ${previous}`,
-      type: 'up',
-    };
-  }
-  if (absoluteDelta < 0) {
-    return {
-      text: `↓${Math.abs(absoluteDelta)}${unit ? ` ${unit}` : ''} · ${wasLabel} ${previous}`,
-      type: 'down',
-    };
-  }
-  return { text: `0 · was ${previous}`, type: 'flat' };
-}
-
-function getFocusDelta(comparison?: { absoluteDelta: number }): { text: string; type: 'up' | 'down' | 'flat' } {
-  if (!comparison) return { text: 'tracked', type: 'flat' };
-  const { absoluteDelta } = comparison;
-  if (absoluteDelta > 0) return { text: `↑${absoluteDelta}m`, type: 'up' };
-  if (absoluteDelta < 0) return { text: `↓${Math.abs(absoluteDelta)}m`, type: 'down' };
-  return { text: '0m', type: 'flat' };
 }
 
 function isReviewInsightsResult(value: unknown): value is ReviewInsightsResult {

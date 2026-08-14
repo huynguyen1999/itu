@@ -22,7 +22,68 @@ web/src/
   styles/                     Tokens and application styling
 ```
 
-Feature-specific behavior stays in `features`; behavior shared across product areas belongs in `shared`. [`App.tsx`](../../web/src/App.tsx) composes feature-owned surfaces such as the Planning sidebar and global Focus timer into the shared layout.
+Feature-specific behavior stays in `features`; behavior shared across product areas belongs in `shared`. [`App.tsx`](../../web/src/App.tsx) composes feature-owned surfaces such as the Planning sidebar and global Focus timer into the shared layout. `Layout.tsx` composes shell navigation, while `SyncStatus.tsx` and `NotificationMenu.tsx` keep sync reconciliation and notification behavior in focused shared surfaces. Growth reward editing keeps pure draft/weight calculations in `growthRewardMath.ts` and the collapsed presentation in `GrowthRewardSummary.tsx`.
+
+Deck details remain feature-local and are composed from focused surfaces:
+[`DeckHeader`](../../web/src/features/decks/components/DeckHeader.tsx) owns
+deck editing/actions, [`DeckAiCardGenerator`](../../web/src/features/decks/components/DeckAiCardGenerator.tsx)
+owns AI streaming and suggestion persistence, and [`DeckCardsPanel`](../../web/src/features/decks/components/DeckCardsPanel.tsx)
+owns card search, pagination, and selection presentation. `DeckDetailPage.tsx`
+coordinates queries and mutations without moving deck behavior into `shared`.
+
+Focus keeps session and timer mutation ownership in
+[`FocusPage.tsx`](../../web/src/features/focus/FocusPage.tsx). The timer dial,
+task picker, duration editing, audio controls, and action buttons are composed
+by [`FocusTimerCard.tsx`](../../web/src/features/focus/components/FocusTimerCard.tsx);
+history browsing and record-edit presentation remain separate feature
+components. This keeps Focus policy and cache updates in the page while making
+the dense timer surface independently navigable.
+
+Active Gym workouts keep workout queries, mutations, sync conflict handling, and
+finish policy in [`ActiveWorkoutPage.tsx`](../../web/src/features/gym/active/ActiveWorkoutPage.tsx).
+[`ExercisePickerDialog.tsx`](../../web/src/features/gym/active/ExercisePickerDialog.tsx)
+owns exercise-library search, filters, favorites, and custom creation; the
+exercise/set editor is composed by
+[`WorkoutExerciseList.tsx`](../../web/src/features/gym/active/WorkoutExerciseList.tsx).
+
+Statistics keeps date-range selection and server-query orchestration in
+[`StatisticsPage.tsx`](../../web/src/features/statistics/StatisticsPage.tsx).
+Foreground application activity and website activity—including website filter,
+search, and drill-down state—are feature-local presentation surfaces in
+`StatisticsUsageSection.tsx` and `StatisticsWebsiteUsageSection.tsx`; pure
+statistics display formatting remains in `statistics.ts`.
+
+Habits keeps weekly grouping and occurrence actions in `HabitsPage.tsx`.
+Creation and editing are feature-local dialog components in `HabitEditor.tsx`
+and `HabitDetail.tsx`; shared tag/metric fields and local date projection stay
+inside the habits feature, and `HabitDetail` remains the public feature export
+used by Today.
+
+Gym's exercise library keeps filtering, selection, and page composition in
+`ExerciseLibraryPage.tsx`. Creation/upload state lives in
+`CreateExerciseForm.tsx`; editing, archive actions, and performance history
+live in `ExerciseInspector.tsx`; metric and image controls are shared only by
+those two form surfaces.
+
+Daily journal review keeps query, save, and AI-generation orchestration in
+`DailyReviewPage.tsx`. The ledger and AI-insights presentation are isolated in
+`DailyReviewLedger.tsx` and `DailyReviewInsights.tsx`; journal behavior and
+summary payloads remain unchanged.
+
+Weekly journal review keeps period selection, save, and AI-generation
+orchestration in `WeeklyReviewPage.tsx`. Weekly metric aggregation and
+comparison presentation live in `WeeklyReviewLedger.tsx`.
+
+Settings keeps section selection and mutation orchestration in
+`SettingsPage.tsx`. Usage retention/tracking controls live in
+`UsageDataSettings.tsx`; device identity and browser notification permissions
+live in `DeviceSettings.tsx`, with permission helpers kept feature-local.
+
+The shared sync layer owns lifecycle, transport, queues, conflicts, persistence,
+and generic cache reconciliation. Growth receipt interpretation remains in
+[`GrowthSyncBridge.tsx`](../../web/src/features/growth/sync/GrowthSyncBridge.tsx).
+Completing a task while it has a matching active Focus WORK session is a server-side
+application invariant, so web sync does not coordinate that behavior.
 
 ## Current feature surfaces
 
@@ -54,6 +115,7 @@ flowchart TB
     Query["QueryClientProvider"]
     Auth["AuthProvider"]
     Sync["SyncProvider"]
+    GrowthSync["GrowthSyncProvider"]
     Theme["ThemeProvider"]
     Undo["UndoStackProvider"]
     Router["BrowserRouter"]
@@ -61,7 +123,7 @@ flowchart TB
     Layout["Layout + feature slots"]
     Features["Feature pages"]
 
-    Root --> Query --> Auth --> Sync --> Theme --> Undo --> Router --> App
+    Root --> Query --> Auth --> Sync --> GrowthSync --> Theme --> Undo --> Router --> App
     App --> Layout --> Features
 ```
 
@@ -109,7 +171,7 @@ Do not add another application state store for data already owned by these layer
 
 ## Offline-first mutation flow
 
-[`SyncProvider.tsx`](../../web/src/shared/sync/SyncProvider.tsx) installs the offline mutation handler used by the API facade. [`syncQueue.ts`](../../web/src/shared/sync/syncQueue.ts) defines mutation/conflict behavior, while [`offlineStore.ts`](../../web/src/shared/sync/offlineStore.ts) provides IndexedDB durability and the cross-tab synchronization lease.
+[`SyncProvider.tsx`](../../web/src/shared/sync/SyncProvider.tsx) installs the offline mutation handler used by the API facade. [`syncQueue.ts`](../../web/src/shared/sync/syncQueue.ts) coordinates queue lifecycle and transport, while [`syncQueuePolicy.ts`](../../web/src/shared/sync/syncQueuePolicy.ts) keeps retry, conflict, cursor, and coalescing rules pure. [`offlineStore.ts`](../../web/src/shared/sync/offlineStore.ts) provides IndexedDB durability and the cross-tab synchronization lease.
 
 ```mermaid
 sequenceDiagram
@@ -139,6 +201,13 @@ feature. For example, Planning owns task behavior and Growth owns Growth
 receipts; the sync layer does not decide feature business policy.
 
 ## Planning and Calendar composition
+
+[`PlanningPage.tsx`](../../web/src/features/planning/PlanningPage.tsx) is a
+composition root over `PlanningHeader`, `PlanningComposer`,
+`PlanningBulkActions`, and `PlanningTaskWorkspace`. Task queries, selection,
+ordering, and grouping remain Planning-owned hooks and pure functions. The
+page coordinates those pieces with the existing task detail/context surfaces;
+it does not own the implementation of each concern.
 
 [`MatrixPage.tsx`](../../web/src/features/planning/MatrixPage.tsx) composes
 matrix data, selection, ordering, toolbar/dialog controls, and the

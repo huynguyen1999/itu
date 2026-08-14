@@ -43,3 +43,50 @@ export function formatDateStringToLocalDisplay(dateStr: string): string {
     year: 'numeric',
   });
 }
+
+export function formatDateSlash(dateStr: string): string {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (!year || !month || !day) return dateStr;
+  return `${String(day).padStart(2, '0')} / ${String(month).padStart(2, '0')} / ${year}`;
+}
+
+export function formatDayOfWeek(dateStr: string): string {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (!year || !month || !day) return '';
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('en-US', { weekday: 'long' });
+}
+
+export function formatBrandDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (!year || !month || !day) return dateStr;
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+export function calculateDailyStreak(dates: string[], targetDate = getLocalTodayDateString()): number {
+  if (!dates || dates.length === 0) return 1;
+  const dateSet = new Set(dates.map((d) => d.slice(0, 10)));
+  
+  // Calculate consecutive days ending on targetDate or yesterday
+  const checkDate = new Date(targetDate);
+  let streak = 0;
+  
+  // If targetDate is in the set, start count from targetDate, else check if yesterday is in the set
+  const targetStr = formatLocalDate(checkDate);
+  const cur = new Date(checkDate);
+  if (!dateSet.has(targetStr)) {
+    cur.setDate(cur.getDate() - 1);
+  }
+  
+  while (dateSet.has(formatLocalDate(cur))) {
+    streak += 1;
+    cur.setDate(cur.getDate() - 1);
+  }
+  
+  return Math.max(1, streak);
+}
+

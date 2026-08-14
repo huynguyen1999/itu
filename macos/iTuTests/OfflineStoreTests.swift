@@ -74,6 +74,21 @@ final class OfflineStoreTests: XCTestCase {
         XCTAssertEqual(restarted.mutations, [mutation])
     }
 
+    func testAppendingTaskPageUpdatesByIDAndKeepsFetchedOrder() async throws {
+        let store = OfflineStore(accountID: "page-merge-user", baseURL: temporaryDirectory)
+        _ = try await store.load()
+
+        let original = ProductivityTask.optimistic(id: "page-existing", title: "Original")
+        _ = try await store.appendTaskPage([original])
+
+        let updated = ProductivityTask.optimistic(id: original.id, title: "Updated")
+        let incoming = ProductivityTask.optimistic(id: "page-incoming", title: "Incoming")
+        let snapshot = try await store.appendTaskPage([updated, incoming])
+
+        XCTAssertEqual(snapshot.tasks.map(\.id), [original.id, incoming.id])
+        XCTAssertEqual(snapshot.tasks.first?.title, "Updated")
+    }
+
     func testSyncCursorIsMonotonicAndReorderedChangesEndAtTheNewestValue() async throws {
         let store = OfflineStore(accountID: "cursor-order-user", baseURL: temporaryDirectory)
         _ = try await store.load()

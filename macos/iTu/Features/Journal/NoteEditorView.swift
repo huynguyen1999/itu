@@ -12,125 +12,195 @@ struct NoteEditorView: View {
     @State private var contentDraft: String = ""
     @State private var isSaving: Bool = false
     @State private var deleteConfirm: Bool = false
+    @State private var lastSavedTime: String = ""
+
+    private var isDaily: Bool {
+        note.kind == "NOTE"
+    }
+
+    private var streakCount: Int {
+        let allDates = model.journalNotes.filter { $0.deletedAt == nil }.map { $0.entryDate }
+        return JournalSupport.calculateStreak(dates: allDates, targetDate: note.entryDate)
+    }
+
+    private var promptText: String {
+        let prompts = [
+            "What's one thing you avoided today, and why?",
+            "What would make today feel truly accomplished?",
+            "What is top of mind as you begin this session?",
+            "What is one small win or breakthrough from yesterday?",
+            "What friction point are you ready to clear away?",
+            "What does deep focus look like for the next 2 hours?",
+            "What are you most excited to learn or create today?",
+        ]
+        let idx = (note.entryDate.hashValue & 0x7FFFFFFF) % prompts.count
+        return prompts[idx]
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Editor Toolbar
-            HStack(spacing: 10) {
-                // Formatting Controls
-                Group {
-                    formatButton(icon: "bold", tag: "bold") { insertMarkdown("**", suffix: "**") }
-                    formatButton(icon: "italic", tag: "italic") { insertMarkdown("*", suffix: "*") }
-                    formatButton(icon: "textformat.size.larger", tag: "h1") { insertMarkdown("# ", prefixAtLine: true) }
-                    formatButton(icon: "textformat.size", tag: "h2") { insertMarkdown("## ", prefixAtLine: true) }
-                    formatButton(icon: "list.bullet", tag: "list") { insertMarkdown("- ", prefixAtLine: true) }
-                    formatButton(icon: "text.quote", tag: "quote") { insertMarkdown("> ", prefixAtLine: true) }
-                    formatButton(icon: "curlybraces", tag: "code") { insertMarkdown("`", suffix: "`") }
-                }
+        // Signature Panel
+        VStack(alignment: .leading, spacing: 0) {
+            // Panel Header
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("DAILY WRITING · \(JournalSupport.dayOfWeek(from: note.entryDate).uppercased())")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundStyle(iTuTheme.mint)
 
-                Spacer()
+                        TextField("Daily note", text: $titleDraft)
+                            .font(.system(size: 28, weight: .medium, design: .serif))
+                            .textFieldStyle(.plain)
+                            .foregroundStyle(iTuTheme.ink)
+                            .onChange(of: titleDraft) { _, newValue in
+                                note.title = newValue
+                                scheduleSave()
+                            }
 
-                // Editor Mode Picker
-                Picker("Mode", selection: $editorMode) {
-                    Text("Edit").tag("LIVE")
-                    Text("Source").tag("SOURCE")
-                    Text("Preview").tag("PREVIEW")
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 190)
+                        // Meta Row
+                        HStack(spacing: 8) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(iTuTheme.mint)
+                                Text(JournalSupport.slashDate(from: note.entryDate))
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(iTuTheme.ink)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(iTuTheme.surfaceMuted)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(iTuTheme.border, lineWidth: 1))
 
-                // Inspector Toggle
-                Button {
-                    showInspector.toggle()
-                } label: {
-                    Image(systemName: showInspector ? "sidebar.right" : "sidebar.right")
-                        .foregroundStyle(showInspector ? iTuTheme.teal : iTuTheme.inkDim)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Toggle Note Inspector")
-
-                // Delete Button
-                Button {
-                    deleteConfirm = true
-                } label: {
-                    Image(systemName: "trash")
-                        .foregroundStyle(iTuTheme.coral)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Delete note")
-            }
-            .padding(.bottom, 6)
-
-            Divider()
-
-            // Title & Date Header
-            VStack(alignment: .leading, spacing: 6) {
-                TextField("Note Title", text: $titleDraft)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .textFieldStyle(.plain)
-                    .onChange(of: titleDraft) { _, newValue in
-                        note.title = newValue
-                        scheduleSave()
+                            ForEach(note.tags) { tag in
+                                Text("#\(tag.name)")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(iTuTheme.mint)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(iTuTheme.mint.opacity(0.12))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            }
+                        }
                     }
 
-                HStack(spacing: 10) {
-                    Label(note.displayDate, systemImage: "calendar")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(iTuTheme.inkDim)
+                    Spacer()
 
-                    if note.kind != "NOTE" {
-                        Text(note.kind.replacingOccurrences(of: "_", with: " "))
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(iTuTheme.teal)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(iTuTheme.teal.opacity(0.12))
-                            .clipShape(Capsule())
-                    }
+                    // Streak concentric rings
+                    DailyStreakRingView(value: "\(streakCount)", label: "Day streak")
                 }
-            }
-
-            // Content Area based on Mode
-            if editorMode == "PREVIEW" {
-                ScrollView {
-                    Text(contentDraft.isEmpty ? "*No content*" : contentDraft)
-                        .font(.system(size: 14))
-                        .foregroundStyle(iTuTheme.ink)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(20)
                 .background(iTuTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(iTuTheme.border, lineWidth: 1)
+
+                Divider()
+
+                // Editor Content & Controls
+                VStack(alignment: .leading, spacing: 14) {
+                    // Mode Row & Saved status
+                    HStack(spacing: 12) {
+                        Picker("Mode", selection: $editorMode) {
+                            Text("Write").tag("LIVE")
+                            Text("Preview").tag("PREVIEW")
+                            Text("Source").tag("SOURCE")
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 200)
+
+                        Spacer()
+
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(iTuTheme.mint)
+                                .frame(width: 6, height: 6)
+                                .shadow(color: iTuTheme.mint.opacity(0.6), radius: 2)
+
+                            Text(lastSavedTime.isEmpty ? "Saved locally" : "Saved locally · \(lastSavedTime)")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(iTuTheme.inkFaint)
+                        }
+
+                        // Inspector toggle
+                        Button {
+                            showInspector.toggle()
+                        } label: {
+                            Image(systemName: "sidebar.right")
+                                .foregroundStyle(showInspector ? iTuTheme.teal : iTuTheme.inkDim)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("Toggle Inspector")
+
+                        // Delete button
+                        Button {
+                            deleteConfirm = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(iTuTheme.coral)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Move to Trash")
+                    }
+
+                    // Text Editor Canvas with Left Accent Line
+                    HStack(spacing: 0) {
+                        Rectangle()
+                            .fill(iTuTheme.mint.opacity(0.5))
+                            .frame(width: 2)
+                            .padding(.vertical, 4)
+
+                        if editorMode == "PREVIEW" {
+                            ScrollView {
+                                Text(contentDraft.isEmpty ? "*What's on your mind today? Markdown and [[links]] both work.*" : contentDraft)
+                                    .font(.system(size: 16, design: .serif))
+                                    .lineSpacing(6)
+                                    .foregroundStyle(iTuTheme.ink)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.leading, 14)
+                                    .padding(.vertical, 8)
+                            }
+                            .frame(minHeight: 280)
+                        } else {
+                            TextEditor(text: $contentDraft)
+                                .font(.system(size: 15, design: editorMode == "SOURCE" ? .monospaced : .serif))
+                                .lineSpacing(5)
+                                .scrollContentBackground(.hidden)
+                                .padding(.leading, 10)
+                                .frame(minHeight: 280)
+                                .onChange(of: contentDraft) { _, newValue in
+                                    note.contentMarkdown = newValue
+                                    scheduleSave()
+                                }
+                        }
+                    }
+
+                    Divider()
+
+                    // Prompt Line
+                    HStack(spacing: 6) {
+                        Text("Prompt —")
+                            .font(.system(size: 13, design: .serif))
+                            .italic()
+                            .foregroundStyle(iTuTheme.inkDim)
+                        Text(promptText)
+                            .font(.system(size: 13, weight: .semibold, design: .serif))
+                            .foregroundStyle(iTuTheme.mint)
+                    }
+                    .padding(.top, 4)
                 }
-            } else {
-                TextEditor(text: $contentDraft)
-                    .font(.system(size: 14, design: editorMode == "SOURCE" ? .monospaced : .default))
-                    .scrollContentBackground(.hidden)
-                    .padding(8)
-                    .background(iTuTheme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(iTuTheme.border, lineWidth: 1)
-                    }
-                    .onChange(of: contentDraft) { _, newValue in
-                        note.contentMarkdown = newValue
-                        scheduleSave()
-                    }
+                .padding(20)
+                .background(iTuTheme.surface)
             }
-        }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(iTuTheme.border, lineWidth: 1))
         .onAppear {
             titleDraft = note.title
             contentDraft = note.contentMarkdown
+            updateLastSavedTime()
         }
         .onChange(of: note.id) { _, _ in
             titleDraft = note.title
             contentDraft = note.contentMarkdown
+            updateLastSavedTime()
         }
         .alert("Delete note?", isPresented: $deleteConfirm) {
             Button("Move to Trash", role: .destructive) {
@@ -142,23 +212,10 @@ struct NoteEditorView: View {
         }
     }
 
-    private func formatButton(icon: String, tag: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 12))
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-    }
-
-    private func insertMarkdown(_ prefix: String, suffix: String = "", prefixAtLine: Bool = false) {
-        if prefixAtLine {
-            contentDraft = prefix + contentDraft
-        } else {
-            contentDraft += prefix + "text" + suffix
-        }
-        note.contentMarkdown = contentDraft
-        scheduleSave()
+    private func updateLastSavedTime() {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        lastSavedTime = formatter.string(from: Date())
     }
 
     private func scheduleSave() {
@@ -170,8 +227,8 @@ struct NoteEditorView: View {
                 entryDate: note.entryDate,
                 tagIds: note.tagIds
             )
+            updateLastSavedTime()
             onSaved()
         }
     }
 }
-

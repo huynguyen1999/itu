@@ -24,3 +24,14 @@ export interface SyncConflict {
   kind?: string;
   occurredAt?: string;
 }
+
+export interface SyncMutationEvent {
+  mutationId: string;
+  input: {
+    kind: string;
+    entityId: string;
+    payload: Record<string, unknown>;
+    optimistic?: unknown;
+  };
+  cachedEntity?: Record<string, unknown>;
+}

@@ -136,6 +136,18 @@ final class CompanionTests: XCTestCase {
         XCTAssertEqual(CompanionViewModel.todayNote(in: notes, day: "2026-08-09")?.id, "new")
     }
 
+    func testLivingNoteIgnoresDailyReviewAndWeeklyReviewForSameDay() {
+        let dailyReviewModel = JournalDailyReviewModel(entryId: "daily-rev", periodDate: "2026-08-09", summarySnapshot: [:])
+        let weeklyReviewModel = JournalWeeklyReviewModel(entryId: "weekly-rev", periodStart: "2026-08-03", periodEnd: "2026-08-09", summarySnapshot: [:])
+
+        let notes = [
+            note("daily-note", entryDate: "2026-08-09", updatedAt: "2026-08-09T08:00:00Z"),
+            JournalNoteModel(id: "daily-rev", userId: "user", kind: "DAILY_REVIEW", title: "Daily Review", contentMarkdown: "", entryDate: "2026-08-09", updatedAt: "2026-08-09T12:00:00Z", dailyReview: dailyReviewModel),
+            JournalNoteModel(id: "weekly-rev", userId: "user", kind: "WEEKLY_REVIEW", title: "Weekly Review", contentMarkdown: "", entryDate: "2026-08-09", updatedAt: "2026-08-09T13:00:00Z", weeklyReview: weeklyReviewModel)
+        ]
+        XCTAssertEqual(CompanionViewModel.todayNote(in: notes, day: "2026-08-09")?.id, "daily-note")
+    }
+
     func testDecksSortDueFirstThenAlphabetically() {
         model.decks = [
             DeckModel(id: "z", title: "Zulu", description: "", cardCount: 1, dueCount: 0, color: "teal", icon: "book"),

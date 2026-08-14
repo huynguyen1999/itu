@@ -79,6 +79,45 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(try SessionCache.loadTokens().refreshToken, "new-refresh")
     }
 
+    func testTaskPageDecodesTasksWithTagsAndReminders() async throws {
+        let path = "/productivity/tasks?limit=20"
+        prepareCachedSession()
+        StubURLProtocol.scriptedResponses = [
+            path: [(200, Data(
+                """
+                {
+                  "data": [{
+                    "id": "task-1",
+                    "title": "Review task",
+                    "sectionId": "section-1",
+                    "status": "INBOX",
+                    "tags": [{
+                      "taskId": "task-1",
+                      "tagId": "tag-1",
+                      "tag": {"id": "tag-1", "name": "Focus"}
+                    }],
+                    "reminders": [{
+                      "id": "reminder-1",
+                      "remindAt": "2026-08-14T09:00:00.000Z",
+                      "status": "SCHEDULED",
+                      "persistent": false
+                    }]
+                  }],
+                  "meta": {"hasNextPage": false, "nextCursor": null}
+                }
+                """.utf8
+            ))]
+        ]
+        defer { resetAuthTestState() }
+
+        let page = try await makeTestClient().fetchTaskPage()
+
+        XCTAssertEqual(page.data.map(\.id), ["task-1"])
+        XCTAssertEqual(page.data.first?.reminders?.first?.id, "reminder-1")
+        XCTAssertEqual(page.metadata.first?.sectionId, "section-1")
+        XCTAssertEqual(page.metadata.first?.tags.first?.tag.id, "tag-1")
+    }
+
     func testParallelExpiredRequestsShareOneRefresh() async throws {
         let path = "/productivity/tasks?limit=20"
         prepareCachedSession()

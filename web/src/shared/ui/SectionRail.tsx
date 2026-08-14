@@ -92,7 +92,7 @@ export function SectionRailLabel({ children }: { children: ReactNode }) {
   return <span className="itu-section-rail__item-label">{children}</span>;
 }
 
-export function SectionRailBadge({ children }: { children: ReactNode }) {
+function SectionRailBadge({ children }: { children: ReactNode }) {
   return <span className="itu-section-rail__item-count">{children}</span>;
 }
 

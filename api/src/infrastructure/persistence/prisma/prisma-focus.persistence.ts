@@ -159,45 +159,54 @@ export class PrismaFocusPersistence {
     previous: Prisma.FocusSessionGetPayload<{}>,
     updated: Prisma.FocusSessionGetPayload<{}>,
   ): Promise<GrowthAwardReceipt | null> {
-    const presetId = updated.presetId ?? previous.presetId;
-    if (!presetId) return null;
-    const preset = await tx.focusPreset.findFirst({ where: { id: presetId, userId } });
-    if (!preset) return null;
-
-    if (updated.phase !== FocusPhase.WORK) {
-      if (previous.status === FocusSessionStatus.COMPLETED && previous.phase === FocusPhase.WORK) {
-        await reverseGrowthActivity(tx, userId, GrowthSourceType.FOCUS_PRESET, updated.id, preset.name);
-      }
-      return null;
-    }
-
-    const becameCompleted = previous.status !== FocusSessionStatus.COMPLETED && updated.status === FocusSessionStatus.COMPLETED;
-    const becameIncomplete = previous.status === FocusSessionStatus.COMPLETED && updated.status !== FocusSessionStatus.COMPLETED;
-    if (becameIncomplete) {
-      await reverseGrowthActivity(tx, userId, GrowthSourceType.FOCUS_PRESET, updated.id, preset.name);
-      return null;
-    }
-    const wasCompleted = previous.status === FocusSessionStatus.COMPLETED;
-    const isCompleted = updated.status === FocusSessionStatus.COMPLETED;
-    const wasEligible = validFocusMinutes(previous) >= 5;
-    const isEligible = validFocusMinutes(updated) >= 5;
-    if (!becameCompleted && !(wasCompleted && isCompleted && wasEligible !== isEligible)) return null;
-    if (wasCompleted && isCompleted && wasEligible && !isEligible) {
-      await reverseGrowthActivity(tx, userId, GrowthSourceType.FOCUS_PRESET, updated.id, preset.name);
-      return null;
-    }
-
-    const durationMinutes = validFocusMinutes(updated);
-    if (durationMinutes < 5) return null;
-    return awardGrowthActivityWithReceipt(
-      tx,
-      userId,
-      GrowthSourceType.FOCUS_PRESET,
-      preset.id,
-      preset.name,
-      { durationMinutes, focusSessionId: updated.id },
-      updated.id,
-      { durationMinutes },
-    );
+    return settleFocusGrowth(tx, userId, previous, updated);
   }
+}
+
+export async function settleFocusGrowth(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  previous: Prisma.FocusSessionGetPayload<{}>,
+  updated: Prisma.FocusSessionGetPayload<{}>,
+): Promise<GrowthAwardReceipt | null> {
+  const presetId = updated.presetId ?? previous.presetId;
+  if (!presetId) return null;
+  const preset = await tx.focusPreset.findFirst({ where: { id: presetId, userId } });
+  if (!preset) return null;
+
+  if (updated.phase !== FocusPhase.WORK) {
+    if (previous.status === FocusSessionStatus.COMPLETED && previous.phase === FocusPhase.WORK) {
+      await reverseGrowthActivity(tx, userId, GrowthSourceType.FOCUS_PRESET, updated.id, preset.name);
+    }
+    return null;
+  }
+
+  const becameCompleted = previous.status !== FocusSessionStatus.COMPLETED && updated.status === FocusSessionStatus.COMPLETED;
+  const becameIncomplete = previous.status === FocusSessionStatus.COMPLETED && updated.status !== FocusSessionStatus.COMPLETED;
+  if (becameIncomplete) {
+    await reverseGrowthActivity(tx, userId, GrowthSourceType.FOCUS_PRESET, updated.id, preset.name);
+    return null;
+  }
+  const wasCompleted = previous.status === FocusSessionStatus.COMPLETED;
+  const isCompleted = updated.status === FocusSessionStatus.COMPLETED;
+  const wasEligible = validFocusMinutes(previous) >= 5;
+  const isEligible = validFocusMinutes(updated) >= 5;
+  if (!becameCompleted && !(wasCompleted && isCompleted && wasEligible !== isEligible)) return null;
+  if (wasCompleted && isCompleted && wasEligible && !isEligible) {
+    await reverseGrowthActivity(tx, userId, GrowthSourceType.FOCUS_PRESET, updated.id, preset.name);
+    return null;
+  }
+
+  const durationMinutes = validFocusMinutes(updated);
+  if (durationMinutes < 5) return null;
+  return awardGrowthActivityWithReceipt(
+    tx,
+    userId,
+    GrowthSourceType.FOCUS_PRESET,
+    preset.id,
+    preset.name,
+    { durationMinutes, focusSessionId: updated.id },
+    updated.id,
+    { durationMinutes },
+  );
 }

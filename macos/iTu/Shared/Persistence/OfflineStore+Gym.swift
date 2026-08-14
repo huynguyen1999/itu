@@ -1,106 +1,6 @@
 import Foundation
 
 extension OfflineStore {
-    @discardableResult
-    func saveExercise(_ value: ExerciseModel, mutation: SyncMutation) throws -> OfflineSnapshot {
-        upsert(&state.gymExercises, value)
-        appendMutation(mutation)
-        try persist()
-        return state
-    }
-
-    @discardableResult
-    func replaceGymExercises(_ values: [ExerciseModel]) throws -> OfflineSnapshot {
-        let optimistic = Dictionary(uniqueKeysWithValues: state.gymExercises.map { ($0.id, $0) })
-        let pendingIDs = Set(state.mutations.filter { $0.kind == "exercisedefinition.create" || $0.kind == "exercisedefinition.delete" || $0.kind == "exercisedefinition.restore" || $0.kind == "exercisedefinition.update" }.map(\.entityId))
-        let fetchedIDs = Set(values.map(\.id))
-        state.gymExercises = values + state.gymExercises.filter { pendingIDs.contains($0.id) && !fetchedIDs.contains($0.id) }
-        reapplyPendingGymExerciseMutations(optimisticByID: optimistic)
-        try persist()
-        return state
-    }
-
-    @discardableResult
-    func saveWorkout(_ value: WorkoutModel, mutation: SyncMutation) throws -> OfflineSnapshot {
-        upsert(&state.gymWorkouts, value)
-        appendMutation(mutation)
-        try persist()
-        return state
-    }
-
-    /// Granular Gym writes keep the parent aggregate optimistic while the
-    /// outbox carries a stable child mutation. This is deliberately one actor
-    /// transaction so a restart cannot expose a set without its queued change.
-    @discardableResult
-    func saveWorkoutExercise(_ value: WorkoutExerciseModel, workoutID: String, mutation: SyncMutation) throws -> OfflineSnapshot {
-        guard let index = state.gymWorkouts.firstIndex(where: { $0.id == workoutID }) else { throw NSError(domain: "OfflineStore", code: 404) }
-        let workout = state.gymWorkouts[index]
-        var exercises = workout.exercises ?? []
-        upsert(&exercises, value)
-        state.gymWorkouts[index] = WorkoutModel(id: workout.id, userId: workout.userId, title: workout.title, status: workout.status, startedAt: workout.startedAt, endedAt: workout.endedAt, durationMinutes: workout.durationMinutes, exercises: exercises.sorted { $0.sortOrder < $1.sortOrder }, version: workout.version, deletedAt: workout.deletedAt, deletedByDeviceId: workout.deletedByDeviceId)
-        appendMutation(mutation)
-        try persist()
-        return state
-    }
-
-    @discardableResult
-    func saveWorkoutSet(_ value: WorkoutSetModel, workoutID: String, mutation: SyncMutation) throws -> OfflineSnapshot {
-        guard let workoutIndex = state.gymWorkouts.firstIndex(where: { $0.id == workoutID }) else { throw NSError(domain: "OfflineStore", code: 404) }
-        let workout = state.gymWorkouts[workoutIndex]
-        var exercises = workout.exercises ?? []
-        guard let exerciseIndex = exercises.firstIndex(where: { $0.id == value.workoutExerciseId }) else { throw NSError(domain: "OfflineStore", code: 404) }
-        let exercise = exercises[exerciseIndex]
-        var sets = exercise.sets ?? []
-        upsert(&sets, value)
-        exercises[exerciseIndex] = WorkoutExerciseModel(id: exercise.id, workoutEntryId: exercise.workoutEntryId, exerciseId: exercise.exerciseId, sortOrder: exercise.sortOrder, note: exercise.note, restSeconds: exercise.restSeconds, exercise: exercise.exercise, sets: sets.sorted { $0.sortOrder < $1.sortOrder }, version: exercise.version, deletedAt: exercise.deletedAt)
-        state.gymWorkouts[workoutIndex] = WorkoutModel(id: workout.id, userId: workout.userId, title: workout.title, status: workout.status, startedAt: workout.startedAt, endedAt: workout.endedAt, durationMinutes: workout.durationMinutes, exercises: exercises, version: workout.version, deletedAt: workout.deletedAt, deletedByDeviceId: workout.deletedByDeviceId)
-        appendMutation(mutation)
-        try persist()
-        return state
-    }
-
-    @discardableResult
-    func removeWorkoutExercise(id: String, workoutID: String, mutation: SyncMutation) throws -> OfflineSnapshot {
-        guard let index = state.gymWorkouts.firstIndex(where: { $0.id == workoutID }) else { throw NSError(domain: "OfflineStore", code: 404) }
-        let workout = state.gymWorkouts[index]
-        let exercises = (workout.exercises ?? []).filter { $0.id != id }
-        state.gymWorkouts[index] = WorkoutModel(id: workout.id, userId: workout.userId, title: workout.title, status: workout.status, startedAt: workout.startedAt, endedAt: workout.endedAt, durationMinutes: workout.durationMinutes, exercises: exercises, version: workout.version, deletedAt: workout.deletedAt, deletedByDeviceId: workout.deletedByDeviceId)
-        appendMutation(mutation)
-        try persist()
-        return state
-    }
-
-    @discardableResult
-    func removeWorkoutSet(id: String, workoutID: String, workoutExerciseID: String, mutation: SyncMutation) throws -> OfflineSnapshot {
-        guard let workoutIndex = state.gymWorkouts.firstIndex(where: { $0.id == workoutID }) else { throw NSError(domain: "OfflineStore", code: 404) }
-        let workout = state.gymWorkouts[workoutIndex]
-        var exercises = workout.exercises ?? []
-        guard let exerciseIndex = exercises.firstIndex(where: { $0.id == workoutExerciseID }) else { throw NSError(domain: "OfflineStore", code: 404) }
-        let exercise = exercises[exerciseIndex]
-        exercises[exerciseIndex] = WorkoutExerciseModel(id: exercise.id, workoutEntryId: exercise.workoutEntryId, exerciseId: exercise.exerciseId, sortOrder: exercise.sortOrder, note: exercise.note, restSeconds: exercise.restSeconds, exercise: exercise.exercise, sets: (exercise.sets ?? []).filter { $0.id != id }, version: exercise.version, deletedAt: exercise.deletedAt)
-        state.gymWorkouts[workoutIndex] = WorkoutModel(id: workout.id, userId: workout.userId, title: workout.title, status: workout.status, startedAt: workout.startedAt, endedAt: workout.endedAt, durationMinutes: workout.durationMinutes, exercises: exercises, version: workout.version, deletedAt: workout.deletedAt, deletedByDeviceId: workout.deletedByDeviceId)
-        appendMutation(mutation)
-        try persist()
-        return state
-    }
-
-    @discardableResult
-    func replaceGymWorkouts(_ values: [WorkoutModel]) throws -> OfflineSnapshot {
-        let optimistic = Dictionary(uniqueKeysWithValues: state.gymWorkouts.map { ($0.id, $0) })
-        let pendingIDs = Set(state.mutations.filter {
-            $0.kind == "workout.create" || $0.kind == "workout.update" || $0.kind == "workout.finish"
-                || $0.kind == "gymworkout.create" || $0.kind == "gymworkout.update"
-                || $0.kind == "gymworkout.delete" || $0.kind == "gymworkout.restore"
-        }.map(\.entityId))
-        let pendingWorkoutIDs = pendingIDs.union(pendingGranularGymWorkoutIDs(optimisticByID: optimistic))
-        let fetchedIDs = Set(values.map(\.id))
-        state.gymWorkouts = values + state.gymWorkouts.filter { pendingWorkoutIDs.contains($0.id) && !fetchedIDs.contains($0.id) }
-        reapplyPendingGymWorkoutMutations(optimisticByID: optimistic)
-        reapplyPendingGranularGymMutations(optimisticByID: optimistic)
-        try persist()
-        return state
-    }
-
     internal func reapplyPendingGymExerciseMutations(optimisticByID: [String: ExerciseModel] = [:]) {
         let kinds = ["exercisedefinition.create", "exercisedefinition.update", "exercisedefinition.delete", "exercisedefinition.restore"]
         for mutation in state.mutations where kinds.contains(mutation.kind) {
@@ -126,7 +26,7 @@ extension OfflineStore {
                 version: max(base.version ?? 1, (mutation.baseVersion ?? base.version ?? 1) + 1),
                 deletedByDeviceId: mutation.kind == "exercisedefinition.restore" ? nil : base.deletedByDeviceId
             )
-            upsert(&state.gymExercises, value)
+            upsertGymValue(&state.gymExercises, value)
         }
     }
 
@@ -154,7 +54,7 @@ extension OfflineStore {
                 deletedByDeviceId: mutation.kind == "gymworkout.restore" ? nil : base.deletedByDeviceId
             )
             base = value
-            upsert(&state.gymWorkouts, base)
+            upsertGymValue(&state.gymWorkouts, base)
         }
     }
 
@@ -276,22 +176,6 @@ extension OfflineStore {
     }
 
     @discardableResult
-    func permanentlyRemoveGymWorkout(id: String) throws -> OfflineSnapshot {
-        state.gymWorkouts.removeAll { $0.id == id }
-        state.mutations.removeAll { $0.entityId == id && ($0.kind == "gymworkout.delete" || $0.kind == "gymworkout.restore") }
-        try persist()
-        return state
-    }
-
-    @discardableResult
-    func permanentlyRemoveGymExercise(id: String) throws -> OfflineSnapshot {
-        state.gymExercises.removeAll { $0.id == id }
-        state.mutations.removeAll { $0.entityId == id && ($0.kind == "exercisedefinition.delete" || $0.kind == "exercisedefinition.restore") }
-        try persist()
-        return state
-    }
-
-    @discardableResult
     func saveGymPreferences(_ value: GymPreferencesModel, mutation: SyncMutation) throws -> OfflineSnapshot {
         state.gymPreferences = value
         appendMutation(mutation)
@@ -313,7 +197,7 @@ extension OfflineStore {
         return state
     }
 
-    private func upsert<Value: Identifiable>(_ values: inout [Value], _ value: Value) where Value.ID: Equatable {
+    func upsertGymValue<Value: Identifiable>(_ values: inout [Value], _ value: Value) where Value.ID: Equatable {
         if let index = values.firstIndex(where: { $0.id == value.id }) { values[index] = value } else { values.append(value) }
     }
 
@@ -329,7 +213,7 @@ extension OfflineStore {
                     }
                     continue
                 }
-                if let data = change.data, let value = try? decoder.decode(ExerciseModel.self, from: encoder.encode(data)) { upsert(&state.gymExercises, value) }
+                if let data = change.data, let value = try? decoder.decode(ExerciseModel.self, from: encoder.encode(data)) { upsertGymValue(&state.gymExercises, value) }
             } else if prefix == "gymworkout" {
                 if change.deleted {
                     if state.gymWorkouts.first(where: { $0.id == change.entityId })?.deletedAt == nil {
@@ -337,10 +221,10 @@ extension OfflineStore {
                     }
                     continue
                 }
-                if let data = change.data, let value = try? decoder.decode(WorkoutModel.self, from: encoder.encode(data)) { upsert(&state.gymWorkouts, value) }
+                if let data = change.data, let value = try? decoder.decode(WorkoutModel.self, from: encoder.encode(data)) { upsertGymValue(&state.gymWorkouts, value) }
             } else if prefix == "workout" {
                 if change.deleted { state.gymWorkouts.removeAll { $0.id == change.entityId }; continue }
-                if let data = change.data, let value = try? decoder.decode(WorkoutModel.self, from: encoder.encode(data)) { upsert(&state.gymWorkouts, value) }
+                if let data = change.data, let value = try? decoder.decode(WorkoutModel.self, from: encoder.encode(data)) { upsertGymValue(&state.gymWorkouts, value) }
             } else if prefix == "workout-exercise" || prefix == "workoutexercise" {
                 if change.deleted {
                     for workoutIndex in state.gymWorkouts.indices {
@@ -358,7 +242,7 @@ extension OfflineStore {
                 guard let workoutIndex = state.gymWorkouts.firstIndex(where: { $0.id == workoutID }) else { continue }
                 let workout = state.gymWorkouts[workoutIndex]
                 var exercises = workout.exercises ?? []
-                upsert(&exercises, value)
+                upsertGymValue(&exercises, value)
                 state.gymWorkouts[workoutIndex] = WorkoutModel(id: workout.id, userId: workout.userId, title: workout.title, status: workout.status, startedAt: workout.startedAt, endedAt: workout.endedAt, durationMinutes: workout.durationMinutes, exercises: exercises.sorted { $0.sortOrder < $1.sortOrder }, version: workout.version, deletedAt: workout.deletedAt, deletedByDeviceId: workout.deletedByDeviceId)
             } else if prefix == "workout-set" || prefix == "workoutset" {
                 if change.deleted {
@@ -386,7 +270,7 @@ extension OfflineStore {
                     guard var exercises = workout.exercises, let exerciseIndex = exercises.firstIndex(where: { $0.id == value.workoutExerciseId }) else { continue }
                     let exercise = exercises[exerciseIndex]
                     var sets = exercise.sets ?? []
-                    upsert(&sets, value)
+                    upsertGymValue(&sets, value)
                     exercises[exerciseIndex] = WorkoutExerciseModel(id: exercise.id, workoutEntryId: exercise.workoutEntryId, exerciseId: exercise.exerciseId, sortOrder: exercise.sortOrder, note: exercise.note, restSeconds: exercise.restSeconds, exercise: exercise.exercise, sets: sets.sorted { $0.sortOrder < $1.sortOrder }, version: exercise.version, deletedAt: exercise.deletedAt)
                     state.gymWorkouts[workoutIndex] = WorkoutModel(id: workout.id, userId: workout.userId, title: workout.title, status: workout.status, startedAt: workout.startedAt, endedAt: workout.endedAt, durationMinutes: workout.durationMinutes, exercises: exercises, version: workout.version, deletedAt: workout.deletedAt, deletedByDeviceId: workout.deletedByDeviceId)
                     break

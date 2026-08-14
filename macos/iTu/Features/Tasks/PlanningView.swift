@@ -14,6 +14,7 @@ struct PlanningView: View {
     @State private var showViewOptionsPopover = false
 
     var body: some View {
+        let _ = AppPerformanceSignposts.emitPlanningBody()
         VStack(spacing: 0) {
             // Unified Planning Top Bar Header
             toolbar

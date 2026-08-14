@@ -2,8 +2,30 @@ import Foundation
 
 struct TaskPage: Sendable {
     let data: [ProductivityTask]
+    let metadata: [TaskMetadataDTO]
     let hasNextPage: Bool
     let nextCursor: String?
+}
+
+private struct TaskPageRecord: Decodable, Sendable {
+    let task: ProductivityTask
+    let metadata: TaskMetadataDTO
+
+    private enum CodingKeys: String, CodingKey {
+        case sectionId
+        case tags
+    }
+
+    init(from decoder: Decoder) throws {
+        task = try ProductivityTask(from: decoder)
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let sectionId = try values.decodeIfPresent(String.self, forKey: .sectionId)
+        metadata = TaskMetadataDTO(
+            id: task.id,
+            sectionId: task.sectionId ?? sectionId,
+            tags: try values.decodeIfPresent([TaskTagAssignmentDTO].self, forKey: .tags) ?? []
+        )
+    }
 }
 
 extension APIClient {
@@ -12,13 +34,14 @@ extension APIClient {
     func fetchTaskPage(cursor: String? = nil, limit: Int = 20) async throws -> TaskPage {
         var path = "/productivity/tasks?limit=\(limit)"
         if let cursor { path += "&cursor=\(cursor)" }
-        let page: CursorPageResponse<ProductivityTask> = try await request(
+        let page: CursorPageResponse<TaskPageRecord> = try await request(
             path: path,
             method: "GET",
             body: Optional<String>.none
         )
         return TaskPage(
-            data: page.data,
+            data: page.data.map(\.task),
+            metadata: page.data.map(\.metadata),
             hasNextPage: page.meta?.hasNextPage == true,
             nextCursor: page.meta?.nextCursor
         )
@@ -59,10 +82,6 @@ extension APIClient {
 
     func fetchTaskTags() async throws -> [TagModel] {
         try await request(path: "/productivity/task-tags")
-    }
-
-    func fetchTaskMetadata() async throws -> [TaskMetadataDTO] {
-        try await request(path: "/productivity/tasks")
     }
 
     // MARK: - Calendar Sources
@@ -111,4 +130,3 @@ extension APIClient {
         ) as EmptyResponse
     }
 }
-

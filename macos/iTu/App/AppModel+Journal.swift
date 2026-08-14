@@ -19,13 +19,14 @@ extension AppModel {
     func saveJournalNote(id: String?, title: String, contentMarkdown: String, entryDate: String, tagIds: [String]? = nil) async -> JournalNoteModel? {
         let now = Self.journalNow()
         let existing = id.flatMap { noteID in currentSnapshot.journalNotes.first(where: { $0.id == noteID }) }
+        let kind = (existing?.kind == "DAILY_REVIEW" || existing?.kind == "WEEKLY_REVIEW") ? "NOTE" : (existing?.kind ?? "NOTE")
         let note = JournalNoteModel(
-            id: id ?? ULID.generate(), userId: user?.id ?? "local", kind: existing?.kind ?? "NOTE",
+            id: id ?? ULID.generate(), userId: user?.id ?? "local", kind: kind,
             title: title, contentMarkdown: contentMarkdown, entryDate: entryDate,
             updatedAt: now, timezone: existing?.timezone ?? iTuCalendarSupport.timezone.identifier,
             templateId: existing?.templateId, tagIds: tagIds ?? existing?.tagIds ?? [], version: existing?.version ?? 1,
             createdAt: existing?.createdAt ?? now, deletedAt: nil,
-            weeklyReview: existing?.weeklyReview, dailyReview: existing?.dailyReview, tags: existing?.tags ?? [], attachments: existing?.attachments ?? []
+            weeklyReview: nil, dailyReview: nil, tags: existing?.tags ?? [], attachments: existing?.attachments ?? []
         )
         var payload: [String: JSONValue] = [
             "title": .string(title), "contentMarkdown": .string(contentMarkdown),
@@ -33,12 +34,12 @@ extension AppModel {
             "tagIds": .array(note.tagIds.map(JSONValue.string))
         ]
         if let templateId = note.templateId { payload["templateId"] = .string(templateId) }
-        let kind = id == nil ? "journal.create" : "journal.update"
+        let mutationKind = id == nil ? "journal.create" : "journal.update"
         if id == nil {
             payload["id"] = .string(note.id); payload["kind"] = .string(note.kind)
         }
         let mutation = SyncMutation(
-            id: ULID.generate(), kind: kind, entityId: note.id,
+            id: ULID.generate(), kind: mutationKind, entityId: note.id,
             baseVersion: existing?.version, baseValues: nil, payload: payload, occurredAt: now,
             attemptCount: nil, lastAttemptAt: nil, nextRetryAt: nil, lastErrorCode: nil
         )
@@ -52,6 +53,7 @@ extension AppModel {
             if let note = currentSnapshot.journalNotes.first(where: { $0.id == id }) {
                 var deleted = note; deleted.deletedAt = Self.journalNow()
                 apply(try await offlineStore.saveJournalNote(deleted, mutation: mutation))
+                syncPhase = .pending
             }
         } catch { errorMessage = error.localizedDescription }
     }
@@ -63,6 +65,7 @@ extension AppModel {
                 note.deletedAt = nil
                 note.deletedByDeviceId = nil
                 apply(try await offlineStore.saveJournalNote(note, mutation: mutation))
+                syncPhase = .pending
             }
         } catch { errorMessage = error.localizedDescription }
     }

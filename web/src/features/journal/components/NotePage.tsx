@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, LayoutTemplate, MoreHorizontal, PanelRight, Trash2 } from 'lucide-react';
-import { useJournalEntry } from '../journalQueries';
+import { Calendar, LayoutTemplate, MoreHorizontal, Trash2 } from 'lucide-react';
+import { useJournalEntries, useJournalEntry, useJournalTags } from '../journalQueries';
 import {
   useCreateJournalEntryMutation,
   useUpdateJournalEntryMutation,
@@ -10,17 +10,30 @@ import {
 import { TagPicker } from './TagPicker';
 import { AttachmentTray } from './AttachmentTray';
 import { TemplateEditor } from './TemplateEditor';
-import { NoteInspector } from './NoteInspector';
 import { JournalMarkdownEditor, SaveStatus } from './JournalMarkdownEditor';
-import { Button } from '@/shared/ui/button';
 import { createUlid } from '@/shared/sync/syncIdentity';
 import type { JournalEntry } from '../journal.types';
-import { getLocalTodayDateString } from '../journalDate';
-import { PageHeader } from '@/shared/ui/PageHeader';
+import {
+  getLocalTodayDateString,
+  formatDateSlash,
+  formatDayOfWeek,
+  calculateDailyStreak,
+} from '../journalDate';
+import { DailyStreakBadge } from './DailyStreakBadge';
 
 interface NotePageProps {
   isDaily?: boolean;
 }
+
+const DAILY_PROMPTS = [
+  "What's one thing you avoided today, and why?",
+  "What would make today feel truly accomplished?",
+  "What is top of mind as you begin this session?",
+  "What is one small win or breakthrough from yesterday?",
+  "What friction point are you ready to clear away?",
+  "What does deep focus look like for the next 2 hours?",
+  "What are you most excited to learn or create today?",
+];
 
 export function NotePage({ isDaily = false }: NotePageProps) {
   const navigate = useNavigate();
@@ -31,6 +44,8 @@ export function NotePage({ isDaily = false }: NotePageProps) {
   const initialDate = date || searchParams.get('date') || getLocalTodayDateString();
 
   const { data: existingEntry, isLoading } = useJournalEntry(entryId || '', isNew || Boolean(date));
+  const { data: allNotes = [] } = useJournalEntries({ kind: 'NOTE' });
+  const { data: tags = [] } = useJournalTags();
 
   const createMutation = useCreateJournalEntryMutation();
   const updateMutation = useUpdateJournalEntryMutation();
@@ -42,8 +57,9 @@ export function NotePage({ isDaily = false }: NotePageProps) {
   const [entryDate, setEntryDate] = useState(initialDate);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+  const [lastSavedTime, setLastSavedTime] = useState<string>('');
 
-  const [showInspector, setShowInspector] = useState(true);
+  const [editorMode, setEditorMode] = useState<'write' | 'preview' | 'source'>('write');
   const [showTemplates, setShowTemplates] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
@@ -59,17 +75,31 @@ export function NotePage({ isDaily = false }: NotePageProps) {
       );
       setSelectedTagIds(existingEntry.tags?.map((t) => t.id) || []);
       activeEntryRef.current = existingEntry;
+      if (existingEntry.updatedAt) {
+        const d = new Date(existingEntry.updatedAt);
+        setLastSavedTime(
+          d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        );
+      }
     } else if (isNew || date) {
       const newId = createUlid();
       setId(newId);
-      setTitle(isDaily ? `Daily Note — ${entryDate}` : '');
+      setTitle(isDaily ? 'Daily note' : '');
       setContentMarkdown('');
       setSelectedTagIds([]);
       activeEntryRef.current = null;
+      setLastSavedTime(
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      );
     }
   }, [existingEntry, isNew, date, isDaily, entryDate, initialDate]);
 
-  const handleAutosave = async (newContent?: string, newTitle?: string, newTags?: string[], newDate?: string) => {
+  const handleAutosave = async (
+    newContent?: string,
+    newTitle?: string,
+    newTags?: string[],
+    newDate?: string,
+  ) => {
     const currentTitle = (newTitle !== undefined ? newTitle : title).trim();
     if (!currentTitle) return;
 
@@ -91,7 +121,7 @@ export function NotePage({ isDaily = false }: NotePageProps) {
       } else {
         const created = (await createMutation.mutateAsync({
           id,
-          kind: isDaily ? 'NOTE' : 'NOTE',
+          kind: 'NOTE',
           title: currentTitle,
           contentMarkdown: targetContent,
           entryDate: targetDate,
@@ -100,6 +130,9 @@ export function NotePage({ isDaily = false }: NotePageProps) {
         activeEntryRef.current = created;
       }
       setSaveStatus('synced');
+      setLastSavedTime(
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      );
       setTimeout(() => setSaveStatus('saved'), 2000);
     } catch {
       setSaveStatus('conflict');
@@ -127,174 +160,304 @@ export function NotePage({ isDaily = false }: NotePageProps) {
     setShowTemplates(false);
   };
 
+  // Dynamic daily prompt based on day of month
+  const dayIndex = useMemo(() => {
+    const d = new Date(entryDate);
+    return isNaN(d.getTime()) ? 0 : d.getDate() % DAILY_PROMPTS.length;
+  }, [entryDate]);
+  const promptText = DAILY_PROMPTS[dayIndex];
+
+  // Headings outline extracted from markdown
+  const headings = useMemo(() => {
+    return (contentMarkdown || '')
+      .split('\n')
+      .map((line, idx) => {
+        const match = line.match(/^(#{1,6})\s+(.+)$/);
+        if (!match) return null;
+        return {
+          level: match[1].length,
+          text: match[2].trim(),
+          line: idx,
+        };
+      })
+      .filter(Boolean) as { level: number; text: string; line: number }[];
+  }, [contentMarkdown]);
+
+  // Linked notes extracted from [[wikilinks]]
+  const linkedNotes = useMemo(() => {
+    const matches = Array.from(contentMarkdown.matchAll(/\[\[(.*?)\]\]/g));
+    return Array.from(new Set(matches.map((m) => m[1].trim()))).filter(Boolean);
+  }, [contentMarkdown]);
+
+  // Daily Streak calculation
+  const streakCount = useMemo(() => {
+    const noteDates = allNotes.map((n) => n.entryDate);
+    return calculateDailyStreak(noteDates, entryDate);
+  }, [allNotes, entryDate]);
+
+  const selectedTags = useMemo(() => {
+    return tags.filter((t) => selectedTagIds.includes(t.id));
+  }, [tags, selectedTagIds]);
+
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">Loading note...</div>;
+    return (
+      <div className="flex min-h-64 items-center justify-center text-sm text-muted-foreground" role="status">
+        Loading note...
+      </div>
+    );
   }
 
-  const currentEntryObj: JournalEntry = (existingEntry || {
-    id: id || 'temp-id',
-    userId: 'local',
-    kind: 'NOTE',
-    title: title || 'Untitled',
-    contentMarkdown,
-    entryDate,
-    timezone: 'UTC',
-    version: 1,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    tags: [],
-    attachments: [],
-  }) as JournalEntry;
+  const dayOfWeek = formatDayOfWeek(entryDate);
+  const formattedSlash = formatDateSlash(entryDate);
 
   return (
-    <div className="itu-page-canvas flex h-full min-h-[calc(100vh-4rem)] flex-col lg:flex-row">
-      {/* Main Document Workspace */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-        <PageHeader
-          kicker={isDaily ? 'Daily writing' : 'Journal'}
-          title={isDaily ? 'Daily note' : 'Note'}
-          description={entryDate}
-        >
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--itu-radius-s)] px-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--itu-teal-400)] focus-visible:ring-offset-0"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Back</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowInspector(!showInspector)}
-              aria-label={showInspector ? 'Hide note inspector' : 'Show note inspector'}
-              aria-expanded={showInspector}
-              aria-controls="note-inspector"
-              className={`rounded-[var(--itu-radius-s)] border p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                showInspector
-                ? 'border-[var(--itu-teal-400)]/60 bg-white/15 text-[var(--itu-teal-400)]'
-                  : 'border-white/20 text-white/70 hover:text-white hover:bg-white/10'
-              }`}
-              title="Toggle Inspector"
-            >
-              <PanelRight className="w-4 h-4" />
-            </button>
+    <div className="itu-daily-shell">
+      {/* Signature Panel Frame */}
+      <div className="itu-daily-panel">
+        {/* Panel Header */}
+        <div className="itu-daily-header">
+          <div>
+            <p className="itu-daily-eyebrow">
+              {isDaily ? `Daily writing · ${dayOfWeek || 'Today'}` : 'Journal · Writing'}
+            </p>
+            <h1 className="itu-daily-title">
+              <input
+                type="text"
+                placeholder={isDaily ? 'Daily note' : 'Note title…'}
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  void handleAutosave(undefined, e.target.value);
+                }}
+                className="bg-transparent border-none outline-none font-serif text-3xl font-medium w-full text-foreground placeholder:text-muted-foreground/40"
+              />
+            </h1>
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowMenu(!showMenu)}
-                aria-label="Open note actions"
-                aria-expanded={showMenu}
-                aria-haspopup="menu"
-                className="rounded-[var(--itu-radius-s)] border border-white/20 p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--itu-teal-400)] focus-visible:ring-offset-0"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-
-              {showMenu && (
-                <div
-                  className="absolute right-0 z-30 mt-1 w-44 rounded-[var(--itu-radius-m)] border border-border bg-card p-1.5 text-xs shadow-lg"
-                  role="menu"
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowTemplates(true);
-                      setShowMenu(false);
-                    }}
-                    className="flex w-full items-center gap-2 rounded-[var(--itu-radius-s)] px-2.5 py-1.5 text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    role="menuitem"
-                  >
-                    <LayoutTemplate className="w-3.5 h-3.5" />
-                    Templates
-                  </button>
-                  {id && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void handleDelete();
-                        setShowMenu(false);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-[var(--itu-radius-s)] px-2.5 py-1.5 text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      role="menuitem"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Delete Note
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </PageHeader>
-
-        {/* Document Canvas (No Card Soup!) */}
-        <main className="flex-1 max-w-3xl w-full mx-auto px-6 py-8 space-y-6">
-          {/* Frameless Header: Title, Date & Tags */}
-          <div className="space-y-3 border-b border-border/30 pb-4">
-            <input
-              type="text"
-              placeholder={isDaily ? 'Daily Note Title...' : 'Note Title...'}
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                void handleAutosave(undefined, e.target.value);
-              }}
-              className="w-full bg-transparent text-3xl font-extrabold tracking-tight text-foreground placeholder:text-muted-foreground/40 border-none outline-none"
-            />
-
-            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5 rounded-[var(--itu-radius-s)] border border-border/40 bg-muted/40 px-2.5 py-1">
-                <Calendar className="w-3.5 h-3.5 text-primary" />
+            {/* Meta Row: Date chip, Tag chips, + Add tag */}
+            <div className="itu-daily-meta-row">
+              <label className="itu-daily-chip cursor-pointer" title="Change date">
+                <Calendar className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span>{formattedSlash || entryDate}</span>
                 <input
                   type="date"
                   value={entryDate}
                   onChange={(e) => {
-                    setEntryDate(e.target.value);
-                    void handleAutosave(undefined, undefined, undefined, e.target.value);
+                    const newD = e.target.value;
+                    if (newD) {
+                      setEntryDate(newD);
+                      void handleAutosave(undefined, undefined, undefined, newD);
+                    }
                   }}
-                  className="bg-transparent text-foreground outline-none text-xs"
+                  className="sr-only"
                 />
-              </div>
+              </label>
 
               <TagPicker
                 selectedTagIds={selectedTagIds}
-                onChange={(tags) => {
-                  setSelectedTagIds(tags);
-                  void handleAutosave(undefined, undefined, tags);
+                onChange={(newTags) => {
+                  setSelectedTagIds(newTags);
+                  void handleAutosave(undefined, undefined, newTags);
                 }}
               />
+
+              <div className="relative ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setShowMenu(!showMenu)}
+                  aria-label="Open note actions"
+                  aria-expanded={showMenu}
+                  aria-haspopup="menu"
+                  className="itu-daily-chip cursor-pointer p-1.5"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+
+                {showMenu && (
+                  <div
+                    className="absolute right-0 z-30 mt-1 w-44 rounded-xl border border-border bg-card p-1.5 text-xs shadow-lg"
+                    role="menu"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTemplates(true);
+                        setShowMenu(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-foreground hover:bg-muted focus-visible:outline-none"
+                      role="menuitem"
+                    >
+                      <LayoutTemplate className="w-3.5 h-3.5" />
+                      Templates
+                    </button>
+                    {id && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleDelete();
+                          setShowMenu(false);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-destructive hover:bg-destructive/10 focus-visible:outline-none"
+                        role="menuitem"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete Note
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* CodeMirror 6 Editor Canvas */}
-          <JournalMarkdownEditor
-            value={contentMarkdown}
-            onChange={(val) => {
-              setContentMarkdown(val);
-              void handleAutosave(val);
-            }}
-            saveStatus={saveStatus}
-            placeholder="Start typing your note (supports Markdown & [[Links]])..."
-            minHeight="420px"
-          />
+          {/* Signature Concentric SVG Streak Rings */}
+          <DailyStreakBadge value={streakCount} label="Day streak" />
+        </div>
 
-          {/* Attachments Section */}
-          {id && existingEntry && (
-            <div className="pt-6 border-t border-border/40">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Attachments</h4>
-              <AttachmentTray entryId={id} attachments={existingEntry.attachments} />
+        {/* Body Layout: 2 Columns */}
+        <div className="itu-daily-body-row">
+          {/* Main Writing Column */}
+          <div className="itu-daily-write-col">
+            {/* Mode row: Write / Preview / Source + Saved status */}
+            <div className="itu-daily-mode-row">
+              <div className="itu-daily-mode-tabs" role="tablist" aria-label="Editor display mode">
+                <button
+                  type="button"
+                  className={editorMode === 'write' ? 'on' : ''}
+                  onClick={() => setEditorMode('write')}
+                  role="tab"
+                  aria-selected={editorMode === 'write'}
+                >
+                  Write
+                </button>
+                <button
+                  type="button"
+                  className={editorMode === 'preview' ? 'on' : ''}
+                  onClick={() => setEditorMode('preview')}
+                  role="tab"
+                  aria-selected={editorMode === 'preview'}
+                >
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  className={editorMode === 'source' ? 'on' : ''}
+                  onClick={() => setEditorMode('source')}
+                  role="tab"
+                  aria-selected={editorMode === 'source'}
+                >
+                  Source
+                </button>
+              </div>
+
+              <div className="itu-daily-saved">
+                <span className="dot" />
+                {saveStatus === 'syncing'
+                  ? 'Saving…'
+                  : `Saved locally · ${lastSavedTime || 'Just now'}`}
+              </div>
             </div>
-          )}
-        </main>
+
+            {/* Editor Canvas */}
+            <div className="itu-daily-editor-wrap">
+              <JournalMarkdownEditor
+                value={contentMarkdown}
+                onChange={(val) => {
+                  setContentMarkdown(val);
+                  void handleAutosave(val);
+                }}
+                saveStatus={saveStatus}
+                placeholder="What's on your mind today? Markdown and [[links]] both work."
+                minHeight="360px"
+                frameless={true}
+              />
+            </div>
+
+            {/* Prompt Line */}
+            <div className="itu-daily-prompt-line">
+              Prompt — <b>{promptText}</b>
+            </div>
+          </div>
+
+          {/* Side Column: Outline, Linked Notes, Attachments, Metadata (NO DOCUMENT STATS) */}
+          <div className="itu-daily-side-col">
+            {/* Outline */}
+            <div className="itu-daily-side-block">
+              <p className="itu-daily-side-label">Outline</p>
+              {headings.length === 0 ? (
+                <p className="itu-daily-outline-empty">
+                  No headings yet — start with a # to structure this note.
+                </p>
+              ) : (
+                <ul className="space-y-1 text-xs">
+                  {headings.map((h, i) => (
+                    <li key={i} style={{ paddingLeft: `${(h.level - 1) * 10}px` }}>
+                      <span className="block truncate text-foreground/80 hover:text-primary transition-colors py-0.5">
+                        {h.text}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Linked Notes */}
+            <div className="itu-daily-side-block">
+              <p className="itu-daily-side-label">Linked notes</p>
+              {linkedNotes.length === 0 ? (
+                <p className="itu-daily-outline-empty">Nothing linked yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {linkedNotes.map((link, idx) => (
+                    <span
+                      key={idx}
+                      className="itu-daily-chip text-[11px] py-1 px-2 text-primary bg-primary/10 border-primary/20"
+                    >
+                      [[{link}]]
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Attachments */}
+            {id && (
+              <div className="itu-daily-side-block">
+                <p className="itu-daily-side-label">
+                  Attachments ({existingEntry?.attachments?.length || 0})
+                </p>
+                {existingEntry?.attachments && existingEntry.attachments.length > 0 ? (
+                  <AttachmentTray entryId={id} attachments={existingEntry.attachments} />
+                ) : (
+                  <p className="itu-daily-outline-empty">No files attached.</p>
+                )}
+              </div>
+            )}
+
+            {/* Metadata */}
+            <div className="itu-daily-side-block">
+              <p className="itu-daily-side-label">Metadata</p>
+              <div className="itu-daily-meta-mono">
+                <div>
+                  <span>Entry date</span> · {entryDate}
+                </div>
+                <div>
+                  <span>Version</span> · v{existingEntry?.version || 1}
+                </div>
+                <div>
+                  <span>Updated</span> · {lastSavedTime || '13:14'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Collapsible Inspector Sidebar */}
-      {showInspector && <NoteInspector entry={currentEntryObj} onClose={() => setShowInspector(false)} />}
-
       {/* Template Selection Dialog */}
-      <TemplateEditor isOpen={showTemplates} onClose={() => setShowTemplates(false)} onSelectTemplate={applyTemplate} />
+      <TemplateEditor
+        isOpen={showTemplates}
+        onClose={() => setShowTemplates(false)}
+        onSelectTemplate={applyTemplate}
+      />
     </div>
   );
 }

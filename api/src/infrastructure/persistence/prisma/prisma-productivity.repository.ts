@@ -24,6 +24,7 @@ import {
   resolveReminderAnchor,
   validateTaskSchedule,
 } from '@core/application/use-cases/task-date-rules';
+import { completeFocusedTaskSession } from './prisma-task-focus';
 
 @Injectable()
 export class PrismaProductivityRepository implements IProductivityRepository {
@@ -521,6 +522,8 @@ export class PrismaProductivityRepository implements IProductivityRepository {
           updated.id,
           updated.title,
         );
+        const focused = await completeFocusedTaskSession(tx, userId, updated.id, updated.completedAt ?? new Date());
+        growthReceipt ??= focused?.growthReceipt ?? null;
       } else if (existing.status === TaskStatus.COMPLETED && updated.status !== TaskStatus.COMPLETED) {
         await reverseGrowthActivity(tx, userId, GrowthSourceType.TASK, updated.id, updated.title);
       }

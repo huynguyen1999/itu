@@ -134,4 +134,40 @@ describe('PrismaProductivityRepository', () => {
       }),
     );
   });
+
+  it('completes a matching active focus session when a task is completed through the application path', async () => {
+    const completedAt = new Date('2026-08-14T10:00:00.000Z');
+    const existingTask = {
+      id: 'task-1', userId: 'user-1', version: 1, status: 'INBOX', title: 'Deep work',
+      scheduledStartAt: null, scheduledEndAt: null, dueAt: null,
+    };
+    const updatedTask = { ...existingTask, status: 'COMPLETED', completedAt, version: 2 };
+    const focusSession = {
+      id: 'focus-1', userId: 'user-1', taskId: 'task-1', phase: 'WORK', status: 'ACTIVE',
+      presetId: null, startedAt: new Date('2026-08-14T09:00:00.000Z'), completedAt: null,
+      adjustedStartedAt: null, adjustedCompletedAt: null, accumulatedPauseSecs: 0, version: 1,
+    };
+    const tx = {
+      task: {
+        findFirst: jest.fn().mockResolvedValue(existingTask),
+        update: jest.fn().mockResolvedValue(updatedTask),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(updatedTask),
+      },
+      focusSession: {
+        findFirst: jest.fn().mockResolvedValue(focusSession),
+        update: jest.fn().mockResolvedValue({ ...focusSession, status: 'COMPLETED', completedAt, version: 2 }),
+      },
+      focusPreset: { findFirst: jest.fn().mockResolvedValue(null) },
+      growthEarningRule: { findUnique: jest.fn().mockResolvedValue(null) },
+      syncChange: { create: jest.fn().mockResolvedValue(undefined) },
+    };
+    const db = { $transaction: jest.fn(async (work: (client: typeof tx) => unknown) => work(tx)) };
+    const repository = new PrismaProductivityRepository(db as never, {} as never);
+
+    await expect(repository.updateTask('user-1', 'task-1', { status: 'COMPLETED' })).resolves.toEqual(
+      expect.objectContaining({ status: 'COMPLETED', growthReceipt: null }),
+    );
+    expect(tx.focusSession.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'focus-1' } }));
+    expect(tx.syncChange.create).toHaveBeenCalledTimes(2);
+  });
 });

@@ -332,6 +332,21 @@ struct WeeklyReviewsView: View {
                                 weeklyRow(reviewNote)
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    onSelectNote(reviewNote)
+                                } label: {
+                                    Label("Open Review", systemImage: "doc.text")
+                                }
+                                Divider()
+                                Button(role: .destructive) {
+                                    Task {
+                                        await model.deleteJournalNote(id: reviewNote.id)
+                                    }
+                                } label: {
+                                    Label("Move to Trash", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                 }

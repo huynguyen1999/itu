@@ -94,7 +94,7 @@ sequenceDiagram
     DB-->>Client: Mapped response through the same layers
 ```
 
-Controllers translate HTTP concerns. Application services own authorization and business decisions. Prisma adapters own persistence details and mapping.
+Controllers translate HTTP concerns. Application services own authorization and business decisions. Prisma adapters own persistence details and mapping. Growth award scaling/allocation is kept pure in `growth-award-calculations.ts`; the award use case coordinates transactional ledger/inventory writes. `PrismaGrowthRepository` remains the stable Growth facade while `PrismaGrowthRewards` owns reward presets, task defaults, and earning-rule persistence.
 
 Representative entry points:
 

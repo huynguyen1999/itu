@@ -1,4 +1,4 @@
-import { Tx, recordSyncChange, validFocusMinutes, HABIT_SYNC_INCLUDE } from './prisma-sync-mutation.shared';
+import { Tx, recordSyncChange, HABIT_SYNC_INCLUDE } from './prisma-sync-mutation.shared';
 import {
   CommitmentPolicyLevel,
   FocusPhase,
@@ -18,6 +18,7 @@ import { awardGrowthActivityWithReceipt, reverseGrowthActivity, reverseGrowthAct
 import { ensureHabitGrowthRule } from '@core/application/use-cases/ensure-habit-growth-rule';
 import { focusActionSemanticPayload, focusAdjustSemanticPayload, focusPayloadsEqual, focusStartSemanticPayload } from './focus-idempotency';
 import { commitmentDefaults, commitmentFeatureEnabled, evaluateMissedCommitment, recoveryWindowOpen, reverseCommitmentPenalty } from '@core/application/use-cases/habit-commitments';
+import { settleFocusGrowth } from './prisma-focus.persistence';
 import {
   assertClientId,
   enumValue,
@@ -167,7 +168,7 @@ export class PrismaSyncFocusHabits {
             version: { increment: 1 },
           },
         });
-        const growthReceipt = await this.settleFocusGrowth(tx, userId, session, updated);
+        const growthReceipt = await settleFocusGrowth(tx, userId, session, updated);
         if (growthReceipt) outcome.growthReceipt = growthReceipt;
         if (actionIdempotencyKey) {
           const event = await tx.focusEvent.create({ data: { id: createUlid(), sessionId: session.id, idempotencyKey: actionIdempotencyKey, type: action, payload: actionEventPayload as unknown as Prisma.InputJsonValue } });
@@ -206,7 +207,7 @@ export class PrismaSyncFocusHabits {
             version: { increment: 1 },
           },
         });
-        const growthReceipt = await this.settleFocusGrowth(tx, userId, session, updated);
+        const growthReceipt = await settleFocusGrowth(tx, userId, session, updated);
         if (growthReceipt) outcome.growthReceipt = growthReceipt;
         if (adjustIdempotencyKey) {
           const event = await tx.focusEvent.create({ data: { id: createUlid(), sessionId: session.id, idempotencyKey: adjustIdempotencyKey, type: 'adjust', payload: adjustEventPayload as unknown as Prisma.InputJsonValue } });
@@ -582,51 +583,6 @@ export class PrismaSyncFocusHabits {
       default:
         return undefined;
     }
-  }
-
-  private async settleFocusGrowth(
-    tx: Tx,
-    userId: string,
-    previous: Prisma.FocusSessionGetPayload<{}>,
-    updated: Prisma.FocusSessionGetPayload<{}>,
-  ) {
-    const presetId = updated.presetId ?? previous.presetId;
-    if (!presetId) return null;
-    const preset = await tx.focusPreset.findFirst({ where: { id: presetId, userId } });
-    if (!preset) return null;
-    if (updated.phase !== FocusPhase.WORK) {
-      if (previous.status === FocusSessionStatus.COMPLETED && previous.phase === FocusPhase.WORK) {
-        await reverseGrowthActivity(tx, userId, GrowthSourceType.FOCUS_PRESET, updated.id, preset.name);
-      }
-      return null;
-    }
-    const becameCompleted = previous.status !== FocusSessionStatus.COMPLETED && updated.status === FocusSessionStatus.COMPLETED;
-    const becameIncomplete = previous.status === FocusSessionStatus.COMPLETED && updated.status !== FocusSessionStatus.COMPLETED;
-    if (becameIncomplete) {
-      await reverseGrowthActivity(tx, userId, GrowthSourceType.FOCUS_PRESET, updated.id, preset.name);
-      return null;
-    }
-    const wasCompleted = previous.status === FocusSessionStatus.COMPLETED;
-    const isCompleted = updated.status === FocusSessionStatus.COMPLETED;
-    const wasEligible = validFocusMinutes(previous) >= 5;
-    const isEligible = validFocusMinutes(updated) >= 5;
-    if (!becameCompleted && !(wasCompleted && isCompleted && wasEligible !== isEligible)) return null;
-    if (wasCompleted && isCompleted && wasEligible && !isEligible) {
-      await reverseGrowthActivity(tx, userId, GrowthSourceType.FOCUS_PRESET, updated.id, preset.name);
-      return null;
-    }
-    const durationMinutes = validFocusMinutes(updated);
-    if (durationMinutes < 5) return null;
-    return awardGrowthActivityWithReceipt(
-      tx,
-      userId,
-      GrowthSourceType.FOCUS_PRESET,
-      preset.id,
-      preset.name,
-      { durationMinutes, focusSessionId: updated.id },
-      updated.id,
-      { durationMinutes },
-    );
   }
 
 }

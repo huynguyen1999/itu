@@ -34,6 +34,7 @@ import {
   resolveReminderAnchor,
   validateTaskSchedule,
 } from '@core/application/use-cases/task-date-rules';
+import { completeFocusedTaskSession } from './prisma-task-focus';
 
 
 export class PrismaSyncTasks {
@@ -174,6 +175,8 @@ export class PrismaSyncTasks {
         if (task.status !== TaskStatus.COMPLETED && updated.status === TaskStatus.COMPLETED) {
           const receipt = await awardGrowthActivityWithReceipt(tx, userId, GrowthSourceType.TASK, task.id, task.title);
           if (receipt) outcome.growthReceipt = receipt;
+          const focused = await completeFocusedTaskSession(tx, userId, task.id, updated.completedAt ?? new Date());
+          if (!outcome.growthReceipt && focused?.growthReceipt) outcome.growthReceipt = focused.growthReceipt;
         } else if (task.status === TaskStatus.COMPLETED && updated.status !== TaskStatus.COMPLETED) {
           await reverseGrowthActivity(tx, userId, GrowthSourceType.TASK, task.id, task.title);
         }

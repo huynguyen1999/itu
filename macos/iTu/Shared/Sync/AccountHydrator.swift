@@ -26,7 +26,6 @@ final class AccountHydrator: @unchecked Sendable {
         async let lists = fetch { try await self.apiClient.fetchTaskLists() }
         async let sections = fetch { try await self.apiClient.fetchTaskSections() }
         async let tags = fetch { try await self.apiClient.fetchTaskTags() }
-        async let metadata = fetch { try await self.apiClient.fetchTaskMetadata() }
         async let habits = fetch { try await self.apiClient.fetchHabits() }
         async let timeBlocks = fetch { try await self.apiClient.fetchHabitTimeBlocks() }
         async let growth = fetch { try await self.apiClient.fetchGrowthOverview() }
@@ -68,7 +67,7 @@ final class AccountHydrator: @unchecked Sendable {
         let fetchedTaskPage = await tasks
         var resource = AccountHydrationResources(
             tasks: fetchedTaskPage?.data, lists: await lists, sections: await sections, tags: await tags,
-            metadata: await metadata, habits: await habits, growth: await growth, skills: await skills,
+            metadata: fetchedTaskPage?.metadata, habits: await habits, growth: await growth, skills: await skills,
             attributes: await attributes, rewards: await rewards, inventory: await inventory,
             ledger: await ledger, decks: fetchedDecks, cards: cardsByDeck, profile: await profile,
             presets: await presets, taskRules: await taskRules, habitRules: await habitRules,

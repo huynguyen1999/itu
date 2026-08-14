@@ -39,7 +39,7 @@ struct JournalView: View {
         allNotes.filter { note in
             (searchQuery.isEmpty || note.title.localizedCaseInsensitiveContains(searchQuery) || note.contentMarkdown.localizedCaseInsensitiveContains(searchQuery)) &&
             (selectedTagID.isEmpty || note.tagIds.contains(selectedTagID)) &&
-            (destination != .dailyNotes || note.kind == "DAILY")
+            (note.kind != "DAILY_REVIEW" && note.kind != "WEEKLY_REVIEW" && note.dailyReview == nil && note.weeklyReview == nil)
         }
     }
 
@@ -66,7 +66,13 @@ struct JournalView: View {
                                     note: binding,
                                     editorMode: $editorMode,
                                     showInspector: $showInspector,
-                                    onDelete: { selectedNoteID = nil },
+                                    onDelete: {
+                                        let noteID = binding.wrappedValue.id
+                                        selectedNoteID = nil
+                                        Task {
+                                            await model.deleteJournalNote(id: noteID)
+                                        }
+                                    },
                                     onSaved: {}
                                 )
                                 .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -125,7 +131,9 @@ struct JournalView: View {
                 onNewWeeklyReview: { destinationRaw = JournalDestination.weeklyReviews.rawValue }
             )
         case .dailyReviews:
-            DailyReviewsView(onSelectNote: { selectedNoteID = $0.id })
+            DailyReviewsView(
+                onSelectNote: { selectedNoteID = $0.id }
+            )
         case .weeklyReviews:
             WeeklyReviewsView(onSelectNote: { selectedNoteID = $0.id })
         case .templates:
@@ -170,6 +178,21 @@ struct JournalView: View {
                             noteCard(note)
                         }
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                selectedNoteID = note.id
+                            } label: {
+                                Label("Open Note", systemImage: "doc.text")
+                            }
+                            Divider()
+                            Button(role: .destructive) {
+                                Task {
+                                    await model.deleteJournalNote(id: note.id)
+                                }
+                            } label: {
+                                Label("Move to Trash", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
@@ -329,14 +352,14 @@ struct JournalView: View {
         }
     }
 
-    private func createDailyNote() {
-        let today = iTuCalendarSupport.dayString()
+    private func createDailyNote(for dateStr: String? = nil) {
+        let date = dateStr ?? iTuCalendarSupport.dayString()
         Task {
             if let note = await model.saveJournalNote(
                 id: nil,
-                title: "Daily Note: \(today)",
-                contentMarkdown: "## Notes & Log\n\n- ",
-                entryDate: today
+                title: "Daily note",
+                contentMarkdown: "",
+                entryDate: date
             ) {
                 selectedNoteID = note.id
             }

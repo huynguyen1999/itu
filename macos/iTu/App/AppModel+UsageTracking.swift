@@ -23,7 +23,7 @@ extension AppModel {
                     guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
                     let snapshot = try await trackingStore.upsertUsage(summary)
                     guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
-                    self.localUsageSummaries = snapshot.usageSummaries
+                    self.applyUsageSnapshot(snapshot)
                     if let statistics = self.usageStatistics {
                         self.usageStatistics = statistics.adding([summary])
                     }
@@ -61,7 +61,7 @@ extension AppModel {
                     guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
                     let snapshot = try await trackingStore.upsertWebsiteUsage(summary)
                     guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
-                    self.localWebsiteUsageSummaries = snapshot.websiteUsageSummaries
+                    self.applyUsageSnapshot(snapshot)
                     if let latestDate, summary.localDate > latestDate {
                         self.usageUploadTask?.cancel()
                         self.usageUploadTask = nil
@@ -110,14 +110,14 @@ extension AppModel {
             let before = self.localUsageSummaries
             if let snapshot = try? await self.offlineStore.cleanupLegacyUsage() {
                 if before != snapshot.usageSummaries {
-                    self.apply(snapshot)
+                    self.applyUsageSnapshot(snapshot)
                     self.usageStatistics = nil
                     self.usageServerStatistics = nil
                     self.usageIsLocalOnly = true
                 }
             }
             if let snapshot = try? await self.offlineStore.pruneUsage(keeping: self.settingsStore.usagePreferences.retentionDays) {
-                self.apply(snapshot)
+                self.applyUsageSnapshot(snapshot)
             }
             if let store = self.usageSessionStore {
                 _ = try? await store.pruneSessions(keeping: self.settingsStore.usagePreferences.retentionDays)
@@ -154,7 +154,7 @@ extension AppModel {
         Task { @MainActor [weak self] in
             guard let self else { return }
             if let snapshot = try? await self.offlineStore.pruneUsage(keeping: preferences.retentionDays) {
-                self.apply(snapshot)
+                self.applyUsageSnapshot(snapshot)
             }
             if let store = self.usageSessionStore {
                 _ = try? await store.pruneSessions(keeping: preferences.retentionDays)
@@ -229,7 +229,7 @@ extension AppModel {
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
                 let snapshot = try await store.markUsageUploaded(pending)
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
-                apply(snapshot)
+                applyUsageSnapshot(snapshot)
             } catch {
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
                 usageError = error.localizedDescription
@@ -244,7 +244,7 @@ extension AppModel {
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
                 let snapshot = try await store.markWebsiteUsageUploaded(pendingWebsites)
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
-                apply(snapshot)
+                applyUsageSnapshot(snapshot)
                 websiteUsageError = nil
             } catch {
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
@@ -283,7 +283,7 @@ extension AppModel {
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
                 let snapshot = try await store.markUsageAppIconUploaded(bundleID: bundleID, hash: hash)
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
-                apply(snapshot)
+                applyUsageSnapshot(snapshot)
             } catch {
                 guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
                 // Icon delivery is best effort; usage summaries remain durable and retry later.
@@ -336,7 +336,7 @@ extension AppModel {
         do {
             try await apiClient.deleteUsage(from: from, to: to)
             try await apiClient.deleteWebsiteUsage(from: from, to: to)
-            apply(try await offlineStore.deleteUsage(from: from, to: to))
+            applyUsageSnapshot(try await offlineStore.deleteUsage(from: from, to: to))
             if let store = usageSessionStore {
                 _ = try? await store.deleteSessions(from: from, to: to, all: from == nil && to == nil)
             }
@@ -368,5 +368,17 @@ extension AppModel {
         websiteUsageTracker?.stop()
         await Task.yield()
         _ = await uploadUsage()
+    }
+
+    /// Usage maintenance returns the store's full snapshot, but must not
+    /// replace task state that may have changed while the async operation ran.
+    func applyUsageSnapshot(_ snapshot: OfflineSnapshot) {
+        currentSnapshot.usageSummaries = snapshot.usageSummaries
+        currentSnapshot.usageUploadWatermarks = snapshot.usageUploadWatermarks
+        currentSnapshot.usageAppIconUploadHashes = snapshot.usageAppIconUploadHashes
+        currentSnapshot.websiteUsageSummaries = snapshot.websiteUsageSummaries
+        currentSnapshot.websiteUsageUploadWatermarks = snapshot.websiteUsageUploadWatermarks
+        localUsageSummaries = snapshot.usageSummaries
+        localWebsiteUsageSummaries = snapshot.websiteUsageSummaries
     }
 }

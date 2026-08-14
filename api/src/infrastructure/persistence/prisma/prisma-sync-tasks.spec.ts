@@ -58,6 +58,12 @@ function makeTx(task: Record<string, unknown>, clocks: unknown[] = []) {
       update: jest.fn().mockResolvedValue(updated),
       findUniqueOrThrow: jest.fn().mockResolvedValue({ ...updated, tags: [] }),
     },
+    focusSession: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      update: jest.fn(),
+    },
+    focusPreset: { findFirst: jest.fn().mockResolvedValue(null) },
+    growthEarningRule: { findUnique: jest.fn().mockResolvedValue(null) },
     syncFieldClock: {
       findMany: jest.fn().mockResolvedValue(clocks),
       upsert: jest.fn().mockResolvedValue({}),
@@ -199,5 +205,54 @@ describe('PrismaSyncTasks task.update schedule reconciliation', () => {
       expect.arrayContaining(['scheduledStartAt', 'scheduledEndAt']),
     );
     expect(tx.task.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('PrismaSyncTasks task completion invariant', () => {
+  it('completes the matching active WORK focus session in the same mutation transaction', async () => {
+    const completedAt = new Date('2026-08-14T10:00:00.000Z');
+    const tx = makeTx(taskRow());
+    tx.task.update.mockResolvedValue({
+      ...taskRow({ status: 'COMPLETED', completedAt }),
+      version: 3,
+    });
+    tx.focusSession.findFirst.mockResolvedValue({
+      id: 'focus-1',
+      userId: 'u1',
+      taskId: 'task-1',
+      phase: 'WORK',
+      status: 'ACTIVE',
+      presetId: null,
+    });
+    tx.focusSession.update.mockResolvedValue({
+      id: 'focus-1',
+      userId: 'u1',
+      taskId: 'task-1',
+      phase: 'WORK',
+      status: 'COMPLETED',
+      presetId: null,
+      completedAt,
+      version: 4,
+    });
+
+    const result = await new PrismaSyncTasks().applyMutation(
+      tx,
+      'u1',
+      {
+        id: 'complete-task-1',
+        kind: 'task.update',
+        entityId: 'task-1',
+        payload: { status: 'COMPLETED' },
+        occurredAt: completedAt.toISOString(),
+      },
+      {},
+    );
+
+    expect(result).toBeNull();
+    expect(tx.focusSession.update).toHaveBeenCalledWith({
+      where: { id: 'focus-1' },
+      data: { status: 'COMPLETED', completedAt, version: { increment: 1 } },
+    });
+    expect(tx.syncChange.create).toHaveBeenCalledTimes(2);
   });
 });

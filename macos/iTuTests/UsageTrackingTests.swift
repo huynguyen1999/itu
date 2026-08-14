@@ -521,4 +521,33 @@ final class UsageTrackingTests: XCTestCase {
         XCTAssertNil(model.usageUploadInFlight)
         XCTAssertEqual(model.usageUploadGeneration, 8)
     }
+
+    func testUsageMaintenanceSnapshotDoesNotReplaceTaskStatus() {
+        let model = AppModel()
+        var currentTask = ProductivityTask.optimistic(id: "usage-race-task", title: "Task")
+        currentTask.status = .completed
+        model.tasks = [currentTask]
+        model.currentSnapshot.tasks = [currentTask]
+
+        var staleTask = currentTask
+        staleTask.status = .planned
+        var usageSnapshot = OfflineSnapshot()
+        usageSnapshot.tasks = [staleTask]
+        usageSnapshot.usageSummaries = [
+            UsageSummary(
+                localDate: "2026-08-14",
+                bundleId: "com.example.Editor",
+                displayName: "Editor",
+                timezone: "UTC",
+                activeSeconds: 1,
+                engagedSeconds: 1
+            )
+        ]
+
+        model.applyUsageSnapshot(usageSnapshot)
+
+        XCTAssertEqual(model.tasks.first?.status, .completed)
+        XCTAssertEqual(model.currentSnapshot.tasks.first?.status, .completed)
+        XCTAssertEqual(model.localUsageSummaries.first?.activeSeconds, 1)
+    }
 }

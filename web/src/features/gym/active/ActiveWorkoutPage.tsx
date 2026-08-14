@@ -3,28 +3,20 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
-  Check,
   Dumbbell,
   MoreHorizontal,
   Plus,
   RefreshCw,
-  Search,
-  Star,
   StopCircle,
   Trash2,
-  X,
 } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
-import { Textarea } from '@/shared/ui/textarea';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu';
 import { api, type GymPreferences } from '@/shared/api/client';
@@ -53,21 +45,9 @@ import {
 } from '../gymMutations';
 import { useSync } from '@/shared/sync/SyncProvider';
 import { playGymTone, RestTimer } from '../RestTimer';
-import { formatVolume, formatWeight, fromDisplayWeight, toDisplayWeight, weightUnitLabel } from '../weightUnits';
-
-type NumericSetField = 'weight' | 'reps' | 'durationSeconds' | 'distanceMeters' | 'rpe';
-const metricFields: Record<ExerciseMetricType, Array<{ field: NumericSetField; label: string; step?: string }>> = {
-  WEIGHT_REPS: [
-    { field: 'weight', label: 'Weight', step: '0.01' },
-    { field: 'reps', label: 'Reps' },
-  ],
-  REPS: [{ field: 'reps', label: 'Reps' }],
-  DURATION: [{ field: 'durationSeconds', label: 'Duration (sec)' }],
-  DISTANCE_DURATION: [
-    { field: 'distanceMeters', label: 'Distance (m)', step: '0.01' },
-    { field: 'durationSeconds', label: 'Duration (sec)' },
-  ],
-};
+import { formatVolume } from '../weightUnits';
+import { ExercisePickerDialog } from './ExercisePickerDialog';
+import { WorkoutExerciseList } from './WorkoutExerciseList';
 
 function numericValue(value: unknown): number | undefined {
   if (value === '' || value === null || value === undefined) return undefined;
@@ -114,39 +94,6 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function previousSummary(
-  previous: GymWorkoutSet['previous'],
-  metric: ExerciseMetricType,
-  weightUnit: 'KG' | 'LBS',
-): string {
-  if (!previous) return '';
-  const fields =
-    metric === 'WEIGHT_REPS'
-      ? [
-          previous.weight !== undefined && previous.weight !== null ? formatWeight(previous.weight, weightUnit) : null,
-          previous.reps !== undefined && previous.reps !== null ? `${previous.reps} reps` : null,
-        ]
-      : metric === 'REPS'
-        ? [previous.reps !== undefined && previous.reps !== null ? `${previous.reps} reps` : null]
-        : metric === 'DISTANCE_DURATION'
-          ? [
-              previous.distanceMeters !== undefined && previous.distanceMeters !== null
-                ? `${previous.distanceMeters}m`
-                : null,
-              previous.durationSeconds !== undefined && previous.durationSeconds !== null
-                ? `${previous.durationSeconds}s`
-                : null,
-            ]
-          : [
-              previous.durationSeconds !== undefined && previous.durationSeconds !== null
-                ? `${previous.durationSeconds}s`
-                : null,
-            ];
-  return [...fields, previous.rpe !== undefined && previous.rpe !== null ? `RPE ${previous.rpe}` : null]
-    .filter(Boolean)
-    .join(' · ');
-}
-
 export function ActiveWorkoutPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -178,12 +125,6 @@ export function ActiveWorkoutPage() {
   const [title, setTitle] = useState('Workout');
   const [exercises, setExercises] = useState<GymWorkoutExercise[]>([]);
   const [showAddExercise, setShowAddExercise] = useState(false);
-  const [exerciseSearch, setExerciseSearch] = useState('');
-  const [pickerTab, setPickerTab] = useState<'recent' | 'favorites' | 'all'>('all');
-  const [muscleFilter, setMuscleFilter] = useState('ALL');
-  const [equipmentFilter, setEquipmentFilter] = useState('ALL');
-  const [metricFilter, setMetricFilter] = useState('ALL');
-  const [customName, setCustomName] = useState('');
   const [saveFeedback, setSaveFeedback] = useState<'idle' | 'saved' | 'error'>('idle');
   const [saveQueued, setSaveQueued] = useState(false);
   const [restTimerSeconds, setRestTimerSeconds] = useState<number | null>(null);
@@ -331,14 +272,11 @@ export function ActiveWorkoutPage() {
       { ...result, id: result.id, exerciseId: definition.id, exercise: definition, sets: [firstSet] },
     ]);
     setShowAddExercise(false);
-    setExerciseSearch('');
   };
 
-  const addCustomExercise = async () => {
-    const name = customName.trim();
+  const addCustomExercise = async (name: string) => {
     if (!name) return;
     const definition = await createExercise.mutateAsync({ name, metricType: 'WEIGHT_REPS' });
-    setCustomName('');
     await addExercise(definition);
   };
 
@@ -442,45 +380,6 @@ export function ActiveWorkoutPage() {
     else next.add(exerciseId);
     updatePreferences.mutate({ favoriteExerciseIds: [...next] });
   };
-  const muscleOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          availableExercises.map((item) => item.primaryMuscleGroup).filter((value): value is string => Boolean(value)),
-        ),
-      ),
-    [availableExercises],
-  );
-  const equipmentOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(availableExercises.map((item) => item.equipment).filter((value): value is string => Boolean(value))),
-      ),
-    [availableExercises],
-  );
-  const filteredExercises = useMemo(() => {
-    const query = exerciseSearch.trim().toLowerCase();
-    return availableExercises.filter((exercise) => {
-      const favorite = favoriteIds.has(exercise.id) || Boolean(exercise.isFavorite || exercise.favorite);
-      const matchesTab = pickerTab === 'all' || (pickerTab === 'favorites' ? favorite : recentIds.has(exercise.id));
-      return (
-        matchesTab &&
-        (!query || exercise.name.toLowerCase().includes(query)) &&
-        (muscleFilter === 'ALL' || exercise.primaryMuscleGroup === muscleFilter) &&
-        (equipmentFilter === 'ALL' || exercise.equipment === equipmentFilter) &&
-        (metricFilter === 'ALL' || exercise.metricType === metricFilter)
-      );
-    });
-  }, [
-    availableExercises,
-    favoriteIds,
-    exerciseSearch,
-    pickerTab,
-    recentIds,
-    muscleFilter,
-    equipmentFilter,
-    metricFilter,
-  ]);
   const workoutEntityIds = useMemo(
     () =>
       new Set(
@@ -616,200 +515,18 @@ export function ActiveWorkoutPage() {
           </Button>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {exercises.map((exercise, exerciseIndex) => {
-            const metric = exercise.exercise?.metricType || 'WEIGHT_REPS';
-            const fields = metricFields[metric];
-            return (
-              <Card key={exercise.id || `${exercise.exerciseId}-${exerciseIndex}`} className="overflow-hidden">
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 p-4">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                      {exerciseIndex + 1}
-                    </span>
-                    <div className="min-w-0">
-                      <h2 className="truncate text-sm font-semibold">{exercise.exercise?.name || 'Exercise'}</h2>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {metric.replace('_', ' + ').toLowerCase()}
-                      </p>
-                    </div>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label="Exercise actions">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => moveExercise(exerciseIndex, -1)} disabled={exerciseIndex === 0}>
-                        <ArrowUp className="h-4 w-4" />
-                        Move up
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => moveExercise(exerciseIndex, 1)}
-                        disabled={exerciseIndex === exercises.length - 1}
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                        Move down
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => void removeExercise(exerciseIndex)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Remove exercise
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div className="space-y-2 p-4">
-                  <label className="block space-y-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Exercise notes
-                    </span>
-                    <Textarea
-                      value={exercise.note || ''}
-                      onChange={(event) => patchExercise(exerciseIndex, { note: event.target.value })}
-                      placeholder="Form cues, equipment, or anything to remember"
-                      rows={2}
-                      className="min-h-0 resize-y text-xs"
-                    />
-                  </label>
-                  <div className="space-y-2" aria-label={`${exercise.exercise?.name || 'Exercise'} sets`}>
-                    <div className="hidden items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:flex">
-                      <span className="w-8">Set</span>
-                      <span className="flex-1">Metrics</span>
-                      <span className="w-20 text-center">Done</span>
-                    </div>
-                    {exercise.sets.map((set, setIndex) => (
-                      <div
-                        key={set.id || `${exerciseIndex}-${setIndex}`}
-                        className={`flex flex-wrap items-end gap-2 rounded-md border p-2 ${set.completedAt ? 'border-primary/30 bg-primary/5' : 'border-border/60 bg-muted/20'}`}
-                      >
-                        <span className="w-8 pb-2 text-center font-mono text-xs font-semibold text-muted-foreground">
-                          {setIndex + 1}
-                        </span>
-                        <div className="flex min-w-[220px] flex-1 flex-wrap gap-2">
-                          {fields.map(({ field, label, step }) => {
-                            const displayLabel =
-                              field === 'weight' ? `Weight (${weightUnitLabel(prefs.weightUnit)})` : label;
-                            return (
-                              <label key={field} className="min-w-[94px] flex-1 space-y-1">
-                                <span className="text-[10px] font-medium text-muted-foreground sm:hidden">
-                                  {displayLabel}
-                                </span>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step={step}
-                                  value={
-                                    field === 'weight'
-                                      ? (toDisplayWeight((set as any)[field], prefs.weightUnit) ?? '')
-                                      : ((set as any)[field] ?? '')
-                                  }
-                                  onChange={(event) =>
-                                    patchSet(exerciseIndex, setIndex, {
-                                      [field]:
-                                        event.target.value === ''
-                                          ? null
-                                          : field === 'weight'
-                                            ? fromDisplayWeight(Number(event.target.value), prefs.weightUnit)
-                                            : Number(event.target.value),
-                                    })
-                                  }
-                                  aria-label={`${exercise.exercise?.name || 'Exercise'} set ${setIndex + 1} ${displayLabel}`}
-                                  className="h-9 text-xs font-mono"
-                                  placeholder="—"
-                                />
-                              </label>
-                            );
-                          })}
-                          {prefs.showRpe && (
-                            <label className="min-w-[72px] flex-1 space-y-1">
-                              <span className="text-[10px] font-medium text-muted-foreground sm:hidden">RPE</span>
-                              <Input
-                                type="number"
-                                min="0"
-                                max="10"
-                                step="0.5"
-                                value={set.rpe ?? ''}
-                                onChange={(event) =>
-                                  patchSet(exerciseIndex, setIndex, {
-                                    rpe: event.target.value === '' ? null : Number(event.target.value),
-                                  })
-                                }
-                                aria-label={`${exercise.exercise?.name || 'Exercise'} set ${setIndex + 1} RPE`}
-                                className="h-9 text-xs font-mono"
-                                placeholder="RPE"
-                              />
-                            </label>
-                          )}
-                          <label className="min-w-[96px] flex-1 space-y-1">
-                            <span className="text-[10px] font-medium text-muted-foreground sm:hidden">Set type</span>
-                            <select
-                              value={set.type === 'WARMUP' ? 'WARM_UP' : set.type || 'NORMAL'}
-                              onChange={(event) => patchSet(exerciseIndex, setIndex, { type: event.target.value })}
-                              aria-label={`Set ${setIndex + 1} type`}
-                              className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
-                            >
-                              <option value="NORMAL">Normal</option>
-                              <option value="WARM_UP">Warm-up</option>
-                              <option value="DROP">Drop</option>
-                              <option value="FAILURE">Failure</option>
-                            </select>
-                          </label>
-                        </div>
-                        <div className="flex w-20 justify-end gap-1 pb-0.5">
-                          <Button
-                            data-gym-set-complete={String(Boolean(set.completedAt))}
-                            type="button"
-                            variant={set.completedAt ? 'default' : 'outline'}
-                            size="icon"
-                            className="h-9 w-9"
-                            onClick={() => void toggleSet(exerciseIndex, setIndex)}
-                            aria-label={`${set.completedAt ? 'Uncomplete' : 'Complete'} set ${setIndex + 1}`}
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9 text-muted-foreground hover:text-destructive"
-                            onClick={() => void removeSet(exerciseIndex, setIndex)}
-                            aria-label={`Remove set ${setIndex + 1}`}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        {prefs.previousPerformanceMode && set.previous && (
-                          <p className="w-full pl-10 text-[10px] text-muted-foreground">
-                            Previous: {previousSummary(set.previous, metric, prefs.weightUnit)}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => void addSet(exerciseIndex)}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add set
-                  </Button>
-                </div>
-              </Card>
-            );
-          })}
-          <Button type="button" size="sm" className="w-full" onClick={() => setShowAddExercise(true)}>
-            <Plus className="h-4 w-4" />
-            Add exercise
-          </Button>
-        </div>
+        <WorkoutExerciseList
+          exercises={exercises}
+          prefs={prefs}
+          onPatchExercise={patchExercise}
+          onPatchSet={patchSet}
+          onToggleSet={toggleSet}
+          onRemoveSet={removeSet}
+          onAddSet={addSet}
+          onRemoveExercise={removeExercise}
+          onMoveExercise={moveExercise}
+          onRequestAddExercise={() => setShowAddExercise(true)}
+        />
       )}
       {showFinishReview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation">
@@ -845,173 +562,18 @@ export function ActiveWorkoutPage() {
           </Card>
         </div>
       )}
-      {showAddExercise && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          role="presentation"
-          onMouseDown={(event) => event.target === event.currentTarget && setShowAddExercise(false)}
-        >
-          <Card
-            className="w-full max-w-lg space-y-4 p-5"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-exercise-title"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 id="add-exercise-title" className="text-sm font-semibold">
-                  Add exercise
-                </h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">Recent, favorite, or all exercises.</p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setShowAddExercise(false)}
-                aria-label="Close add exercise dialog"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  value={exerciseSearch}
-                  onChange={(event) => setExerciseSearch(event.target.value)}
-                  placeholder="Search exercises"
-                  className="pl-8"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Input
-                value={customName}
-                onChange={(event) => setCustomName(event.target.value)}
-                placeholder="New custom exercise name"
-                aria-label="Custom exercise name"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void addCustomExercise()}
-                disabled={!customName.trim() || createExercise.isPending}
-              >
-                Create custom
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              <div className="flex rounded-md border p-0.5">
-                {(['recent', 'favorites', 'all'] as const).map((tab) => (
-                  <Button
-                    key={tab}
-                    type="button"
-                    variant={pickerTab === tab ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setPickerTab(tab)}
-                  >
-                    {tab[0].toUpperCase() + tab.slice(1)}
-                  </Button>
-                ))}
-              </div>
-              <select
-                value={muscleFilter}
-                onChange={(event) => setMuscleFilter(event.target.value)}
-                className="h-8 rounded-md border bg-background px-2 text-xs"
-              >
-                <option value="ALL">Muscle</option>
-                {muscleOptions.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={equipmentFilter}
-                onChange={(event) => setEquipmentFilter(event.target.value)}
-                className="h-8 rounded-md border bg-background px-2 text-xs"
-              >
-                <option value="ALL">Equipment</option>
-                {equipmentOptions.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={metricFilter}
-                onChange={(event) => setMetricFilter(event.target.value)}
-                className="h-8 rounded-md border bg-background px-2 text-xs"
-              >
-                <option value="ALL">Metric</option>
-                {Object.keys(metricFields).map((value) => (
-                  <option key={value} value={value}>
-                    {value.replace('_', ' ')}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {exercisesQuery.isLoading ? (
-              <p className="py-8 text-center text-xs text-muted-foreground">Loading exercise library…</p>
-            ) : (
-              <div className="max-h-[min(24rem,60vh)] space-y-1 overflow-y-auto pr-1">
-                {filteredExercises.map((exercise) => (
-                  <div
-                    key={exercise.id}
-                    role="button"
-                    tabIndex={0}
-                    className="flex w-full items-center justify-between gap-3 rounded-md border border-transparent p-3 text-left text-xs hover:border-primary/20 hover:bg-primary/5"
-                    onClick={() => void addExercise(exercise)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        void addExercise(exercise);
-                      }
-                    }}
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold">{exercise.name}</span>
-                      <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
-                        {exercise.primaryMuscleGroup || 'General'} · {exercise.equipment || 'Bodyweight'}
-                      </span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-1">
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="rounded p-1 text-muted-foreground hover:text-amber-500"
-                        aria-label={`${favoriteIds.has(exercise.id) ? 'Remove' : 'Add'} ${exercise.name} ${favoriteIds.has(exercise.id) ? 'from' : 'to'} favorites`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleFavorite(exercise.id);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            toggleFavorite(exercise.id);
-                          }
-                        }}
-                      >
-                        <Star
-                          className={`h-4 w-4 ${favoriteIds.has(exercise.id) ? 'fill-amber-400 text-amber-500' : ''}`}
-                        />
-                      </span>
-                      <Plus className="h-4 w-4 text-primary" />
-                    </span>
-                  </div>
-                ))}
-                {filteredExercises.length === 0 && (
-                  <p className="py-8 text-center text-xs text-muted-foreground">No exercises match these filters.</p>
-                )}
-              </div>
-            )}
-          </Card>
-        </div>
-      )}
+      <ExercisePickerDialog
+        open={showAddExercise}
+        exercises={availableExercises}
+        recentIds={recentIds}
+        favoriteIds={favoriteIds}
+        isLoading={exercisesQuery.isLoading}
+        isCreating={createExercise.isPending}
+        onClose={() => setShowAddExercise(false)}
+        onAdd={(exercise) => void addExercise(exercise)}
+        onCreateCustom={addCustomExercise}
+        onToggleFavorite={toggleFavorite}
+      />
     </div>
   );
 }

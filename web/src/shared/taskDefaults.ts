@@ -9,7 +9,7 @@ export interface TaskDefaults {
   taskListId: string;
 }
 
-export const DEFAULT_TASK_DEFAULTS: TaskDefaults = {
+const DEFAULT_TASK_DEFAULTS: TaskDefaults = {
   date: 'NONE',
   priority: 'NONE',
   taskListId: '',
@@ -26,7 +26,7 @@ export function getStoredTaskDefaults(): TaskDefaults {
   }
 }
 
-export function saveStoredTaskDefaults(defaults: TaskDefaults): void {
+function saveStoredTaskDefaults(defaults: TaskDefaults): void {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
 }
 

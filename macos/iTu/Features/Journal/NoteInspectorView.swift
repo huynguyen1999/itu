@@ -10,25 +10,41 @@ struct NoteInspectorView: View {
     @State private var newTagName = ""
     @State private var isCreatingTag = false
 
-    private var words: Int {
-        JournalSupport.wordCount(for: note.contentMarkdown)
+    private var headings: [(level: Int, text: String)] {
+        note.contentMarkdown.components(separatedBy: .newlines).compactMap { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.starts(with: "#") else { return nil }
+            let hashes = trimmed.prefix(while: { $0 == "#" })
+            let text = trimmed.dropFirst(hashes.count).trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty else { return nil }
+            return (hashes.count, text)
+        }
     }
 
-    private var chars: Int {
-        JournalSupport.characterCount(for: note.contentMarkdown)
-    }
-
-    private var readMinutes: Int {
-        JournalSupport.readingTimeMinutes(for: note.contentMarkdown)
+    private var linkedNotes: [String] {
+        let pattern = "\\[\\[(.*?)\\]\\]"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let nsString = note.contentMarkdown as NSString
+        let matches = regex.matches(in: note.contentMarkdown, range: NSRange(location: 0, length: nsString.length))
+        var links: [String] = []
+        for match in matches {
+            if match.numberOfRanges > 1 {
+                let extracted = nsString.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespaces)
+                if !extracted.isEmpty && !links.contains(extracted) {
+                    links.append(extracted)
+                }
+            }
+        }
+        return links
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             // Header
             HStack {
-                Label("Note Inspector", systemImage: "sidebar.right")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(iTuTheme.ink)
+                Text("INSPECTOR")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(iTuTheme.mint)
 
                 Spacer()
 
@@ -36,7 +52,7 @@ struct NoteInspectorView: View {
                     onClose()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
+                        .font(.system(size: 15))
                         .foregroundStyle(iTuTheme.inkDim)
                 }
                 .buttonStyle(.plain)
@@ -44,16 +60,57 @@ struct NoteInspectorView: View {
 
             Divider()
 
-            // Text Metrics
+            // Outline Section
             VStack(alignment: .leading, spacing: 8) {
-                Text("DOCUMENT STATS")
+                Text("OUTLINE")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(iTuTheme.inkDim)
+                    .foregroundStyle(iTuTheme.inkFaint)
 
-                HStack(spacing: 8) {
-                    metricBadge(label: "WORDS", value: "\(words)")
-                    metricBadge(label: "CHARS", value: "\(chars)")
-                    metricBadge(label: "READ TIME", value: "\(readMinutes)m")
+                if headings.isEmpty {
+                    Text("No headings yet — start with a # to structure this note.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                        .italic()
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(headings.enumerated()), id: \.offset) { _, item in
+                            HStack(spacing: 4) {
+                                Text(item.text)
+                                    .font(.system(size: 11, weight: item.level == 1 ? .medium : .regular))
+                                    .foregroundStyle(iTuTheme.ink)
+                                    .lineLimit(1)
+                            }
+                            .padding(.leading, CGFloat((item.level - 1) * 8))
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            // Linked Notes Section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("LINKED NOTES")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(iTuTheme.inkFaint)
+
+                if linkedNotes.isEmpty {
+                    Text("Nothing linked yet.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(iTuTheme.inkFaint)
+                        .italic()
+                } else {
+                    FlowLayout(spacing: 4) {
+                        ForEach(linkedNotes, id: \.self) { link in
+                            Text("[[\(link)]]")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(iTuTheme.teal)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(iTuTheme.teal.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        }
+                    }
                 }
             }
 
@@ -63,17 +120,17 @@ struct NoteInspectorView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("TAGS")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(iTuTheme.inkDim)
+                    .foregroundStyle(iTuTheme.inkFaint)
 
                 if note.tags.isEmpty {
                     Text("No tags attached.")
                         .font(.system(size: 11))
-                        .foregroundStyle(iTuTheme.inkDim)
+                        .foregroundStyle(iTuTheme.inkFaint)
                 } else {
                     FlowLayout(spacing: 6) {
                         ForEach(note.tags) { tag in
                             HStack(spacing: 4) {
-                                Text(tag.name)
+                                Text("#\(tag.name)")
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundStyle(iTuTheme.teal)
 
@@ -119,7 +176,7 @@ struct NoteInspectorView: View {
                 HStack {
                     Text("ATTACHMENTS (\(note.attachments.count))")
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundStyle(iTuTheme.inkDim)
+                        .foregroundStyle(iTuTheme.inkFaint)
 
                     Spacer()
 
@@ -136,7 +193,8 @@ struct NoteInspectorView: View {
                 if note.attachments.isEmpty {
                     Text("No files attached.")
                         .font(.system(size: 11))
-                        .foregroundStyle(iTuTheme.inkDim)
+                        .foregroundStyle(iTuTheme.inkFaint)
+                        .italic()
                 } else {
                     VStack(spacing: 6) {
                         ForEach(note.attachments) { att in
@@ -148,21 +206,21 @@ struct NoteInspectorView: View {
 
             Divider()
 
-            // Revision & Timestamps
+            // Revision & Timestamps (Metadata)
             VStack(alignment: .leading, spacing: 4) {
                 Text("METADATA")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(iTuTheme.inkDim)
+                    .foregroundStyle(iTuTheme.inkFaint)
 
-                Text("Entry date: \(note.displayDate)")
+                Text("Entry date · \(note.displayDate)")
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(iTuTheme.inkDim)
 
-                Text("Version: v\(note.version)")
+                Text("Version · v\(note.version)")
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(iTuTheme.inkDim)
 
-                Text("Updated: \(String(note.updatedAt.prefix(19)))")
+                Text("Updated · \(String(note.updatedAt.prefix(19)))")
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(iTuTheme.inkDim)
             }
@@ -175,21 +233,6 @@ struct NoteInspectorView: View {
         .overlay(alignment: .leading) {
             Rectangle().fill(iTuTheme.border).frame(width: 1)
         }
-    }
-
-    private func metricBadge(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                .foregroundStyle(iTuTheme.inkDim)
-            Text(value)
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundStyle(iTuTheme.ink)
-        }
-        .padding(6)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(iTuTheme.surfaceMuted)
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
     private func attachmentRow(_ att: JournalAttachmentModel) -> some View {
@@ -261,7 +304,6 @@ struct NoteInspectorView: View {
         }
     }
 }
-
 
 private struct FlowLayout: Layout {
     var spacing: CGFloat = 6

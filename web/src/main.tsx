@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App';
 import { AuthProvider } from './shared/auth/AuthProvider';
 import { SyncProvider } from './shared/sync/SyncProvider';
+import { GrowthSyncProvider } from './features/growth';
 import { ThemeProvider } from './shared/ui/ThemeProvider';
 import { UndoStackProvider } from './shared/hooks/useUndoStack';
 import './styles/app.css';
@@ -23,13 +24,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SyncProvider>
-          <ThemeProvider>
-            <UndoStackProvider>
-              <BrowserRouter>
-                <App />
-              </BrowserRouter>
-            </UndoStackProvider>
-          </ThemeProvider>
+          <GrowthSyncProvider>
+            <ThemeProvider>
+              <UndoStackProvider>
+                <BrowserRouter>
+                  <App />
+                </BrowserRouter>
+              </UndoStackProvider>
+            </ThemeProvider>
+          </GrowthSyncProvider>
         </SyncProvider>
       </AuthProvider>
     </QueryClientProvider>
