@@ -1,6 +1,5 @@
 import { HabitScheduleType, TaskPriority } from '@prisma/client';
-
-const DAY_MS = 86_400_000;
+import { HabitCalendarDefinition, isHabitScheduled as isHabitScheduledV2 } from './habit-v2';
 
 export function deriveUrgency(
   task: { urgentOverride: boolean | null; dueAt: Date | null; priority: TaskPriority },
@@ -22,27 +21,20 @@ export function utcDay(value: Date) {
 }
 
 export function isHabitScheduled(
-  habit: {
-    scheduleType: HabitScheduleType;
-    weekdays: number[];
-    intervalDays: number | null;
-    period?: string | null;
-    restDays: number[];
-    startDate: Date;
-    endDate: Date | null;
-  },
+  habit: Partial<HabitCalendarDefinition> & { scheduleType: HabitScheduleType; startDate: Date },
   date: Date,
 ) {
-  const normalized = utcDay(date);
-  if (normalized < utcDay(habit.startDate) || (habit.endDate && normalized > utcDay(habit.endDate))) return false;
-  if (habit.restDays.includes(normalized.getUTCDay())) return false;
-  if (habit.scheduleType === HabitScheduleType.WEEKDAYS) return habit.weekdays.includes(normalized.getUTCDay());
-  if (habit.scheduleType === HabitScheduleType.INTERVAL) {
-    const days = Math.floor((normalized.getTime() - utcDay(habit.startDate).getTime()) / DAY_MS);
-    return days % (habit.intervalDays ?? 1) === 0;
-  }
-  if ((habit.period ?? 'WEEK').toUpperCase() === 'MONTH') return normalized.getUTCDate() === 1;
-  return normalized.getUTCDay() === 1;
+  return isHabitScheduledV2(
+    {
+      weekdays: [],
+      intervalDays: null,
+      restDays: [],
+      endDate: null,
+      timesPerPeriod: null,
+      ...habit,
+    } as HabitCalendarDefinition,
+    date,
+  );
 }
 
 export function focusedSeconds(session: {

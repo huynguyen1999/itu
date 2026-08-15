@@ -27,6 +27,18 @@ export class CreateJournalEntryDto {
   templateId?: string;
 
   @IsOptional()
+  @IsString()
+  contextType?: string;
+
+  @IsOptional()
+  @IsString()
+  contextId?: string;
+
+  @IsOptional()
+  @IsObject()
+  contextData?: Record<string, unknown>;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   tagIds?: string[];
@@ -79,6 +91,18 @@ export class UpdateJournalEntryDto {
   @IsOptional()
   @IsString()
   templateId?: string;
+
+  @IsOptional()
+  @IsString()
+  contextType?: string;
+
+  @IsOptional()
+  @IsString()
+  contextId?: string;
+
+  @IsOptional()
+  @IsObject()
+  contextData?: Record<string, unknown>;
 
   @IsOptional()
   @IsArray()
@@ -180,6 +204,14 @@ export class SearchJournalQueryDto {
   @IsOptional()
   @IsString()
   tagId?: string;
+
+  @IsOptional()
+  @IsString()
+  contextType?: string;
+
+  @IsOptional()
+  @IsString()
+  contextId?: string;
 
   @IsOptional()
   @IsDateString()

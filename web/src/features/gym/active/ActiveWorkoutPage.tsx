@@ -42,6 +42,8 @@ import {
   useUpdateGymWorkoutTitle,
   useUpdateGymWorkoutExercise,
   useUpdateGymWorkoutSet,
+  useCreateRoutineFromWorkout,
+  useUpdateRoutineFromWorkout,
 } from '../gymMutations';
 import { useSync } from '@/shared/sync/SyncProvider';
 import { playGymTone, RestTimer } from '../RestTimer';
@@ -118,6 +120,8 @@ export function ActiveWorkoutPage() {
   const finishWorkout = useFinishGymWorkout();
   const abandonWorkout = useAbandonGymWorkout();
   const createExercise = useCreateGymExercise();
+  const createRoutineFromWorkout = useCreateRoutineFromWorkout();
+  const updateRoutineFromWorkout = useUpdateRoutineFromWorkout();
   const { conflicts, keepServer, keepMine } = useSync();
   const prefs = { ...DEFAULT_GYM_PREFERENCES, ...(preferencesQuery.data?.gym || {}) };
   // Keep compatibility with older preference payloads while allowing the explicit toggle.
@@ -129,6 +133,9 @@ export function ActiveWorkoutPage() {
   const [saveQueued, setSaveQueued] = useState(false);
   const [restTimerSeconds, setRestTimerSeconds] = useState<number | null>(null);
   const [showFinishReview, setShowFinishReview] = useState(false);
+  const [saveAsNewRoutine, setSaveAsNewRoutine] = useState(false);
+  const [updateLinkedRoutine, setUpdateLinkedRoutine] = useState(false);
+  const [newRoutineName, setNewRoutineName] = useState('');
   const [clockNow, setClockNow] = useState(() => Date.now());
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -346,8 +353,24 @@ export function ActiveWorkoutPage() {
   const finish = () => {
     if (id) setShowFinishReview(true);
   };
-  const confirmFinish = () => {
+  const confirmFinish = async () => {
     if (!id) return;
+    try {
+      if (workoutQuery.data?.routineId && updateLinkedRoutine) {
+        await updateRoutineFromWorkout.mutateAsync({
+          routineId: workoutQuery.data.routineId,
+          workoutId: id,
+        });
+      } else if (saveAsNewRoutine && newRoutineName.trim()) {
+        await createRoutineFromWorkout.mutateAsync({
+          workoutId: id,
+          name: newRoutineName.trim(),
+        });
+      }
+    } catch (e) {
+      console.error('Failed to save/update routine from workout', e);
+    }
+
     finishWorkout.mutate(
       { id, version: workoutQuery.data?.version, durationMinutes: finishSummary.durationMinutes },
       {
@@ -551,7 +574,45 @@ export function ActiveWorkoutPage() {
             {finishSummary.completedSets === 0 && (
               <p className="text-xs text-amber-700 dark:text-amber-300">No completed sets yet. Finish this workout anyway?</p>
             )}
-            <div className="flex justify-end gap-2">
+
+            <div className="border-t pt-3 space-y-2 text-xs">
+              {workoutQuery.data?.routineId ? (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={updateLinkedRoutine}
+                    onChange={(e) => setUpdateLinkedRoutine(e.target.checked)}
+                    className="rounded border-input text-primary focus:ring-primary h-4 w-4"
+                  />
+                  <span className="text-muted-foreground">Update linked routine template with today's exercises</span>
+                </label>
+              ) : (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={saveAsNewRoutine}
+                      onChange={(e) => {
+                        setSaveAsNewRoutine(e.target.checked);
+                        if (e.target.checked && !newRoutineName) setNewRoutineName(title || 'Routine');
+                      }}
+                      className="rounded border-input text-primary focus:ring-primary h-4 w-4"
+                    />
+                    <span className="text-muted-foreground">Save as a new Routine template</span>
+                  </label>
+                  {saveAsNewRoutine && (
+                    <Input
+                      placeholder="Routine name (e.g. Upper Body A)"
+                      value={newRoutineName}
+                      onChange={(e) => setNewRoutineName(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
               <Button type="button" variant="outline" size="sm" onClick={() => setShowFinishReview(false)}>
                 Keep training
               </Button>

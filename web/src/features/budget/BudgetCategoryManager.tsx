@@ -15,13 +15,11 @@ import {
 
 export function BudgetCategoryManager({ compact = false }: { compact?: boolean }) {
   const [newCatName, setNewCatName] = useState('');
-  const [newCatType, setNewCatType] = useState<'EXPENSE' | 'INCOME'>('EXPENSE');
-  const [newCatIcon, setNewCatIcon] = useState('wallet');
+  const [newCatIcon, setNewCatIcon] = useState('other');
   const [newCatColor, setNewCatColor] = useState('TEAL');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [editType, setEditType] = useState<'EXPENSE' | 'INCOME'>('EXPENSE');
-  const [editIcon, setEditIcon] = useState('wallet');
+  const [editIcon, setEditIcon] = useState('other');
   const [editColor, setEditColor] = useState('TEAL');
 
   const { data: categories = [] } = useBudgetCategories();
@@ -32,21 +30,20 @@ export function BudgetCategoryManager({ compact = false }: { compact?: boolean }
   const handleAddCategory = (event: FormEvent) => {
     event.preventDefault();
     if (!newCatName.trim()) return;
-    createCat.mutate({ name: newCatName.trim(), type: newCatType, icon: newCatIcon, color: newCatColor });
+    createCat.mutate({ name: newCatName.trim(), icon: newCatIcon, color: newCatColor });
     setNewCatName('');
   };
 
   const startEdit = (category: any) => {
     setEditingId(category.id);
     setEditName(category.name);
-    setEditType(category.type || 'EXPENSE');
     setEditIcon(getCategoryIconKey(category.icon || category.name));
     setEditColor(getCategoryColorKey(category.color));
   };
 
   const saveEdit = (id: string) => {
     if (!editName.trim()) return;
-    updateCat.mutate({ id, data: { name: editName.trim(), type: editType, icon: editIcon, color: editColor } });
+    updateCat.mutate({ id, data: { name: editName.trim(), icon: editIcon, color: editColor } });
     setEditingId(null);
   };
 
@@ -62,11 +59,7 @@ export function BudgetCategoryManager({ compact = false }: { compact?: boolean }
 
       <form onSubmit={handleAddCategory} className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
         <Input value={newCatName} onChange={(event) => setNewCatName(event.target.value)} placeholder="New category" aria-label="New category name" className="h-9 text-xs" />
-        <div className="flex gap-2">
-          <select value={newCatType} onChange={(event) => setNewCatType(event.target.value as 'EXPENSE' | 'INCOME')} className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-xs" aria-label="Category type">
-            <option value="EXPENSE">Expense</option>
-            <option value="INCOME">Income</option>
-          </select>
+        <div className="flex justify-end">
           <Button type="submit" size="sm" className="gap-1.5" disabled={createCat.isPending}>
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             Add
@@ -85,10 +78,6 @@ export function BudgetCategoryManager({ compact = false }: { compact?: boolean }
               <div className="space-y-3">
                 <Input value={editName} onChange={(event) => setEditName(event.target.value)} aria-label="Category name" className="h-8 text-xs" />
                 <div className="flex gap-2">
-                  <select value={editType} onChange={(event) => setEditType(event.target.value as 'EXPENSE' | 'INCOME')} className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-xs" aria-label="Category type">
-                    <option value="EXPENSE">Expense</option>
-                    <option value="INCOME">Income</option>
-                  </select>
                   <Button type="button" size="sm" className="h-8 gap-1 px-2 text-xs" onClick={() => saveEdit(category.id)} disabled={updateCat.isPending}>
                     <Check className="h-3.5 w-3.5" aria-hidden="true" />
                     Save
@@ -108,7 +97,7 @@ export function BudgetCategoryManager({ compact = false }: { compact?: boolean }
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">{category.name}</p>
-                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{category.type || 'EXPENSE'}</p>
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Expense category</p>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">

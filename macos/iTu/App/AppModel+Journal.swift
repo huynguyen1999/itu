@@ -26,7 +26,8 @@ extension AppModel {
             updatedAt: now, timezone: existing?.timezone ?? iTuCalendarSupport.timezone.identifier,
             templateId: existing?.templateId, tagIds: tagIds ?? existing?.tagIds ?? [], version: existing?.version ?? 1,
             createdAt: existing?.createdAt ?? now, deletedAt: nil,
-            weeklyReview: nil, dailyReview: nil, tags: existing?.tags ?? [], attachments: existing?.attachments ?? []
+            weeklyReview: nil, dailyReview: nil, tags: existing?.tags ?? [], attachments: existing?.attachments ?? [],
+            contextType: existing?.contextType, contextId: existing?.contextId, contextData: existing?.contextData
         )
         var payload: [String: JSONValue] = [
             "title": .string(title), "contentMarkdown": .string(contentMarkdown),
@@ -34,6 +35,9 @@ extension AppModel {
             "tagIds": .array(note.tagIds.map(JSONValue.string))
         ]
         if let templateId = note.templateId { payload["templateId"] = .string(templateId) }
+        if let contextType = note.contextType { payload["contextType"] = .string(contextType) }
+        if let contextId = note.contextId { payload["contextId"] = .string(contextId) }
+        if let contextData = note.contextData { payload["contextData"] = contextData }
         let mutationKind = id == nil ? "journal.create" : "journal.update"
         if id == nil {
             payload["id"] = .string(note.id); payload["kind"] = .string(note.kind)

@@ -10,6 +10,7 @@ import {
   buildTrendData,
   buildUsageStackData,
   buildUsageTrendData,
+  addDateKey,
   dateRangeForDays,
   engagementPercent,
   filterActivityRange,
@@ -17,11 +18,14 @@ import {
   selectTopAttributes,
   selectTopUsageApps,
   selectWebsiteUsageSlices,
+  statisticsDateTimeRange,
+  statisticsPeriod,
   summarizeActivity,
   filterWebsiteSessions,
   websiteDomains,
   websiteUrls,
 } from './statistics';
+import { statisticsQueryKeys } from './statisticsQueries';
 
 function skill(overrides: Partial<GrowthSkill>): GrowthSkill {
   return {
@@ -366,6 +370,39 @@ describe('statistics helpers', () => {
     expect(inclusiveDayCount(range)).toBe(30);
   });
 
+  it('derives deterministic equal-length comparison ranges across calendar boundaries', () => {
+    const period = statisticsPeriod({ from: '2026-01-01', to: '2026-03-01' }, 'MONTH');
+
+    expect(period).toEqual({
+      from: '2026-01-01',
+      to: '2026-03-01',
+      grouping: 'MONTH',
+      comparisonFrom: '2025-11-02',
+      comparisonTo: '2025-12-31',
+    });
+    expect(addDateKey('2024-03-01', -2)).toBe('2024-02-28');
+    expect(statisticsDateTimeRange(period)).toEqual({
+      from: '2026-01-01T00:00:00.000+07:00',
+      to: '2026-03-02T00:00:00.000+07:00',
+    });
+  });
+
+  it('normalizes reversed custom ranges like the native client', () => {
+    expect(statisticsPeriod({ from: '2026-05-10', to: '2026-05-01' })).toMatchObject({
+      from: '2026-05-01',
+      to: '2026-05-10',
+      comparisonFrom: '2026-04-21',
+      comparisonTo: '2026-04-30',
+    });
+  });
+
+  it('uses the product calendar date instead of the machine timezone', () => {
+    expect(dateRangeForDays(2, new Date('2026-03-29T17:30:00.000Z'))).toEqual({
+      from: '2026-03-29',
+      to: '2026-03-30',
+    });
+  });
+
   it('selects only active user attributes for the leaderboard', () => {
     const result = selectTopAttributes([
       skill({ id: 'general', name: 'General', starterKey: 'attribute-general', level: 99 }),
@@ -411,6 +448,46 @@ describe('statistics helpers', () => {
     expect(nonZeroOnly.every((point) => point.completedTasks > 0 || point.focusedMinutes > 0 || point.xp > 0)).toBe(true);
   });
 
+  it('keeps trend transformation under the main-thread budget for supported ranges', () => {
+    const durations = [1, 7, 30, 90, 365].map((days) => {
+      const range = { from: addDateKey('2026-08-15', -(days - 1)), to: '2026-08-15' };
+      const activity = Array.from({ length: days }, (_, index) => ({
+        date: addDateKey(range.from, index),
+        sessions: 1,
+        focusSessions: 1,
+        reviews: 1,
+        correct: 1,
+        completedTasks: 1,
+        focusedMinutes: 25,
+        cardsCreated: 1,
+      })) as StudyCalendarDay[];
+      const started = performance.now();
+      buildTrendData(activity, { totalXp: days, trend: activity.map((day) => ({ date: day.date, xp: 1 })), attributes: [] }, range, 'DAY');
+      return performance.now() - started;
+    });
+
+    expect(Math.max(...durations)).toBeLessThan(50);
+  });
+
+  it('keys every domain cache by the selected range and grouping', () => {
+    const period = statisticsPeriod({ from: '2026-08-01', to: '2026-08-09' }, 'WEEK');
+    expect(statisticsQueryKeys.gym(period)).toEqual(['statistics', 'gym', '2026-08-01', '2026-08-09', 'WEEK']);
+    expect(statisticsQueryKeys.calendarComparison(period)).toEqual([
+      'statistics',
+      'productivity-comparison',
+      period.comparisonFrom,
+      period.comparisonTo,
+      'WEEK',
+    ]);
+    expect(statisticsQueryKeys.habitsComparison(period)).toEqual([
+      'statistics',
+      'habits-comparison',
+      '2026-07-23',
+      '2026-07-31',
+      'WEEK',
+    ]);
+  });
+
   it('persists and restores Statistics display settings', () => {
     const storage = new Map<string, string>();
     Object.defineProperty(globalThis, 'localStorage', {
@@ -430,6 +507,7 @@ describe('statistics helpers', () => {
       grouping: 'WEEK',
       showTrendComparison: false,
       showZeroValueSeries: true,
+      visibleDomains: ['productivity', 'gym'],
     });
 
     expect(getStoredStatisticsSettings()).toEqual({
@@ -437,6 +515,7 @@ describe('statistics helpers', () => {
       grouping: 'WEEK',
       showTrendComparison: false,
       showZeroValueSeries: true,
+      visibleDomains: ['productivity', 'gym'],
     });
   });
 });

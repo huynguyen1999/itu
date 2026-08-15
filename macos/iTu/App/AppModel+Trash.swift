@@ -10,9 +10,9 @@ extension AppModel {
         return merged.values.sorted { ($0.deletedAt ?? "") > ($1.deletedAt ?? "") }
     }
 
-    var trashedBudgetTransactions: [BudgetTransactionModel] {
-        var merged = Dictionary(uniqueKeysWithValues: (trashSnapshot?.budgetTransactions ?? []).map { ($0.id, $0) })
-        for value in currentSnapshot.budgetTransactions {
+    var trashedExpenses: [ExpenseModel] {
+        var merged = Dictionary(uniqueKeysWithValues: (trashSnapshot?.expenses ?? []).map { ($0.id, $0) })
+        for value in currentSnapshot.expenses {
             if value.deletedAt != nil { merged[value.id] = value } else { merged.removeValue(forKey: value.id) }
         }
         return merged.values.sorted { ($0.deletedAt ?? "") > ($1.deletedAt ?? "") }
@@ -124,15 +124,15 @@ extension AppModel {
         } catch { trashErrorMessage = "Could not restore journal entry: \(error.localizedDescription)" }
     }
 
-    func restoreTrashBudgetTransaction(_ transaction: BudgetTransactionModel) async {
-        let local = currentSnapshot.budgetTransactions.first(where: { $0.id == transaction.id })
-        let source = local ?? transaction
-        let value = BudgetTransactionModel(id: source.id, userId: source.userId, type: source.type, amount: source.amount, currency: source.currency, category: source.category, categoryId: source.categoryId, merchant: source.merchant, paymentMethod: source.paymentMethod, transactionAt: source.transactionAt, note: source.note, version: (source.version ?? 1) + 1, createdAt: source.createdAt, updatedAt: Self.trashNow(), deletedAt: nil, deletedByDeviceId: nil)
+    func restoreTrashExpense(_ expense: ExpenseModel) async {
+        let local = currentSnapshot.expenses.first(where: { $0.id == expense.id })
+        let source = local ?? expense
+        let value = ExpenseModel(id: source.id, userId: source.userId, amount: source.amount, category: source.category, categoryId: source.categoryId, merchant: source.merchant, paymentMethod: source.paymentMethod, expenseDate: source.expenseDate, note: source.note, recurringExpenseId: source.recurringExpenseId, recurringOccurrenceDate: source.recurringOccurrenceDate, version: (source.version ?? 1) + 1, createdAt: source.createdAt, updatedAt: Self.trashNow(), deletedAt: nil, deletedByDeviceId: nil)
         do {
-            apply(try await offlineStore.saveBudgetTransaction(value, mutation: SyncMutation(id: ULID.generate(), kind: "budgettransaction.restore", entityId: value.id, baseVersion: source.version, payload: ["deletedAt": .null], occurredAt: Self.trashNow())))
+            apply(try await offlineStore.saveExpense(value, mutation: SyncMutation(id: ULID.generate(), kind: "expense.restore", entityId: value.id, baseVersion: source.version, payload: ["deletedAt": .null], occurredAt: Self.trashNow())))
             syncPhase = .pending
-            trashSnapshot?.budgetTransactions.removeAll { $0.id == transaction.id }
-        } catch { trashErrorMessage = "Could not restore transaction: \(error.localizedDescription)" }
+            trashSnapshot?.expenses.removeAll { $0.id == expense.id }
+        } catch { trashErrorMessage = "Could not restore expense: \(error.localizedDescription)" }
     }
 
     func restoreTrashGymWorkout(_ workout: WorkoutModel) async {
@@ -165,12 +165,12 @@ extension AppModel {
         } catch { trashErrorMessage = "Could not permanently delete journal entry: \(error.localizedDescription)" }
     }
 
-    func permanentlyDeleteTrashBudgetTransaction(_ transaction: BudgetTransactionModel) async {
+    func permanentlyDeleteTrashExpense(_ expense: ExpenseModel) async {
         do {
-            try await apiClient.permanentlyDeleteTrashBudgetTransaction(id: transaction.id)
-            if currentSnapshot.budgetTransactions.contains(where: { $0.id == transaction.id }) { apply(try await offlineStore.permanentlyRemoveBudgetTransaction(id: transaction.id)) }
-            trashSnapshot?.budgetTransactions.removeAll { $0.id == transaction.id }
-        } catch { trashErrorMessage = "Could not permanently delete transaction: \(error.localizedDescription)" }
+            try await apiClient.permanentlyDeleteTrashExpense(id: expense.id)
+            if currentSnapshot.expenses.contains(where: { $0.id == expense.id }) { apply(try await offlineStore.permanentlyRemoveExpense(id: expense.id)) }
+            trashSnapshot?.expenses.removeAll { $0.id == expense.id }
+        } catch { trashErrorMessage = "Could not permanently delete expense: \(error.localizedDescription)" }
     }
 
     func permanentlyDeleteTrashGymWorkout(_ workout: WorkoutModel) async {

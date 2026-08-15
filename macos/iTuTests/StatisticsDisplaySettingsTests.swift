@@ -12,12 +12,20 @@ final class StatisticsDisplaySettingsTests: XCTestCase {
         XCTAssertEqual(defaults.topAppsCount, 5)
         XCTAssertEqual(defaults.websiteSliceCount, 7)
         XCTAssertEqual(defaults.chartDensity, .comfortable)
+        XCTAssertEqual(defaults.visibleDomains, StatisticsDomain.allCases.map(\.rawValue))
 
         let data = Data("{\"topAppsCount\":99,\"websiteSliceCount\":0}".utf8)
         let decoded = try JSONDecoder().decode(StatisticsDisplaySettings.self, from: data)
         XCTAssertEqual(decoded.topAppsCount, 10)
         XCTAssertEqual(decoded.websiteSliceCount, 1)
         XCTAssertEqual(decoded.defaultRange, "30 Days")
+        XCTAssertEqual(decoded.visibleDomains, StatisticsDomain.allCases.map(\.rawValue))
+
+        let filtered = try JSONDecoder().decode(
+            StatisticsDisplaySettings.self,
+            from: Data("{\"visibleDomains\":[\"gym\",\"unknown\"]}".utf8)
+        )
+        XCTAssertEqual(filtered.visibleDomains, ["gym"])
     }
 
     func testWebsiteSlicesKeepTopNAndCombineOther() {

@@ -1,5 +1,5 @@
 export type TimelineZoom = 'DAY' | 'WEEK' | 'MONTH';
-export type TimelineItemKind = 'TASK_DURATION' | 'TASK_DUE' | 'FOCUS_SESSION' | 'EXTERNAL_EVENT';
+export type TimelineItemKind = 'TASK_DURATION' | 'TASK_DUE' | 'FOCUS_SESSION' | 'EXTERNAL_EVENT' | 'WORKOUT';
 
 export const CALENDAR_DAY_WIDTH = 180;
 const CALENDAR_HOUR_HEIGHT = 60;

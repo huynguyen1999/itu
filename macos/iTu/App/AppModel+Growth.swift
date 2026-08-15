@@ -122,9 +122,65 @@ extension AppModel {
 
     func refreshStatistics(days: Int) async {
         let normalizedDays = max(1, min(days, 365))
-        let end = localDateString(offset: 1) + "T00:00:00.000Z"
-        let start = localDateString(offset: -(normalizedDays - 1)) + "T00:00:00.000Z"
-        await refreshStatistics(calendarDays: normalizedDays, fromDate: start, toDate: end)
+        let end = StatisticsPeriod.dateKey(Date())
+        await refreshStatistics(period: StatisticsPeriod(
+            range: StatisticsDateRange(from: StatisticsPeriod.addDays(end, -(normalizedDays - 1)), to: end)
+        ))
+    }
+
+    func refreshStatistics(period: StatisticsPeriod) async {
+        statisticsLoading = true
+        statisticsError = false
+        statisticsCalendarError = false
+        growthStatisticsError = false
+        statisticsErrorMessage = nil
+        statisticsComparisonCalendar = []
+        growthStatisticsComparison = nil
+        statisticsComparisonAvailable = false
+        async let calendarRequest = apiClient.fetchStudyCalendar(fromDate: period.from, toDate: period.to)
+        async let growthRequest = apiClient.fetchGrowthStatistics(fromDate: period.apiFrom, toDate: period.apiTo)
+        async let comparisonCalendarRequest = apiClient.fetchStudyCalendar(fromDate: period.comparison.from, toDate: period.comparison.to)
+        async let comparisonGrowthRequest = apiClient.fetchGrowthStatistics(fromDate: period.comparison.apiFrom, toDate: period.comparison.apiTo)
+        do {
+            statisticsCalendar = try await calendarRequest
+        } catch {
+            statisticsCalendarError = true
+            statisticsError = true
+            statisticsErrorMessage = error.localizedDescription
+        }
+        do {
+            let fetched = try await growthRequest
+            growthStatistics = GrowthStatisticsDTO(
+                totalXp: fetched.totalXp,
+                trend: fetched.trend,
+                attributes: fetched.attributes.filter {
+                    $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "general"
+                }
+            )
+        } catch {
+            growthStatisticsError = true
+            statisticsError = true
+            statisticsErrorMessage = error.localizedDescription
+        }
+        do {
+            statisticsComparisonCalendar = try await comparisonCalendarRequest
+            statisticsComparisonAvailable = true
+        } catch {
+            statisticsComparisonCalendar = []
+        }
+        do {
+            let fetched = try await comparisonGrowthRequest
+            growthStatisticsComparison = GrowthStatisticsDTO(
+                totalXp: fetched.totalXp,
+                trend: fetched.trend,
+                attributes: fetched.attributes.filter {
+                    $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "general"
+                }
+            )
+        } catch {
+            growthStatisticsComparison = nil
+        }
+        statisticsLoading = false
     }
 
     func refreshStatistics(calendarDays: Int, fromDate: String, toDate: String) async {

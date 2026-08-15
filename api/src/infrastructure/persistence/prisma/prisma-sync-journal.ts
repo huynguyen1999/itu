@@ -62,7 +62,7 @@ export class PrismaSyncJournal {
           const owned = await tx.journalTag.count({ where: { userId, id: { in: tagIds } } });
           if (owned !== tagIds.length) return notFound(mutation, 'journaltag');
         }
-        const entry = await tx.journalEntry.update({ where: { id: revision.entryId }, data: { title: snapshot.title, contentMarkdown: snapshot.contentMarkdown ?? '', entryDate: new Date(snapshot.entryDate), timezone: snapshot.timezone ?? 'UTC', templateId: snapshot.templateId ?? null, version: { increment: 1 } } });
+        const entry = await tx.journalEntry.update({ where: { id: revision.entryId }, data: { title: snapshot.title, contentMarkdown: snapshot.contentMarkdown ?? '', entryDate: new Date(snapshot.entryDate), timezone: snapshot.timezone ?? 'UTC', templateId: snapshot.templateId ?? null, contextType: snapshot.contextType ?? null, contextId: snapshot.contextId ?? null, contextData: snapshot.contextData ?? undefined, version: { increment: 1 } } });
         await tx.journalTagAssignment.deleteMany({ where: { entryId: entry.id } });
         if (tagIds.length) await tx.journalTagAssignment.createMany({ data: tagIds.map((tagId: string) => ({ entryId: entry.id, tagId })) });
         if (snapshot.weeklyReview) {
@@ -169,6 +169,9 @@ export class PrismaSyncJournal {
             entryDate,
             timezone: optionalString(payload, 'timezone') ?? 'UTC',
             templateId: optionalString(payload, 'templateId'),
+            contextType: optionalString(payload, 'contextType'),
+            contextId: optionalString(payload, 'contextId'),
+            contextData: payload.contextData && typeof payload.contextData === 'object' ? payload.contextData as any : undefined,
             tags: tagIds.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
           },
           update: {},
@@ -281,6 +284,12 @@ export class PrismaSyncJournal {
             timezone: optionalString(payload, 'timezone') ?? entry.timezone,
             templateId:
               payload.templateId === undefined ? entry.templateId : optionalString(payload, 'templateId'),
+            contextType:
+              payload.contextType === undefined ? entry.contextType : optionalString(payload, 'contextType'),
+            contextId:
+              payload.contextId === undefined ? entry.contextId : optionalString(payload, 'contextId'),
+            contextData:
+              payload.contextData === undefined ? entry.contextData ?? undefined : payload.contextData as any,
             version: { increment: 1 },
           },
         });

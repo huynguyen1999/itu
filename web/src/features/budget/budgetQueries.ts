@@ -4,7 +4,7 @@ import { api } from '@/shared/api/client';
 export function useBudgetOverview(period?: string) {
   return useQuery({
     queryKey: ['budget', 'overview', period],
-    queryFn: () => api.getBudgetOverview(period),
+    queryFn: () => api.getBudgetSummary(period ?? ''),
   });
 }
 
@@ -15,9 +15,21 @@ export function useBudgetCategories() {
   });
 }
 
-export function useBudgetTransactions(filters?: { period?: string; categoryId?: string; type?: 'EXPENSE' | 'INCOME' }) {
+export function useBudgetExpenses(filters?: Parameters<typeof api.getBudgetExpenses>[0]) {
   return useQuery({
-    queryKey: ['budget', 'transactions', filters],
-    queryFn: () => api.getBudgetTransactions(filters),
+    queryKey: ['budget', 'expenses', filters],
+    queryFn: () => api.getBudgetExpenses(filters),
   });
+}
+
+export function useMonthlyBudget(period: string) {
+  return useQuery({ queryKey: ['budget', 'month', period], queryFn: () => api.getMonthlyBudget(period) });
+}
+
+export function useBudgetReport(period: string) {
+  return useQuery({ queryKey: ['budget', 'report', period], queryFn: () => api.getBudgetReport(period) });
+}
+
+export function useRecurringExpenses() {
+  return useQuery({ queryKey: ['budget', 'recurring'], queryFn: () => api.getRecurringExpenses() });
 }

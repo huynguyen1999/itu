@@ -3,6 +3,10 @@ import SwiftUI
 struct GymHistoryView: View {
     @Environment(AppModel.self) private var model
     @Binding var historyFilter: String
+    var onRepeatWorkout: ((String) -> Void)?
+    var onSaveAsRoutine: ((String) -> Void)?
+    var onUpdateRoutine: ((String, String) -> Void)?
+    var onEditWorkout: ((String) -> Void)?
 
     private var unit: String {
         model.gymPreferences.weightUnit
@@ -189,9 +193,41 @@ struct GymHistoryView: View {
                     if let mins = workout.durationMinutes, mins > 0 {
                         Text("\(mins)m")
                             .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(iTuTheme.inkDim)
+                        .foregroundStyle(iTuTheme.inkDim)
                     }
                 }
+
+                Menu {
+                    if isCompleted {
+                        Button {
+                            onEditWorkout?(workout.id)
+                        } label: {
+                            Label("Edit Workout", systemImage: "pencil")
+                        }
+                        Button {
+                            onRepeatWorkout?(workout.id)
+                        } label: {
+                            Label("Repeat Workout", systemImage: "arrow.clockwise")
+                        }
+                        Button {
+                            onSaveAsRoutine?(workout.id)
+                        } label: {
+                            Label("Save as Routine", systemImage: "list.bullet.clipboard")
+                        }
+                        if let routineID = workout.routineId {
+                            Button {
+                                onUpdateRoutine?(routineID, workout.id)
+                            } label: {
+                                Label("Update Routine from Workout", systemImage: "arrow.triangle.2.circlepath")
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.inkDim)
+                }
+                .menuStyle(.borderlessButton)
             }
 
             // Exercise pills summary

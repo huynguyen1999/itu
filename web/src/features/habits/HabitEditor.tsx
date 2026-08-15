@@ -39,6 +39,8 @@ export function HabitEditor({
   const [color, setColor] = useState(DEFAULT_HABIT_COLOR);
   const [intervalDays, setIntervalDays] = useState('2');
   const [timesPerPeriod, setTimesPerPeriod] = useState('3');
+  const [period, setPeriod] = useState<'WEEK' | 'MONTH'>('WEEK');
+  const [reminderTimes, setReminderTimes] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
   const create = useMutation({
@@ -58,8 +60,9 @@ export function HabitEditor({
         weekdays: scheduleType === 'WEEKDAYS' ? weekdays : undefined,
         intervalDays: scheduleType === 'INTERVAL' ? Number(intervalDays) : undefined,
         timesPerPeriod: scheduleType === 'TIMES_PER_PERIOD' ? Number(timesPerPeriod) : undefined,
-        period: scheduleType === 'TIMES_PER_PERIOD' ? 'WEEK' : undefined,
+        period: scheduleType === 'TIMES_PER_PERIOD' ? period : undefined,
         startDate: `${startDate}T00:00:00.000Z`,
+        reminderTimes,
       }),
     onSuccess: async (created) => {
       onOpenChange(false);
@@ -70,9 +73,11 @@ export function HabitEditor({
       setDirection('BUILD');
       setScheduleType('WEEKDAYS');
       setWeekdays([0, 1, 2, 3, 4, 5, 6]);
+      setPeriod('WEEK');
       setTimeBlockId('');
       setTagIds([]);
       setStartDate(localDay(new Date()));
+      setReminderTimes([]);
       setIcon(DEFAULT_HABIT_ICON);
       setColor(DEFAULT_HABIT_COLOR);
       queryClient.setQueryData<Habit[]>(['habits'], (current) => {
@@ -126,7 +131,7 @@ export function HabitEditor({
               onChange={(e) => setScheduleType(e.target.value as 'WEEKDAYS' | 'INTERVAL' | 'TIMES_PER_PERIOD')}
             >
               <option value="WEEKDAYS">Every day or selected days</option>
-              <option value="TIMES_PER_PERIOD">Times per week</option>
+              <option value="TIMES_PER_PERIOD">Times per period</option>
               <option value="INTERVAL">Every few days</option>
             </select>
           </div>
@@ -175,21 +180,32 @@ export function HabitEditor({
 
           {scheduleType === 'TIMES_PER_PERIOD' ? (
             <div>
-              <label htmlFor="habit-weekly" className="mb-1 block text-xs font-semibold text-muted-foreground">
-                Times per week
+              <label htmlFor="habit-period-count" className="mb-1 block text-xs font-semibold text-muted-foreground">
+                Times per period
               </label>
-              <Input
-                id="habit-weekly"
-                type="number"
-                min={1}
-                max={100}
-                value={timesPerPeriod}
-                onChange={(event) => setTimesPerPeriod(event.target.value)}
-              />
+              <div className="grid grid-cols-[1fr_7rem] gap-2">
+                <Input
+                  id="habit-period-count"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={timesPerPeriod}
+                  onChange={(event) => setTimesPerPeriod(event.target.value)}
+                />
+                <select
+                  className="h-9 rounded-md border border-border bg-background px-2 text-xs"
+                  value={period}
+                  onChange={(event) => setPeriod(event.target.value as 'WEEK' | 'MONTH')}
+                  aria-label="Period"
+                >
+                  <option value="WEEK">Week</option>
+                  <option value="MONTH">Month</option>
+                </select>
+              </div>
             </div>
           ) : null}
 
-          <div>
+          {scheduleType !== 'TIMES_PER_PERIOD' ? <div>
             <label htmlFor="habit-goal" className="mb-1 block text-xs font-semibold text-muted-foreground">
               Goal
             </label>
@@ -214,7 +230,11 @@ export function HabitEditor({
               />
               <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="unit" />
             </div>
-          </div>
+          </div> : (
+            <p className="rounded-lg border border-border/70 bg-background px-3 py-2 text-xs text-muted-foreground">
+              {timesPerPeriod} times per {period === 'MONTH' ? 'month' : 'week'} — this is tracked as a period goal.
+            </p>
+          )}
 
           <div>
             <label htmlFor="habit-start-date" className="mb-1 block text-xs font-semibold text-muted-foreground">
@@ -264,6 +284,31 @@ export function HabitEditor({
               <option value="BUILD">Build behavior</option>
               <option value="LIMIT">Limit behavior</option>
             </select>
+            </div>
+
+          <div>
+            <span className="mb-1 block text-xs font-semibold text-muted-foreground">Reminders</span>
+            {reminderTimes.length === 0 ? <p className="text-xs text-muted-foreground">None</p> : null}
+            <div className="space-y-2">
+              {reminderTimes.map((time, index) => (
+                <div key={`${index}-${time}`} className="flex items-center gap-2">
+                  <Input
+                    type="time"
+                    value={time}
+                    onChange={(event) => setReminderTimes((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
+                    aria-label={`Reminder ${index + 1}`}
+                  />
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setReminderTimes((current) => current.filter((_, itemIndex) => itemIndex !== index))}>
+                    Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {reminderTimes.length < 3 ? (
+              <Button type="button" variant="ghost" size="sm" className="mt-1 px-0" onClick={() => setReminderTimes((current) => [...current, '09:00'])}>
+                + Add reminder
+              </Button>
+            ) : null}
           </div>
 
           <TagSelector label="Tags" tags={tags} selectedTagIds={tagIds} onChange={setTagIds} />

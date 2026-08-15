@@ -221,17 +221,11 @@ struct ProfileView: View {
     }
 
     private var headerBar: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            iTuSectionLabel(title: "ACCOUNT", color: iTuTheme.teal)
-            Text("User Profile")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundStyle(iTuTheme.ink)
-            Text("Manage account settings, credentials, and data.")
-                .font(.system(size: 13))
-                .foregroundStyle(iTuTheme.inkDim)
-        }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 18)
+        iTuPageHeader(
+            kicker: "ACCOUNT",
+            title: "User Profile",
+            description: "Manage account settings, credentials, and data."
+        )
     }
 
     private func exportAccountData() {

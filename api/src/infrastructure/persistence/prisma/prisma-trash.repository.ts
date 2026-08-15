@@ -12,24 +12,22 @@ import { recordSyncChange } from './prisma-sync-mutation.shared';
 const RECOVERED_CARDS_DECK_TITLE = 'Recovered Cards';
 const RECOVERED_CARDS_DECK_DESCRIPTION = 'Cards preserved after their original deck was permanently deleted.';
 
-function mapBudgetTransaction(transaction: any) {
+function mapExpense(expense: any) {
   return {
-    id: transaction.id,
-    userId: transaction.userId,
-    type: transaction.type,
-    amount: new Prisma.Decimal(transaction.amount).toFixed(2),
-    currency: transaction.currency,
-    category: transaction.categoryRel?.name || 'OTHER',
-    categoryId: transaction.categoryId,
-    merchant: transaction.merchant,
-    paymentMethod: transaction.paymentMethod,
-    transactionAt: transaction.transactionAt,
-    note: transaction.note,
-    version: transaction.version,
-    createdAt: transaction.createdAt,
-    updatedAt: transaction.updatedAt,
-    deletedAt: transaction.deletedAt,
-    deletedByDeviceId: transaction.deletedByDeviceId,
+    id: expense.id,
+    userId: expense.userId,
+    amount: new Prisma.Decimal(expense.amount).toFixed(2),
+    category: expense.category?.name || 'Other',
+    categoryId: expense.categoryId,
+    merchant: expense.merchant,
+    paymentMethod: expense.paymentMethod,
+    expenseDate: expense.expenseDate,
+    note: expense.note,
+    version: expense.version,
+    createdAt: expense.createdAt,
+    updatedAt: expense.updatedAt,
+    deletedAt: expense.deletedAt,
+    deletedByDeviceId: expense.deletedByDeviceId,
   };
 }
 
@@ -122,7 +120,7 @@ export class PrismaTrashRepository implements ITrashRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(userId: string) {
-    const [decks, cards, cardImages, tasks, journalEntries, budgetTransactions, gymWorkouts, gymExercises] = await Promise.all([
+    const [decks, cards, cardImages, tasks, journalEntries, expenses, gymWorkouts, gymExercises] = await Promise.all([
       this.prisma.deck.findMany({
         where: { userId, archived: true },
         orderBy: { updatedAt: 'desc' },
@@ -145,9 +143,9 @@ export class PrismaTrashRepository implements ITrashRepository {
         include: { weeklyReview: true, dailyReview: true, tags: { include: { tag: true } }, attachments: true },
         orderBy: { deletedAt: 'desc' },
       }),
-      this.prisma.budgetTransaction.findMany({
+      this.prisma.expense.findMany({
         where: { userId, deletedAt: { not: null } },
-        include: { categoryRel: true },
+        include: { category: true },
         orderBy: { deletedAt: 'desc' },
       }),
       this.prisma.gymWorkout.findMany({
@@ -166,7 +164,7 @@ export class PrismaTrashRepository implements ITrashRepository {
       cardImages: cardImages.map(mapCardImage),
       tasks,
       journalEntries: journalEntries.map(mapEntryToModel),
-      budgetTransactions: budgetTransactions.map(mapBudgetTransaction),
+      expenses: expenses.map(mapExpense),
       gymWorkouts: gymWorkouts.map(mapWorkout),
       gymExercises: gymExercises.map(mapExercise),
     };
@@ -254,13 +252,13 @@ export class PrismaTrashRepository implements ITrashRepository {
     });
   }
 
-  async restoreBudgetTransaction(userId: string, transactionId: string) {
+  async restoreExpense(userId: string, expenseId: string) {
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.budgetTransaction.updateMany({ where: { id: transactionId, userId, deletedAt: { not: null } }, data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } } });
+      const updated = await tx.expense.updateMany({ where: { id: expenseId, userId, deletedAt: { not: null } }, data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } } });
       if (!updated.count) return null;
-      const restored = await tx.budgetTransaction.findUniqueOrThrow({ where: { id: transactionId }, include: { categoryRel: true } });
-      await recordSyncChange(tx, userId, 'budgettransaction', transactionId, 'UPSERT', restored);
-      return mapBudgetTransaction(restored);
+      const restored = await tx.expense.findUniqueOrThrow({ where: { id: expenseId }, include: { category: true } });
+      await recordSyncChange(tx, userId, 'expense', expenseId, 'UPSERT', restored);
+      return mapExpense(restored);
     });
   }
 
@@ -293,8 +291,8 @@ export class PrismaTrashRepository implements ITrashRepository {
     });
   }
 
-  async deleteBudgetTransaction(userId: string, transactionId: string): Promise<boolean> {
-    const deleted = await this.prisma.budgetTransaction.deleteMany({ where: { id: transactionId, userId, deletedAt: { not: null } } });
+  async deleteExpense(userId: string, expenseId: string): Promise<boolean> {
+    const deleted = await this.prisma.expense.deleteMany({ where: { id: expenseId, userId, deletedAt: { not: null } } });
     return deleted.count > 0;
   }
 

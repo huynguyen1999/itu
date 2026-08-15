@@ -307,6 +307,19 @@ enum StatisticsGrouping: String, Codable, CaseIterable, Identifiable {
     var label: String { rawValue.capitalized }
 }
 
+enum StatisticsDomain: String, Codable, CaseIterable, Identifiable {
+    case productivity
+    case habits
+    case learning
+    case gym
+    case budget
+    case growth
+    case digital
+
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+}
+
 struct StatisticsDisplaySettings: Codable, Equatable {
     var defaultRange = "30 Days"
     var grouping: StatisticsGrouping = .day
@@ -318,6 +331,7 @@ struct StatisticsDisplaySettings: Codable, Equatable {
     var topAppsCount = 5
     var websiteSliceCount = 7
     var chartDensity: StatisticsChartDensity = .comfortable
+    var visibleDomains = StatisticsDomain.allCases.map(\.rawValue)
 
     var clamped: StatisticsDisplaySettings {
         var copy = self
@@ -336,7 +350,8 @@ struct StatisticsDisplaySettings: Codable, Equatable {
         showEngagement: Bool = true,
         topAppsCount: Int = 5,
         websiteSliceCount: Int = 7,
-        chartDensity: StatisticsChartDensity = .comfortable
+        chartDensity: StatisticsChartDensity = .comfortable,
+        visibleDomains: [String] = StatisticsDomain.allCases.map(\.rawValue)
     ) {
         self.defaultRange = ["Today", "7 Days", "30 Days", "90 Days", "365 Days"].contains(defaultRange) ? defaultRange : "30 Days"
         self.grouping = grouping
@@ -348,6 +363,8 @@ struct StatisticsDisplaySettings: Codable, Equatable {
         self.topAppsCount = min(10, max(1, topAppsCount))
         self.websiteSliceCount = min(10, max(1, websiteSliceCount))
         self.chartDensity = chartDensity
+        let allowedDomains = Set(StatisticsDomain.allCases.map(\.rawValue))
+        self.visibleDomains = visibleDomains.filter { allowedDomains.contains($0) }
     }
 
     init(from decoder: Decoder) throws {
@@ -362,12 +379,13 @@ struct StatisticsDisplaySettings: Codable, Equatable {
             showEngagement: try values.decodeIfPresent(Bool.self, forKey: .showEngagement) ?? true,
             topAppsCount: try values.decodeIfPresent(Int.self, forKey: .topAppsCount) ?? 5,
             websiteSliceCount: try values.decodeIfPresent(Int.self, forKey: .websiteSliceCount) ?? 7,
-            chartDensity: try values.decodeIfPresent(StatisticsChartDensity.self, forKey: .chartDensity) ?? .comfortable
+            chartDensity: try values.decodeIfPresent(StatisticsChartDensity.self, forKey: .chartDensity) ?? .comfortable,
+            visibleDomains: try values.decodeIfPresent([String].self, forKey: .visibleDomains) ?? StatisticsDomain.allCases.map(\.rawValue)
         )
     }
 
     private enum CodingKeys: String, CodingKey {
-        case defaultRange, grouping, showTrendComparison, showZeroValueSeries, showAppUsage, showWebsiteUsage, showEngagement, topAppsCount, websiteSliceCount, chartDensity
+        case defaultRange, grouping, showTrendComparison, showZeroValueSeries, showAppUsage, showWebsiteUsage, showEngagement, topAppsCount, websiteSliceCount, chartDensity, visibleDomains
     }
 }
 

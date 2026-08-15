@@ -36,7 +36,7 @@ export interface TrashSnapshotData {
   cardImages: CardImageModel[];
   tasks: any[];
   journalEntries?: any[];
-  budgetTransactions?: any[];
+  expenses?: any[];
   gymWorkouts?: any[];
   gymExercises?: any[];
 }

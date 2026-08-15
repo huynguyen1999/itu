@@ -87,6 +87,9 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
     var dailyReview: JournalDailyReviewModel?
     var tags: [JournalTagModel]
     var attachments: [JournalAttachmentModel]
+    var contextType: String?
+    var contextId: String?
+    var contextData: JSONValue?
 
     init(
         id: String, userId: String, kind: String = "NOTE", title: String,
@@ -94,7 +97,8 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
         timezone: String = iTuCalendarSupport.timezone.identifier, templateId: String? = nil, tagIds: [String] = [],
         version: Int = 1, createdAt: String? = nil, deletedAt: String? = nil, deletedByDeviceId: String? = nil,
         weeklyReview: JournalWeeklyReviewModel? = nil, dailyReview: JournalDailyReviewModel? = nil, tags: [JournalTagModel] = [],
-        attachments: [JournalAttachmentModel] = []
+        attachments: [JournalAttachmentModel] = [], contextType: String? = nil, contextId: String? = nil,
+        contextData: JSONValue? = nil
     ) {
         self.id = id; self.userId = userId; self.kind = kind; self.title = title
         self.contentMarkdown = contentMarkdown; self.entryDate = entryDate
@@ -102,6 +106,7 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
         self.version = version; self.createdAt = createdAt ?? updatedAt
         self.updatedAt = updatedAt; self.deletedAt = deletedAt; self.deletedByDeviceId = deletedByDeviceId
         self.weeklyReview = weeklyReview; self.dailyReview = dailyReview; self.tags = tags; self.attachments = attachments
+        self.contextType = contextType; self.contextId = contextId; self.contextData = contextData
     }
 
     var previewText: String {
@@ -118,7 +123,8 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id, userId, kind, title, contentMarkdown, entryDate, timezone, templateId,
-             tagIds, version, createdAt, updatedAt, deletedAt, deletedByDeviceId, weeklyReview, dailyReview, tags, attachments
+             tagIds, version, createdAt, updatedAt, deletedAt, deletedByDeviceId, weeklyReview, dailyReview, tags, attachments,
+             contextType, contextId, contextData
     }
 
     init(from decoder: Decoder) throws {
@@ -141,6 +147,9 @@ struct JournalNoteModel: Codable, Sendable, Identifiable, Equatable {
         dailyReview = try values.decodeIfPresent(JournalDailyReviewModel.self, forKey: .dailyReview)
         tags = try values.decodeIfPresent([JournalTagModel].self, forKey: .tags) ?? []
         attachments = try values.decodeIfPresent([JournalAttachmentModel].self, forKey: .attachments) ?? []
+        contextType = try values.decodeIfPresent(String.self, forKey: .contextType)
+        contextId = try values.decodeIfPresent(String.self, forKey: .contextId)
+        contextData = try values.decodeIfPresent(JSONValue.self, forKey: .contextData)
     }
 }
 

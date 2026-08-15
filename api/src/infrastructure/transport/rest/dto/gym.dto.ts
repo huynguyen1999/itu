@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsDateString, IsEnum, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateExerciseDto {
@@ -42,6 +42,16 @@ export class CreateExerciseDto {
   @IsOptional()
   @IsNumber()
   defaultRestSeconds?: number;
+
+  @ApiPropertyOptional({ description: 'Personal persistent notes' })
+  @IsOptional()
+  @IsString()
+  userNotes?: string;
+
+  @ApiPropertyOptional({ description: 'Whether this exercise is favorited' })
+  @IsOptional()
+  @IsBoolean()
+  isFavorite?: boolean;
 }
 
 export class UpdateExerciseDto {
@@ -85,6 +95,119 @@ export class UpdateExerciseDto {
   @IsOptional()
   @IsNumber()
   defaultRestSeconds?: number;
+
+  @ApiPropertyOptional({ description: 'Personal persistent notes' })
+  @IsOptional()
+  @IsString()
+  userNotes?: string;
+
+  @ApiPropertyOptional({ description: 'Whether this exercise is favorited' })
+  @IsOptional()
+  @IsBoolean()
+  isFavorite?: boolean;
+}
+
+export class CreateRoutineExerciseDto {
+  @ApiPropertyOptional({ description: 'Routine exercise ID' })
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @ApiProperty({ description: 'Exercise ID' })
+  @IsString()
+  exerciseId!: string;
+
+  @ApiPropertyOptional({ description: 'Sort order index' })
+  @IsOptional()
+  @IsNumber()
+  sortOrder?: number;
+
+  @ApiPropertyOptional({ description: 'Planned set count', default: 3 })
+  @IsOptional()
+  @IsNumber()
+  setCount?: number;
+
+  @ApiPropertyOptional({ description: 'Target min reps' })
+  @IsOptional()
+  @IsNumber()
+  targetRepsMin?: number;
+
+  @ApiPropertyOptional({ description: 'Target max reps' })
+  @IsOptional()
+  @IsNumber()
+  targetRepsMax?: number;
+
+  @ApiPropertyOptional({ description: 'Target duration in seconds' })
+  @IsOptional()
+  @IsNumber()
+  targetDurationSeconds?: number;
+
+  @ApiPropertyOptional({ description: 'Target distance in meters' })
+  @IsOptional()
+  @IsNumber()
+  targetDistanceMeters?: number;
+
+  @ApiPropertyOptional({ description: 'Rest time in seconds' })
+  @IsOptional()
+  @IsNumber()
+  restSeconds?: number;
+
+  @ApiPropertyOptional({ description: 'Exercise notes for this routine' })
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+export class CreateRoutineDto {
+  @ApiPropertyOptional({ description: 'Client-generated routine ID' })
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @ApiProperty({ description: 'Routine name' })
+  @IsString()
+  name!: string;
+
+  @ApiPropertyOptional({ description: 'Routine description' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ description: 'Sort order' })
+  @IsOptional()
+  @IsNumber()
+  sortOrder?: number;
+
+  @ApiPropertyOptional({ description: 'Routine exercises', type: [CreateRoutineExerciseDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateRoutineExerciseDto)
+  exercises?: CreateRoutineExerciseDto[];
+}
+
+export class UpdateRoutineDto {
+  @ApiPropertyOptional({ description: 'Routine name' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ description: 'Routine description' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ description: 'Sort order' })
+  @IsOptional()
+  @IsNumber()
+  sortOrder?: number;
+
+  @ApiPropertyOptional({ description: 'Routine exercises', type: [CreateRoutineExerciseDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateRoutineExerciseDto)
+  exercises?: CreateRoutineExerciseDto[];
 }
 
 export class CreateWorkoutDto {
@@ -92,10 +215,36 @@ export class CreateWorkoutDto {
   @IsOptional()
   @IsString()
   id?: string;
+
+  @ApiPropertyOptional({ description: 'Routine ID if started from routine' })
+  @IsOptional()
+  @IsString()
+  routineId?: string;
+
   @ApiPropertyOptional({ description: 'Workout title' })
   @IsOptional()
   @IsString()
   title?: string;
+
+  @ApiPropertyOptional({ description: 'Workout status', enum: ['IN_PROGRESS', 'COMPLETED'] })
+  @IsOptional()
+  @IsString()
+  status?: 'IN_PROGRESS' | 'COMPLETED';
+
+  @ApiPropertyOptional({ description: 'ISO date string of start time' })
+  @IsOptional()
+  @IsString()
+  startedAt?: string;
+
+  @ApiPropertyOptional({ description: 'ISO date string of end time' })
+  @IsOptional()
+  @IsString()
+  endedAt?: string;
+
+  @ApiPropertyOptional({ description: 'Duration in minutes' })
+  @IsOptional()
+  @IsNumber()
+  durationMinutes?: number;
 
   @ApiPropertyOptional({ description: 'Workout exercises', type: [Object] })
   @IsOptional()
@@ -259,6 +408,16 @@ export class UpdateWorkoutDto {
   @IsString()
   title?: string;
 
+  @ApiPropertyOptional({ description: 'Routine ID' })
+  @IsOptional()
+  @IsString()
+  routineId?: string;
+
+  @ApiPropertyOptional({ description: 'Workout status' })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
   @ApiPropertyOptional({ description: 'ISO date string of start time' })
   @IsOptional()
   @IsString()
@@ -281,3 +440,4 @@ export class UpdateWorkoutDto {
   @Type(() => UpdateWorkoutExerciseDto)
   exercises?: UpdateWorkoutExerciseDto[];
 }
+

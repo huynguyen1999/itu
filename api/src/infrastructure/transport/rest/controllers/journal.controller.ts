@@ -49,6 +49,8 @@ export class JournalController {
     return this.journalService.listEntries(req.user.sub, {
       kind: query.kind,
       tagId: query.tagId,
+      contextType: query.contextType,
+      contextId: query.contextId,
       startDate: query.startDate ? new Date(query.startDate) : undefined,
       endDate: query.endDate ? new Date(query.endDate) : undefined,
       query: query.query,

@@ -1,5 +1,16 @@
 import Foundation
 
+private func habitOfflineStatus(_ habit: HabitModel?, value: Double) -> HabitOccurrenceStatus {
+    guard let habit else { return value >= 1 ? .completed : .pending }
+    let target = habit.scheduleType.uppercased() == "TIMES_PER_PERIOD"
+        ? Double(habit.timesPerPeriod ?? 1)
+        : habit.targetValue
+    if habit.direction == .limit {
+        return value > target ? .failed : .pending
+    }
+    return value >= target ? .completed : .pending
+}
+
 extension OfflineStore {
     @discardableResult
     func updateHabits(_ fetchedHabits: [HabitModel]) throws -> OfflineSnapshot {
@@ -49,7 +60,9 @@ extension OfflineStore {
     func checkInHabitOccurrence(
         id: String,
         value: Double,
-        idempotencyKey: String = ULID.generate()
+        idempotencyKey: String = ULID.generate(),
+        habitId: String? = nil,
+        localDate: String? = nil
     ) throws -> OfflineSnapshot {
         guard let index = state.habitOccurrences.firstIndex(where: { $0.id == id }) else { return state }
         let now = ISO8601DateFormatter().string(from: Date())
@@ -59,25 +72,20 @@ extension OfflineStore {
         // project the status for a complete local target, while preserving a
         // pending state for partial count/duration/quantity check-ins.
         let projectedValue = max(0, occurrence.value + value)
-        let reachesTarget: Bool
-        if let habit {
-            reachesTarget = habit.direction == .limit
-                ? projectedValue <= habit.targetValue
-                : projectedValue >= habit.targetValue
-        } else {
-            reachesTarget = value >= 1
-        }
-        state.habitOccurrences[index].status = reachesTarget ? .completed : .pending
+        state.habitOccurrences[index].status = habitOfflineStatus(habit, value: projectedValue)
         state.habitOccurrences[index].value = projectedValue
+        var payload: [String: JSONValue] = [
+            "value": .number(value),
+            "idempotencyKey": .string(idempotencyKey),
+            "occurredAt": .string(now)
+        ]
+        if let habitId { payload["habitId"] = .string(habitId) }
+        if let localDate { payload["localDate"] = .string(localDate) }
         appendMutation(SyncMutation(
             id: ULID.generate(),
             kind: "habitoccurrence.checkin",
             entityId: id,
-            payload: [
-                "value": .number(value),
-                "idempotencyKey": .string(idempotencyKey),
-                "occurredAt": .string(now)
-            ],
+            payload: payload,
             occurredAt: now
         ))
         try persist()
@@ -92,39 +100,33 @@ extension OfflineStore {
         idempotencyKey: String = ULID.generate()
     ) throws -> OfflineSnapshot {
         if let occurrence = state.habitOccurrences.first(where: { $0.habitId == habitId && $0.localDayString == date }) {
-            return try checkInHabitOccurrence(id: occurrence.id, value: value, idempotencyKey: idempotencyKey)
+            return try checkInHabitOccurrence(id: occurrence.id, value: value, idempotencyKey: idempotencyKey, habitId: habitId, localDate: date)
         }
 
         let habit = state.habits.first(where: { $0.id == habitId })
         let occurrenceId = ULID.generate()
         let now = ISO8601DateFormatter().string(from: Date())
         let occurrenceDateISO = "\(date)T00:00:00.000Z"
-        let reachesTarget: Bool
-        if let habit {
-            reachesTarget = habit.direction == .limit
-                ? value <= habit.targetValue
-                : value >= habit.targetValue
-        } else {
-            reachesTarget = value >= 1
-        }
-
         let newOccurrence = HabitOccurrenceModel(
             id: occurrenceId,
             habitId: habitId,
             occurrenceDate: occurrenceDateISO,
-            status: reachesTarget ? .completed : .pending,
+            status: habitOfflineStatus(habit, value: value),
             value: value
         )
         state.habitOccurrences.append(newOccurrence)
+        let payload: [String: JSONValue] = [
+            "value": .number(value),
+            "idempotencyKey": .string(idempotencyKey),
+            "occurredAt": .string(now),
+            "habitId": .string(habitId),
+            "localDate": .string(date)
+        ]
         appendMutation(SyncMutation(
             id: ULID.generate(),
             kind: "habitoccurrence.checkin",
             entityId: occurrenceId,
-            payload: [
-                "value": .number(value),
-                "idempotencyKey": .string(idempotencyKey),
-                "occurredAt": .string(now)
-            ],
+            payload: payload,
             occurredAt: now
         ))
         try persist()
@@ -135,7 +137,9 @@ extension OfflineStore {
     func habitOccurrenceAction(
         id: String,
         action: String,
-        idempotencyKey: String = ULID.generate()
+        idempotencyKey: String = ULID.generate(),
+        habitId: String? = nil,
+        localDate: String? = nil
     ) throws -> OfflineSnapshot {
         guard let index = state.habitOccurrences.firstIndex(where: { $0.id == id }) else { return state }
         let now = ISO8601DateFormatter().string(from: Date())
@@ -147,13 +151,52 @@ extension OfflineStore {
         if action == "undo" {
             state.habitOccurrences[index].value = 0
         }
+        var payload: [String: JSONValue] = [
+            "action": .string(action),
+            "idempotencyKey": .string(idempotencyKey)
+        ]
+        if let habitId { payload["habitId"] = .string(habitId) }
+        if let localDate { payload["localDate"] = .string(localDate) }
         appendMutation(SyncMutation(
             id: ULID.generate(),
             kind: "habitoccurrence.action",
             entityId: id,
+            payload: payload,
+            occurredAt: now
+        ))
+        try persist()
+        return state
+    }
+
+    @discardableResult
+    func habitOccurrenceActionDate(
+        habitId: String,
+        date: String,
+        action: String,
+        idempotencyKey: String = ULID.generate()
+    ) throws -> OfflineSnapshot {
+        if let occurrence = state.habitOccurrences.first(where: { $0.habitId == habitId && $0.localDayString == date }) {
+            return try habitOccurrenceAction(id: occurrence.id, action: action, idempotencyKey: idempotencyKey, habitId: habitId, localDate: date)
+        }
+        guard state.habits.contains(where: { $0.id == habitId }) else { return state }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let occurrenceId = ULID.generate()
+        state.habitOccurrences.append(HabitOccurrenceModel(
+            id: occurrenceId,
+            habitId: habitId,
+            occurrenceDate: "\(date)T00:00:00.000Z",
+            status: action.lowercased() == "skip" ? .skipped : action.lowercased() == "fail" ? .failed : .pending,
+            value: 0
+        ))
+        appendMutation(SyncMutation(
+            id: ULID.generate(),
+            kind: "habitoccurrence.action",
+            entityId: occurrenceId,
             payload: [
-                "action": .string(action),
-                "idempotencyKey": .string(idempotencyKey)
+                "action": .string(action.lowercased()),
+                "idempotencyKey": .string(idempotencyKey),
+                "habitId": .string(habitId),
+                "localDate": .string(date)
             ],
             occurredAt: now
         ))
@@ -275,6 +318,10 @@ extension OfflineStore {
                     "endDate": habit.endDate.map(JSONValue.string) ?? .null,
                     "timeBlockId": habit.timeBlockId.map(JSONValue.string) ?? .null,
                     "tagIds": .array(habit.tagIds.map(JSONValue.string)),
+                    "allowedSkips": .number(Double(habit.allowedSkips)),
+                    "restDays": .array(habit.restDays.map { .number(Double($0)) }),
+                    "reminderTimes": .array(habit.reminderTimes.map(JSONValue.string)),
+                    "checklistItems": .array(habit.checklistItems.map { .object(["title": .string($0.title), "required": .bool($0.required)]) }),
                     "archived": .bool(habit.archivedAt != nil)
                 ],
                 occurredAt: now
@@ -304,6 +351,10 @@ extension OfflineStore {
                     "period": habit.period.map(JSONValue.string) ?? .null,
                     "timeBlockId": habit.timeBlockId.map(JSONValue.string) ?? .null,
                     "tagIds": .array(habit.tagIds.map(JSONValue.string)),
+                    "allowedSkips": .number(Double(habit.allowedSkips)),
+                    "restDays": .array(habit.restDays.map { .number(Double($0)) }),
+                    "reminderTimes": .array(habit.reminderTimes.map(JSONValue.string)),
+                    "checklistItems": .array(habit.checklistItems.map { .object(["title": .string($0.title), "required": .bool($0.required)]) }),
                     "startDate": .string(habit.startDate),
                     "endDate": habit.endDate.map(JSONValue.string) ?? .null
                 ],

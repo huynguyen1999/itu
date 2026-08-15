@@ -176,7 +176,7 @@ export class PrismaSyncRepository implements ISyncRepository {
 
     const deckIds = ids('deck');
     const workoutIds = [...ids('gymworkout'), ...ids('workout')];
-    const [tasks, taskLists, habits, decks, cards, budgetTransactions, gymWorkouts, deckStats] = await Promise.all([
+    const [tasks, taskLists, habits, decks, cards, expenses, gymWorkouts, deckStats] = await Promise.all([
       this.prisma.task.findMany({
         where: { userId, id: { in: ids('task') }, deletedAt: null },
         include: {
@@ -207,7 +207,7 @@ export class PrismaSyncRepository implements ISyncRepository {
           reviewStates: true,
         },
       }),
-      this.prisma.budgetTransaction.findMany({ where: { userId, id: { in: ids('budgettransaction') }, deletedAt: null }, include: { categoryRel: true } }),
+      this.prisma.expense.findMany({ where: { userId, id: { in: ids('expense') }, deletedAt: null }, include: { category: true } }),
       this.prisma.gymWorkout.findMany({ where: { userId, id: { in: workoutIds }, deletedAt: null }, include: { exercises: { where: { deletedAt: null }, include: { exercise: true, sets: { where: { deletedAt: null }, orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } } } }),
       this.deckStudyStats(userId, deckIds),
     ]);
@@ -232,13 +232,13 @@ export class PrismaSyncRepository implements ISyncRepository {
       });
     }
     for (const card of cards) resources.set(`card:${card.id}`, mapCard(card));
-    for (const transaction of budgetTransactions) resources.set(`budgettransaction:${transaction.id}`, transaction);
+    for (const expense of expenses) resources.set(`expense:${expense.id}`, expense);
     for (const workout of gymWorkouts) {
       resources.set(`gymworkout:${workout.id}`, workout);
       resources.set(`workout:${workout.id}`, workout);
     }
 
-    const completeTypes = new Set(['task', 'tasklist', 'habit', 'deck', 'card', 'budgettransaction', 'gymworkout', 'workout']);
+    const completeTypes = new Set(['task', 'tasklist', 'habit', 'deck', 'card', 'expense', 'gymworkout', 'workout']);
     return changes.map((change) => {
       const key = `${change.entityType}:${change.entityId}`;
       const resource = change.deleted ? null : resources.get(key);
@@ -382,9 +382,10 @@ export class PrismaSyncRepository implements ISyncRepository {
       journalTemplates,
       journalTags,
       exerciseDefinitions,
-      budgetCategories,
-      budgetPeriods,
-      budgetTransactions,
+      expenseCategories,
+      monthlyBudgets,
+      expenses,
+      recurringExpenses,
       gymWorkouts,
     ] = await Promise.all([
       this.prisma.deck.findMany({ where: { userId, archived: false } }),
@@ -447,9 +448,10 @@ export class PrismaSyncRepository implements ISyncRepository {
       this.prisma.journalTemplate.findMany({ where: { userId, archivedAt: null } }),
       this.prisma.journalTag.findMany({ where: { userId } }),
       this.prisma.exerciseDefinition.findMany({ where: { userId, deletedAt: null } }),
-      this.prisma.budgetCategory.findMany({ where: { userId } }),
-      this.prisma.budgetPeriod.findMany({ where: { userId }, include: { categoryBudgets: true } }),
-      this.prisma.budgetTransaction.findMany({ where: { userId, deletedAt: null }, include: { categoryRel: true } }),
+      this.prisma.expenseCategory.findMany({ where: { userId } }),
+      this.prisma.monthlyBudget.findMany({ where: { userId }, include: { categoryLimits: true } }),
+      this.prisma.expense.findMany({ where: { userId, deletedAt: null }, include: { category: true } }),
+      this.prisma.recurringExpense.findMany({ where: { userId, archivedAt: null }, include: { category: true } }),
       this.prisma.gymWorkout.findMany({ where: { userId, deletedAt: null }, include: { exercises: { where: { deletedAt: null }, include: { exercise: true, sets: { where: { deletedAt: null } } } } } }),
     ]);
     const rows: Array<{ entityType: string; entityId: string; deleted: false; data: Prisma.JsonValue }> = [];
@@ -500,9 +502,10 @@ export class PrismaSyncRepository implements ISyncRepository {
     add('journaltemplate', journalTemplates as any);
     add('journaltag', journalTags as any);
     add('exercisedefinition', exerciseDefinitions as any);
-    add('moneycategory', budgetCategories as any);
-    add('moneybudgetperiod', budgetPeriods as any);
-    add('budgettransaction', budgetTransactions as any);
+    add('expensecategory', expenseCategories as any);
+    add('monthlybudget', monthlyBudgets as any);
+    add('expense', expenses as any);
+    add('recurringexpense', recurringExpenses as any);
     add('gymworkout', gymWorkouts as any);
     return rows;
   }

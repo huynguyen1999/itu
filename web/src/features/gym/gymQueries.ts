@@ -2,6 +2,17 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
 
 export type ExerciseMetricType = 'WEIGHT_REPS' | 'REPS' | 'DURATION' | 'DISTANCE_DURATION';
+export type GymWeightUnit = 'KG' | 'LBS';
+export type GymSetType = 'WARM_UP' | 'WARMUP' | 'NORMAL' | 'DROP' | 'FAILURE';
+
+export type GymPRType =
+  | 'HEAVIEST_WEIGHT'
+  | 'ESTIMATED_1RM'
+  | 'MOST_REPS'
+  | 'BEST_SET_VOLUME'
+  | 'BEST_SESSION_VOLUME'
+  | 'LONGEST_DURATION'
+  | 'LONGEST_DISTANCE';
 
 export interface GymExercise {
   id: string;
@@ -10,16 +21,49 @@ export interface GymExercise {
   metricType?: ExerciseMetricType;
   equipment?: string | null;
   primaryMuscleGroup?: string | null;
-  defaultWeightUnit?: 'KG' | 'LBS';
+  secondaryMuscleGroups?: string[];
+  defaultWeightUnit?: GymWeightUnit;
   defaultRestSeconds?: number | null;
-  version?: number;
+  origin?: 'BUILT_IN' | 'CUSTOM';
+  catalogKey?: string | null;
+  catalogVersion?: number | null;
+  userNotes?: string | null;
   isFavorite?: boolean;
   favorite?: boolean;
   archivedAt?: string | null;
   imageUrl?: string | null;
+  version?: number;
 }
 
-interface GymPreviousSet {
+export interface GymRoutineExercise {
+  id: string;
+  routineId: string;
+  exerciseId: string;
+  sortOrder: number;
+  setCount: number;
+  targetRepsMin?: number | null;
+  targetRepsMax?: number | null;
+  targetDurationSeconds?: number | null;
+  targetDistanceMeters?: number | null;
+  restSeconds?: number | null;
+  note?: string | null;
+  version?: number;
+  exercise?: GymExercise | null;
+}
+
+export interface GymRoutine {
+  id: string;
+  name: string;
+  description?: string | null;
+  sortOrder: number;
+  archivedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  version?: number;
+  exercises: GymRoutineExercise[];
+}
+
+export interface GymPreviousSet {
   weight?: number | null;
   reps?: number | null;
   durationSeconds?: number | null;
@@ -29,8 +73,9 @@ interface GymPreviousSet {
 
 export interface GymWorkoutSet {
   id?: string;
+  workoutExerciseId?: string;
   sortOrder: number;
-  type?: 'WARM_UP' | 'WARMUP' | 'NORMAL' | 'DROP' | 'FAILURE';
+  type?: GymSetType;
   reps?: number | null;
   weight?: number | null;
   durationSeconds?: number | null;
@@ -42,12 +87,17 @@ export interface GymWorkoutSet {
   performedAt?: string | null;
   workoutId?: string;
   workoutTitle?: string | null;
+  prs?: GymPRType[];
 }
 
 export interface GymWorkoutExercise {
   id?: string;
+  workoutId?: string;
   workoutEntryId?: string;
   exerciseId: string;
+  exerciseName?: string;
+  metricType?: ExerciseMetricType;
+  weightUnit?: GymWeightUnit;
   sortOrder: number;
   note?: string | null;
   restSeconds?: number | null;
@@ -58,6 +108,7 @@ export interface GymWorkoutExercise {
 
 export interface GymWorkout {
   id: string;
+  routineId?: string | null;
   title?: string | null;
   status: 'IN_PROGRESS' | 'ACTIVE' | 'COMPLETED' | 'ABANDONED';
   startedAt?: string | null;
@@ -68,15 +119,24 @@ export interface GymWorkout {
 }
 
 export interface GymOverview {
+  startDate?: string;
+  endDate?: string;
   weeklyWorkoutsCount: number;
+  weeklyWorkoutTarget?: number | null;
+  consistencyStreakWeeks?: number;
   weeklySetsCount: number;
   weeklyVolumeKg: number;
+  trainingMinutes?: number;
+  prCount?: number;
+  muscleSets?: Record<string, number>;
+  previousWeek?: {
+    weeklyWorkoutsCount: number;
+    weeklySetsCount: number;
+    weeklyVolumeKg: number;
+    trainingMinutes: number;
+    prCount: number;
+  };
   recentWorkouts: GymWorkout[];
-}
-
-interface GymWorkoutUpdate {
-  title: string;
-  exercises: GymWorkoutExercise[];
 }
 
 export interface GymExerciseStats {
@@ -88,6 +148,52 @@ export interface GymExerciseStats {
   recentSets?: GymWorkoutSet[];
 }
 
+export interface GymProgressPoint {
+  date: string;
+  workoutId: string;
+  weight: number | null;
+  reps: number | null;
+  estimated1RM: number | null;
+  volume: number | null;
+  durationSeconds: number | null;
+  distanceMeters: number | null;
+  isPR?: boolean;
+}
+
+export interface GymExerciseProgress {
+  exercise: GymExercise;
+  records: {
+    heaviestWeight: number | null;
+    estimated1RM: number | null;
+    bestSetVolume: number | null;
+    mostReps: number | null;
+    longestDurationSeconds: number | null;
+    longestDistanceMeters: number | null;
+    totalCompletedSets: number;
+    lastTrained: string | null;
+  };
+  historyPoints: GymProgressPoint[];
+  recentSets: GymWorkoutSet[];
+}
+
+export interface GymAnalytics {
+  range: '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM';
+  totalWorkouts: number;
+  totalWorkingSets: number;
+  totalVolumeKg: number;
+  totalTrainingMinutes: number;
+  totalPRs: number;
+  muscleDistribution: Record<string, number>;
+  weeklyTrend: Array<{
+    weekLabel: string;
+    startDate: string;
+    workouts: number;
+    sets: number;
+    volumeKg: number;
+    trainingMinutes: number;
+  }>;
+}
+
 export function useGymOverview() {
   return useQuery<GymOverview>({
     queryKey: ['gym', 'overview'],
@@ -95,10 +201,17 @@ export function useGymOverview() {
   });
 }
 
-export function useGymExercises() {
+export function useGymAnalytics(range: '1M' | '3M' | '6M' | '1Y' | 'ALL' = '3M') {
+  return useQuery<GymAnalytics>({
+    queryKey: ['gym', 'analytics', range],
+    queryFn: () => api.getGymAnalytics(range),
+  });
+}
+
+export function useGymExercises(options?: { search?: string; muscle?: string; equipment?: string; favoriteOnly?: boolean }) {
   return useQuery<GymExercise[]>({
-    queryKey: ['gym', 'exercises'],
-    queryFn: () => api.getGymExercises(),
+    queryKey: ['gym', 'exercises', options],
+    queryFn: () => api.getGymExercises(options),
   });
 }
 
@@ -110,7 +223,30 @@ export function useGymExerciseStats(id: string) {
   });
 }
 
-export function useGymWorkouts(options?: { status?: string; limit?: number }) {
+export function useGymExerciseProgress(id: string, range: string = 'ALL') {
+  return useQuery<GymExerciseProgress>({
+    queryKey: ['gym', 'exercise-progress', id, range],
+    queryFn: () => api.getGymExerciseProgress(id, range),
+    enabled: Boolean(id),
+  });
+}
+
+export function useGymRoutines() {
+  return useQuery<GymRoutine[]>({
+    queryKey: ['gym', 'routines'],
+    queryFn: () => api.getGymRoutines(),
+  });
+}
+
+export function useGymRoutine(id: string) {
+  return useQuery<GymRoutine>({
+    queryKey: ['gym', 'routine', id],
+    queryFn: () => api.getGymRoutineById(id),
+    enabled: Boolean(id),
+  });
+}
+
+export function useGymWorkouts(options?: { status?: string; limit?: number; from?: string; to?: string }) {
   return useQuery<GymWorkout[]>({
     queryKey: ['gym', 'workouts', options],
     queryFn: () => api.getGymWorkouts(options),

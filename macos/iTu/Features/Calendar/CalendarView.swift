@@ -199,20 +199,12 @@ struct CalendarView: View {
     // MARK: - Page Header (Web Parity)
 
     private var pageHeader: some View {
-        HStack(alignment: .bottom, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
-                iTuSectionLabel(title: "PRODUCTIVITY", color: iTuTheme.teal)
-                Text("Calendar")
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
-                    .foregroundStyle(iTuTheme.ink)
-                Text("A calm, source-first view of what has your attention.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(iTuTheme.inkDim)
-            }
-
-            Spacer(minLength: 16)
-
-            HStack(spacing: 10) {
+        iTuPageHeader(
+            kicker: "PRODUCTIVITY",
+            title: "Calendar",
+            description: "A calm, source-first view of what has your attention.",
+            actions: {
+                HStack(spacing: 10) {
                 // Arrange tasks button
                 Button {
                     withAnimation(.snappy(duration: 0.22)) {
@@ -342,11 +334,9 @@ struct CalendarView: View {
                         .stroke(iTuTheme.border, lineWidth: 1)
                 }
                 .shadow(color: iTuTheme.forest.opacity(0.04), radius: 2, y: 1)
+                }
             }
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
-        .padding(.bottom, 14)
+        )
     }
 
     // MARK: - Main Timeline Card (Web Parity)

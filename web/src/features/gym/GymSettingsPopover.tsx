@@ -28,6 +28,22 @@ export function GymSettingsPopover({ preferences = {}, onChange }: GymSettingsPo
         </select>
       </div>
       <label className="flex items-center justify-between gap-3 border-t pt-3">
+        <span className="text-xs font-semibold">Weekly workout target</span>
+        <select
+          value={current.weeklyWorkoutGoal ?? 3}
+          onChange={(event) => patch({ weeklyWorkoutGoal: Number(event.target.value) })}
+          className="rounded-md border bg-background px-2 py-1.5 text-xs"
+        >
+          <option value="1">1 day / week</option>
+          <option value="2">2 days / week</option>
+          <option value="3">3 days / week</option>
+          <option value="4">4 days / week</option>
+          <option value="5">5 days / week</option>
+          <option value="6">6 days / week</option>
+          <option value="7">7 days / week</option>
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-3 border-t pt-3">
         <span className="text-xs font-semibold">Default rest</span>
         <select
           value={current.defaultRestSeconds}

@@ -289,7 +289,11 @@ struct TaskTagDTO: Codable, Sendable {
 
 struct AppNotificationModel: Identifiable, Codable, Equatable, Sendable {
     let id: String
-    let reminderId: String
+    let reminderId: String?
+    let habitReminderDeliveryId: String?
+    let habitId: String?
+    let habitLocalDate: String?
+    let habitTargetType: String?
     let title: String
     let body: String
     let actionUrl: String

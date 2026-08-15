@@ -84,6 +84,23 @@ describe('JournalController Routes', () => {
     expect(res.json()).toEqual([]);
   });
 
+  it('passes Journal source context filters through to the service', async () => {
+    const listEntries = mockJournalService.listEntries as jest.Mock;
+    listEntries.mockClear();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/journal/entries?kind=NOTE&contextType=HABIT_OCCURRENCE&contextId=occurrence-1',
+      headers: { authorization: 'Bearer valid-token' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(listEntries).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ kind: 'NOTE', contextType: 'HABIT_OCCURRENCE', contextId: 'occurrence-1' }),
+    );
+  });
+
   it('POST /journal/entries/:id/ai-insights uses the direct generator when authenticated', async () => {
     const res = await app.inject({
       method: 'POST',

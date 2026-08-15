@@ -4,6 +4,7 @@ struct AccountHydrationResult: Sendable {
     let snapshot: OfflineSnapshot
     let taskPage: TaskPage?
     let usagePreferences: UsagePreferences?
+    let habitPreferences: HabitPreferencesModel?
     let habitTimeBlocks: [HabitTimeBlockModel]?
     let studySessionHistory: [StudySessionHistoryItem]?
     let notifications: [AppNotificationModel]?
@@ -43,15 +44,17 @@ final class AccountHydrator: @unchecked Sendable {
         async let habitRules = fetch { try await self.apiClient.fetchGrowthEarningRules(sourceType: .habit) }
         async let rewardDefaults = fetch { try await self.apiClient.fetchGrowthTaskRewardDefaults() }
         async let mappings = fetch { try await self.apiClient.fetchGrowthAttributeMappings() }
-        async let budgetCategories = fetch { try await self.apiClient.getBudgetCategories() }
-        async let budgetPeriod = fetch { try await self.apiClient.getBudgetPeriod(period: iTuCalendarSupport.monthString()) }
-        async let budgetTransactions = fetch { try await self.apiClient.getBudgetTransactions() }
+        async let expenseCategories = fetch { try await self.apiClient.getBudgetCategories() }
+        async let monthlyBudget = fetch { try await self.apiClient.getMonthlyBudget(period: iTuCalendarSupport.monthString()) }
+        async let expenses = fetch { try await self.apiClient.getBudgetExpenses() }
+        async let recurringExpenses = fetch { try await self.apiClient.getRecurringExpenses() }
         async let gymExercises = fetch { try await self.apiClient.getGymExercises() }
+        async let gymRoutines = fetch { try await self.apiClient.getGymRoutines() }
         async let gymWorkouts = fetch { try await self.apiClient.getGymWorkouts() }
         async let journalNotes = fetch { try await self.apiClient.getJournalNotes() }
         async let journalTags = fetch { try await self.apiClient.getJournalTags() }
         async let journalTemplates = fetch { try await self.apiClient.getJournalTemplates() }
-        async let usagePreferences = fetch { try await self.apiClient.fetchUsagePreferences() }
+        async let preferences = fetch { try await self.apiClient.fetchPreferences() }
 
         let fetchedDecks = await decks
         var cardsByDeck: [String: [CardModel]?] = [:]
@@ -73,10 +76,13 @@ final class AccountHydrator: @unchecked Sendable {
             presets: await presets, taskRules: await taskRules, habitRules: await habitRules,
             rewardDefaults: await rewardDefaults, mappings: await mappings
         )
-        resource.budgetCategories = await budgetCategories
-        resource.budgetPeriod = await budgetPeriod
-        resource.budgetTransactions = await budgetTransactions
+        resource.habitPreferences = await preferences?.habits
+        resource.expenseCategories = await expenseCategories
+        resource.monthlyBudgets = await monthlyBudget.map { [$0] }
+        resource.expenses = await expenses
+        resource.recurringExpenses = await recurringExpenses
         resource.gymExercises = await gymExercises
+        resource.gymRoutines = await gymRoutines
         resource.gymWorkouts = await gymWorkouts
         resource.journalNotes = await journalNotes
         resource.journalTags = await journalTags
@@ -86,7 +92,8 @@ final class AccountHydrator: @unchecked Sendable {
         return AccountHydrationResult(
             snapshot: snapshot,
             taskPage: fetchedTaskPage,
-            usagePreferences: await usagePreferences,
+            usagePreferences: await preferences?.usage,
+            habitPreferences: await preferences?.habits,
             habitTimeBlocks: await timeBlocks,
             studySessionHistory: await history,
             notifications: await notifications
@@ -121,14 +128,17 @@ struct AccountHydrationResources: Sendable {
     let habitRules: [GrowthEarningRuleDTO]?
     let rewardDefaults: [GrowthTaskRewardDefaultDTO]?
     let mappings: [GrowthAttributeMappingDTO]?
-    var budgetCategories: [BudgetCategoryModel]? = nil
-    var budgetPeriod: BudgetPeriodModel? = nil
-    var budgetTransactions: [BudgetTransactionModel]? = nil
+    var expenseCategories: [ExpenseCategoryModel]? = nil
+    var monthlyBudgets: [MonthlyBudgetModel]? = nil
+    var expenses: [ExpenseModel]? = nil
+    var recurringExpenses: [RecurringExpenseModel]? = nil
     var gymExercises: [ExerciseModel]? = nil
+    var gymRoutines: [RoutineModel]? = nil
     var gymWorkouts: [WorkoutModel]? = nil
     var journalNotes: [JournalNoteModel]? = nil
     var journalTags: [JournalTagModel]? = nil
     var journalTemplates: [JournalTemplateModel]? = nil
+    var habitPreferences: HabitPreferencesModel? = nil
 
     init(
         tasks: [ProductivityTask]? = nil,

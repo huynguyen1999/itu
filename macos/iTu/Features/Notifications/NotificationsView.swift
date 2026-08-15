@@ -48,67 +48,78 @@ struct NotificationsView: View {
     }
 
     private var headerBar: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 6) {
-                iTuSectionLabel(title: "INBOX", color: iTuTheme.teal)
-                Text("Notifications")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(iTuTheme.ink)
-                Text("Reminders and updates that need your attention.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(iTuTheme.inkDim)
-            }
-            Spacer()
-            if unreadCount > 0 {
-                Button("Mark All Read") {
-                    Task { await model.markAllNotificationsRead() }
+        iTuPageHeader(
+            kicker: "INBOX",
+            title: "Notifications",
+            description: "Reminders and updates that need your attention.",
+            actions: {
+                if unreadCount > 0 {
+                    Button("Mark All Read") {
+                        Task { await model.markAllNotificationsRead() }
+                    }
+                    .buttonStyle(iTuHeaderGhostButtonStyle(height: 34))
                 }
-                .buttonStyle(iTuGhostButtonStyle(height: 34))
             }
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 18)
+        )
     }
 
     private func notificationRow(_ notification: AppNotificationModel) -> some View {
-        Button {
-            Task { await model.openNotification(notification) }
-        } label: {
-            HStack(alignment: .top, spacing: 12) {
-                Circle()
-                    .fill(notification.readAt == nil ? iTuTheme.teal : iTuTheme.border)
-                    .frame(width: 8, height: 8)
-                    .padding(.top, 5)
+        HStack(alignment: .top, spacing: 12) {
+            Button {
+                Task { await model.openNotification(notification) }
+            } label: {
+                HStack(alignment: .top, spacing: 12) {
+                    Circle()
+                        .fill(notification.readAt == nil ? iTuTheme.teal : iTuTheme.border)
+                        .frame(width: 8, height: 8)
+                        .padding(.top, 5)
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(notification.title)
-                        .font(.system(size: 14, weight: notification.readAt == nil ? .semibold : .medium))
-                        .foregroundStyle(iTuTheme.ink)
-                    Text(notification.body)
-                        .font(.system(size: 12))
-                        .foregroundStyle(iTuTheme.inkDim)
-                        .lineLimit(3)
-                    Text(Self.formatDate(notification.createdAt))
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(iTuTheme.inkFaint)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(notification.title)
+                            .font(.system(size: 14, weight: notification.readAt == nil ? .semibold : .medium))
+                            .foregroundStyle(iTuTheme.ink)
+                        Text(notification.body)
+                            .font(.system(size: 12))
+                            .foregroundStyle(iTuTheme.inkDim)
+                            .lineLimit(3)
+                        Text(Self.formatDate(notification.createdAt))
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(iTuTheme.inkFaint)
+                    }
+                    Spacer()
+                    if notification.readAt == nil {
+                        Text("NEW")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(iTuTheme.teal)
+                    }
                 }
-                Spacer()
-                if notification.readAt == nil {
-                    Text("NEW")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundStyle(iTuTheme.teal)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(hoveredID == notification.id ? iTuTheme.mintTint.opacity(0.25) : iTuTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(notification.readAt == nil ? iTuTheme.teal.opacity(0.35) : iTuTheme.border, lineWidth: 1)
+            .buttonStyle(.plain)
+
+            if notification.habitReminderDeliveryId != nil {
+                let isBoolean = notification.habitTargetType?.uppercased() == "BOOLEAN"
+                Button(isBoolean ? "Complete" : "Log") {
+                    Task {
+                        if isBoolean {
+                            await model.completeHabitReminder(notification)
+                        } else {
+                            await model.openHabitReminderLogger(notification)
+                        }
+                    }
+                }
+                .buttonStyle(iTuPrimaryButtonStyle(height: 28))
+                .accessibilityLabel(isBoolean ? "Complete \(notification.title)" : "Log \(notification.title)")
             }
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(hoveredID == notification.id ? iTuTheme.mintTint.opacity(0.25) : iTuTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(notification.readAt == nil ? iTuTheme.teal.opacity(0.35) : iTuTheme.border, lineWidth: 1)
+        }
         .onHover { hoveredID = $0 ? notification.id : nil }
         .contextMenu {
             if notification.readAt == nil {
@@ -116,7 +127,7 @@ struct NotificationsView: View {
                     Task { await model.markNotificationRead(notification) }
                 }
             }
-            if !notification.reminderId.isEmpty {
+            if notification.reminderId != nil || notification.habitReminderDeliveryId != nil {
                 Button("Snooze 1 Hour") {
                     Task { await model.snoozeNotificationReminder(notification) }
                 }

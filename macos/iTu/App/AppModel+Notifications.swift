@@ -65,10 +65,15 @@ extension AppModel {
     }
 
     func snoozeNotificationReminder(_ notification: AppNotificationModel) async {
-        guard !notification.reminderId.isEmpty else { return }
         let remindAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
         do {
-            try await apiClient.snoozeTaskReminder(id: notification.reminderId, remindAt: remindAt)
+            if let deliveryId = notification.habitReminderDeliveryId {
+                try await apiClient.snoozeHabitReminder(deliveryId: deliveryId, remindAt: remindAt)
+            } else if let reminderId = notification.reminderId {
+                try await apiClient.snoozeTaskReminder(id: reminderId, remindAt: remindAt)
+            } else {
+                return
+            }
             await refreshNotifications()
         } catch {
             errorMessage = "Could not snooze the reminder: \(error.localizedDescription)"
@@ -76,14 +81,43 @@ extension AppModel {
     }
 
     func dismissNotificationReminder(_ notification: AppNotificationModel) async {
-        guard !notification.reminderId.isEmpty else { return }
         do {
-            try await apiClient.dismissTaskReminder(id: notification.reminderId)
+            if let deliveryId = notification.habitReminderDeliveryId {
+                try await apiClient.dismissHabitReminder(deliveryId: deliveryId)
+            } else if let reminderId = notification.reminderId {
+                try await apiClient.dismissTaskReminder(id: reminderId)
+            } else {
+                return
+            }
             await refreshNotifications()
         } catch {
             errorMessage = "Could not dismiss the reminder: \(error.localizedDescription)"
         }
     }
+    func completeHabitReminder(_ notification: AppNotificationModel) async {
+        guard let deliveryId = notification.habitReminderDeliveryId else { return }
+        do {
+            try await apiClient.completeHabitReminder(deliveryId: deliveryId)
+            await refreshNotifications()
+            if let localDate = notification.habitLocalDate {
+                await refreshHabitOccurrences(from: localDate, to: localDate, force: true)
+            }
+        } catch {
+            errorMessage = "Could not complete the habit: \(error.localizedDescription)"
+        }
+    }
+
+    func openHabitReminderLogger(_ notification: AppNotificationModel) async {
+        await markNotificationRead(notification)
+        guard let habitId = notification.habitId, let localDate = notification.habitLocalDate else {
+            selectedSection = .habits
+            return
+        }
+        selectedTaskListId = nil
+        selectedSection = .habits
+        pendingHabitQuickLog = HabitQuickLogRequest(habitId: habitId, localDate: localDate)
+    }
+
     func createTaskReminder(taskId: String, remindAt: String) async {
         do {
             _ = try await apiClient.createTaskReminder(taskId: taskId, remindAt: remindAt)

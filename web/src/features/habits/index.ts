@@ -1,2 +1,2 @@
-export { HabitsPage, HabitDetail } from './HabitsPage';
+export { HabitsPage, HabitDetail, HabitQuickLogDialog } from './HabitsPage';
 export { HabitIconBadge } from './habitStyles';

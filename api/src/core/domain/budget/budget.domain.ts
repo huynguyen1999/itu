@@ -1,8 +1,10 @@
-export interface BudgetCategoryDomain {
+export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'E_WALLET' | 'OTHER';
+export type RecurringFrequency = 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+
+export interface ExpenseCategoryDomain {
   id: string;
   userId: string;
   name: string;
-  type: 'EXPENSE' | 'INCOME';
   icon?: string | null;
   color?: string | null;
   sortOrder: number;
@@ -12,40 +14,40 @@ export interface BudgetCategoryDomain {
   version: number;
 }
 
-export interface BudgetCategoryLimitDomain {
+export interface CategoryBudgetLimitDomain {
   id: string;
-  budgetPeriodId: string;
+  monthlyBudgetId: string;
   categoryId: string;
   limit: string;
   createdAt: Date;
   updatedAt: Date;
-  category?: BudgetCategoryDomain;
+  version: number;
+  category?: ExpenseCategoryDomain;
 }
 
-export interface BudgetPeriodDomain {
+export interface MonthlyBudgetDomain {
   id: string;
   userId: string;
-  period: string; // e.g. "2026-08"
-  currency: string;
-  overallLimit: string;
+  period: string;
+  overallLimit: string | null;
   createdAt: Date;
   updatedAt: Date;
   version: number;
-  categoryBudgets: BudgetCategoryLimitDomain[];
+  categoryLimits: CategoryBudgetLimitDomain[];
 }
 
-export interface BudgetTransactionDomain {
+export interface ExpenseDomain {
   id: string;
   userId: string;
-  type: 'EXPENSE' | 'INCOME';
   amount: string;
-  currency: string;
-  category: string; // enum string or category name
-  categoryId?: string | null;
+  category: string;
+  categoryId: string;
   merchant?: string | null;
-  paymentMethod: string;
-  transactionAt: Date;
+  paymentMethod: PaymentMethod;
+  expenseDate: Date;
   note?: string | null;
+  recurringExpenseId?: string | null;
+  recurringOccurrenceDate?: Date | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;
@@ -53,20 +55,63 @@ export interface BudgetTransactionDomain {
   deletedByDeviceId?: string | null;
 }
 
-export interface CategoryOverviewStat {
-  category: BudgetCategoryDomain;
-  budget: string;
-  spent: string;
-  remaining: string;
-  percentage: number;
+export interface RecurringExpenseDomain {
+  id: string;
+  userId: string;
+  name?: string | null;
+  category: string;
+  categoryId: string;
+  amount: string;
+  merchant?: string | null;
+  paymentMethod: PaymentMethod;
+  note?: string | null;
+  frequency: RecurringFrequency;
+  startDate: Date;
+  nextDueDate: Date;
+  isActive: boolean;
+  archivedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  version: number;
 }
 
-export interface BudgetOverviewDomain {
-  period: string;
-  currency: string;
-  income: string;
+export interface BudgetCategorySummaryDomain {
+  category: ExpenseCategoryDomain;
+  limit: string | null;
   spent: string;
-  overallBudget: string;
-  remainingBudget: string;
-  categories: CategoryOverviewStat[];
+  remaining: string | null;
+  percentage: number | null;
+}
+
+export interface BudgetSummaryDomain {
+  period: string;
+  spent: string;
+  overallLimit: string | null;
+  remaining: string | null;
+  previousSpent: string;
+  changeAmount: string;
+  changePercentage: number | null;
+  categories: BudgetCategorySummaryDomain[];
+  recentExpenses: ExpenseDomain[];
+  dueRecurring: RecurringExpenseDomain[];
+}
+
+export interface BudgetReportDomain {
+  period: string;
+  spendingOverTime: Array<{ date: string; amount: string; cumulative: string }>;
+  categoryBreakdown: Array<{ categoryId: string; category: string; amount: string; percentage: number }>;
+  monthlyOutflow: Array<{ bucket: string; amount: string }>;
+  previousMonthComparison: { current: string; previous: string; difference: string; percentage: number | null };
+  topMerchants: Array<{ merchant: string; amount: string; count: number }>;
+  topCategories: Array<{ categoryId: string; category: string; amount: string; count: number }>;
+}
+
+export interface BudgetStatisticsDomain {
+  from: string;
+  to: string;
+  spent: string;
+  expenseCount: number;
+  previousSpent: string;
+  changeAmount: string;
+  trend: Array<{ date: string; amount: string }>;
 }

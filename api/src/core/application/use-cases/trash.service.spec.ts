@@ -20,11 +20,11 @@ describe('TrashService', () => {
       deleteCardImage: jest.fn(),
       deleteTask: jest.fn(),
       restoreJournalEntry: jest.fn(),
-      restoreBudgetTransaction: jest.fn(),
+      restoreExpense: jest.fn(),
       restoreGymWorkout: jest.fn(),
       restoreGymExercise: jest.fn(),
       deleteJournalEntry: jest.fn(),
-      deleteBudgetTransaction: jest.fn(),
+      deleteExpense: jest.fn(),
       deleteGymWorkout: jest.fn(),
       deleteGymExercise: jest.fn(),
       purgeExpired: jest.fn(),
@@ -61,10 +61,10 @@ describe('TrashService', () => {
   });
 
   it('restores additive global-trash entities through the repository', async () => {
-    repository.restoreBudgetTransaction!.mockResolvedValue({ id: 'tx-1' });
+    repository.restoreExpense!.mockResolvedValue({ id: 'expense-1' });
 
-    await expect(service.restoreBudgetTransaction('user-1', 'tx-1')).resolves.toEqual({ id: 'tx-1' });
-    expect(repository.restoreBudgetTransaction).toHaveBeenCalledWith('user-1', 'tx-1');
+    await expect(service.restoreExpense('user-1', 'expense-1')).resolves.toEqual({ id: 'expense-1' });
+    expect(repository.restoreExpense).toHaveBeenCalledWith('user-1', 'expense-1');
   });
 
   it('hard-deletes Journal Entry attachments even when media cleanup fails', async () => {

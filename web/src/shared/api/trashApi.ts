@@ -1,7 +1,7 @@
 import type { ApiClientContext } from './apiContext';
 import { SYNC_KINDS } from '../sync/syncKinds';
 import type {
-  TrashBudgetTransaction,
+  TrashExpense,
   TrashExerciseDefinition,
   TrashGymWorkout,
   TrashJournalEntry,
@@ -11,11 +11,11 @@ import type {
 export type TrashApi = {
   trash(): Promise<TrashSnapshot>;
   restoreTrashJournalEntry(id: string): Promise<TrashJournalEntry>;
-  restoreTrashBudgetTransaction(id: string): Promise<TrashBudgetTransaction>;
+  restoreTrashExpense(id: string): Promise<TrashExpense>;
   restoreTrashGymWorkout(id: string): Promise<TrashGymWorkout>;
   restoreTrashGymExercise(id: string): Promise<TrashExerciseDefinition>;
   deleteTrashJournalEntry(id: string): Promise<{ ok: true }>;
-  deleteTrashBudgetTransaction(id: string): Promise<{ ok: true }>;
+  deleteTrashExpense(id: string): Promise<{ ok: true }>;
   deleteTrashGymWorkout(id: string): Promise<{ ok: true }>;
   deleteTrashGymExercise(id: string): Promise<{ ok: true }>;
 };
@@ -37,16 +37,16 @@ export function createTrashApi(ctx: ApiClientContext): TrashApi {
         () => ctx.request<TrashJournalEntry>(`/trash/journal-entries/${id}/restore`, { method: 'POST' }),
       );
     },
-    restoreTrashBudgetTransaction(id) {
+    restoreTrashExpense(id) {
       return ctx.offlineMutation(
         {
-          kind: SYNC_KINDS.budgetTransaction.restore,
+          kind: SYNC_KINDS.expense.restore,
           entityId: id,
           payload: {},
           immediate: true,
-          optimistic: { id } as TrashBudgetTransaction,
+          optimistic: { id } as TrashExpense,
         },
-        () => ctx.request<TrashBudgetTransaction>(`/trash/budget-transactions/${id}/restore`, { method: 'POST' }),
+        () => ctx.request<TrashExpense>(`/trash/expenses/${id}/restore`, { method: 'POST' }),
       );
     },
     restoreTrashGymWorkout(id) {
@@ -76,8 +76,8 @@ export function createTrashApi(ctx: ApiClientContext): TrashApi {
     deleteTrashJournalEntry(id) {
       return ctx.request<{ ok: true }>(`/trash/journal-entries/${id}`, { method: 'DELETE' });
     },
-    deleteTrashBudgetTransaction(id) {
-      return ctx.request<{ ok: true }>(`/trash/budget-transactions/${id}`, { method: 'DELETE' });
+    deleteTrashExpense(id) {
+      return ctx.request<{ ok: true }>(`/trash/expenses/${id}`, { method: 'DELETE' });
     },
     deleteTrashGymWorkout(id) {
       return ctx.request<{ ok: true }>(`/trash/gym-workouts/${id}`, { method: 'DELETE' });

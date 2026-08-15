@@ -349,8 +349,8 @@ final class APIClientTests: XCTestCase {
         StubURLProtocol.responses = [
             "/trash/journal-entries/entry%2F1/restore": Data("{}".utf8),
             "/trash/journal-entries/entry%2F1": Data("{}".utf8),
-            "/trash/budget-transactions/transaction-1/restore": Data("{}".utf8),
-            "/trash/budget-transactions/transaction-1": Data("{}".utf8),
+            "/trash/expenses/expense-1/restore": Data("{}".utf8),
+            "/trash/expenses/expense-1": Data("{}".utf8),
             "/trash/gym-workouts/workout-1/restore": Data("{}".utf8),
             "/trash/gym-workouts/workout-1": Data("{}".utf8),
             "/trash/gym-exercises/exercise-1/restore": Data("{}".utf8),
@@ -367,8 +367,8 @@ final class APIClientTests: XCTestCase {
 
         try await client.restoreTrashJournalEntry(id: "entry/1")
         try await client.permanentlyDeleteTrashJournalEntry(id: "entry/1")
-        try await client.restoreTrashBudgetTransaction(id: "transaction-1")
-        try await client.permanentlyDeleteTrashBudgetTransaction(id: "transaction-1")
+        try await client.restoreTrashExpense(id: "expense-1")
+        try await client.permanentlyDeleteTrashExpense(id: "expense-1")
         try await client.restoreTrashGymWorkout(id: "workout-1")
         try await client.permanentlyDeleteTrashGymWorkout(id: "workout-1")
         try await client.restoreTrashGymExercise(id: "exercise-1")
@@ -376,7 +376,7 @@ final class APIClientTests: XCTestCase {
 
         XCTAssertEqual(StubURLProtocol.requests.map(\.path), [
             "/trash/journal-entries/entry%2F1/restore", "/trash/journal-entries/entry%2F1",
-            "/trash/budget-transactions/transaction-1/restore", "/trash/budget-transactions/transaction-1",
+            "/trash/expenses/expense-1/restore", "/trash/expenses/expense-1",
             "/trash/gym-workouts/workout-1/restore", "/trash/gym-workouts/workout-1",
             "/trash/gym-exercises/exercise-1/restore", "/trash/gym-exercises/exercise-1",
         ])

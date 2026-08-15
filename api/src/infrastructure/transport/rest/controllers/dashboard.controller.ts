@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { REST_ROUTES, ROUTE_PARAMS } from '@core/application/constants/app.constants';
 import { DashboardService } from '@core/application/use-cases/dashboard.service';
 import { AuthGuard } from '../guards/auth.guard';
@@ -29,7 +29,16 @@ export class DashboardController {
    * @when Called when viewing user profile or progress calendar view.
    */
   @Get(REST_ROUTES.studyCalendar)
-  studyCalendar(@Req() req: AuthenticatedRequest, @Query('days') days?: string) {
+  studyCalendar(
+    @Req() req: AuthenticatedRequest,
+    @Query('days') days?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    if (from || to) {
+      if (!from || !to) throw new BadRequestException('from and to are required together');
+      return this.dashboard.studyCalendarRange(req.user.sub, from, to);
+    }
     return this.dashboard.studyCalendar(req.user.sub, days ? Number(days) : undefined);
   }
 

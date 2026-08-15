@@ -47,11 +47,14 @@ exercise/set editor is composed by
 [`WorkoutExerciseList.tsx`](../../web/src/features/gym/active/WorkoutExerciseList.tsx).
 
 Statistics keeps date-range selection and server-query orchestration in
-[`StatisticsPage.tsx`](../../web/src/features/statistics/StatisticsPage.tsx).
-Foreground application activity and website activity—including website filter,
-search, and drill-down state—are feature-local presentation surfaces in
-`StatisticsUsageSection.tsx` and `StatisticsWebsiteUsageSection.tsx`; pure
-statistics display formatting remains in `statistics.ts`.
+[`StatisticsPage.tsx`](../../web/src/features/statistics/StatisticsPage.tsx),
+while `statisticsPeriod.ts` and `statisticsQueries.ts` own the shared period
+and query contracts. Overview, trend, Growth, and domain-summary presentation
+is split into focused Statistics sections. Foreground application activity and
+website activity—including website filter, search, and drill-down state—are
+feature-local presentation surfaces in `StatisticsUsageSection.tsx` and
+`StatisticsWebsiteUsageSection.tsx`; pure statistics display formatting remains
+in `statistics.ts`.
 
 Habits keeps weekly grouping and occurrence actions in `HabitsPage.tsx`.
 Creation and editing are feature-local dialog components in `HabitEditor.tsx`
@@ -101,7 +104,7 @@ application invariant, so web sync does not coordinate that behavior.
 
 `features/ai` supplies AI-assisted learning behavior rather than a standalone route. Legacy Journal money/gym URLs redirect to the dedicated Budget and Gym workspaces.
 
-Budget Transactions and Gym Workouts are owned by their dedicated feature
+Budget Expenses and Gym Workouts are owned by their dedicated feature
 surfaces and sync entities; they are not Journal Entry kinds. Journal writes
 use the `journal.*`, `journal_attachment.delete`, `journal_revision.restore`,
 `journal_template.*`, and `journal_tag.create` mutation kinds through the

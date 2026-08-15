@@ -8,11 +8,13 @@ import {
   IsInt,
   IsNumber,
   IsOptional,
+  IsIn,
   IsString,
   Max,
   MaxLength,
   Min,
   MinLength,
+  Matches,
   ValidateNested,
 } from 'class-validator';
 import {
@@ -187,19 +189,19 @@ export class CreateHabitDto {
   @IsOptional() @IsString() @MaxLength(80) timezone?: string;
   @IsOptional() @IsString() timeBlockId?: string | null;
   @IsEnum(HabitScheduleType) scheduleType!: HabitScheduleType;
-  @IsOptional() @IsArray() @ArrayMaxSize(7) @IsInt({ each: true }) weekdays?: number[];
+  @IsOptional() @IsArray() @ArrayMaxSize(7) @IsInt({ each: true }) @IsIn([0, 1, 2, 3, 4, 5, 6], { each: true }) weekdays?: number[];
   @IsOptional() @IsInt() @Min(1) @Max(365) intervalDays?: number;
   @IsOptional() @IsInt() @Min(1) @Max(100) timesPerPeriod?: number;
-  @IsOptional() @IsString() period?: string;
+  @IsOptional() @IsString() @IsIn(['WEEK', 'MONTH']) period?: string;
   @IsDateString() startDate!: string;
   @IsOptional() @IsDateString() endDate?: string;
   @IsOptional() @IsInt() @Min(1) @Max(5) difficulty?: number;
   @IsOptional() @IsInt() @Min(0) @Max(30) allowedSkips?: number;
-  @IsOptional() @IsArray() @ArrayMaxSize(7) @IsInt({ each: true }) restDays?: number[];
+  @IsOptional() @IsArray() @ArrayMaxSize(7) @IsInt({ each: true }) @IsIn([0, 1, 2, 3, 4, 5, 6], { each: true }) restDays?: number[];
   @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) tagIds?: string[];
   @IsOptional() @IsString() taskTemplateId?: string;
   @IsOptional() @IsString() focusPresetId?: string;
-  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) reminderTimes?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(3) @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { each: true }) reminderTimes?: string[];
   @IsOptional() @ValidateNested() @Type(() => HabitTaskTemplateDto) taskTemplate?: HabitTaskTemplateDto;
   @IsOptional()
   @IsArray()
@@ -221,11 +223,34 @@ export class HabitRangeDto {
 
 export class HabitCheckInDto {
   @Type(() => Number) @IsNumber() @Min(0) value!: number;
-  @IsOptional() @IsString() @MaxLength(2000) note?: string;
   @IsOptional() @IsString() focusSessionId?: string;
   @IsOptional() @IsBoolean() adjusted?: boolean;
   @IsOptional() @IsEnum(HabitProgressSource) source?: HabitProgressSource;
   @IsString() @MinLength(8) @MaxLength(100) idempotencyKey!: string;
+}
+
+export class HabitProgressDto {
+  @IsDateString() localDate!: string;
+  @Type(() => Number) @IsNumber() @Min(0) value!: number;
+  @IsString() @MinLength(8) @MaxLength(100) idempotencyKey!: string;
+  @IsOptional() @IsEnum(HabitProgressSource) source?: HabitProgressSource;
+  @IsOptional() @IsString() focusSessionId?: string;
+  @IsOptional() @IsBoolean() adjusted?: boolean;
+}
+
+export class HabitDateActionDto {
+  @IsDateString() localDate!: string;
+  @IsIn(['SKIP', 'FAIL', 'UNDO']) action!: 'SKIP' | 'FAIL' | 'UNDO';
+  @IsString() @MinLength(8) @MaxLength(100) idempotencyKey!: string;
+}
+
+export class HabitProgressRangeDto {
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
+}
+
+export class HabitReminderActionDto {
+  @IsOptional() @IsDateString() remindAt?: string;
 }
 
 export class HabitOccurrenceActionDto {

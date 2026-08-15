@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { GrowthAttributeMappingsInput, IGrowthRepository } from '@core/application/ports/out/repositories.port';
 import { PrismaService } from './prisma.service';
 import { createUlid } from './ulid';
+import { hcmcDateKey } from '@core/application/utils/calendar';
 import {
   GrowthCurrency,
   GrowthLedgerKind,
@@ -428,7 +429,7 @@ export class PrismaGrowthRepository implements IGrowthRepository {
     }>();
 
     for (const entry of entries) {
-      const date = entry.createdAt.toISOString().slice(0, 10);
+      const date = hcmcDateKey(entry.createdAt);
       trend.set(date, (trend.get(date) ?? 0) + Math.max(0, entry.amount));
 
       if (!entry.skillId || entry.skill?.kind !== GrowthProgressKind.ATTRIBUTE) continue;

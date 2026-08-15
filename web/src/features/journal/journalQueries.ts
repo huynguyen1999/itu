@@ -74,8 +74,8 @@ const journalQueries = {
     }),
 };
 
-export function useJournalEntries(filter?: SearchJournalFilter) {
-  return useQuery(journalQueries.entries(filter));
+export function useJournalEntries(filter?: SearchJournalFilter, enabled = true) {
+  return useQuery({ ...journalQueries.entries(filter), enabled });
 }
 
 export function useJournalEntry(id: string, isNew = false) {

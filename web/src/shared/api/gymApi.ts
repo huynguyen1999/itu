@@ -38,7 +38,9 @@ export interface GymWorkoutSetCreate {
 
 export type GymApi = {
   getGymOverview(): Promise<any>;
-  getGymExercises(): Promise<any[]>;
+  getGymAnalytics(range?: string): Promise<any>;
+  getGymAnalyticsForPeriod(from: string, to: string): Promise<any>;
+  getGymExercises(options?: { search?: string; muscle?: string; equipment?: string; favoriteOnly?: boolean }): Promise<any[]>;
   createGymExercise(data: {
     name: string;
     description?: string;
@@ -48,6 +50,8 @@ export type GymApi = {
     secondaryMuscleGroups?: string[];
     defaultWeightUnit?: GymWeightUnit;
     defaultRestSeconds?: number;
+    userNotes?: string;
+    isFavorite?: boolean;
   }): Promise<any>;
   getGymExerciseById(id: string): Promise<any>;
   updateGymExercise(
@@ -61,28 +65,61 @@ export type GymApi = {
       secondaryMuscleGroups: string[];
       defaultWeightUnit: GymWeightUnit;
       defaultRestSeconds: number;
+      userNotes: string | null;
+      isFavorite: boolean;
       version: number;
     }>,
   ): Promise<any>;
+  toggleFavoriteExercise(id: string): Promise<any>;
   archiveGymExercise(id: string): Promise<any>;
   uploadGymExerciseImage(id: string, file: File): Promise<any>;
   getGymExerciseStats(id: string): Promise<any>;
-  getGymWorkouts(options?: { status?: string; limit?: number }): Promise<any[]>;
+  getGymExerciseProgress(id: string, range?: string): Promise<any>;
+
+  getGymRoutines(): Promise<any[]>;
+  getGymRoutineById(id: string): Promise<any>;
+  createGymRoutine(data: {
+    name: string;
+    description?: string;
+    sortOrder?: number;
+    exercises?: any[];
+  }): Promise<any>;
+  updateGymRoutine(
+    id: string,
+    data: Partial<{
+      name: string;
+      description: string;
+      sortOrder: number;
+      exercises: any[];
+      version: number;
+    }>,
+  ): Promise<any>;
+  deleteGymRoutine(id: string): Promise<any>;
+  archiveGymRoutine(id: string): Promise<any>;
+  startWorkoutFromRoutine(routineId: string): Promise<any>;
+  createRoutineFromWorkout(workoutId: string, name?: string): Promise<any>;
+  updateRoutineFromWorkout(routineId: string, workoutId: string): Promise<any>;
+
+  getGymWorkouts(options?: { status?: string; limit?: number; from?: string; to?: string }): Promise<any[]>;
   getGymWorkoutById(id: string): Promise<any>;
   updateGymWorkout(
     id: string,
     data: Partial<{
       title: string;
+      routineId: string | null;
       startedAt: string;
       endedAt: string;
+      durationMinutes: number;
+      status: string;
       exercises: any[];
     }>,
   ): Promise<any>;
+  repeatWorkout(workoutId: string): Promise<any>;
   deleteGymWorkout(id: string): Promise<any>;
   abandonGymWorkout(id: string): Promise<any>;
 
   /** Granular logger API. Every mutation uses a stable client-generated ID. */
-  createWorkout(data?: GymWorkoutCreate): Promise<any>;
+  createWorkout(data?: GymWorkoutCreate & { routineId?: string }): Promise<any>;
   updateWorkout(id: string, data: GymVersionedPatch): Promise<any>;
   createWorkoutExercise(data: GymWorkoutExerciseCreate): Promise<any>;
   updateWorkoutExercise(id: string, data: GymVersionedPatch): Promise<any>;
@@ -145,7 +182,20 @@ export function createGymApi(ctx: ApiClientContext): GymApi {
 
   return {
     getGymOverview: () => ctx.request('/gym/overview'),
-    getGymExercises: () => ctx.request('/gym/exercises'),
+    getGymAnalytics: (range = '3M') => ctx.request(`/gym/analytics?range=${encodeURIComponent(range)}`),
+    getGymAnalyticsForPeriod: (from, to) => {
+      const query = new URLSearchParams({ from, to });
+      return ctx.request(`/gym/analytics?${query}`);
+    },
+    getGymExercises: (options) => {
+      const params = new URLSearchParams();
+      if (options?.search) params.set('search', options.search);
+      if (options?.muscle) params.set('muscle', options.muscle);
+      if (options?.equipment) params.set('equipment', options.equipment);
+      if (options?.favoriteOnly) params.set('favoriteOnly', 'true');
+      const query = params.toString() ? `?${params}` : '';
+      return ctx.request(`/gym/exercises${query}`);
+    },
     createGymExercise(data) {
       const id = createUlid();
       const optimistic = {
@@ -154,6 +204,7 @@ export function createGymApi(ctx: ApiClientContext): GymApi {
         metricType: data.metricType ?? 'WEIGHT_REPS',
         defaultWeightUnit: data.defaultWeightUnit ?? 'KG',
         secondaryMuscleGroups: data.secondaryMuscleGroups ?? [],
+        isFavorite: Boolean(data.isFavorite),
         archivedAt: null,
         version: 1,
       };
@@ -176,6 +227,7 @@ export function createGymApi(ctx: ApiClientContext): GymApi {
         () => requestJson(`/gym/exercises/${id}`, 'PATCH', payload),
       );
     },
+    toggleFavoriteExercise: (id) => requestJson(`/gym/exercises/${id}/favorite`, 'POST', {}),
     archiveGymExercise(id) {
       return ctx.offlineMutation(
         {
@@ -194,10 +246,76 @@ export function createGymApi(ctx: ApiClientContext): GymApi {
       return ctx.request(`/gym/exercises/${id}/image`, { method: 'POST', body: formData });
     },
     getGymExerciseStats: (id) => ctx.request(`/gym/exercises/${id}/stats`),
+    getGymExerciseProgress: (id, range = 'ALL') => ctx.request(`/gym/exercises/${id}/progress?range=${encodeURIComponent(range)}`),
+
+    getGymRoutines: () => ctx.request('/gym/routines'),
+    getGymRoutineById: (id) => ctx.request(`/gym/routines/${id}`),
+    createGymRoutine(data) {
+      const id = createUlid();
+      const optimistic = {
+        id,
+        ...data,
+        exercises: (data.exercises || []).map((ex: any, idx: number) => ({
+          id: createUlid(),
+          routineId: id,
+          ...ex,
+          sortOrder: ex.sortOrder ?? idx,
+          version: 1,
+        })),
+        version: 1,
+      };
+      return ctx.offlineMutation(
+        { kind: SYNC_KINDS.gymRoutine.create, entityId: id, payload: data, optimistic },
+        () => requestJson('/gym/routines', 'POST', { id, ...data }),
+      );
+    },
+    updateGymRoutine(id, data) {
+      const { version, ...payload } = data;
+      return ctx.offlineMutation(
+        {
+          kind: SYNC_KINDS.gymRoutine.update,
+          entityId: id,
+          payload,
+          baseVersion: version,
+          optimistic: { id, ...payload },
+        },
+        () => requestJson(`/gym/routines/${id}`, 'PATCH', payload),
+      );
+    },
+    deleteGymRoutine(id) {
+      return ctx.offlineMutation(
+        {
+          kind: SYNC_KINDS.gymRoutine.delete,
+          entityId: id,
+          payload: {},
+          immediate: true,
+          optimistic: { id, deletedAt: now() },
+        },
+        () => ctx.request(`/gym/routines/${id}`, { method: 'DELETE' }),
+      );
+    },
+    archiveGymRoutine(id) {
+      return ctx.offlineMutation(
+        {
+          kind: SYNC_KINDS.gymRoutine.archive,
+          entityId: id,
+          payload: {},
+          immediate: true,
+          optimistic: { id, archivedAt: now() },
+        },
+        () => requestJson(`/gym/routines/${id}/archive`, 'POST', {}),
+      );
+    },
+    startWorkoutFromRoutine: (routineId) => requestJson(`/gym/routines/${routineId}/start`, 'POST', {}),
+    createRoutineFromWorkout: (workoutId, name) => requestJson('/gym/routines/create-from-workout', 'POST', { workoutId, name }),
+    updateRoutineFromWorkout: (routineId, workoutId) => requestJson(`/gym/routines/${routineId}/update-from-workout`, 'POST', { workoutId }),
+
     getGymWorkouts(options) {
       const params = new URLSearchParams();
       if (options?.status) params.set('status', options.status);
       if (options?.limit) params.set('limit', String(options.limit));
+      if (options?.from) params.set('from', options.from);
+      if (options?.to) params.set('to', options.to);
       const query = params.toString() ? `?${params}` : '';
       return ctx.request(`/gym/workouts${query}`);
     },
@@ -214,6 +332,7 @@ export function createGymApi(ctx: ApiClientContext): GymApi {
         () => requestJson(`/gym/workouts/${id}`, 'PATCH', data),
       );
     },
+    repeatWorkout: (workoutId) => requestJson(`/gym/workouts/${workoutId}/repeat`, 'POST', {}),
     deleteGymWorkout(id) {
       return ctx.offlineMutation(
         {

@@ -1,9 +1,9 @@
-import { FormEvent, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { FormEvent, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Bell, Calendar, Check, Clock3, FileText, Flag, List, LoaderCircle, Plus, Sprout } from 'lucide-react';
 import { api } from '@/shared/api/client';
-import type { Habit, ProductivityTask, TaskPriority } from '@/shared/api/types';
+import type { Habit, HabitCalendarResponse, HabitDayState, ProductivityTask, TaskPriority } from '@/shared/api/types';
 import { Button } from '@/shared/ui/button';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { Card, CardContent } from '@/shared/ui/card';
@@ -20,12 +20,14 @@ import { getStoredTaskDefaults } from '@/shared/taskDefaults';
 import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
 import { TodaySettingsPopover, DEFAULT_TODAY_SETTINGS, type TodaySettings } from './TodaySettingsPopover';
 import { HomeOverview } from '@/features/dashboard';
-import { HabitDetail, HabitIconBadge } from '@/features/habits';
+import { HabitDetail, HabitIconBadge, HabitQuickLogDialog } from '@/features/habits';
+import { localDay, updateHabitCalendarOptimistically } from '@/features/habits/habitModel';
 
 export function TodayPage() {
   const [todaySettings, setTodaySettings] = useState<TodaySettings>(DEFAULT_TODAY_SETTINGS);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null);
+  const [quickHabit, setQuickHabit] = useState<{ habit: Habit; localDate: string; fromDate: string; toDate: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     task: ProductivityTask;
     position: { x: number; y: number };
@@ -39,17 +41,19 @@ export function TodayPage() {
   const [quickRemindAt, setQuickRemindAt] = useState('');
 
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const queryClient = useQueryClient();
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay(new Date());
   const tasksToday = useQuery({ queryKey: ['tasks', 'today'], queryFn: () => api.tasks({ view: 'today' }) });
   const allTasks = useQuery({
     queryKey: ['tasks', 'all'],
     queryFn: () => api.tasks({ view: 'all' }),
     enabled: !!selectedTaskId,
   });
-  const habits = useQuery({
-    queryKey: ['habit-occurrences', today],
-    queryFn: () => api.habitOccurrences(today, today),
+  const habits = useQuery({ queryKey: ['habits'], queryFn: () => api.habits() });
+  const habitCalendar = useQuery({
+    queryKey: ['habit-calendar', today, today],
+    queryFn: () => api.habitCalendar(today, today),
   });
   const habitTimeBlocks = useQuery({
     queryKey: ['habit-time-blocks'],
@@ -76,21 +80,37 @@ export function TodayPage() {
     enabled: taskOptionsOpen || Boolean(selectedHabit),
   });
 
+  const refreshHabits = () => {
+    void habits.refetch();
+    void habitCalendar.refetch();
+  };
+
   const toggleHabit = useMutation({
     mutationFn: ({
-      id,
+      habitId,
+      localDate,
       value,
       completed,
       idempotencyKey,
     }: {
-      id: string;
+      habitId: string;
+      localDate: string;
       value: number;
       completed: boolean;
       idempotencyKey: string;
     }) =>
       completed
-        ? api.habitOccurrenceAction(id, 'undo', idempotencyKey)
-        : api.checkInHabit(id, { value, idempotencyKey }),
+        ? api.habitDateAction(habitId, { localDate, action: 'UNDO', idempotencyKey })
+        : api.progressHabit(habitId, { localDate, value, idempotencyKey }),
+    onMutate: ({ habitId, localDate, value, completed }) => {
+      const habit = habits.data?.find((item) => item.id === habitId);
+      const key = ['habit-calendar', today, today];
+      const previous = queryClient.getQueryData<HabitCalendarResponse>(key);
+      if (habit) queryClient.setQueryData(key, updateHabitCalendarOptimistically(previous, habit, localDate, value, completed ? 'UNDO' : undefined));
+      return { previous };
+    },
+    onError: (_error, _variables, context) => queryClient.setQueryData(['habit-calendar', today, today], context?.previous),
+    onSettled: refreshHabits,
   });
 
   const createTask = useMutation({
@@ -132,8 +152,18 @@ export function TodayPage() {
   const todayTasks = tasksToday.data?.data ?? [];
   const allTaskItems = allTasks.data?.data ?? [];
   const completedTasks = todayTasks.filter((task) => task.status === 'COMPLETED').length;
-  const habitCompletedCount = habits.data?.filter((item) => item.status === 'COMPLETED').length ?? 0;
-  const habitTotalCount = habits.data?.length ?? 0;
+  const habitStates = useMemo(() => {
+    const byHabit = new Map<string, HabitDayState>();
+    for (const state of habitCalendar.data?.days ?? []) {
+      if (state.scheduled && state.habitId) byHabit.set(state.habitId, state);
+    }
+    return byHabit;
+  }, [habitCalendar.data?.days]);
+  const todayHabits = (habits.data ?? [])
+    .filter((habit) => !habit.archivedAt && habitStates.has(habit.id))
+    .map((habit) => ({ habit, state: habitStates.get(habit.id)! }));
+  const habitCompletedCount = todayHabits.filter(({ state }) => state.status === 'COMPLETED').length;
+  const habitTotalCount = todayHabits.length;
   const selectedTask =
     allTaskItems.find((task) => task.id === selectedTaskId) ??
     todayTasks.find((task) => task.id === selectedTaskId) ??
@@ -368,55 +398,71 @@ export function TodayPage() {
 
           <Card className="itu-habits-card rounded-[20px] border border-border shadow-[var(--itu-shadow-card)]">
             <CardContent className="p-0">
-              {habits.isLoading ? (
+              {habits.isLoading || habitCalendar.isLoading ? (
                 <div style={{ padding: '24px' }}>
                   <TaskListSkeleton rows={3} />
                 </div>
-              ) : habits.isError ? (
+              ) : habits.isError || habitCalendar.isError ? (
                 <div style={{ padding: '24px' }}>
                   <QueryError message="Habits could not be loaded." onRetry={() => habits.refetch()} />
                 </div>
-              ) : habits.data?.length ? (
+              ) : todayHabits.length ? (
                 <div style={{ padding: '12px' }}>
                   <ul className="divide-y divide-border/60">
-                    {habits.data.map((item) => {
-                      const done = item.status === 'COMPLETED';
+                    {todayHabits.map(({ habit, state }) => {
+                      const done = state.status === 'COMPLETED';
+                      const partial = state.status === 'PARTIAL';
+                      const isPeriod = habit.scheduleType === 'TIMES_PER_PERIOD';
+                      const target = isPeriod ? (habit.timesPerPeriod ?? state.targetValue) : state.targetValue;
+                      const progressLabel = isPeriod
+                        ? `${state.value} / ${target} this ${(habit.period ?? 'WEEK').toLowerCase()}`
+                        : `${state.value} / ${target} ${habit.unit || 'progress'}`;
                       return (
-                        <li key={item.id} className="itu-habit-row">
+                        <li key={habit.id} className="itu-habit-row">
                           <button
                             type="button"
-                            onClick={() => setSelectedHabit(item.habit)}
+                            onClick={() => setSelectedHabit(habit)}
                             className="flex items-center gap-3 min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg cursor-pointer p-0.5 hover:bg-accent/40 transition-colors"
-                            title={`View details for ${item.habit.name}`}
+                            title={`View details for ${habit.name}`}
                           >
-                            <HabitIconBadge icon={item.habit.icon} color={item.habit.color} />
+                            <HabitIconBadge icon={habit.icon} color={habit.color} />
                             <div className="min-w-0 flex-1">
                               <p
                                 className={`truncate text-sm font-medium ${done ? 'text-muted-foreground line-through' : ''}`}
                               >
-                                {item.habit.name}
+                                {habit.name}
                               </p>
                               <p className="mt-0.5 text-xs text-muted-foreground">
-                                {item.habit.targetValue} {item.habit.unit || 'completion'}
+                                {progressLabel}
                               </p>
                             </div>
                           </button>
                           <button
                             type="button"
-                            className={`itu-check-button ${done ? 'is-done' : ''}`}
-                            onClick={() =>
+                            className={`itu-check-button ${done ? 'is-done' : ''} ${partial ? 'is-partial' : ''}`}
+                            onClick={() => {
+                              if (isPeriod || habit.targetType !== 'BOOLEAN') {
+                                setQuickHabit({
+                                  habit,
+                                  localDate: isPeriod ? state.periodStart ?? today : today,
+                                  fromDate: isPeriod ? state.periodStart ?? today : today,
+                                  toDate: isPeriod ? state.periodEnd ?? today : today,
+                                });
+                                return;
+                              }
                               toggleHabit.mutate({
-                                id: item.id,
-                                value: item.habit.targetValue,
+                                habitId: habit.id,
+                                localDate: today,
+                                value: 1,
                                 completed: done,
-                                idempotencyKey: `today:${item.id}:${done ? 'undo' : 'checkin'}:${crypto.randomUUID()}`,
-                              })
-                            }
+                                idempotencyKey: `today:${habit.id}:${done ? 'undo' : 'progress'}:${crypto.randomUUID()}`,
+                              });
+                            }}
                             disabled={toggleHabit.isPending}
-                            aria-label={`${done ? 'Completed' : 'Check in'}: ${item.habit.name}`}
+                            aria-label={`${done ? 'Completed' : partial ? 'Partial progress' : 'Check in'}: ${habit.name}`}
                             aria-pressed={done}
                           >
-                            <Check aria-hidden="true" />
+                            {partial ? <span aria-hidden="true">◐</span> : <Check aria-hidden="true" />}
                           </button>
                         </li>
                       );
@@ -466,6 +512,16 @@ export function TodayPage() {
         timeBlocks={habitTimeBlocks.data ?? []}
         tags={tags.data ?? []}
       />
+      {quickHabit ? (
+        <HabitQuickLogDialog
+          habit={quickHabit.habit}
+          localDate={quickHabit.localDate}
+          fromDate={quickHabit.fromDate}
+          toDate={quickHabit.toDate}
+          open
+          onOpenChange={(open) => !open && setQuickHabit(null)}
+        />
+      ) : null}
     </div>
   );
 }

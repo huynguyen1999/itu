@@ -38,29 +38,20 @@ struct FocusView: View {
         @Bindable var timer = model.focusTimer
 
         VStack(spacing: 0) {
-            // Top Header Bar matching Web FocusPage.tsx
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    iTuSectionLabel(title: "Timer & Sessions", color: iTuTheme.teal)
-                    Text("Focus")
-                        .font(.system(size: 25, weight: .bold, design: .rounded))
-                        .foregroundStyle(iTuTheme.ink)
+            iTuPageHeader(
+                kicker: "Timer & Sessions",
+                title: "Focus",
+                actions: {
+                    Button {
+                        model.presentedOverlay = .focusSettings
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .accessibilityLabel("Focus settings")
+                    }
+                    .buttonStyle(iTuHeaderGhostButtonStyle())
+                    .help("Focus settings")
                 }
-                Spacer()
-
-                FeatureSettingsButton(label: "Focus settings") {
-                    model.presentedOverlay = .focusSettings
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 24)
-            .padding(.bottom, 16)
-            .background(iTuTheme.surface)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(iTuTheme.border)
-                    .frame(height: 1)
-            }
+            )
 
             ScrollView {
                 HStack(alignment: .top, spacing: 24) {

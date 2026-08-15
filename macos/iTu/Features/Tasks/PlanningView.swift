@@ -16,17 +16,7 @@ struct PlanningView: View {
     var body: some View {
         let _ = AppPerformanceSignposts.emitPlanningBody()
         VStack(spacing: 0) {
-            // Unified Planning Top Bar Header
             toolbar
-                .padding(.horizontal, 24)
-                .padding(.top, 24)
-                .padding(.bottom, 16)
-                .background(iTuTheme.surface)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(iTuTheme.border)
-                        .frame(height: 1)
-                }
 
             // Main Content Area
             if model.planningViewMode == .matrix {
@@ -78,13 +68,10 @@ struct PlanningView: View {
 
     // MARK: - Adaptive Toolbar
 
-    /// Full toolbar: title | (spacer) | search-field | sort | options
+    /// Full controls row: sidebar toggle | search-field | sort | options
     private var wideToolbar: some View {
         HStack(spacing: 10) {
             sidebarToggleButton
-
-            titleSection
-
             Spacer(minLength: 12)
 
             // Search field — unconstrained width, grows with available space
@@ -129,13 +116,10 @@ struct PlanningView: View {
         }
     }
 
-    /// Compact toolbar: title | (spacer) | search-icon | sort | options
+    /// Compact controls row: sidebar toggle | search-icon | sort | options
     private var compactToolbar: some View {
         HStack(spacing: 8) {
             sidebarToggleButton
-
-            titleSection
-
             Spacer(minLength: 8)
 
             // Search collapsed to icon; tap expands a popover or inline field
@@ -190,12 +174,20 @@ struct PlanningView: View {
         }
     }
 
-    @ViewBuilder
     private var toolbar: some View {
-        ViewThatFits(in: .horizontal) {
-            wideToolbar
-            compactToolbar
-        }
+        iTuPageHeader(
+            kicker: section == .today ? "Daily Planning" : "Smart List",
+            title: model.selectedTaskListId.flatMap { id in
+                model.taskLists.first(where: { $0.id == id })?.name
+            } ?? (section == .inbox ? "All Tasks" : section.title),
+            description: "Plan tasks, search your workspace, and adjust grouping and view options.",
+            controls: {
+                ViewThatFits(in: .horizontal) {
+                    wideToolbar
+                    compactToolbar
+                }
+            }
+        )
     }
 
     // MARK: - Sub-components
@@ -225,19 +217,6 @@ struct PlanningView: View {
             .pointingHandCursor()
             .help(showPlanRailBinding.wrappedValue ? "Hide Plan Views" : "Show Plan Views")
         }
-    }
-
-    private var titleSection: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            iTuSectionLabel(title: section == .today ? "Daily Planning" : "Smart List", color: iTuTheme.teal)
-            Text(model.selectedTaskListId.flatMap { id in
-                model.taskLists.first(where: { $0.id == id })?.name
-            } ?? (section == .inbox ? "All Tasks" : section.title))
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundStyle(iTuTheme.ink)
-                .lineLimit(1)
-        }
-        .layoutPriority(1)
     }
 
     private var iconButtons: some View {

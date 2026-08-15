@@ -1,24 +1,47 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useGymExerciseStats, useGymWorkouts, type GymExercise, type GymWorkoutSet } from '../gymQueries';
-import { useArchiveGymExercise, useUpdateGymExercise, useUploadGymExerciseImage } from '../gymMutations';
+import {
+  useGymExerciseProgress,
+  type GymExercise,
+  type GymWorkoutSet,
+} from '../gymQueries';
+import {
+  useArchiveGymExercise,
+  useToggleFavoriteExercise,
+  useUpdateGymExercise,
+  useUploadGymExerciseImage,
+} from '../gymMutations';
 import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
-import { Archive, Activity, Dumbbell, Edit2, Image as ImageIcon } from 'lucide-react';
+import { Textarea } from '@/shared/ui/textarea';
+import {
+  Archive,
+  Activity,
+  Dumbbell,
+  Edit2,
+  Image as ImageIcon,
+  Star,
+  Trophy,
+  TrendingUp,
+  Save,
+  Calendar,
+} from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { formatVolume, formatWeight } from '../weightUnits';
 import { ImageDropzone, MetricType, SegmentedMetricControl } from './ExerciseFormFields';
 
-type ExerciseHistoryItem = { id: string; date: string | null | undefined; sets: GymWorkoutSet[]; volume: number };
-
 export function ExerciseInspector({ exercise }: { exercise: GymExercise }) {
-  const { data: stats, isLoading } = useGymExerciseStats(exercise.id);
-  const { data: completedWorkouts = [] } = useGymWorkouts({ status: 'COMPLETED', limit: 50 });
+  const [range, setRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL'>('ALL');
+  const [activeMetric, setActiveMetric] = useState<'WEIGHT' | 'E1RM' | 'VOLUME' | 'REPS'>('WEIGHT');
+
+  const { data: progress, isLoading } = useGymExerciseProgress(exercise.id, range);
   const preferencesQuery = useQuery({ queryKey: ['user-preferences'], queryFn: () => api.getPreferences() });
   const weightUnit = preferencesQuery.data?.gym?.weightUnit ?? 'KG';
+
   const archiveExercise = useArchiveGymExercise();
   const updateExercise = useUpdateGymExercise();
+  const toggleFavorite = useToggleFavoriteExercise();
   const uploadImage = useUploadGymExerciseImage();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -27,24 +50,23 @@ export function ExerciseInspector({ exercise }: { exercise: GymExercise }) {
   const [metricType, setMetricType] = useState<MetricType>(exercise.metricType || 'WEIGHT_REPS');
   const [equipment, setEquipment] = useState(exercise.equipment || '');
   const [primaryMuscleGroup, setPrimaryMuscleGroup] = useState(exercise.primaryMuscleGroup || '');
+  const [userNotes, setUserNotes] = useState(exercise.userNotes || '');
+  const [notesSaving, setNotesSaving] = useState(false);
   const [editFile, setEditFile] = useState<File | null>(null);
 
-  const exerciseHistory = completedWorkouts
-    .map((workout): ExerciseHistoryItem | null => {
-      const entry = (workout.exercises || []).find((candidate) => candidate.exerciseId === exercise.id);
-      if (!entry) return null;
-      const sets = (entry.sets || []).filter((set) => Boolean(set.completedAt));
-      return {
-        id: workout.id,
-        date: workout.startedAt || workout.endedAt,
-        sets,
-        volume: sets.reduce((total, set) => total + (set.weight || 0) * (set.reps || 0), 0),
-      };
-    })
-    .filter((item): item is ExerciseHistoryItem => item !== null)
-    .slice(0, 8);
-  const recentSets = (stats?.recentSets || exerciseHistory.flatMap((item) => item.sets)).slice(0, 6);
-  const maxHistoryVolume = Math.max(...exerciseHistory.map((item) => item.volume), 1);
+  const isFavorite = Boolean(exercise.isFavorite || exercise.favorite);
+
+  const handleSaveNotes = async () => {
+    setNotesSaving(true);
+    try {
+      await updateExercise.mutateAsync({
+        id: exercise.id,
+        data: { userNotes: userNotes.trim() || null },
+      });
+    } finally {
+      setNotesSaving(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -60,6 +82,7 @@ export function ExerciseInspector({ exercise }: { exercise: GymExercise }) {
           metricType,
           equipment: equipment.trim() || undefined,
           primaryMuscleGroup: primaryMuscleGroup.trim() || undefined,
+          userNotes: userNotes.trim() || undefined,
         },
       },
       {
@@ -71,25 +94,53 @@ export function ExerciseInspector({ exercise }: { exercise: GymExercise }) {
     );
   };
 
+  const records = progress?.records;
+  const historyPoints = progress?.historyPoints || [];
+
   return (
-    <Card className="p-5 space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <Card className="p-5 space-y-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
         <div className="min-w-0">
-          <h3 className="text-base font-bold text-foreground">{exercise.name}</h3>
-          <p className="text-xs text-muted-foreground">
-            {exercise.primaryMuscleGroup || 'General'} &bull; {exercise.equipment || 'Bodyweight'}
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-bold text-foreground">{exercise.name}</h3>
+            {exercise.origin === 'BUILT_IN' && (
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                Built-in
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {exercise.primaryMuscleGroup || 'General'} &bull; {exercise.equipment || 'Bodyweight'} &bull;{' '}
+            {(exercise.metricType || 'WEIGHT_REPS').replace(/_/g, ' ').toLowerCase()}
           </p>
         </div>
 
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" onClick={() => setIsEditing((value) => !value)} className="gap-1 text-xs">
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => toggleFavorite.mutate(exercise.id)}
+            className={`h-8 px-2 text-xs gap-1.5 ${isFavorite ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground'}`}
+            title="Toggle favorite"
+          >
+            <Star className={`w-4 h-4 ${isFavorite ? 'fill-amber-500' : ''}`} />
+            <span className="hidden sm:inline">{isFavorite ? 'Favorited' : 'Favorite'}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsEditing((value) => !value)}
+            className="h-8 gap-1 text-xs"
+          >
             <Edit2 className="w-3.5 h-3.5" />
             Edit
           </Button>
+
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-rose-500"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
             onClick={() => archiveExercise.mutate(exercise.id)}
             title="Archive exercise"
           >
@@ -99,10 +150,10 @@ export function ExerciseInspector({ exercise }: { exercise: GymExercise }) {
       </div>
 
       {isEditing ? (
-        <div className="p-4 border border-emerald-500/30 rounded-xl space-y-4 bg-muted/20 text-xs">
-          <div className="flex items-center justify-between pb-2 border-b border-border/50">
-            <span className="font-display font-semibold text-xs text-foreground flex items-center gap-1.5">
-              <Dumbbell className="w-3.5 h-3.5 text-emerald-500" />
+        <div className="p-4 border rounded-xl space-y-4 bg-muted/20 text-xs">
+          <div className="flex items-center justify-between pb-2 border-b">
+            <span className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+              <Dumbbell className="w-3.5 h-3.5 text-primary" />
               Edit exercise
             </span>
           </div>
@@ -151,11 +202,11 @@ export function ExerciseInspector({ exercise }: { exercise: GymExercise }) {
             <label className="text-xs font-medium text-muted-foreground">
               Instructions <span className="text-muted-foreground/60 font-normal">(optional)</span>
             </label>
-            <textarea
+            <Textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               placeholder="Instructions..."
-              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground min-h-[72px] focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/60 transition-all resize-y"
+              className="w-full text-xs min-h-[72px]"
             />
           </div>
 
@@ -169,149 +220,177 @@ export function ExerciseInspector({ exercise }: { exercise: GymExercise }) {
             />
           </div>
 
-          <div className="flex items-center justify-between pt-2 border-t border-border/50">
-            <span className="text-xs text-muted-foreground font-medium">Ready to save</span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={!name.trim() || updateExercise.isPending || uploadImage.isPending}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
-              >
-                {updateExercise.isPending || uploadImage.isPending ? 'Saving...' : 'Save changes'}
-              </Button>
-            </div>
+          <div className="flex items-center justify-between pt-2 border-t">
+            <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={!name.trim() || updateExercise.isPending || uploadImage.isPending}
+            >
+              {updateExercise.isPending || uploadImage.isPending ? 'Saving...' : 'Save changes'}
+            </Button>
           </div>
         </div>
       ) : (
         <>
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <ImageIcon className="w-3.5 h-3.5 text-emerald-500" />
-              Reference image
-            </label>
+          {/* User Form & Technique Notes */}
+          <div className="space-y-2 rounded-lg bg-muted/30 p-3.5 border">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Save className="w-3.5 h-3.5 text-primary" />
+                Personal Form Cues & Setup Notes
+              </label>
+              {userNotes !== (exercise.userNotes || '') && (
+                <Button size="sm" variant="ghost" onClick={handleSaveNotes} disabled={notesSaving} className="h-6 text-[11px] px-2 text-primary">
+                  {notesSaving ? 'Saving...' : 'Save Notes'}
+                </Button>
+              )}
+            </div>
+            <Textarea
+              value={userNotes}
+              onChange={(e) => setUserNotes(e.target.value)}
+              placeholder="e.g. Bench pin #4, slight arch, elbows 45° tucked. Will show during workout logging."
+              className="text-xs min-h-[56px] resize-y bg-background"
+            />
+          </div>
 
-            {exercise.imageUrl ? (
+          {/* Reference Image and Instructions if present */}
+          {exercise.imageUrl && (
+            <div className="space-y-1.5">
               <img
                 src={exercise.imageUrl}
                 alt={exercise.name}
-                className="h-44 w-full object-cover rounded-xl border border-border/80"
+                className="h-44 w-full object-cover rounded-xl border"
               />
-            ) : (
-              <div className="h-28 border border-dashed rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs text-muted-foreground bg-muted/20">
-                <ImageIcon className="w-5 h-5 text-muted-foreground/60" />
-                <span>No reference image attached</span>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {exercise.description && (
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 Instructions
-              </label>
-              <p className="text-xs text-foreground bg-muted/30 p-3 rounded-xl border border-border/50 leading-relaxed">
+              </span>
+              <p className="text-xs text-foreground bg-muted/20 p-3 rounded-lg border leading-relaxed">
                 {exercise.description}
               </p>
             </div>
           )}
 
-          <div className="space-y-3 pt-2 border-t border-border/60">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-emerald-500" />
-              Performance History & PRs
-            </h4>
+          {/* Records and All-Time Bests */}
+          <div className="space-y-3 pt-2 border-t">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                <Trophy className="w-4 h-4 text-amber-500" />
+                Personal Records
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+              <div className="p-2.5 bg-muted/40 rounded-xl border">
+                <span className="text-[10px] text-muted-foreground uppercase font-medium">Heaviest</span>
+                <p className="text-sm font-bold font-mono text-foreground mt-0.5">
+                  {formatWeight(records?.heaviestWeight ?? null, weightUnit)}
+                </p>
+              </div>
+              <div className="p-2.5 bg-muted/40 rounded-xl border">
+                <span className="text-[10px] text-muted-foreground uppercase font-medium">Est. 1RM</span>
+                <p className="text-sm font-bold font-mono text-primary mt-0.5">
+                  {formatWeight(records?.estimated1RM ?? null, weightUnit)}
+                </p>
+              </div>
+              <div className="p-2.5 bg-muted/40 rounded-xl border">
+                <span className="text-[10px] text-muted-foreground uppercase font-medium">Best Volume Set</span>
+                <p className="text-sm font-bold font-mono text-foreground mt-0.5">
+                  {records?.bestSetVolume ? formatVolume(records.bestSetVolume, weightUnit) : '—'}
+                </p>
+              </div>
+              <div className="p-2.5 bg-muted/40 rounded-xl border">
+                <span className="text-[10px] text-muted-foreground uppercase font-medium">Total Sets</span>
+                <p className="text-sm font-bold font-mono text-foreground mt-0.5">
+                  {records?.totalCompletedSets ?? 0}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Timeline & Range Filter */}
+          <div className="space-y-3 pt-2 border-t">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                <TrendingUp className="w-3.5 h-3.5 text-primary" />
+                Progress History ({historyPoints.length} sessions)
+              </h4>
+
+              <div className="flex items-center gap-1 bg-muted p-0.5 rounded-lg text-xs font-medium">
+                {(['1M', '3M', '6M', '1Y', 'ALL'] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setRange(r)}
+                    className={`px-2 py-0.5 rounded text-[11px] transition-colors ${
+                      range === r ? 'bg-background text-foreground shadow-xs font-semibold' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {isLoading ? (
-              <div className="p-4 text-center text-xs text-muted-foreground animate-pulse">Calculating stats...</div>
-            ) : !stats || stats.totalSets === 0 ? (
-              <p className="text-xs text-muted-foreground italic">No workout history recorded yet for this exercise.</p>
+              <div className="p-6 text-center text-xs text-muted-foreground animate-pulse">
+                Loading progress history...
+              </div>
+            ) : historyPoints.length === 0 ? (
+              <div className="p-6 border border-dashed rounded-lg text-center text-xs text-muted-foreground">
+                No completed sets found in this time range.
+              </div>
             ) : (
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 gap-3 text-center sm:grid-cols-3">
-                  <div className="p-2.5 bg-muted/40 rounded-xl border border-border/50">
-                    <span className="text-[10px] text-muted-foreground uppercase font-mono">Heaviest Weight</span>
-                    <p className="text-sm font-bold font-mono text-foreground mt-0.5">
-                      {formatWeight(stats.heaviestWeight, weightUnit)}
-                    </p>
-                  </div>
-                  <div className="p-2.5 bg-muted/40 rounded-xl border border-border/50">
-                    <span className="text-[10px] text-muted-foreground uppercase font-mono">Est. 1RM</span>
-                    <p className="text-sm font-bold font-mono text-emerald-500 mt-0.5">
-                      {formatWeight(stats.estimated1RM, weightUnit)}
-                    </p>
-                  </div>
-                  <div className="p-2.5 bg-muted/40 rounded-xl border border-border/50">
-                    <span className="text-[10px] text-muted-foreground uppercase font-mono">Total Sets</span>
-                    <p className="text-sm font-bold font-mono text-foreground mt-0.5">{stats.totalSets}</p>
-                  </div>
-                </div>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {historyPoints.map((point, idx) => (
+                  <div
+                    key={`${point.workoutId}-${idx}`}
+                    className="flex items-center justify-between p-2.5 rounded-lg border bg-card/60 text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="font-mono text-muted-foreground">
+                        {new Date(point.date).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </span>
+                      {point.isPR && (
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-500">
+                          <Trophy className="w-2.5 h-2.5" />
+                          PR
+                        </span>
+                      )}
+                    </div>
 
-                {recentSets.length > 0 && (
-                  <div className="space-y-2">
-                    <h5 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Recent sets
-                    </h5>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {recentSets.map((set, index) => (
-                        <div
-                          key={`${set.id || 'recent'}-${index}`}
-                          className="rounded-lg border border-border/50 bg-muted/30 p-2 text-xs"
-                        >
-                          <span className="font-mono text-muted-foreground">
-                            {set.workoutTitle || `Set ${index + 1}`}
-                          </span>
-                          {set.performedAt && (
-                            <p className="text-[10px] text-muted-foreground">
-                              {new Date(set.performedAt).toLocaleDateString(undefined, {
-                                month: 'short',
-                                day: 'numeric',
-                              })}
-                            </p>
-                          )}
-                          <p className="mt-1 font-semibold">
-                            {set.weight != null
-                              ? formatWeight(set.weight, weightUnit)
-                              : set.durationSeconds != null
-                                ? `${set.durationSeconds}s`
-                                : '—'}
-                          </p>
-                          {set.reps != null && <p className="text-muted-foreground">{set.reps} reps</p>}
-                        </div>
-                      ))}
+                    <div className="flex items-center gap-3 font-mono font-medium">
+                      {point.weight !== null && (
+                        <span>
+                          {formatWeight(point.weight, weightUnit)}{' '}
+                          {point.reps !== null && <span className="text-muted-foreground">× {point.reps}</span>}
+                        </span>
+                      )}
+                      {point.estimated1RM !== null && (
+                        <span className="text-primary text-[11px]" title="Estimated 1RM">
+                          e1RM: {formatWeight(point.estimated1RM, weightUnit)}
+                        </span>
+                      )}
+                      {point.volume !== null && point.volume > 0 && (
+                        <span className="text-muted-foreground text-[11px]">
+                          Vol: {formatVolume(point.volume, weightUnit)}
+                        </span>
+                      )}
                     </div>
                   </div>
-                )}
-
-                {exerciseHistory.length > 0 && (
-                  <div className="space-y-2">
-                    <h5 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Volume trend
-                    </h5>
-                    <div className="flex h-20 items-end gap-1.5" aria-label="Exercise volume trend">
-                      {exerciseHistory
-                        .slice()
-                        .reverse()
-                        .map((item) => (
-                          <div key={item.id} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-                            <div
-                              className="w-full rounded-t bg-emerald-500/70"
-                              style={{ height: `${Math.max(6, (item.volume / maxHistoryVolume) * 60)}px` }}
-                              title={formatVolume(item.volume, weightUnit)}
-                            />
-                            <span className="truncate text-[10px] text-muted-foreground">
-                              {item.date
-                                ? new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                                : '—'}
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
+                ))}
               </div>
             )}
           </div>

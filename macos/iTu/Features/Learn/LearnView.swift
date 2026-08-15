@@ -141,12 +141,18 @@ struct LearnView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .iTuPinnedHeader {
-            VStack(alignment: .leading, spacing: 14) {
-                deckHeader
-                deckSearch
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 18)
+            iTuPageHeader(
+                kicker: "KNOWLEDGE & LEARNING",
+                title: "Flashcards & Decks",
+                description: "Master new skills with spaced repetition flashcard review.",
+                actions: {
+                    Button { showHistory = true } label: { Label("History", systemImage: "clock.arrow.circlepath") }
+                        .buttonStyle(iTuHeaderGhostButtonStyle(height: 38))
+                    Button { showCreateDeckSheet = true } label: { Label("New Deck", systemImage: "plus") }
+                        .buttonStyle(iTuPrimaryButtonStyle(height: 38))
+                },
+                controls: { deckSearch }
+            )
         }
         .background(
             LinearGradient(
@@ -159,32 +165,6 @@ struct LearnView: View {
             CreateDeckSheet { title, description in
                 Task { await model.createDeck(title: title, description: description) }
             }
-        }
-    }
-
-    private var deckHeader: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 6) {
-                iTuSectionLabel(title: "KNOWLEDGE & LEARNING", color: iTuTheme.mint)
-                Text("Flashcards & Decks")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(iTuTheme.ink)
-                Text("Master new skills with spaced repetition flashcard review.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(iTuTheme.inkDim)
-            }
-            Spacer()
-            Button { showHistory = true } label: { Label("History", systemImage: "clock.arrow.circlepath") }
-                .buttonStyle(iTuGhostButtonStyle(height: 38))
-            Button { showCreateDeckSheet = true } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .bold))
-                    Text("New Deck")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-            }
-            .buttonStyle(iTuPrimaryButtonStyle(height: 38))
         }
     }
 
@@ -547,35 +527,6 @@ private struct ReviewSessionView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            // Header bar
-            HStack {
-                Button {
-                    onExit()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "chevron.left")
-                        Text("Exit Review")
-                    }
-                }
-                .buttonStyle(iTuGhostButtonStyle())
-
-                Spacer()
-
-                Text(deck.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(iTuTheme.ink)
-
-                Spacer()
-
-                if !cards.isEmpty && !isCompleted {
-                    Text("Card \(currentIndex + 1) of \(cards.count)")
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .foregroundStyle(iTuTheme.inkDim)
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-
             if isLoadingCards {
                 ProgressView("Loading cards…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -679,6 +630,26 @@ private struct ReviewSessionView: View {
             }
 
             Spacer()
+        }
+        .iTuPinnedHeader {
+            iTuPageHeader(
+                kicker: "LEARNING",
+                title: "Review",
+                description: "\(deck.title) · Recall the answer, reveal it when ready, then grade the card.",
+                actions: {
+                    if !cards.isEmpty && !isCompleted {
+                        Text("Card \(currentIndex + 1) of \(cards.count)")
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundStyle(iTuTheme.pageHeaderForegroundMuted)
+                    }
+                    Button {
+                        onExit()
+                    } label: {
+                        Label("Exit Review", systemImage: "chevron.left")
+                    }
+                    .buttonStyle(iTuHeaderGhostButtonStyle())
+                }
+            )
         }
         .background(iTuTheme.canvas)
         .onAppear {
@@ -812,18 +783,8 @@ private struct StudyHistoryView: View {
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 6) {
-                    iTuSectionLabel(title: "STUDY ARCHIVE", color: iTuTheme.mint)
-                    Text("Session History")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(iTuTheme.ink)
-                    Text("Browse completed sessions and saved study feedback.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(iTuTheme.inkDim)
-                }
-
                 HStack(alignment: .top, spacing: 16) {
                     sessionList
                         .frame(width: 330)
@@ -836,15 +797,17 @@ private struct StudyHistoryView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .iTuPinnedHeader {
-            HStack {
-                Button(action: onBack) {
-                    Label("Decks", systemImage: "chevron.left")
+            iTuPageHeader(
+                kicker: "STUDY ARCHIVE",
+                title: "Learning history",
+                description: "Browse completed sessions and saved study feedback.",
+                actions: {
+                    Button(action: onBack) {
+                        Label("Decks", systemImage: "chevron.left")
+                    }
+                    .buttonStyle(iTuHeaderGhostButtonStyle())
                 }
-                .buttonStyle(iTuGhostButtonStyle())
-                Spacer()
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 18)
+            )
         }
         .background(iTuTheme.canvas)
         .onAppear {
@@ -854,7 +817,7 @@ private struct StudyHistoryView: View {
                 if let selectedSession { await model.loadStudySessionDetails(for: selectedSession) }
             }
         }
-        .onChange(of: selectedSessionID) { _, _ in
+        .onChange(of: selectedSessionID) {
             if let selectedSession { Task { await model.loadStudySessionDetails(for: selectedSession) } }
         }
     }
@@ -940,9 +903,11 @@ private struct StudyHistoryView: View {
                             Text("NEXT STEPS")
                                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                                 .foregroundStyle(iTuTheme.inkFaint)
-                            ForEach(feedback.nextSteps, id: \.self) { Text("• \($0)") }
-                                .font(.system(size: 12))
-                                .foregroundStyle(iTuTheme.inkDim)
+                            ForEach(feedback.nextSteps, id: \.self) { step in
+                                Text("• \(step)")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(iTuTheme.inkDim)
+                            }
                         }
                     }
                     .padding(14)

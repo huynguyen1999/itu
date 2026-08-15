@@ -38,6 +38,7 @@ describe('PrismaUserRepository', () => {
       task: { createMany: jest.fn().mockResolvedValue({ count: 4 }) },
       growthCycle: { create: jest.fn().mockResolvedValue({ id: 'cycle-1' }) },
       growthProfile: { create: jest.fn().mockResolvedValue({}) },
+      expenseCategory: { createMany: jest.fn().mockResolvedValue({ count: 8 }) },
     };
     const prisma = {
       $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),

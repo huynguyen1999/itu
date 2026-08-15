@@ -1,160 +1,50 @@
 import { useState } from 'react';
-import { useBudgetOverview, useBudgetCategories } from '../budgetQueries';
-import { useUpdateBudgetPeriodLimit, useUpdateBudgetCategoryLimit } from '../budgetMutations';
+import { useBudgetCategories, useBudgetOverview } from '../budgetQueries';
+import { useDeleteBudgetCategoryLimit, useUpdateBudgetCategoryLimit, useUpdateBudgetPeriodLimit } from '../budgetMutations';
 import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
-import { Save, Edit3 } from 'lucide-react';
 import { currentBudgetPeriod } from '../budgetPeriod';
 
+const formatCurrency = (value: string | number, currency = 'VND') =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(Number(value));
+
 export function BudgetPage() {
-  const [period] = useState(currentBudgetPeriod);
-  const { data: overview, isLoading } = useBudgetOverview(period);
+  const [period, setPeriod] = useState(currentBudgetPeriod);
+  const { data: summary, isLoading } = useBudgetOverview(period);
   const { data: categories = [] } = useBudgetCategories();
-
   const updateOverall = useUpdateBudgetPeriodLimit();
-  const updateCatLimit = useUpdateBudgetCategoryLimit();
+  const updateLimit = useUpdateBudgetCategoryLimit();
+  const deleteLimit = useDeleteBudgetCategoryLimit();
+  const [overall, setOverall] = useState('');
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [limit, setLimit] = useState('');
 
-  const [editingOverall, setEditingOverall] = useState(false);
-  const [overallLimitInput, setOverallLimitInput] = useState('');
+  if (isLoading || !summary) return <div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Loading budget limits...</div>;
 
-  const [editingCatId, setEditingCatId] = useState<string | null>(null);
-  const [catLimitInput, setCatLimitInput] = useState('');
-
-  const formatCurrency = (val: number, curr = 'VND') => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: curr, maximumFractionDigits: 0 }).format(val);
+  const saveOverall = () => {
+    if (overall.trim() === '') return;
+    updateOverall.mutate({ period, overallLimit: overall });
+    setOverall('');
   };
-
-  const handleSaveOverall = () => {
-    const parsed = parseFloat(overallLimitInput);
-    if (!isNaN(parsed) && parsed >= 0) {
-      updateOverall.mutate({ period, overallLimit: parsed });
-    }
-    setEditingOverall(false);
-  };
-
-  const handleSaveCatLimit = (catId: string) => {
-    const parsed = parseFloat(catLimitInput);
-    if (!isNaN(parsed) && parsed >= 0) {
-      updateCatLimit.mutate({ period, categoryId: catId, limit: parsed });
-    }
-    setEditingCatId(null);
-  };
-
-  if (isLoading || !overview) {
-    return <div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Loading budget limits...</div>;
-  }
 
   return (
     <div className="space-y-6">
-      {/* Existing overall target remains available while category assignments drive the plan. */}
-      <Card className="p-5 border-primary/20 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">Monthly funding target</h3>
-            <p className="text-xs text-muted-foreground">Optional planning target for {overview.period}</p>
-          </div>
-
-          {!editingOverall ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setOverallLimitInput(String(overview.overallBudget));
-                setEditingOverall(true);
-              }}
-              className="gap-1.5"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              Edit Target
-            </Button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                value={overallLimitInput}
-                onChange={(e) => setOverallLimitInput(e.target.value)}
-                className="w-36 font-mono text-xs font-bold"
-              />
-              <Button size="sm" onClick={handleSaveOverall} disabled={updateOverall.isPending}>
-                <Save className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          )}
-        </div>
-
-        <p className="text-2xl font-bold font-mono text-primary">
-          {formatCurrency(overview.overallBudget, overview.currency)}
-        </p>
+      <div className="flex items-center justify-between"><div><h1 className="text-lg font-semibold">Budgets</h1><p className="text-xs text-muted-foreground">Optional monthly and category spending limits.</p></div><Input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} className="w-40 font-mono text-xs" /></div>
+      <Card className="space-y-3 border-primary/20 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-bold uppercase tracking-wider">Monthly spending limit</h3><p className="text-xs text-muted-foreground">Optional overall limit for {summary.period}</p></div><div className="flex gap-2"><Input type="number" min="0" value={overall} onChange={(event) => setOverall(event.target.value)} placeholder={summary.overallLimit ?? 'No limit'} className="w-36 font-mono text-xs" /><Button size="sm" onClick={saveOverall} disabled={updateOverall.isPending}>Save</Button>{summary.overallLimit !== null && <Button size="sm" variant="outline" onClick={() => updateOverall.mutate({ period, overallLimit: null })}>Remove</Button>}</div></div>
+        <p className="font-mono text-2xl font-bold text-primary">{summary.overallLimit === null ? 'No monthly limit' : formatCurrency(summary.overallLimit)}</p>
+        <p className={`text-sm ${summary.remaining !== null && Number(summary.remaining) < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>Spent {formatCurrency(summary.spent)} · Remaining {summary.remaining === null ? 'No limit' : formatCurrency(summary.remaining)}</p>
       </Card>
 
-      {/* Category Budgets List */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold flex items-center gap-2">
-          Category Assignments
-        </h3>
-
-        {categories.length === 0 ? (
-          <Card className="p-8 text-center text-xs text-muted-foreground">No categories available.</Card>
-        ) : (
-          categories.map((cat: any) => {
-            const catStat = overview.categories.find((c: any) => c.category.id === cat.id);
-            const currentLimit = catStat ? catStat.budget : 0;
-            const currentSpent = catStat ? catStat.spent : 0;
-
-            const isEditingThis = editingCatId === cat.id;
-
-            return (
-              <Card key={cat.id} className="p-4 flex items-center justify-between gap-4">
-                <div className="space-y-1 min-w-0 flex-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-foreground">{cat.name}</span>
-                    <span className="font-mono text-muted-foreground">
-                      Assigned {formatCurrency(currentLimit, overview.currency)} · Activity {formatCurrency(currentSpent, overview.currency)}
-                    </span>
-                  </div>
-
-                  <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 transition-all duration-300"
-                      style={{ width: `${currentLimit > 0 ? Math.min(100, (currentSpent / currentLimit) * 100) : 0}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="shrink-0">
-                  {!isEditingThis ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setCatLimitInput(String(currentLimit));
-                        setEditingCatId(cat.id);
-                      }}
-                      className="gap-1 text-xs"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      Assign Money
-                    </Button>
-                  ) : (
-                    <div className="flex items-center gap-1.5">
-                      <Input
-                        type="number"
-                        value={catLimitInput}
-                        onChange={(e) => setCatLimitInput(e.target.value)}
-                        className="w-28 font-mono text-xs"
-                      />
-                      <Button size="sm" onClick={() => handleSaveCatLimit(cat.id)} disabled={updateCatLimit.isPending}>
-                        Save
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            );
-          })
-        )}
-      </div>
+      <div className="space-y-3"><h3 className="text-sm font-semibold">Category limits</h3>{categories.length === 0 ? <Card className="p-8 text-center text-xs text-muted-foreground">No categories available.</Card> : categories.map((category) => {
+        const row = summary.categories.find((item) => item.category.id === category.id);
+        const isEditing = editingCategory === category.id;
+        const spent = Number(row?.spent ?? 0);
+        const configuredLimit = row?.limit ?? null;
+        const percentage = configuredLimit && Number(configuredLimit) > 0 ? Math.min(100, (spent / Number(configuredLimit)) * 100) : 0;
+        return <Card key={category.id} className="space-y-3 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{category.name}</p><p className="text-xs text-muted-foreground">{formatCurrency(spent)} spent · {configuredLimit === null ? 'No limit' : `${formatCurrency(configuredLimit)} limit`}</p></div><div className="flex gap-2">{isEditing ? <><Input type="number" min="0" value={limit} onChange={(event) => setLimit(event.target.value)} className="w-28 font-mono text-xs" /><Button size="sm" onClick={() => { updateLimit.mutate({ period, categoryId: category.id, limit }); setEditingCategory(null); }}>Save</Button><Button size="sm" variant="outline" onClick={() => setEditingCategory(null)}>Cancel</Button></> : <><Button size="sm" variant="outline" onClick={() => { setEditingCategory(category.id); setLimit(configuredLimit ?? ''); }}>{configuredLimit === null ? 'Set limit' : 'Edit limit'}</Button>{configuredLimit !== null && <Button size="sm" variant="ghost" onClick={() => deleteLimit.mutate({ period, categoryId: category.id })}>Remove</Button>}</>}</div></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className={`h-full ${row?.remaining !== null && Number(row?.remaining) < 0 ? 'bg-destructive' : 'bg-emerald-500'}`} style={{ width: `${percentage}%` }} /></div></Card>;
+      })}</div>
     </div>
   );
 }

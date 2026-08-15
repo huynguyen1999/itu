@@ -9,9 +9,10 @@ import { CALENDAR_INTEGRATION_PORT, CALENDAR_REPOSITORY_PORT } from '@core/appli
 import { PrismaCalendarRepository } from '@infrastructure/persistence/prisma/prisma-calendar.repository';
 import { CalendarIntegrationProvider } from '@infrastructure/calendar/calendar-integration.provider';
 import { CalendarSyncScheduler } from '@infrastructure/calendar/calendar-sync.scheduler';
+import { GymModule } from '../gym/gym.module';
 
 @Module({
-  imports: [AuthModule, ProductivityModule, PersistenceModule],
+  imports: [AuthModule, ProductivityModule, PersistenceModule, GymModule],
   controllers: [CalendarController],
   providers: [
     CalendarService,

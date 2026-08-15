@@ -5,27 +5,16 @@ struct ConflictsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    iTuSectionLabel(title: "Offline sync")
-                    Text("Conflicts")
-                        .font(.system(size: 25, weight: .bold, design: .rounded))
-                        .foregroundStyle(iTuTheme.ink)
+            iTuPageHeader(
+                kicker: "Offline sync",
+                title: "Conflicts",
+                description: "Resolve local and server changes without losing work.",
+                actions: {
+                    Text(model.conflicts.isEmpty ? "Up to date" : "\(model.conflicts.count) action required")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(model.conflicts.isEmpty ? iTuTheme.pageHeaderKicker : iTuTheme.coral)
                 }
-                Spacer()
-                Text(model.conflicts.isEmpty ? "Up to date" : "\(model.conflicts.count) action required")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(model.conflicts.isEmpty ? iTuTheme.teal : iTuTheme.coral)
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 28)
-            .padding(.bottom, 18)
-            .background(iTuTheme.surface)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(iTuTheme.border)
-                    .frame(height: 1)
-            }
+            )
 
             ScrollView {
                 if model.conflicts.isEmpty {

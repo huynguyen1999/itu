@@ -3,65 +3,81 @@ import XCTest
 @testable import iTu
 
 final class BudgetGymParityTests: XCTestCase {
-    func testMoneyDecimalStringsDecode() throws {
-        let data = #"{"id":"tx","userId":"u","type":"EXPENSE","amount":"12.30","currency":"VND","category":"Food","categoryId":null,"merchant":null,"paymentMethod":"CASH","transactionAt":"2026-08-10T00:00:00Z","note":null}"#.data(using: .utf8)!
-        let value = try JSONDecoder().decode(BudgetTransactionModel.self, from: data)
+    func testStatisticsAggregateContractsDecodeEmptyRanges() throws {
+        let budgetData = #"{"from":"2026-08-01","to":"2026-08-03","spent":"0.00","expenseCount":0,"previousSpent":"0.00","changeAmount":"0.00","trend":[]}"#.data(using: .utf8)!
+        let budget = try JSONDecoder().decode(BudgetStatisticsModel.self, from: budgetData)
+        XCTAssertEqual(budget.expenseCount, 0)
+        XCTAssertEqual(budget.trend, [])
+
+        let gymData = #"{"range":"CUSTOM","totalWorkouts":0,"totalWorkingSets":0,"totalVolumeKg":0,"totalTrainingMinutes":0,"totalPRs":0,"muscleDistribution":{},"weeklyTrend":[]}"#.data(using: .utf8)!
+        let gym = try JSONDecoder().decode(GymAnalyticsModel.self, from: gymData)
+        XCTAssertEqual(gym.totalWorkouts, 0)
+        XCTAssertEqual(gym.weeklyTrend, [])
+    }
+
+    func testExpenseMoneyDecimalStringsDecode() throws {
+        let data = #"{"id":"expense-1","userId":"u","amount":"12.30","category":"Food","categoryId":"food","merchant":null,"paymentMethod":"CASH","expenseDate":"2026-08-10","note":null,"version":1}"#.data(using: .utf8)!
+        let value = try JSONDecoder().decode(ExpenseModel.self, from: data)
         XCTAssertEqual(value.amount, 12.3, accuracy: 0.001)
     }
 
-    func testBudgetOverviewDecodesDecimalMetricsAndCategoryRows() throws {
-        let data = #"{"period":"2026-08","currency":"VND","income":"1000000.00","spent":"250000.50","overallBudget":"900000.00","remainingBudget":"649999.50","categories":[{"category":{"id":"food","userId":"u","name":"Food","type":"EXPENSE","icon":"food","color":"TEAL","sortOrder":0,"archivedAt":null,"version":1},"budget":"400000.00","spent":"250000.50","remaining":"149999.50","percentage":62.6}]}"#.data(using: .utf8)!
-        let value = try JSONDecoder().decode(BudgetOverviewModel.self, from: data)
-        XCTAssertEqual(value.income, 1_000_000, accuracy: 0.001)
+    func testBudgetSummaryDecodesDecimalMetricsAndCategoryRows() throws {
+        let data = #"{"period":"2026-08","spent":"250000.50","overallLimit":"900000.00","remaining":"649999.50","previousSpent":"300000.00","changeAmount":"-49999.50","changePercentage":"-16.6665","categories":[{"category":{"id":"food","userId":"u","name":"Food","icon":"food","color":"TEAL","sortOrder":0,"archivedAt":null,"version":1},"spent":"250000.50","limit":"400000.00","remaining":"149999.50","percentage":"62.6"}],"recentExpenses":[],"dueRecurring":[]}"#.data(using: .utf8)!
+        let value = try JSONDecoder().decode(BudgetSummaryModel.self, from: data)
         XCTAssertEqual(value.spent, 250_000.5, accuracy: 0.001)
-        XCTAssertEqual(value.categories.first?.category.name, "Food")
+        XCTAssertEqual(value.categories.first?.name, "Food")
         XCTAssertEqual(value.categories.first?.remaining ?? 0, 149_999.5, accuracy: 0.001)
     }
 
-    func testBudgetPeriodDecodesDecimalLimitForHydrationCache() throws {
-        let data = #"{"id":"period-2026-08","userId":"u","period":"2026-08","currency":"VND","overallLimit":"900000.00","categoryBudgets":[],"version":2}"#.data(using: .utf8)!
-        let value = try JSONDecoder().decode(BudgetPeriodModel.self, from: data)
+    func testMonthlyBudgetDecodesDecimalLimitForHydrationCache() throws {
+        let data = #"{"id":"period-2026-08","userId":"u","period":"2026-08","overallLimit":"900000.00","categoryLimits":[],"version":2}"#.data(using: .utf8)!
+        let value = try JSONDecoder().decode(MonthlyBudgetModel.self, from: data)
         XCTAssertEqual(value.period, "2026-08")
-        XCTAssertEqual(value.overallLimit, 900_000, accuracy: 0.001)
+        XCTAssertEqual(value.overallLimit ?? 0, 900_000, accuracy: 0.001)
     }
 
-    func testPendingBudgetTransactionSurvivesRestartAndStaleReplacement() async throws {
+    func testBudgetReportDecodesCategoryBreakdownAndTopCategoryCounts() throws {
+        let data = #"{"period":"2026-08","spendingOverTime":[],"categoryBreakdown":[{"categoryId":"food","category":"Food","amount":"12.30","percentage":100}],"monthlyOutflow":[],"previousMonthComparison":{"current":"12.30","previous":"0.00","difference":"12.30","percentage":null},"topMerchants":[],"topCategories":[{"categoryId":"food","category":"Food","amount":"12.30","count":2}]}"#.data(using: .utf8)!
+        let value = try JSONDecoder().decode(BudgetReportModel.self, from: data)
+        XCTAssertEqual(value.categoryBreakdown.first?.percentage, 100)
+        XCTAssertEqual(value.topCategories.first?.count, 2)
+    }
+
+    func testPendingExpenseSurvivesRestartAndStaleReplacement() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("iTu-budget-parity-\(UUID().uuidString)", isDirectory: true)
-        let local = BudgetTransactionModel(
-            id: "tx-local", userId: "u", type: "EXPENSE", amount: 125,
-            currency: "VND", category: "Food", categoryId: "food", merchant: nil,
-            paymentMethod: "CASH", transactionAt: "2026-08-10T00:00:00Z", note: nil,
-            version: 1, createdAt: nil, updatedAt: nil, deletedAt: nil
+        let local = ExpenseModel(
+            id: "expense-local", userId: "u", amount: 125, category: "Food", categoryId: "food", merchant: nil,
+            paymentMethod: "CASH", expenseDate: "2026-08-10", note: nil,
+            version: 1, createdAt: nil, updatedAt: nil
         )
         let mutation = SyncMutation(
-            id: "mutation-local", kind: "budgettransaction.create", entityId: local.id,
+            id: "mutation-local", kind: "expense.create", entityId: local.id,
             baseVersion: nil, payload: ["amount": .string("125")],
             occurredAt: "2026-08-10T00:00:00Z"
         )
         let store = OfflineStore(accountID: "budget-parity", baseURL: root)
         _ = try await store.load()
-        _ = try await store.saveBudgetTransaction(local, mutation: mutation)
+        _ = try await store.saveExpense(local, mutation: mutation)
 
         let restarted = OfflineStore(accountID: "budget-parity", baseURL: root)
         _ = try await restarted.load()
-        let stale = BudgetTransactionModel(
-            id: local.id, userId: local.userId, type: local.type, amount: 1,
-            currency: local.currency, category: local.category, categoryId: local.categoryId,
+        let stale = ExpenseModel(
+            id: local.id, userId: local.userId, amount: 1, category: local.category, categoryId: local.categoryId,
             merchant: local.merchant, paymentMethod: local.paymentMethod,
-            transactionAt: local.transactionAt, note: local.note, version: 1,
-            createdAt: local.createdAt, updatedAt: local.updatedAt, deletedAt: nil
+            expenseDate: local.expenseDate, note: local.note, version: 1,
+            createdAt: local.createdAt, updatedAt: local.updatedAt
         )
-        let snapshot = try await restarted.replaceBudgetTransactions([stale])
-        XCTAssertEqual(snapshot.budgetTransactions.first?.amount, 125)
-        XCTAssertEqual(snapshot.mutations.last?.kind, "budgettransaction.create")
+        let snapshot = try await restarted.replaceExpenses([stale])
+        XCTAssertEqual(snapshot.expenses.first?.amount, 125)
+        XCTAssertEqual(snapshot.mutations.last?.kind, "expense.create")
     }
 
     @MainActor
     func testBudgetLimitValidationRejectsNegativeAndNonfiniteValues() async {
         let model = AppModel()
-        let negative = await model.updateBudgetPeriod(period: "2026-08", overallLimit: "-1")
-        let nonfinite = await model.updateBudgetPeriod(period: "2026-08", overallLimit: "nan")
+        let negative = await model.updateMonthlyBudget(period: "2026-08", overallLimit: "-1")
+        let nonfinite = await model.updateMonthlyBudget(period: "2026-08", overallLimit: "nan")
         let categoryNonfinite = await model.updateBudgetCategoryLimit(period: "2026-08", categoryID: "food", limit: "infinity")
         XCTAssertFalse(negative)
         XCTAssertFalse(nonfinite)
@@ -174,6 +190,26 @@ final class BudgetGymParityTests: XCTestCase {
         let restoredSet = snapshot.gymWorkouts.first?.exercises?.first?.sets?.first
         XCTAssertEqual(restoredSet?.id, setID)
         XCTAssertEqual(restoredSet?.reps, 12)
+    }
+
+    func testPendingGymRoutineChildrenSurviveStaleRoutineReplacement() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("iTu-gym-routine-parity-\(UUID().uuidString)", isDirectory: true)
+        let exercise = ExerciseModel(id: "press", userId: "u", name: "Press", normalizedName: "press", description: nil, imageStorageKey: nil, imageUrl: nil, metricType: "WEIGHT_REPS", equipment: nil, primaryMuscleGroup: "Chest", secondaryMuscleGroups: nil, defaultWeightUnit: "KG", defaultRestSeconds: 60, archivedAt: nil, deletedAt: nil, version: 1)
+        let routine = RoutineModel(id: "routine-local", userId: "u", name: "Push", exercises: [RoutineExerciseModel(id: "routine-exercise-local", routineId: "routine-local", exerciseId: exercise.id, sortOrder: 0, setCount: 4, exercise: exercise)])
+        let store = OfflineStore(accountID: "gym-routine-parity", baseURL: root)
+        _ = try await store.load()
+        _ = try await store.saveGymRoutine(routine, mutations: [
+            SyncMutation(id: "routine-create", kind: "gymroutine.create", entityId: routine.id, baseVersion: nil, payload: ["name": .string("Push")], occurredAt: "2026-08-10T00:00:00Z"),
+            SyncMutation(id: "routine-exercise-create", kind: "gymroutineexercise.create", entityId: "routine-exercise-local", baseVersion: nil, payload: ["routineId": .string(routine.id), "exerciseId": .string(exercise.id), "setCount": .number(4)], occurredAt: "2026-08-10T00:00:00Z")
+        ])
+
+        let restarted = OfflineStore(accountID: "gym-routine-parity", baseURL: root)
+        _ = try await restarted.load()
+        let stale = RoutineModel(id: routine.id, userId: "u", name: "Push", exercises: [])
+        let snapshot = try await restarted.replaceGymRoutines([stale])
+        XCTAssertEqual(snapshot.gymRoutines.first?.exercises?.first?.id, "routine-exercise-local")
+        XCTAssertEqual(snapshot.gymRoutines.first?.exercises?.first?.setCount, 4)
     }
 
     func testGymUpdateCompactionPreservesPerFieldEditClocks() async throws {

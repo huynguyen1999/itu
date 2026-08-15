@@ -2,9 +2,11 @@ import Foundation
 
 extension OfflineStore {
     @discardableResult
-    func saveWorkout(_ value: WorkoutModel, mutation: SyncMutation) throws -> OfflineSnapshot {
+    func saveWorkout(_ value: WorkoutModel, mutation: SyncMutation? = nil) throws -> OfflineSnapshot {
         upsertGymValue(&state.gymWorkouts, value)
-        appendMutation(mutation)
+        if let mutation {
+            appendMutation(mutation)
+        }
         try persist()
         return state
     }

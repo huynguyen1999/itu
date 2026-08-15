@@ -5,6 +5,36 @@ import XCTest
 
 @MainActor
 final class VisualLayoutTests: XCTestCase {
+    func testPageHeaderRendersSemanticHierarchyAtNarrowWidth() throws {
+        let renderer = ImageRenderer(
+            content: iTuPageHeader(
+                kicker: "PRODUCTIVITY",
+                title: "A deliberately long page title that should wrap",
+                description: "Supporting context remains readable when the header narrows.",
+                actions: { Button("Action") {} },
+                controls: { Text("Secondary controls") }
+            )
+            .frame(width: 480)
+        )
+        renderer.scale = 1
+
+        let image = try XCTUnwrap(renderer.nsImage)
+        XCTAssertEqual(image.size.width, 480)
+        XCTAssertGreaterThan(image.size.height, 0)
+    }
+
+    func testPageHeaderSupportsTitleOnlyContent() throws {
+        let renderer = ImageRenderer(
+            content: iTuPageHeader(kicker: "SYSTEM", title: "Trash")
+                .frame(width: 420)
+        )
+        renderer.scale = 1
+
+        let image = try XCTUnwrap(renderer.nsImage)
+        XCTAssertEqual(image.size.width, 420)
+        XCTAssertGreaterThan(image.size.height, 0)
+    }
+
     func testPointerPopoverAnchorRectIsNonEmptyAtTheCapturedPoint() {
         let rect = pointerPopoverAnchorRect(at: NSPoint(x: 240, y: 180))
 

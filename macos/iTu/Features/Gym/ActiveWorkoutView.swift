@@ -6,6 +6,7 @@ struct ActiveWorkoutView: View {
     let workout: WorkoutModel
     var onFinished: () -> Void
     var onDiscarded: () -> Void
+    var isHistorical = false
 
     @State private var restTimer = GymRestTimer()
     @State private var clockNow = Date()
@@ -13,6 +14,8 @@ struct ActiveWorkoutView: View {
     @State private var showingDiscardAlert = false
     @State private var showingExercisePicker = false
     @State private var editingTitle = ""
+    @State private var editingStartedAt = ""
+    @State private var editingDuration = ""
     @State private var isSavingTitle = false
     @State private var pickerSearch = ""
     @State private var pickerMuscle = "All"
@@ -67,31 +70,43 @@ struct ActiveWorkoutView: View {
             .buttonStyle(.bordered)
             .tint(iTuTheme.teal)
 
-            // Finish / Discard Footer
-            HStack(spacing: 12) {
-                Button(role: .destructive) {
-                    showingDiscardAlert = true
-                } label: {
-                    Label("Discard Workout", systemImage: "trash")
+            if isHistorical {
+                HStack {
+                    Spacer()
+                    Button("Done") { onFinished() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(iTuTheme.teal)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
+                .padding(.top, 10)
+            } else {
+                // Finish / Discard Footer
+                HStack(spacing: 12) {
+                    Button(role: .destructive) {
+                        showingDiscardAlert = true
+                    } label: {
+                        Label("Discard Workout", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
 
-                Spacer()
+                    Spacer()
 
-                Button {
-                    showingFinishAlert = true
-                } label: {
-                    Label("Finish Workout", systemImage: "checkmark.circle.fill")
+                    Button {
+                        showingFinishAlert = true
+                    } label: {
+                        Label("Finish Workout", systemImage: "checkmark.circle.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(iTuTheme.teal)
+                    .controlSize(.regular)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(iTuTheme.teal)
-                .controlSize(.regular)
+                .padding(.top, 10)
             }
-            .padding(.top, 10)
         }
         .onAppear {
             editingTitle = workout.title
+            editingStartedAt = String((workout.startedAt ?? "").prefix(10))
+            editingDuration = workout.durationMinutes.map(String.init) ?? ""
         }
         .task(id: restTimer.isRunning) {
             guard restTimer.isRunning else { return }
@@ -150,7 +165,7 @@ struct ActiveWorkoutView: View {
                             saveWorkoutTitle()
                         }
 
-                    Text("· Active")
+                        Text(isHistorical ? "· Completed" : "· Active")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(iTuTheme.teal)
                         .padding(.horizontal, 6)
@@ -166,6 +181,26 @@ struct ActiveWorkoutView: View {
                     Text("· Total volume: \(Int(totalVolume)) \(unit.lowercased())")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(iTuTheme.inkDim)
+                }
+
+                if isHistorical {
+                    HStack(spacing: 8) {
+                        Text("Date")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(iTuTheme.inkDim)
+                        TextField("YYYY-MM-DD", text: $editingStartedAt)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 110)
+                        Text("Minutes")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(iTuTheme.inkDim)
+                        TextField("—", text: $editingDuration)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 60)
+                        Button("Save") { saveWorkoutMetadata() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
                 }
             }
 
@@ -553,10 +588,21 @@ struct ActiveWorkoutView: View {
     }
 
     private func saveWorkoutTitle() {
+        saveWorkoutMetadata()
+    }
+
+    private func saveWorkoutMetadata() {
         let trimmed = editingTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        var patch: [String: JSONValue] = ["title": .string(trimmed)]
+        if isHistorical, editingStartedAt.count == 10 {
+            patch["startedAt"] = .string("\(editingStartedAt)T12:00:00.000Z")
+        }
+        if isHistorical, let duration = Int(editingDuration), duration >= 0 {
+            patch["durationMinutes"] = .number(Double(duration))
+        }
         Task {
-            _ = await model.updateGymWorkout(id: workout.id, patch: ["title": .string(trimmed)])
+            _ = await model.updateGymWorkout(id: workout.id, patch: patch)
         }
     }
 
@@ -618,4 +664,3 @@ struct ActiveWorkoutView: View {
         .frame(width: 380, height: 420)
     }
 }
-

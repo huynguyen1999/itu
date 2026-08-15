@@ -38,6 +38,16 @@ actor OfflineStore {
         // account. Keep both the in-memory state and the original bytes intact
         // so callers can surface the error or retry after a migration.
         state = try decoder.decode(OfflineSnapshot.self, from: data)
+
+        var budgetReset = false
+        if state.budgetDataEpoch < 2 {
+            state.budgetDataEpoch = 2
+            state.expenseCategories.removeAll()
+            state.monthlyBudgets.removeAll()
+            state.expenses.removeAll()
+            state.recurringExpenses.removeAll()
+            budgetReset = true
+        }
         
         // Migrate legacy "habit.checkin" mutations to "habitoccurrence.*"
         var migrated = false
@@ -95,7 +105,7 @@ actor OfflineStore {
                 migrated = true
             }
         }
-        if migrated {
+        if migrated || budgetReset {
             try persist()
         }
         reapplyPendingJournalMutations()

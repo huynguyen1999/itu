@@ -36,7 +36,7 @@ The Xcode project uses synchronized root groups, so source files placed under `i
 - **Focus and Habits:** Focus controls/history and Habit occurrence/progress surfaces.
 - **Learning and Growth:** Learn, Flashcard Decks/review, Growth, Shop/Inventory, ledger, and Growth settings.
 - **Journal, Budget, and Gym:** dedicated native feature surfaces for each area;
-  Journal retains Notes and Weekly Reviews while Budget Transactions and Gym
+  Journal retains Notes and Weekly Reviews while Budget Expenses and Gym
   Workouts remain separate synchronized entities.
 - **Account and operations:** Statistics, notifications, profile, settings, sync conflicts, and recoverable Trash.
 
@@ -118,8 +118,8 @@ sequenceDiagram
 
 As on web, the socket is only an invalidation channel. The coordinator retrieves data through `POST /sync`.
 
-The native outbox uses the same entity boundaries as Web: `budgettransaction.*`
-and `gymworkout.*` mutations do not pass through Journal, and Journal mutations
+The native outbox uses the same entity boundaries as Web: `expense.*` and
+`gymworkout.*` mutations do not pass through Journal, and Journal mutations
 are limited to retained Notes, Weekly Reviews, tags, templates, Trash, and
 revisions. Optional Gym exercise images are queued independently of `/sync`.
 
@@ -142,7 +142,14 @@ flowchart LR
 Tracking is opt-in and controlled by server-backed preferences. Platform collection pauses around locked, sleeping, or inactive states according to the tracker implementation.
 
 Statistics reads server Website Usage Summaries and combines them with pending
-local deltas before rendering the native usage views.
+local deltas before rendering the native usage views. `StatisticsStore` owns
+the cross-domain overview refresh and period-scoped aggregate contracts;
+`StatisticsView` composes the overview, trends, Growth, and lower-priority
+usage sections, while `StatisticsUsageSections.swift` owns usage charts,
+website aggregation, and `StatisticsWebsiteDetailsSection.swift` owns the
+lazy expandable URL/session detail without changing the owning module
+analytics. `StatisticsDomainSummarySection.swift` provides native module
+deep-links below the headline snapshot.
 
 ## Current-state boundaries
 

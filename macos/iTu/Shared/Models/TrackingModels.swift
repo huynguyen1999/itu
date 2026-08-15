@@ -2,7 +2,6 @@ import Foundation
 
 struct BudgetPreferencesModel: Codable, Equatable, Sendable {
     var defaultCurrency: String = "VND"
-    var defaultTransactionType: String = "EXPENSE"
     var rememberPaymentMethod: Bool = true
     var merchantSuggestionsEnabled: Bool = true
     var budgetWarningThreshold: Int = 80
@@ -73,46 +72,10 @@ struct GymPreferencesModel: Codable, Equatable, Sendable {
 
 // MARK: - Budget Models
 
-struct BudgetOverviewModel: Codable, Equatable, Sendable {
-    let period: String
-    let currency: String
-    let income: Double
-    let spent: Double
-    let overallBudget: Double
-    let remainingBudget: Double
-    let categories: [BudgetCategoryStatModel]
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        period = try c.decode(String.self, forKey: .period); currency = try c.decode(String.self, forKey: .currency)
-        income = try c.decodeFlexibleDouble(forKey: .income); spent = try c.decodeFlexibleDouble(forKey: .spent)
-        overallBudget = try c.decodeFlexibleDouble(forKey: .overallBudget); remainingBudget = try c.decodeFlexibleDouble(forKey: .remainingBudget)
-        categories = try c.decode([BudgetCategoryStatModel].self, forKey: .categories)
-    }
-    private enum CodingKeys: String, CodingKey { case period, currency, income, spent, overallBudget, remainingBudget, categories }
-}
-
-struct BudgetCategoryStatModel: Codable, Equatable, Sendable, Identifiable {
-    var id: String { category.id }
-    let category: BudgetCategoryModel
-    let budget: Double
-    let spent: Double
-    let remaining: Double
-    let percentage: Double
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        category = try c.decode(BudgetCategoryModel.self, forKey: .category); budget = try c.decodeFlexibleDouble(forKey: .budget)
-        spent = try c.decodeFlexibleDouble(forKey: .spent); remaining = try c.decodeFlexibleDouble(forKey: .remaining); percentage = try c.decodeFlexibleDouble(forKey: .percentage)
-    }
-    private enum CodingKeys: String, CodingKey { case category, budget, spent, remaining, percentage }
-}
-
-struct BudgetCategoryModel: Codable, Equatable, Sendable, Identifiable {
+struct ExpenseCategoryModel: Codable, Equatable, Sendable, Identifiable {
     let id: String
     let userId: String
     let name: String
-    let type: String
     let icon: String?
     let color: String?
     let sortOrder: Int
@@ -120,100 +83,200 @@ struct BudgetCategoryModel: Codable, Equatable, Sendable, Identifiable {
     let version: Int?
 }
 
-struct BudgetCategoryBudgetModel: Codable, Equatable, Sendable, Identifiable {
+struct CategoryBudgetLimitModel: Codable, Equatable, Sendable, Identifiable {
     let id: String
-    let budgetPeriodId: String
+    let monthlyBudgetId: String
     let categoryId: String
     let limit: Double
-    let category: BudgetCategoryModel?
     let version: Int?
 
-    init(id: String, budgetPeriodId: String, categoryId: String, limit: Double, category: BudgetCategoryModel?, version: Int?) {
-        self.id = id; self.budgetPeriodId = budgetPeriodId; self.categoryId = categoryId; self.limit = limit; self.category = category; self.version = version
+    init(id: String, monthlyBudgetId: String, categoryId: String, limit: Double, version: Int? = 1) {
+        self.id = id; self.monthlyBudgetId = monthlyBudgetId; self.categoryId = categoryId; self.limit = limit; self.version = version
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id); budgetPeriodId = try c.decode(String.self, forKey: .budgetPeriodId)
+        id = try c.decode(String.self, forKey: .id); monthlyBudgetId = try c.decode(String.self, forKey: .monthlyBudgetId)
         categoryId = try c.decode(String.self, forKey: .categoryId); limit = try c.decodeFlexibleDouble(forKey: .limit)
-        category = try c.decodeIfPresent(BudgetCategoryModel.self, forKey: .category); version = try c.decodeIfPresent(Int.self, forKey: .version)
+        version = try c.decodeIfPresent(Int.self, forKey: .version)
     }
-    private enum CodingKeys: String, CodingKey { case id, budgetPeriodId, categoryId, limit, category, version }
+    private enum CodingKeys: String, CodingKey { case id, monthlyBudgetId, categoryId, limit, version }
 }
 
-struct BudgetPeriodModel: Codable, Equatable, Sendable, Identifiable {
+struct MonthlyBudgetModel: Codable, Equatable, Sendable, Identifiable {
     let id: String
     let userId: String
     let period: String
-    let currency: String
-    let overallLimit: Double
-    let categoryBudgets: [BudgetCategoryBudgetModel]
+    let overallLimit: Double?
+    let categoryLimits: [CategoryBudgetLimitModel]
     let version: Int?
 
-    init(id: String, userId: String, period: String, currency: String, overallLimit: Double, categoryBudgets: [BudgetCategoryBudgetModel], version: Int?) {
-        self.id = id; self.userId = userId; self.period = period; self.currency = currency; self.overallLimit = overallLimit; self.categoryBudgets = categoryBudgets; self.version = version
+    init(id: String, userId: String, period: String, overallLimit: Double?, categoryLimits: [CategoryBudgetLimitModel] = [], version: Int? = 1) {
+        self.id = id; self.userId = userId; self.period = period; self.overallLimit = overallLimit; self.categoryLimits = categoryLimits; self.version = version
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id); userId = try c.decode(String.self, forKey: .userId); period = try c.decode(String.self, forKey: .period)
-        currency = try c.decode(String.self, forKey: .currency); overallLimit = try c.decodeFlexibleDouble(forKey: .overallLimit)
-        categoryBudgets = try c.decodeIfPresent([BudgetCategoryBudgetModel].self, forKey: .categoryBudgets) ?? []; version = try c.decodeIfPresent(Int.self, forKey: .version)
+        overallLimit = try c.decodeFlexibleDoubleIfPresent(forKey: .overallLimit)
+        categoryLimits = try c.decodeIfPresent([CategoryBudgetLimitModel].self, forKey: .categoryLimits) ?? []
+        version = try c.decodeIfPresent(Int.self, forKey: .version)
     }
-    private enum CodingKeys: String, CodingKey { case id, userId, period, currency, overallLimit, categoryBudgets, version }
+    private enum CodingKeys: String, CodingKey { case id, userId, period, overallLimit, categoryLimits, version }
 }
 
-struct BudgetTransactionModel: Codable, Equatable, Sendable, Identifiable {
-    let id: String
-    let userId: String
-    let type: String
-    let amount: Double
-    let currency: String
-    let category: String
-    let categoryId: String?
-    let merchant: String?
-    let paymentMethod: String
-    let transactionAt: String
-    let note: String?
-    let version: Int?
-    let createdAt: String?
-    let updatedAt: String?
-    let deletedAt: String?
-    let deletedByDeviceId: String?
+struct ExpenseModel: Codable, Equatable, Sendable, Identifiable {
+    let id: String; let userId: String; let amount: Double; let category: String; let categoryId: String
+    let merchant: String?; let paymentMethod: String; let expenseDate: String; let note: String?
+    let recurringExpenseId: String?; let recurringOccurrenceDate: String?
+    let version: Int?; let createdAt: String?; let updatedAt: String?; let deletedAt: String?; let deletedByDeviceId: String?
 
-    init(id: String, userId: String, type: String, amount: Double, currency: String, category: String, categoryId: String?, merchant: String?, paymentMethod: String, transactionAt: String, note: String?, version: Int?, createdAt: String?, updatedAt: String?, deletedAt: String?, deletedByDeviceId: String? = nil) {
-        self.id = id; self.userId = userId; self.type = type; self.amount = amount; self.currency = currency; self.category = category; self.categoryId = categoryId; self.merchant = merchant; self.paymentMethod = paymentMethod; self.transactionAt = transactionAt; self.note = note; self.version = version; self.createdAt = createdAt; self.updatedAt = updatedAt; self.deletedAt = deletedAt; self.deletedByDeviceId = deletedByDeviceId
-    }
-}
-
-/// The API sends money as decimal strings. Keep the native display model
-/// convenient while accepting both the legacy JSON number and the canonical
-/// string representation.
-extension BudgetTransactionModel {
-    enum CodingKeys: String, CodingKey {
-        case id, userId, type, amount, currency, category, categoryId, merchant,
-             paymentMethod, transactionAt, note, version, createdAt, updatedAt, deletedAt, deletedByDeviceId
+    init(id: String, userId: String, amount: Double, category: String, categoryId: String, merchant: String?, paymentMethod: String, expenseDate: String, note: String?, recurringExpenseId: String? = nil, recurringOccurrenceDate: String? = nil, version: Int? = 1, createdAt: String?, updatedAt: String?, deletedAt: String? = nil, deletedByDeviceId: String? = nil) {
+        self.id = id; self.userId = userId; self.amount = amount; self.category = category; self.categoryId = categoryId; self.merchant = merchant; self.paymentMethod = paymentMethod; self.expenseDate = expenseDate; self.note = note; self.recurringExpenseId = recurringExpenseId; self.recurringOccurrenceDate = recurringOccurrenceDate; self.version = version; self.createdAt = createdAt; self.updatedAt = updatedAt; self.deletedAt = deletedAt; self.deletedByDeviceId = deletedByDeviceId
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
-        userId = try c.decode(String.self, forKey: .userId)
-        type = try c.decode(String.self, forKey: .type)
-        amount = try c.decodeFlexibleDouble(forKey: .amount)
-        currency = try c.decode(String.self, forKey: .currency)
-        category = try c.decode(String.self, forKey: .category)
-        categoryId = try c.decodeIfPresent(String.self, forKey: .categoryId)
-        merchant = try c.decodeIfPresent(String.self, forKey: .merchant)
-        paymentMethod = try c.decode(String.self, forKey: .paymentMethod)
-        transactionAt = try c.decode(String.self, forKey: .transactionAt)
-        note = try c.decodeIfPresent(String.self, forKey: .note)
-        version = try c.decodeIfPresent(Int.self, forKey: .version)
-        createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt)
-        updatedAt = try c.decodeIfPresent(String.self, forKey: .updatedAt)
-        deletedAt = try c.decodeIfPresent(String.self, forKey: .deletedAt)
-        deletedByDeviceId = try c.decodeIfPresent(String.self, forKey: .deletedByDeviceId)
+        id = try c.decode(String.self, forKey: .id); userId = try c.decode(String.self, forKey: .userId); amount = try c.decodeFlexibleDouble(forKey: .amount)
+        category = try c.decode(String.self, forKey: .category); categoryId = try c.decode(String.self, forKey: .categoryId); merchant = try c.decodeIfPresent(String.self, forKey: .merchant)
+        paymentMethod = try c.decode(String.self, forKey: .paymentMethod); expenseDate = try c.decode(String.self, forKey: .expenseDate); note = try c.decodeIfPresent(String.self, forKey: .note)
+        recurringExpenseId = try c.decodeIfPresent(String.self, forKey: .recurringExpenseId); recurringOccurrenceDate = try c.decodeIfPresent(String.self, forKey: .recurringOccurrenceDate)
+        version = try c.decodeIfPresent(Int.self, forKey: .version); createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt); updatedAt = try c.decodeIfPresent(String.self, forKey: .updatedAt)
+        deletedAt = try c.decodeIfPresent(String.self, forKey: .deletedAt); deletedByDeviceId = try c.decodeIfPresent(String.self, forKey: .deletedByDeviceId)
     }
+    private enum CodingKeys: String, CodingKey { case id, userId, amount, category, categoryId, merchant, paymentMethod, expenseDate, note, recurringExpenseId, recurringOccurrenceDate, version, createdAt, updatedAt, deletedAt, deletedByDeviceId }
+}
+
+struct RecurringExpenseModel: Codable, Equatable, Sendable, Identifiable {
+    let id: String; let userId: String; let name: String?; let categoryId: String; let category: String; let amount: Double
+    let merchant: String?; let paymentMethod: String; let note: String?; let frequency: String; let startDate: String; let nextDueDate: String
+    let isActive: Bool; let archivedAt: String?; let version: Int?
+
+    init(id: String, userId: String, name: String?, categoryId: String, category: String, amount: Double, merchant: String?, paymentMethod: String, note: String?, frequency: String, startDate: String, nextDueDate: String, isActive: Bool, archivedAt: String?, version: Int?) {
+        self.id = id; self.userId = userId; self.name = name; self.categoryId = categoryId; self.category = category; self.amount = amount; self.merchant = merchant
+        self.paymentMethod = paymentMethod; self.note = note; self.frequency = frequency; self.startDate = startDate; self.nextDueDate = nextDueDate; self.isActive = isActive; self.archivedAt = archivedAt; self.version = version
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id); userId = try c.decode(String.self, forKey: .userId); name = try c.decodeIfPresent(String.self, forKey: .name)
+        categoryId = try c.decode(String.self, forKey: .categoryId); category = try c.decode(String.self, forKey: .category); amount = try c.decodeFlexibleDouble(forKey: .amount)
+        merchant = try c.decodeIfPresent(String.self, forKey: .merchant); paymentMethod = try c.decode(String.self, forKey: .paymentMethod); note = try c.decodeIfPresent(String.self, forKey: .note)
+        frequency = try c.decode(String.self, forKey: .frequency); startDate = try c.decode(String.self, forKey: .startDate); nextDueDate = try c.decode(String.self, forKey: .nextDueDate)
+        isActive = try c.decode(Bool.self, forKey: .isActive); archivedAt = try c.decodeIfPresent(String.self, forKey: .archivedAt); version = try c.decodeIfPresent(Int.self, forKey: .version)
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, userId, name, categoryId, category, amount, merchant, paymentMethod, note, frequency, startDate, nextDueDate, isActive, archivedAt, version }
+}
+
+struct BudgetCategorySummaryModel: Decodable, Equatable, Sendable, Identifiable {
+    let id: String; let name: String; let spent: Double; let limit: Double?; let remaining: Double?; let percentage: Double?
+    var isOverBudget: Bool { (remaining ?? 0) < 0 }
+    init(id: String, name: String, spent: Double, limit: Double?, remaining: Double?, percentage: Double?) {
+        self.id = id; self.name = name; self.spent = spent; self.limit = limit; self.remaining = remaining; self.percentage = percentage
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let category = try c.decode(ExpenseCategoryModel.self, forKey: .category)
+        id = category.id; name = category.name
+        spent = try c.decodeFlexibleDouble(forKey: .spent)
+        limit = try c.decodeFlexibleDoubleIfPresent(forKey: .limit)
+        remaining = try c.decodeFlexibleDoubleIfPresent(forKey: .remaining)
+        percentage = try c.decodeFlexibleDoubleIfPresent(forKey: .percentage)
+    }
+    private enum CodingKeys: String, CodingKey { case category, spent, limit, remaining, percentage }
+}
+
+struct BudgetSummaryModel: Decodable, Equatable, Sendable {
+    let period: String; let spent: Double; let overallLimit: Double?; let remaining: Double?; let previousSpent: Double
+    let changeAmount: Double; let changePercentage: Double?; let categories: [BudgetCategorySummaryModel]
+    let recentExpenses: [ExpenseModel]; let dueRecurring: [RecurringExpenseModel]
+    init(period: String, spent: Double, overallLimit: Double?, remaining: Double?, previousSpent: Double, changeAmount: Double, changePercentage: Double?, categories: [BudgetCategorySummaryModel], recentExpenses: [ExpenseModel], dueRecurring: [RecurringExpenseModel]) {
+        self.period = period; self.spent = spent; self.overallLimit = overallLimit; self.remaining = remaining; self.previousSpent = previousSpent; self.changeAmount = changeAmount; self.changePercentage = changePercentage; self.categories = categories; self.recentExpenses = recentExpenses; self.dueRecurring = dueRecurring
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        period = try c.decode(String.self, forKey: .period); spent = try c.decodeFlexibleDouble(forKey: .spent)
+        overallLimit = try c.decodeFlexibleDoubleIfPresent(forKey: .overallLimit); remaining = try c.decodeFlexibleDoubleIfPresent(forKey: .remaining)
+        previousSpent = try c.decodeFlexibleDouble(forKey: .previousSpent); changeAmount = try c.decodeFlexibleDouble(forKey: .changeAmount)
+        changePercentage = try c.decodeFlexibleDoubleIfPresent(forKey: .changePercentage); categories = try c.decode([BudgetCategorySummaryModel].self, forKey: .categories)
+        recentExpenses = try c.decode([ExpenseModel].self, forKey: .recentExpenses); dueRecurring = try c.decode([RecurringExpenseModel].self, forKey: .dueRecurring)
+    }
+    private enum CodingKeys: String, CodingKey { case period, spent, overallLimit, remaining, previousSpent, changeAmount, changePercentage, categories, recentExpenses, dueRecurring }
+}
+
+struct BudgetReportModel: Decodable, Equatable, Sendable {
+    struct Point: Codable, Equatable, Sendable, Identifiable {
+        let date: String; let amount: Double; let cumulative: Double; var id: String { date }
+        init(from decoder: Decoder) throws { let c = try decoder.container(keyedBy: CodingKeys.self); date = try c.decode(String.self, forKey: .date); amount = try c.decodeFlexibleDouble(forKey: .amount); cumulative = try c.decodeFlexibleDouble(forKey: .cumulative) }
+        private enum CodingKeys: String, CodingKey { case date, amount, cumulative }
+    }
+    struct Category: Codable, Equatable, Sendable, Identifiable {
+        let categoryId: String; let category: String; let amount: Double; let percentage: Double
+        var id: String { categoryId }
+        init(from decoder: Decoder) throws { let c = try decoder.container(keyedBy: CodingKeys.self); categoryId = try c.decode(String.self, forKey: .categoryId); category = try c.decode(String.self, forKey: .category); amount = try c.decodeFlexibleDouble(forKey: .amount); percentage = try c.decodeFlexibleDouble(forKey: .percentage) }
+        private enum CodingKeys: String, CodingKey { case categoryId, category, amount, percentage }
+    }
+    struct TopCategory: Codable, Equatable, Sendable, Identifiable {
+        let categoryId: String; let category: String; let amount: Double; let count: Int
+        var id: String { categoryId }
+        init(from decoder: Decoder) throws { let c = try decoder.container(keyedBy: CodingKeys.self); categoryId = try c.decode(String.self, forKey: .categoryId); category = try c.decode(String.self, forKey: .category); amount = try c.decodeFlexibleDouble(forKey: .amount); count = try c.decode(Int.self, forKey: .count) }
+        private enum CodingKeys: String, CodingKey { case categoryId, category, amount, count }
+    }
+    struct Outflow: Codable, Equatable, Sendable, Identifiable {
+        let bucket: String; let amount: Double; var id: String { bucket }
+        init(from decoder: Decoder) throws { let c = try decoder.container(keyedBy: CodingKeys.self); bucket = try c.decode(String.self, forKey: .bucket); amount = try c.decodeFlexibleDouble(forKey: .amount) }
+        private enum CodingKeys: String, CodingKey { case bucket, amount }
+    }
+    struct Merchant: Codable, Equatable, Sendable, Identifiable {
+        let merchant: String; let amount: Double; let count: Int; var id: String { merchant }
+        init(from decoder: Decoder) throws { let c = try decoder.container(keyedBy: CodingKeys.self); merchant = try c.decode(String.self, forKey: .merchant); amount = try c.decodeFlexibleDouble(forKey: .amount); count = try c.decode(Int.self, forKey: .count) }
+        private enum CodingKeys: String, CodingKey { case merchant, amount, count }
+    }
+    struct Comparison: Codable, Equatable, Sendable {
+        let current: Double; let previous: Double; let difference: Double; let percentage: Double?
+        init(from decoder: Decoder) throws { let c = try decoder.container(keyedBy: CodingKeys.self); current = try c.decodeFlexibleDouble(forKey: .current); previous = try c.decodeFlexibleDouble(forKey: .previous); difference = try c.decodeFlexibleDouble(forKey: .difference); percentage = try c.decodeFlexibleDoubleIfPresent(forKey: .percentage) }
+        private enum CodingKeys: String, CodingKey { case current, previous, difference, percentage }
+    }
+    let period: String; let spendingOverTime: [Point]; let categoryBreakdown: [Category]; let monthlyOutflow: [Outflow]
+    let previousMonthComparison: Comparison; let topMerchants: [Merchant]; let topCategories: [TopCategory]
+}
+
+struct BudgetStatisticsModel: Decodable, Equatable, Sendable {
+    struct Point: Decodable, Equatable, Sendable, Identifiable {
+        let date: String
+        let amount: Double
+        var id: String { date }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            date = try container.decode(String.self, forKey: .date)
+            amount = try container.decodeFlexibleDouble(forKey: .amount)
+        }
+
+        private enum CodingKeys: String, CodingKey { case date, amount }
+    }
+
+    let from: String
+    let to: String
+    let spent: Double
+    let expenseCount: Int
+    let previousSpent: Double
+    let changeAmount: Double
+    let trend: [Point]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        from = try container.decode(String.self, forKey: .from)
+        to = try container.decode(String.self, forKey: .to)
+        spent = try container.decodeFlexibleDouble(forKey: .spent)
+        expenseCount = try container.decode(Int.self, forKey: .expenseCount)
+        previousSpent = try container.decodeFlexibleDouble(forKey: .previousSpent)
+        changeAmount = try container.decodeFlexibleDouble(forKey: .changeAmount)
+        trend = try container.decodeIfPresent([Point].self, forKey: .trend) ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey { case from, to, spent, expenseCount, previousSpent, changeAmount, trend }
 }
 
 // MARK: - Gym Models
@@ -222,7 +285,103 @@ struct GymOverviewModel: Codable, Equatable, Sendable {
     let weeklyWorkoutsCount: Int
     let weeklySetsCount: Int
     let weeklyVolumeKg: Int
+    let weeklyWorkoutTarget: Int?
+    let consistencyStreakWeeks: Int?
+    let trainingMinutes: Int?
+    let prCount: Int?
+    let muscleSets: [String: Int]?
     let recentWorkouts: [WorkoutModel]
+
+    private enum CodingKeys: String, CodingKey {
+        case weeklyWorkoutsCount, weeklySetsCount, weeklyVolumeKg, weeklyWorkoutTarget, consistencyStreakWeeks, trainingMinutes, prCount, muscleSets, recentWorkouts
+    }
+
+    init(weeklyWorkoutsCount: Int = 0, weeklySetsCount: Int = 0, weeklyVolumeKg: Int = 0, weeklyWorkoutTarget: Int? = nil, consistencyStreakWeeks: Int? = nil, trainingMinutes: Int? = nil, prCount: Int? = nil, muscleSets: [String: Int]? = nil, recentWorkouts: [WorkoutModel] = []) {
+        self.weeklyWorkoutsCount = weeklyWorkoutsCount
+        self.weeklySetsCount = weeklySetsCount
+        self.weeklyVolumeKg = weeklyVolumeKg
+        self.weeklyWorkoutTarget = weeklyWorkoutTarget
+        self.consistencyStreakWeeks = consistencyStreakWeeks
+        self.trainingMinutes = trainingMinutes
+        self.prCount = prCount
+        self.muscleSets = muscleSets
+        self.recentWorkouts = recentWorkouts
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        weeklyWorkoutsCount = try c.decodeIfPresent(Int.self, forKey: .weeklyWorkoutsCount) ?? 0
+        weeklySetsCount = try c.decodeIfPresent(Int.self, forKey: .weeklySetsCount) ?? 0
+        weeklyVolumeKg = try c.decodeIfPresent(Int.self, forKey: .weeklyVolumeKg) ?? 0
+        weeklyWorkoutTarget = try c.decodeIfPresent(Int.self, forKey: .weeklyWorkoutTarget)
+        consistencyStreakWeeks = try c.decodeIfPresent(Int.self, forKey: .consistencyStreakWeeks)
+        trainingMinutes = try c.decodeIfPresent(Int.self, forKey: .trainingMinutes)
+        prCount = try c.decodeIfPresent(Int.self, forKey: .prCount)
+        muscleSets = try c.decodeIfPresent([String: Int].self, forKey: .muscleSets)
+        recentWorkouts = try c.decodeIfPresent([WorkoutModel].self, forKey: .recentWorkouts) ?? []
+    }
+}
+
+struct GymAnalyticsModel: Codable, Equatable, Sendable {
+    struct WeeklyTrend: Codable, Equatable, Sendable, Identifiable {
+        let weekLabel: String
+        let startDate: String
+        let workouts: Int
+        let sets: Int
+        let volumeKg: Double
+        let trainingMinutes: Int
+        var id: String { startDate }
+    }
+
+    let range: String
+    let totalWorkouts: Int
+    let totalWorkingSets: Int
+    let totalVolumeKg: Double
+    let totalTrainingMinutes: Int
+    let totalPRs: Int
+    let muscleDistribution: [String: Int]
+    let weeklyTrend: [WeeklyTrend]
+}
+
+struct RoutineExerciseModel: Codable, Equatable, Sendable, Identifiable {
+    let id: String
+    let routineId: String
+    let exerciseId: String
+    let sortOrder: Int
+    let setCount: Int
+    let targetRepsMin: Int?
+    let targetRepsMax: Int?
+    let targetDurationSeconds: Int?
+    let targetDistanceMeters: Double?
+    let restSeconds: Int?
+    let note: String?
+    let exercise: ExerciseModel?
+    let version: Int?
+    let deletedAt: String?
+
+    init(id: String, routineId: String, exerciseId: String, sortOrder: Int = 0, setCount: Int = 3, targetRepsMin: Int? = nil, targetRepsMax: Int? = nil, targetDurationSeconds: Int? = nil, targetDistanceMeters: Double? = nil, restSeconds: Int? = nil, note: String? = nil, exercise: ExerciseModel? = nil, version: Int? = 1, deletedAt: String? = nil) {
+        self.id = id; self.routineId = routineId; self.exerciseId = exerciseId; self.sortOrder = sortOrder; self.setCount = setCount
+        self.targetRepsMin = targetRepsMin; self.targetRepsMax = targetRepsMax; self.targetDurationSeconds = targetDurationSeconds
+        self.targetDistanceMeters = targetDistanceMeters; self.restSeconds = restSeconds; self.note = note; self.exercise = exercise
+        self.version = version; self.deletedAt = deletedAt
+    }
+}
+
+struct RoutineModel: Codable, Equatable, Sendable, Identifiable {
+    let id: String
+    let userId: String
+    let name: String
+    let description: String?
+    let sortOrder: Int
+    let exercises: [RoutineExerciseModel]?
+    let archivedAt: String?
+    let deletedAt: String?
+    let version: Int?
+
+    init(id: String, userId: String, name: String, description: String? = nil, sortOrder: Int = 0, exercises: [RoutineExerciseModel]? = [], archivedAt: String? = nil, deletedAt: String? = nil, version: Int? = 1) {
+        self.id = id; self.userId = userId; self.name = name; self.description = description; self.sortOrder = sortOrder
+        self.exercises = exercises; self.archivedAt = archivedAt; self.deletedAt = deletedAt; self.version = version
+    }
 }
 
 struct ExerciseModel: Codable, Equatable, Sendable, Identifiable {
@@ -239,15 +398,18 @@ struct ExerciseModel: Codable, Equatable, Sendable, Identifiable {
     let secondaryMuscleGroups: [String]?
     let defaultWeightUnit: String
     let defaultRestSeconds: Int?
+    let origin: String?
+    let catalogKey: String?
+    let catalogVersion: Int?
+    let userNotes: String?
+    let isFavorite: Bool?
     let archivedAt: String?
-    /// Recoverable deletion is distinct from archival.  The tombstone stays
-    /// in the offline snapshot so Trash can render it after a restart.
     let deletedAt: String?
     let deletedByDeviceId: String?
     let version: Int?
 
-    init(id: String, userId: String, name: String, normalizedName: String, description: String?, imageStorageKey: String?, imageUrl: String?, metricType: String, equipment: String?, primaryMuscleGroup: String?, secondaryMuscleGroups: [String]?, defaultWeightUnit: String, defaultRestSeconds: Int?, archivedAt: String?, deletedAt: String?, version: Int?, deletedByDeviceId: String? = nil) {
-        self.id = id; self.userId = userId; self.name = name; self.normalizedName = normalizedName; self.description = description; self.imageStorageKey = imageStorageKey; self.imageUrl = imageUrl; self.metricType = metricType; self.equipment = equipment; self.primaryMuscleGroup = primaryMuscleGroup; self.secondaryMuscleGroups = secondaryMuscleGroups; self.defaultWeightUnit = defaultWeightUnit; self.defaultRestSeconds = defaultRestSeconds; self.archivedAt = archivedAt; self.deletedAt = deletedAt; self.version = version; self.deletedByDeviceId = deletedByDeviceId
+    init(id: String, userId: String, name: String, normalizedName: String, description: String?, imageStorageKey: String?, imageUrl: String?, metricType: String, equipment: String?, primaryMuscleGroup: String?, secondaryMuscleGroups: [String]?, defaultWeightUnit: String, defaultRestSeconds: Int?, origin: String? = nil, catalogKey: String? = nil, catalogVersion: Int? = nil, userNotes: String? = nil, isFavorite: Bool? = nil, archivedAt: String?, deletedAt: String?, version: Int?, deletedByDeviceId: String? = nil) {
+        self.id = id; self.userId = userId; self.name = name; self.normalizedName = normalizedName; self.description = description; self.imageStorageKey = imageStorageKey; self.imageUrl = imageUrl; self.metricType = metricType; self.equipment = equipment; self.primaryMuscleGroup = primaryMuscleGroup; self.secondaryMuscleGroups = secondaryMuscleGroups; self.defaultWeightUnit = defaultWeightUnit; self.defaultRestSeconds = defaultRestSeconds; self.origin = origin; self.catalogKey = catalogKey; self.catalogVersion = catalogVersion; self.userNotes = userNotes; self.isFavorite = isFavorite; self.archivedAt = archivedAt; self.deletedAt = deletedAt; self.version = version; self.deletedByDeviceId = deletedByDeviceId
     }
 }
 
@@ -299,6 +461,7 @@ struct ExerciseStatsModel: Codable, Equatable, Sendable {
 struct WorkoutModel: Codable, Equatable, Sendable, Identifiable {
     let id: String
     let userId: String
+    let routineId: String?
     let title: String
     let status: String
     let startedAt: String?
@@ -309,8 +472,8 @@ struct WorkoutModel: Codable, Equatable, Sendable, Identifiable {
     let deletedAt: String?
     let deletedByDeviceId: String?
 
-    init(id: String, userId: String, title: String, status: String, startedAt: String?, endedAt: String?, durationMinutes: Int?, exercises: [WorkoutExerciseModel]?, version: Int?, deletedAt: String?, deletedByDeviceId: String? = nil) {
-        self.id = id; self.userId = userId; self.title = title; self.status = status; self.startedAt = startedAt; self.endedAt = endedAt; self.durationMinutes = durationMinutes; self.exercises = exercises; self.version = version; self.deletedAt = deletedAt; self.deletedByDeviceId = deletedByDeviceId
+    init(id: String, userId: String, routineId: String? = nil, title: String, status: String, startedAt: String?, endedAt: String?, durationMinutes: Int?, exercises: [WorkoutExerciseModel]?, version: Int?, deletedAt: String?, deletedByDeviceId: String? = nil) {
+        self.id = id; self.userId = userId; self.routineId = routineId; self.title = title; self.status = status; self.startedAt = startedAt; self.endedAt = endedAt; self.durationMinutes = durationMinutes; self.exercises = exercises; self.version = version; self.deletedAt = deletedAt; self.deletedByDeviceId = deletedByDeviceId
     }
 }
 

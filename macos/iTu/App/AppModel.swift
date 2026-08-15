@@ -184,6 +184,7 @@ enum RefreshDomain: Hashable {
     case focus
     case calendar(String)
     case statistics
+    case statisticsOverview
     case usage
     case budget
     case gym
@@ -197,6 +198,7 @@ enum RefreshDomain: Hashable {
         case .focus: "focus"
         case .calendar(let range): "calendar:\(range)"
         case .statistics: "statistics"
+        case .statisticsOverview: "statistics-overview"
         case .usage: "usage"
         case .budget: "budget"
         case .gym: "gym"
@@ -272,13 +274,17 @@ final class AppModel {
     let focusPolicyEnforcer = FocusPolicyEnforcer()
 
     var habits: [HabitModel] = []
+    var habitPreferences = HabitPreferencesModel()
     var habitTimeBlocks: [HabitTimeBlockModel] = []
     var habitStatsByID: [String: HabitStatsModel] = [:]
     var habitOccurrences: [HabitOccurrenceModel] = []
     /// O(1) lookup for the visible habit grid. Rebuilt with each offline snapshot.
     var habitOccurrencesByHabitAndDay: [String: HabitOccurrenceModel] = [:]
+    /// Server-projected calendar states include unsaved pending/missed days.
+    var habitCalendarByHabitAndDay: [String: HabitDayStateModel] = [:]
     var habitOccurrencesLoading = false
     var habitOccurrencesErrorMessage: String?
+    var pendingHabitQuickLog: HabitQuickLogRequest?
     var userCoins: Int = 0
     var growthLevel: Int?
     var growthCurrentXp: Int?
@@ -307,7 +313,10 @@ final class AppModel {
     var growthResetLoading = false
     var growthResetError: String?
     var statisticsCalendar: [StudyCalendarDayDTO] = []
+    var statisticsComparisonCalendar: [StudyCalendarDayDTO] = []
     var growthStatistics: GrowthStatisticsDTO?
+    var growthStatisticsComparison: GrowthStatisticsDTO?
+    var statisticsComparisonAvailable = false
     var statisticsLoading = false
     var statisticsError = false
     var statisticsCalendarError = false
@@ -315,13 +324,16 @@ final class AppModel {
     var statisticsErrorMessage: String?
     var growthReceiptQueue: [PresentedGrowthReceipt] = []
     var noticeQueue: [AppNotice] = []
-    var budgetOverview: BudgetOverviewModel?
-    var budgetCategories: [BudgetCategoryModel] = []
-    var budgetTransactions: [BudgetTransactionModel] = []
+    var budgetSummary: BudgetSummaryModel?
+    var expenseCategories: [ExpenseCategoryModel] = []
+    var expenses: [ExpenseModel] = []
+    var recurringExpenses: [RecurringExpenseModel] = []
     var gymOverview: GymOverviewModel?
+    var gymRoutines: [RoutineModel] = []
     var gymExercises: [ExerciseModel] = []
     var gymWorkouts: [WorkoutModel] = []
-    var budgetPeriods: [BudgetPeriodModel] = []
+    var monthlyBudgets: [MonthlyBudgetModel] = []
+    var budgetReport: BudgetReportModel?
     var gymExerciseStats: [String: ExerciseStatsModel] = [:]
     var budgetPreferences = BudgetPreferencesModel()
     var gymPreferences = GymPreferencesModel()
@@ -539,6 +551,7 @@ final class AppModel {
 
     private func applyHabitProjection(_ snapshot: OfflineSnapshot) {
         if habits != snapshot.habits { habits = snapshot.habits }
+        if habitPreferences != snapshot.habitPreferences { habitPreferences = snapshot.habitPreferences }
         if habitOccurrences != snapshot.habitOccurrences {
             habitOccurrences = snapshot.habitOccurrences
             habitOccurrencesByHabitAndDay = snapshot.habitOccurrences.reduce(into: [:]) { index, occurrence in
@@ -581,18 +594,21 @@ final class AppModel {
     }
 
     private func applyBudgetGymProjection(_ snapshot: OfflineSnapshot) {
-        let budgetCategories = snapshot.budgetCategories.filter { $0.archivedAt == nil }
-        let budgetTransactions = snapshot.budgetTransactions.filter { $0.deletedAt == nil }
+        let expenseCategories = snapshot.expenseCategories.filter { $0.archivedAt == nil }
+        let expenses = snapshot.expenses.filter { $0.deletedAt == nil }
         let gymExercises = snapshot.gymExercises.filter { $0.deletedAt == nil }
+        let gymRoutines = snapshot.gymRoutines.filter { $0.deletedAt == nil && $0.archivedAt == nil }
         let gymWorkouts = snapshot.gymWorkouts.filter { $0.deletedAt == nil }
-        if self.budgetCategories != budgetCategories { self.budgetCategories = budgetCategories }
-        if budgetPeriods != snapshot.budgetPeriods { budgetPeriods = snapshot.budgetPeriods }
-        if self.budgetTransactions != budgetTransactions { self.budgetTransactions = budgetTransactions }
+        if self.expenseCategories != expenseCategories { self.expenseCategories = expenseCategories }
+        if monthlyBudgets != snapshot.monthlyBudgets { monthlyBudgets = snapshot.monthlyBudgets }
+        if self.expenses != expenses { self.expenses = expenses }
+        if recurringExpenses != snapshot.recurringExpenses { recurringExpenses = snapshot.recurringExpenses }
         if self.gymExercises != gymExercises { self.gymExercises = gymExercises }
+        if self.gymRoutines != gymRoutines { self.gymRoutines = gymRoutines }
         if self.gymWorkouts != gymWorkouts { self.gymWorkouts = gymWorkouts }
         if budgetPreferences != snapshot.budgetPreferences { budgetPreferences = snapshot.budgetPreferences }
         if gymPreferences != snapshot.gymPreferences { gymPreferences = snapshot.gymPreferences }
-        rebuildBudgetOverview(period: budgetOverview?.period ?? iTuCalendarSupport.monthString())
+        rebuildBudgetSummary(period: budgetSummary?.period ?? iTuCalendarSupport.monthString())
     }
 
     private func applyJournalProjection(_ snapshot: OfflineSnapshot) {

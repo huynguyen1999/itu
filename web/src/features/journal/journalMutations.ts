@@ -11,6 +11,9 @@ export interface CreateJournalEntryParams {
   entryDate: string;
   timezone?: string;
   templateId?: string | null;
+  contextType?: string | null;
+  contextId?: string | null;
+  contextData?: Record<string, unknown> | null;
   tagIds?: string[];
   weeklyReview?: Partial<JournalWeeklyReview> | null;
   dailyReview?: Partial<JournalDailyReview> | null;
@@ -30,6 +33,9 @@ export function useCreateJournalEntryMutation() {
         entryDate: params.entryDate,
         timezone: params.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
         templateId: params.templateId || null,
+        contextType: params.contextType || null,
+        contextId: params.contextId || null,
+        contextData: params.contextData || null,
         tagIds: params.tagIds || [],
         weeklyReview: params.weeklyReview,
         dailyReview: params.dailyReview,
@@ -48,6 +54,9 @@ export function useCreateJournalEntryMutation() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         deletedAt: null,
+        contextType: params.contextType || null,
+        contextId: params.contextId || null,
+        contextData: params.contextData || null,
         weeklyReview: params.weeklyReview || null,
         dailyReview: params.dailyReview || null,
         tags: [],
@@ -91,6 +100,9 @@ export function useUpdateJournalEntryMutation() {
       entryDate?: string;
       timezone?: string;
       templateId?: string | null;
+      contextType?: string | null;
+      contextId?: string | null;
+      contextData?: Record<string, unknown> | null;
       tagIds?: string[];
       weeklyReview?: Partial<JournalWeeklyReview> | null;
       dailyReview?: Partial<JournalDailyReview> | null;

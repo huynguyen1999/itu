@@ -249,11 +249,156 @@ extension AppModel {
     func deleteGymExercise(id: String) async -> Bool {
         guard let old = currentSnapshot.gymExercises.first(where: { $0.id == id }), old.deletedAt == nil else { return false }
         let now = ISO8601DateFormatter().string(from: Date())
-        let value = ExerciseModel(id: old.id, userId: old.userId, name: old.name, normalizedName: old.normalizedName, description: old.description, imageStorageKey: old.imageStorageKey, imageUrl: old.imageUrl, metricType: old.metricType, equipment: old.equipment, primaryMuscleGroup: old.primaryMuscleGroup, secondaryMuscleGroups: old.secondaryMuscleGroups, defaultWeightUnit: old.defaultWeightUnit, defaultRestSeconds: old.defaultRestSeconds, archivedAt: old.archivedAt, deletedAt: now, version: (old.version ?? 1) + 1, deletedByDeviceId: old.deletedByDeviceId)
+        let value = ExerciseModel(id: old.id, userId: old.userId, name: old.name, normalizedName: old.normalizedName, description: old.description, imageStorageKey: old.imageStorageKey, imageUrl: old.imageUrl, metricType: old.metricType, equipment: old.equipment, primaryMuscleGroup: old.primaryMuscleGroup, secondaryMuscleGroups: old.secondaryMuscleGroups, defaultWeightUnit: old.defaultWeightUnit, defaultRestSeconds: old.defaultRestSeconds, origin: old.origin, catalogKey: old.catalogKey, catalogVersion: old.catalogVersion, userNotes: old.userNotes, isFavorite: old.isFavorite, archivedAt: old.archivedAt, deletedAt: now, version: (old.version ?? 1) + 1, deletedByDeviceId: old.deletedByDeviceId)
         let mutation = SyncMutation(id: ULID.generate(), kind: "exercisedefinition.delete", entityId: id, baseVersion: old.version, payload: ["deletedAt": .string(now)], occurredAt: now)
         do { apply(try await offlineStore.saveExercise(value, mutation: mutation)); syncPhase = .pending; return true } catch { return false }
     }
 
+    @MainActor
+    func loadGymRoutines() async {
+        do { apply(try await offlineStore.replaceGymRoutines(try await apiClient.getGymRoutines())) } catch {}
+    }
+
+    @MainActor
+    func startGymWorkoutFromRoutine(routineId: String) async -> WorkoutModel? {
+        do {
+            let workout = try await apiClient.startWorkoutFromRoutine(routineId: routineId)
+            apply(try await offlineStore.saveWorkout(workout, mutation: nil))
+            return workout
+        } catch {
+            guard !gymWorkouts.contains(where: { ["IN_PROGRESS", "ACTIVE"].contains($0.status) }),
+                  let routine = gymRoutines.first(where: { $0.id == routineId }) else { return nil }
+            let now = ISO8601DateFormatter().string(from: Date())
+            let workoutID = ULID.generate()
+            let workoutExercises = (routine.exercises ?? []).map { routineExercise in
+                let workoutExerciseID = ULID.generate()
+                let sets = (0..<max(1, routineExercise.setCount)).map { index in
+                    WorkoutSetModel(id: ULID.generate(), workoutExerciseId: workoutExerciseID, sortOrder: index, type: "NORMAL", reps: routineExercise.targetRepsMin, weight: nil, durationSeconds: routineExercise.targetDurationSeconds, distanceMeters: routineExercise.targetDistanceMeters, rpe: nil, completedAt: nil)
+                }
+                return WorkoutExerciseModel(id: workoutExerciseID, workoutEntryId: workoutID, exerciseId: routineExercise.exerciseId, sortOrder: routineExercise.sortOrder, note: routineExercise.note, restSeconds: routineExercise.restSeconds, exercise: routineExercise.exercise ?? gymExercises.first(where: { $0.id == routineExercise.exerciseId }), sets: sets)
+            }
+            let workout = WorkoutModel(id: workoutID, userId: user?.id ?? routine.userId, routineId: routine.id, title: routine.name, status: "IN_PROGRESS", startedAt: now, endedAt: nil, durationMinutes: nil, exercises: workoutExercises, version: 1, deletedAt: nil)
+            do {
+                apply(try await offlineStore.saveWorkout(workout, mutation: SyncMutation(id: ULID.generate(), kind: "workout.create", entityId: workoutID, baseVersion: nil, payload: ["title": .string(workout.title), "routineId": .string(routine.id), "startedAt": .string(now)], occurredAt: now)))
+                for exercise in workoutExercises {
+                    let exercisePayload: [String: JSONValue] = ["workoutId": .string(workoutID), "exerciseId": .string(exercise.exerciseId), "sortOrder": .number(Double(exercise.sortOrder)), "note": exercise.note.map(JSONValue.string) ?? .null, "restSeconds": exercise.restSeconds.map { .number(Double($0)) } ?? .null]
+                    apply(try await offlineStore.saveWorkoutExercise(exercise, workoutID: workoutID, mutation: SyncMutation(id: ULID.generate(), kind: "workout-exercise.create", entityId: exercise.id, baseVersion: nil, payload: exercisePayload, occurredAt: now)))
+                    for set in exercise.sets ?? [] {
+                        let setPayload: [String: JSONValue] = ["workoutExerciseId": .string(exercise.id), "sortOrder": .number(Double(set.sortOrder)), "type": .string(set.type), "reps": set.reps.map { .number(Double($0)) } ?? .null, "durationSeconds": set.durationSeconds.map { .number(Double($0)) } ?? .null, "distanceMeters": set.distanceMeters.map(JSONValue.number) ?? .null]
+                        apply(try await offlineStore.saveWorkoutSet(set, workoutID: workoutID, mutation: SyncMutation(id: ULID.generate(), kind: "workout-set.create", entityId: set.id, baseVersion: nil, payload: setPayload, occurredAt: now)))
+                    }
+                }
+                syncPhase = .pending
+                return workout
+            } catch { return nil }
+        }
+    }
+
+    @MainActor
+    func repeatGymWorkout(workoutId: String) async -> WorkoutModel? {
+        do {
+            let workout = try await apiClient.repeatGymWorkout(workoutId: workoutId)
+            apply(try await offlineStore.saveWorkout(workout, mutation: nil))
+            return workout
+        } catch {
+            return nil
+        }
+    }
+
+    @MainActor
+    func createGymRoutine(name: String, description: String? = nil, exercises: [[String: JSONValue]] = []) async -> Bool {
+        let routineID = ULID.generate()
+        let now = ISO8601DateFormatter().string(from: Date())
+        let routineExercises = exercises.enumerated().compactMap { index, payload -> RoutineExerciseModel? in
+            guard let exerciseID = payload["exerciseId"]?.stringValue else { return nil }
+            return RoutineExerciseModel(id: payload["id"]?.stringValue ?? ULID.generate(), routineId: routineID, exerciseId: exerciseID, sortOrder: payload["sortOrder"]?.numberValue.map(Int.init) ?? index, setCount: payload["setCount"]?.numberValue.map(Int.init) ?? 3, targetRepsMin: payload["targetRepsMin"]?.numberValue.map(Int.init), targetRepsMax: payload["targetRepsMax"]?.numberValue.map(Int.init), targetDurationSeconds: payload["targetDurationSeconds"]?.numberValue.map(Int.init), targetDistanceMeters: payload["targetDistanceMeters"]?.numberValue, restSeconds: payload["restSeconds"]?.numberValue.map(Int.init), note: payload["note"]?.stringValue, exercise: gymExercises.first(where: { $0.id == exerciseID }))
+        }
+        let routine = RoutineModel(id: routineID, userId: user?.id ?? "", name: name.trimmingCharacters(in: .whitespacesAndNewlines), description: description, sortOrder: gymRoutines.count, exercises: routineExercises)
+        var mutations = [SyncMutation(id: ULID.generate(), kind: "gymroutine.create", entityId: routineID, baseVersion: nil, payload: ["name": .string(routine.name), "description": description.map(JSONValue.string) ?? .null, "sortOrder": .number(Double(routine.sortOrder))], occurredAt: now)]
+        mutations += routineExercises.map { exercise in
+            SyncMutation(id: ULID.generate(), kind: "gymroutineexercise.create", entityId: exercise.id, baseVersion: nil, payload: routineExercisePayload(exercise), occurredAt: now)
+        }
+        do { apply(try await offlineStore.saveGymRoutine(routine, mutations: mutations)); syncPhase = .pending; return true } catch { return false }
+    }
+
+    @MainActor
+    func updateGymRoutine(id: String, patch: [String: JSONValue], exercises: [[String: JSONValue]]) async -> Bool {
+        guard let old = gymRoutines.first(where: { $0.id == id }) else { return false }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let existing = Dictionary(uniqueKeysWithValues: (old.exercises ?? []).map { ($0.id, $0) })
+        let updatedExercises = exercises.enumerated().compactMap { index, payload -> RoutineExerciseModel? in
+            guard let exerciseID = payload["exerciseId"]?.stringValue else { return nil }
+            let childID = payload["id"]?.stringValue ?? ULID.generate()
+            let prior = existing[childID]
+            return RoutineExerciseModel(id: childID, routineId: id, exerciseId: exerciseID, sortOrder: payload["sortOrder"]?.numberValue.map(Int.init) ?? index, setCount: payload["setCount"]?.numberValue.map(Int.init) ?? prior?.setCount ?? 3, targetRepsMin: payload["targetRepsMin"]?.numberValue.map(Int.init) ?? prior?.targetRepsMin, targetRepsMax: payload["targetRepsMax"]?.numberValue.map(Int.init) ?? prior?.targetRepsMax, targetDurationSeconds: payload["targetDurationSeconds"]?.numberValue.map(Int.init) ?? prior?.targetDurationSeconds, targetDistanceMeters: payload["targetDistanceMeters"]?.numberValue ?? prior?.targetDistanceMeters, restSeconds: payload["restSeconds"]?.numberValue.map(Int.init) ?? prior?.restSeconds, note: payload["note"]?.stringValue ?? prior?.note, exercise: prior?.exercise ?? gymExercises.first(where: { $0.id == exerciseID }), version: prior?.version ?? 1)
+        }
+        let name = patch["name"]?.stringValue ?? old.name
+        let description = patch.keys.contains("description") ? patch["description"]?.stringValue : old.description
+        let updatedRoutine = RoutineModel(id: old.id, userId: old.userId, name: name, description: description, sortOrder: patch["sortOrder"]?.numberValue.map(Int.init) ?? old.sortOrder, exercises: updatedExercises, archivedAt: old.archivedAt, deletedAt: old.deletedAt, version: (old.version ?? 1) + 1)
+        var mutations = [SyncMutation(id: ULID.generate(), kind: "gymroutine.update", entityId: id, baseVersion: old.version, payload: patch, fieldEditedAt: gymFieldEditedAt(patch, at: now), occurredAt: now)]
+        let updatedIDs = Set(updatedExercises.map(\.id))
+        mutations += (old.exercises ?? []).filter { !updatedIDs.contains($0.id) }.map { exercise in
+            SyncMutation(id: ULID.generate(), kind: "gymroutineexercise.delete", entityId: exercise.id, baseVersion: exercise.version, payload: ["routineId": .string(id)], occurredAt: now)
+        }
+        mutations += updatedExercises.map { exercise in
+            let kind = existing[exercise.id] == nil ? "gymroutineexercise.create" : "gymroutineexercise.update"
+            return SyncMutation(id: ULID.generate(), kind: kind, entityId: exercise.id, baseVersion: existing[exercise.id]?.version, payload: routineExercisePayload(exercise), occurredAt: now)
+        }
+        do { apply(try await offlineStore.saveGymRoutine(updatedRoutine, mutations: mutations)); syncPhase = .pending; return true } catch { return false }
+    }
+
+    @MainActor
+    func createGymRoutineFromWorkout(workoutId: String, name: String? = nil) async -> Bool {
+        guard let workout = gymWorkouts.first(where: { $0.id == workoutId }) else { return false }
+        let routineExercises = (workout.exercises ?? []).map { exercise -> [String: JSONValue] in
+            ["exerciseId": .string(exercise.exerciseId), "sortOrder": .number(Double(exercise.sortOrder)), "setCount": .number(Double(exercise.sets?.count ?? 3)), "restSeconds": exercise.restSeconds.map { .number(Double($0)) } ?? .null, "note": exercise.note.map(JSONValue.string) ?? .null]
+        }
+        return await createGymRoutine(name: name ?? workout.title, description: nil, exercises: routineExercises)
+    }
+
+    @MainActor
+    func updateGymRoutineFromWorkout(routineId: String, workoutId: String) async -> Bool {
+        guard let workout = gymWorkouts.first(where: { $0.id == workoutId }), let routine = gymRoutines.first(where: { $0.id == routineId }) else { return false }
+        let payloads = (workout.exercises ?? []).enumerated().map { index, exercise -> [String: JSONValue] in
+            var payload: [String: JSONValue] = ["exerciseId": .string(exercise.exerciseId), "sortOrder": .number(Double(index)), "setCount": .number(Double(exercise.sets?.count ?? 3)), "restSeconds": exercise.restSeconds.map { .number(Double($0)) } ?? .null, "note": exercise.note.map(JSONValue.string) ?? .null]
+            if index < (routine.exercises ?? []).count { payload["id"] = .string((routine.exercises ?? [])[index].id) }
+            return payload
+        }
+        return await updateGymRoutine(id: routineId, patch: [:], exercises: payloads)
+    }
+
+    @MainActor
+    func deleteGymRoutine(id: String) async -> Bool {
+        guard let old = gymRoutines.first(where: { $0.id == id }) else { return false }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let value = RoutineModel(id: old.id, userId: old.userId, name: old.name, description: old.description, sortOrder: old.sortOrder, exercises: old.exercises, archivedAt: old.archivedAt, deletedAt: now, version: (old.version ?? 1) + 1)
+        let mutation = SyncMutation(id: ULID.generate(), kind: "gymroutine.delete", entityId: id, baseVersion: old.version, payload: ["deletedAt": .string(now)], occurredAt: now)
+        do { apply(try await offlineStore.saveGymRoutine(value, mutations: [mutation])); syncPhase = .pending; return true } catch { return false }
+    }
+
+    @MainActor
+    func archiveGymRoutine(id: String) async -> Bool {
+        guard let old = gymRoutines.first(where: { $0.id == id }) else { return false }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let value = RoutineModel(id: old.id, userId: old.userId, name: old.name, description: old.description, sortOrder: old.sortOrder, exercises: old.exercises, archivedAt: now, deletedAt: old.deletedAt, version: (old.version ?? 1) + 1)
+        let mutation = SyncMutation(id: ULID.generate(), kind: "gymroutine.archive", entityId: id, baseVersion: old.version, payload: ["archivedAt": .string(now)], occurredAt: now)
+        do { apply(try await offlineStore.saveGymRoutine(value, mutations: [mutation])); syncPhase = .pending; return true } catch { return false }
+    }
+}
+
+private func routineExercisePayload(_ exercise: RoutineExerciseModel) -> [String: JSONValue] {
+    [
+        "routineId": .string(exercise.routineId),
+        "exerciseId": .string(exercise.exerciseId),
+        "sortOrder": .number(Double(exercise.sortOrder)),
+        "setCount": .number(Double(exercise.setCount)),
+        "targetRepsMin": exercise.targetRepsMin.map { .number(Double($0)) } ?? .null,
+        "targetRepsMax": exercise.targetRepsMax.map { .number(Double($0)) } ?? .null,
+        "targetDurationSeconds": exercise.targetDurationSeconds.map { .number(Double($0)) } ?? .null,
+        "targetDistanceMeters": exercise.targetDistanceMeters.map(JSONValue.number) ?? .null,
+        "restSeconds": exercise.restSeconds.map { .number(Double($0)) } ?? .null,
+        "note": exercise.note.map(JSONValue.string) ?? .null,
+    ]
 }
 
 private func gymFieldEditedAt(_ patch: [String: JSONValue], at timestamp: String) -> [String: String]? {

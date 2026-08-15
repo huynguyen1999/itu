@@ -78,6 +78,7 @@ export enum ScheduledJobType {
   ACCOUNT_DELETE = 'ACCOUNT_DELETE',
   TRASH_PURGE = 'TRASH_PURGE',
   TASK_REMINDER = 'TASK_REMINDER',
+  HABIT_REMINDER = 'HABIT_REMINDER',
 }
 
 export enum ScheduledJobStatus {

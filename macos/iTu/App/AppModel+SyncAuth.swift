@@ -179,6 +179,7 @@ extension AppModel {
             habits = []
             habitOccurrences = []
             habitOccurrencesByHabitAndDay.removeAll()
+            habitCalendarByHabitAndDay.removeAll()
             decks = []
             conflicts = []
             syncPhase = .offline

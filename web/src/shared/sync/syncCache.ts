@@ -18,8 +18,8 @@ const QUERY_PREFIXES: Record<string, string[]> = {
   focussession: ['focus', 'dashboard', 'study-calendar', 'calendar'],
   focussound: ['focus', 'sounds'],
   focussoundpreference: ['focus', 'sounds'],
-  habit: ['habits', 'habit-occurrences', 'habit-stats', 'study-calendar'],
-  habitoccurrence: ['habits', 'habit-occurrences', 'habit-stats', 'study-calendar'],
+  habit: ['habits', 'habit-calendar', 'habit-occurrences', 'habit-stats', 'study-calendar'],
+  habitoccurrence: ['habits', 'habit-calendar', 'habit-occurrences', 'habit-stats', 'study-calendar'],
   growthskill: ['growth'],
   growthearningrule: ['growth'],
   growthledgerentry: ['growth'],
@@ -46,10 +46,11 @@ const QUERY_PREFIXES: Record<string, string[]> = {
   workout: ['gym', 'workouts', 'gym-workouts'],
   'workout-exercise': ['gym', 'workouts', 'gym-workouts'],
   'workout-set': ['gym', 'workouts', 'gym-workouts'],
-  moneycategory: ['budget'],
-  moneybudgetperiod: ['budget'],
-  moneycategorybudget: ['budget'],
-  budgettransaction: ['budget'],
+  expensecategory: ['budget'],
+  monthlybudget: ['budget'],
+  categorybudget: ['budget'],
+  expense: ['budget'],
+  recurringexpense: ['budget'],
   budgetpreferences: ['user-preferences'],
   calendarpreferences: ['user-preferences'],
   externalcalendar: ['calendar'],
@@ -71,8 +72,9 @@ const OPTIMISTIC_INSERT_PREFIXES: Record<string, string[]> = {
   exercisedefinition: ['exercise-definitions', 'gym'],
   gymworkout: ['gym'],
   workout: ['gym'],
-  moneycategory: ['budget'],
-  budgettransaction: ['budget'],
+  expensecategory: ['budget'],
+  expense: ['budget'],
+  recurringexpense: ['budget'],
 };
 
 export function applySyncChanges(queryClient: QueryClient, response: SyncResponse): void {
@@ -95,9 +97,9 @@ function applyOptimisticChange(queryClient: QueryClient, change: SyncResponse['c
     });
     return;
   }
-  if (change.entityType === 'budgettransaction') {
-    updateTrashCache(queryClient, 'budgetTransactions', change);
-    queryClient.setQueriesData({ queryKey: ['budget', 'transactions'] }, (current) =>
+  if (change.entityType === 'expense') {
+    updateTrashCache(queryClient, 'expenses', change);
+    queryClient.setQueriesData({ queryKey: ['budget', 'expenses'] }, (current) =>
       updateCollection(current, change.entityId, change.data, change.deleted),
     );
     return;
@@ -222,7 +224,7 @@ function updateWorkoutTree(
 
 function updateTrashCache(
   queryClient: QueryClient,
-  key: 'journalEntries' | 'budgetTransactions' | 'gymWorkouts' | 'gymExercises',
+  key: 'journalEntries' | 'expenses' | 'gymWorkouts' | 'gymExercises',
   change: SyncResponse['changes'][number],
 ): void {
   const snapshot = queryClient.getQueryData<Record<string, unknown>>(['trash']);
@@ -310,7 +312,7 @@ function applyCompleteChange(
   }
   if (change.entityType === 'habit') {
     updateFlatQueries(queryClient, 'habits', change);
-    ['habit-occurrences', 'habit-stats', 'study-calendar'].forEach((prefix) => fallbackPrefixes.add(prefix));
+    ['habit-calendar', 'habit-occurrences', 'habit-stats', 'study-calendar'].forEach((prefix) => fallbackPrefixes.add(prefix));
     return;
   }
   if (change.entityType === 'deck') {

@@ -1,6 +1,87 @@
 import Foundation
 
 extension OfflineStore {
+    private var routineMutationKinds: Set<String> {
+        ["gymroutine.create", "gymroutine.update", "gymroutine.delete", "gymroutine.archive", "gymroutine.restore"]
+    }
+
+    @discardableResult
+    func saveGymRoutine(_ value: RoutineModel, mutations: [SyncMutation] = []) throws -> OfflineSnapshot {
+        upsertGymValue(&state.gymRoutines, value)
+        mutations.forEach(appendMutation)
+        try persist()
+        return state
+    }
+
+    @discardableResult
+    func replaceGymRoutines(_ values: [RoutineModel]) throws -> OfflineSnapshot {
+        let optimistic = Dictionary(uniqueKeysWithValues: state.gymRoutines.map { ($0.id, $0) })
+        let pendingParentIDs = Set(state.mutations.filter { routineMutationKinds.contains($0.kind) }.map(\.entityId))
+        let pendingChildParentIDs = Set(state.mutations.filter { $0.kind.hasPrefix("gymroutineexercise.") }.compactMap { $0.payload["routineId"]?.stringValue })
+        let pendingIDs = pendingParentIDs.union(pendingChildParentIDs)
+        let fetchedIDs = Set(values.map(\.id))
+        state.gymRoutines = values + state.gymRoutines.filter { pendingIDs.contains($0.id) && !fetchedIDs.contains($0.id) }
+        reapplyPendingGymRoutineMutations(optimisticByID: optimistic)
+        try persist()
+        return state
+    }
+
+    internal func reapplyPendingGymRoutineMutations(optimisticByID: [String: RoutineModel] = [:]) {
+        for mutation in state.mutations where routineMutationKinds.contains(mutation.kind) {
+            guard var base = (mutation.kind == "gymroutine.create" ? optimisticByID[mutation.entityId] : nil)
+                ?? state.gymRoutines.first(where: { $0.id == mutation.entityId })
+                ?? optimisticByID[mutation.entityId] else { continue }
+            let payload = mutation.payload
+            let archivedAt = mutation.kind == "gymroutine.archive" ? (payload["archivedAt"]?.stringValue ?? mutation.occurredAt) : mutation.kind == "gymroutine.restore" ? nil : base.archivedAt
+            let deletedAt = mutation.kind == "gymroutine.delete" ? (payload["deletedAt"]?.stringValue ?? mutation.occurredAt) : mutation.kind == "gymroutine.restore" ? nil : base.deletedAt
+            base = RoutineModel(
+                id: base.id,
+                userId: base.userId,
+                name: payload["name"]?.stringValue ?? base.name,
+                description: payload.keys.contains("description") ? payload["description"]?.stringValue : base.description,
+                sortOrder: payload["sortOrder"]?.numberValue.map(Int.init) ?? base.sortOrder,
+                exercises: base.exercises,
+                archivedAt: archivedAt,
+                deletedAt: deletedAt,
+                version: max(base.version ?? 1, (mutation.baseVersion ?? base.version ?? 1) + 1)
+            )
+            upsertGymValue(&state.gymRoutines, base)
+        }
+
+        for mutation in state.mutations where mutation.kind.hasPrefix("gymroutineexercise.") {
+            guard let routineID = mutation.payload["routineId"]?.stringValue
+                    ?? state.gymRoutines.first(where: { $0.exercises?.contains(where: { $0.id == mutation.entityId }) == true })?.id,
+                  let routineIndex = state.gymRoutines.firstIndex(where: { $0.id == routineID }) else { continue }
+            let routine = state.gymRoutines[routineIndex]
+            var exercises = routine.exercises ?? []
+            if mutation.kind.hasSuffix(".delete") {
+                exercises.removeAll { $0.id == mutation.entityId }
+            } else {
+                let existing = exercises.first(where: { $0.id == mutation.entityId })
+                let payload = mutation.payload
+                guard let exerciseID = payload["exerciseId"]?.stringValue ?? existing?.exerciseId else { continue }
+                let value = RoutineExerciseModel(
+                    id: mutation.entityId,
+                    routineId: routineID,
+                    exerciseId: exerciseID,
+                    sortOrder: payload["sortOrder"]?.numberValue.map(Int.init) ?? existing?.sortOrder ?? exercises.count,
+                    setCount: payload["setCount"]?.numberValue.map(Int.init) ?? existing?.setCount ?? 3,
+                    targetRepsMin: payload["targetRepsMin"]?.numberValue.map(Int.init) ?? existing?.targetRepsMin,
+                    targetRepsMax: payload["targetRepsMax"]?.numberValue.map(Int.init) ?? existing?.targetRepsMax,
+                    targetDurationSeconds: payload["targetDurationSeconds"]?.numberValue.map(Int.init) ?? existing?.targetDurationSeconds,
+                    targetDistanceMeters: payload["targetDistanceMeters"]?.numberValue ?? existing?.targetDistanceMeters,
+                    restSeconds: payload["restSeconds"]?.numberValue.map(Int.init) ?? existing?.restSeconds,
+                    note: payload["note"]?.stringValue ?? existing?.note,
+                    exercise: existing?.exercise ?? state.gymExercises.first(where: { $0.id == exerciseID }),
+                    version: max(existing?.version ?? 1, (mutation.baseVersion ?? existing?.version ?? 1) + 1)
+                )
+                upsertGymValue(&exercises, value)
+            }
+            let ordered = exercises.sorted { $0.sortOrder < $1.sortOrder }
+            state.gymRoutines[routineIndex] = RoutineModel(id: routine.id, userId: routine.userId, name: routine.name, description: routine.description, sortOrder: routine.sortOrder, exercises: ordered, archivedAt: routine.archivedAt, deletedAt: routine.deletedAt, version: routine.version)
+        }
+    }
+
     internal func reapplyPendingGymExerciseMutations(optimisticByID: [String: ExerciseModel] = [:]) {
         let kinds = ["exercisedefinition.create", "exercisedefinition.update", "exercisedefinition.delete", "exercisedefinition.restore"]
         for mutation in state.mutations where kinds.contains(mutation.kind) {
@@ -206,7 +287,24 @@ extension OfflineStore {
             let prefix = change.entityType.lowercased()
             let key = "\(prefix):\(change.entityId)"
             guard !pending.contains(key) else { continue }
-            if prefix == "exercisedefinition" {
+            if prefix == "gymroutine" {
+                if change.deleted { state.gymRoutines.removeAll { $0.id == change.entityId }; continue }
+                if let data = change.data, let value = try? decoder.decode(RoutineModel.self, from: encoder.encode(data)) { upsertGymValue(&state.gymRoutines, value) }
+            } else if prefix == "gymroutineexercise" {
+                if change.deleted {
+                    for index in state.gymRoutines.indices {
+                        let routine = state.gymRoutines[index]
+                        guard let exercises = routine.exercises, exercises.contains(where: { $0.id == change.entityId }) else { continue }
+                        state.gymRoutines[index] = RoutineModel(id: routine.id, userId: routine.userId, name: routine.name, description: routine.description, sortOrder: routine.sortOrder, exercises: exercises.filter { $0.id != change.entityId }, archivedAt: routine.archivedAt, deletedAt: routine.deletedAt, version: routine.version)
+                    }
+                    continue
+                }
+                guard let data = change.data, let value = try? decoder.decode(RoutineExerciseModel.self, from: encoder.encode(data)), let index = state.gymRoutines.firstIndex(where: { $0.id == value.routineId }) else { continue }
+                let routine = state.gymRoutines[index]
+                var exercises = routine.exercises ?? []
+                upsertGymValue(&exercises, value)
+                state.gymRoutines[index] = RoutineModel(id: routine.id, userId: routine.userId, name: routine.name, description: routine.description, sortOrder: routine.sortOrder, exercises: exercises.sorted { $0.sortOrder < $1.sortOrder }, archivedAt: routine.archivedAt, deletedAt: routine.deletedAt, version: routine.version)
+            } else if prefix == "exercisedefinition" {
                 if change.deleted {
                     if state.gymExercises.first(where: { $0.id == change.entityId })?.deletedAt == nil {
                         state.gymExercises.removeAll { $0.id == change.entityId }

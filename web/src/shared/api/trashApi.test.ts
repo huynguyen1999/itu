@@ -15,13 +15,13 @@ describe('trash API', () => {
     });
 
     await api.restoreTrashJournalEntry('entry-1');
-    await api.restoreTrashBudgetTransaction('transaction-1');
+    await api.restoreTrashExpense('expense-1');
     await api.restoreTrashGymWorkout('workout-1');
     await api.restoreTrashGymExercise('exercise-1');
 
     expect(mutations.map((mutation) => mutation.kind)).toEqual([
       'journal.restore',
-      'budgettransaction.restore',
+      'expense.restore',
       'gymworkout.restore',
       'exercisedefinition.restore',
     ]);
@@ -32,8 +32,8 @@ describe('trash API', () => {
     const request = vi.fn().mockResolvedValue({ ok: true });
     const api = createTrashApi({ request, stream: async () => new ReadableStream(), offlineMutation: vi.fn() });
 
-    await api.deleteTrashBudgetTransaction('transaction-1');
+    await api.deleteTrashExpense('expense-1');
 
-    expect(request).toHaveBeenCalledWith('/trash/budget-transactions/transaction-1', { method: 'DELETE' });
+    expect(request).toHaveBeenCalledWith('/trash/expenses/expense-1', { method: 'DELETE' });
   });
 });

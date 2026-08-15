@@ -70,7 +70,7 @@ describe('applySyncChanges', () => {
       cards: [],
       cardImages: [],
       tasks: [],
-      budgetTransactions: [{ id: 'transaction-1', amount: '1.00' }],
+      expenses: [{ id: 'expense-1', amount: '1.00' }],
       gymWorkouts: [{ id: 'workout-1', title: 'Workout' }],
       journalEntries: [{ id: 'entry-1', title: 'Note' }],
       gymExercises: [{ id: 'exercise-1', name: 'Squat' }],
@@ -81,7 +81,7 @@ describe('applySyncChanges', () => {
       cursor: '',
       conflicts: [],
       changes: [
-        { entityType: 'budgettransaction', entityId: 'transaction-1', deleted: false, data: { id: 'transaction-1' } },
+        { entityType: 'expense', entityId: 'expense-1', deleted: false, data: { id: 'expense-1' } },
         { entityType: 'gymworkout', entityId: 'workout-1', deleted: false, data: { id: 'workout-1' } },
         { entityType: 'journal', entityId: 'entry-1', deleted: false, data: { id: 'entry-1' } },
         { entityType: 'exercisedefinition', entityId: 'exercise-1', deleted: false, data: { id: 'exercise-1' } },
@@ -89,7 +89,7 @@ describe('applySyncChanges', () => {
     });
 
     expect(queryClient.getQueryData(['trash'])).toMatchObject({
-      budgetTransactions: [],
+      expenses: [],
       gymWorkouts: [],
       journalEntries: [],
       gymExercises: [],

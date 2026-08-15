@@ -1,9 +1,40 @@
-import { FocusMode, FocusPhase, HabitDirection, HabitOccurrenceStatus, HabitProgressSource, HabitScheduleType } from '@prisma/client';
+import { FocusMode, FocusPhase, HabitDirection, HabitOccurrenceStatus, HabitProgressSource, HabitScheduleType, HabitTargetType } from '@prisma/client';
 import { PrismaProductivityHabits } from './prisma-productivity-habits';
 import * as growthAwards from '@core/application/use-cases/growth-awards';
 import * as ensureRuleModule from '@core/application/use-cases/ensure-habit-growth-rule';
 
 describe('PrismaProductivityHabits', () => {
+  it('replaces definition-level checklist items when a habit is edited', async () => {
+    const existing = { id: 'habit-1', userId: 'user-1', taskTemplateConfigId: null };
+    const tx = {
+      habitChecklistItem: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        createMany: jest.fn().mockResolvedValue({ count: 2 }),
+      },
+      habit: {
+        update: jest.fn().mockResolvedValue(existing),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ ...existing, checklistItems: [{ title: 'Stretch' }, { title: 'Walk' }] }),
+      },
+    };
+    const db = {
+      habit: { findFirst: jest.fn().mockResolvedValue(existing) },
+      $transaction: jest.fn(async (work: (value: typeof tx) => Promise<unknown>) => work(tx)),
+    };
+    const repository = new PrismaProductivityHabits(db as never);
+
+    await repository.updateHabit('user-1', 'habit-1', {
+      checklistItems: [{ title: 'Stretch', required: true }, { title: 'Walk', required: false }],
+    });
+
+    expect(tx.habitChecklistItem.deleteMany).toHaveBeenCalledWith({ where: { habitId: 'habit-1' } });
+    expect(tx.habitChecklistItem.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ habitId: 'habit-1', title: 'Stretch', required: true, sortOrder: 0 }),
+        expect.objectContaining({ habitId: 'habit-1', title: 'Walk', required: false, sortOrder: 1 }),
+      ],
+    });
+  });
+
   it('preserves an enabled commitment policy on partial REST updates', async () => {
     const previousFlag = process.env.COMMITMENT_FEATURE_ENABLED;
     process.env.COMMITMENT_FEATURE_ENABLED = 'true';
@@ -36,7 +67,7 @@ describe('PrismaProductivityHabits', () => {
     }
   });
 
-  it('materializes scheduled occurrences before returning a requested range', async () => {
+  it('does not materialize scheduled occurrences when reading a requested range', async () => {
     const habit = {
       id: 'habit-1',
       scheduleType: HabitScheduleType.WEEKDAYS,
@@ -54,17 +85,9 @@ describe('PrismaProductivityHabits', () => {
       occurrenceDate: new Date('2026-08-02T00:00:00.000Z'),
       habit,
     };
-    const upsert = jest.fn().mockResolvedValue(occurrence);
     const findManyOccurrences = jest.fn().mockResolvedValue([occurrence]);
     const db = {
-      habit: { findMany: jest.fn().mockResolvedValue([habit]) },
       habitOccurrence: { findMany: findManyOccurrences },
-      $transaction: jest.fn(async (work: (tx: unknown) => Promise<void>) =>
-        work({
-          habitOccurrence: { upsert },
-          habitOccurrenceChecklistItem: { createMany: jest.fn() },
-        }),
-      ),
     };
     const repository = new PrismaProductivityHabits(db as never);
 
@@ -73,16 +96,43 @@ describe('PrismaProductivityHabits', () => {
       to: '2026-08-02',
     });
 
-    expect(upsert).toHaveBeenCalledTimes(1);
-    expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        create: expect.objectContaining({
-          habitId: habit.id,
-          occurrenceDate: new Date('2026-08-02T00:00:00.000Z'),
-        }),
-      }),
-    );
+    expect(findManyOccurrences).toHaveBeenCalledTimes(1);
     expect(result).toEqual([occurrence]);
+  });
+
+  it('projects the calendar without inserting empty historical occurrences', async () => {
+    const habit = {
+      id: 'habit-1',
+      scheduleType: HabitScheduleType.WEEKDAYS,
+      weekdays: [1],
+      intervalDays: null,
+      period: null,
+      timesPerPeriod: null,
+      restDays: [],
+      startDate: new Date('2026-08-03T00:00:00.000Z'),
+      endDate: null,
+      timezone: 'UTC',
+      direction: HabitDirection.BUILD,
+      targetType: HabitTargetType.BOOLEAN,
+      targetValue: 1,
+      allowedSkips: 0,
+    };
+    const create = jest.fn();
+    const upsert = jest.fn();
+    const db = {
+      habit: { findMany: jest.fn().mockResolvedValue([habit]) },
+      habitOccurrence: { findMany: jest.fn().mockResolvedValue([]), create, upsert },
+      userPreferences: { findUnique: jest.fn().mockResolvedValue({ habitPreferences: { weekStartDay: 'MONDAY', dayRolloverCutoffHour: 4 } }) },
+    };
+    const repository = new PrismaProductivityHabits(db as never);
+
+    const result = await repository.listHabitCalendar('user-1', { from: '2026-08-03', to: '2026-08-09' });
+
+    expect(result.days).toEqual(expect.arrayContaining([
+      expect.objectContaining({ habitId: 'habit-1', localDate: '2026-08-03', status: expect.any(String) }),
+    ]));
+    expect(create).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
   });
 
   it('validates focus start replay payloads for identical keys', async () => {
@@ -209,7 +259,10 @@ describe('PrismaProductivityHabits', () => {
     const occurrence = { id: 'occ-1', habitId: 'habit-1', status: HabitOccurrenceStatus.PENDING, habit: { id: 'habit-1', direction: HabitDirection.BUILD, targetValue: 1 } };
     const tx: any = {
       habitOccurrence: { findFirst: jest.fn().mockResolvedValue(occurrence) },
-      habitProgressLog: { findUnique: jest.fn().mockResolvedValue({ occurrenceId: 'occ-1', value: 1, source: HabitProgressSource.MANUAL, sourceEventId: 'retry-key', focusSessionId: null, adjusted: false, note: null, growthReceipt: null }) },
+      habitProgressLog: {
+        findUnique: jest.fn().mockResolvedValue({ occurrenceId: 'occ-1', value: 1, source: HabitProgressSource.MANUAL, sourceEventId: 'retry-key', focusSessionId: null, adjusted: false, note: null, growthReceipt: null }),
+        aggregate: jest.fn().mockResolvedValue({ _sum: { value: 1 } }),
+      },
     };
     const transaction = jest.fn().mockRejectedValueOnce({ code: 'P2034' }).mockImplementation(async (cb: any) => cb(tx));
     const repository = new PrismaProductivityHabits({ $transaction: transaction } as never);
@@ -284,6 +337,7 @@ describe('PrismaProductivityHabits', () => {
         create: jest.fn().mockImplementation(async ({ data }) => { marker = { ...data, growthReceipt: null }; return marker; }),
         update: jest.fn().mockImplementation(async ({ data }) => { marker = { ...marker, ...data, growthReceipt: reversalReceipt }; return marker; }),
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        aggregate: jest.fn().mockResolvedValue({ _sum: { value: 0 } }),
       },
       habitCheckIn: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
       syncChange: { create: jest.fn().mockResolvedValue({}) },

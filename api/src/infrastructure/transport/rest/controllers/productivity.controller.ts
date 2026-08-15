@@ -20,6 +20,10 @@ import {
   CreateTaskSectionDto,
   FocusActionDto,
   HabitCheckInDto,
+  HabitDateActionDto,
+  HabitProgressDto,
+  HabitProgressRangeDto,
+  HabitReminderActionDto,
   HabitChecklistActionDto,
   HabitOccurrenceActionDto,
   HabitRangeDto,
@@ -322,9 +326,49 @@ export class ProductivityController {
     return this.habitsService.listHabitOccurrences(req.user.sub, query);
   }
 
+  @Get(REST_ROUTES.habitCalendar)
+  habitCalendar(@Req() req: AuthenticatedRequest, @Query() query: HabitRangeDto) {
+    return this.habitsService.listHabitCalendar(req.user.sub, query);
+  }
+
   @Post(REST_ROUTES.habitOccurrenceCheckIn)
   checkIn(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: HabitCheckInDto) {
     return this.habitsService.checkIn(req.user.sub, id, dto);
+  }
+
+  @Post(REST_ROUTES.habitProgress)
+  progress(@Req() req: AuthenticatedRequest, @Param('habitId') habitId: string, @Body() dto: HabitProgressDto) {
+    return this.habitsService.checkInByDate(req.user.sub, habitId, dto.localDate, dto);
+  }
+
+  @Post(REST_ROUTES.habitOccurrenceActionByDate)
+  occurrenceActionByDate(@Req() req: AuthenticatedRequest, @Param('habitId') habitId: string, @Body() dto: HabitDateActionDto) {
+    return this.habitsService.habitOccurrenceActionByDate(req.user.sub, habitId, dto.localDate, dto.action.toLowerCase() as 'skip' | 'fail' | 'undo', dto.idempotencyKey);
+  }
+
+  @Get(REST_ROUTES.habitProgressByHabit)
+  progressLogs(@Req() req: AuthenticatedRequest, @Param('habitId') habitId: string, @Query() query: HabitProgressRangeDto) {
+    return this.habitsService.listHabitProgress(req.user.sub, habitId, query);
+  }
+
+  @Delete(REST_ROUTES.habitProgressById)
+  deleteProgressLog(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.habitsService.deleteHabitProgress(req.user.sub, id);
+  }
+
+  @Post(REST_ROUTES.habitReminderSnooze)
+  snoozeHabitReminder(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: HabitReminderActionDto) {
+    return this.habitsService.habitReminderAction(req.user.sub, id, 'snooze', dto.remindAt);
+  }
+
+  @Post(REST_ROUTES.habitReminderDismiss)
+  dismissHabitReminder(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.habitsService.habitReminderAction(req.user.sub, id, 'dismiss');
+  }
+
+  @Post(REST_ROUTES.habitReminderComplete)
+  completeHabitReminder(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.habitsService.habitReminderAction(req.user.sub, id, 'complete');
   }
 
   @Post(REST_ROUTES.habitOccurrenceSkip)
@@ -365,6 +409,11 @@ export class ProductivityController {
   @Get(REST_ROUTES.habitStats)
   habitStats(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.habitsService.habitStats(req.user.sub, id);
+  }
+
+  @Get(REST_ROUTES.habitInsights)
+  habitInsights(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() query: HabitRangeDto) {
+    return this.habitsService.habitInsights(req.user.sub, id, query);
   }
 
   @Get(REST_ROUTES.habitCommitmentPolicy)

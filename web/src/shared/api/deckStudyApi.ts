@@ -35,6 +35,10 @@ export function createDeckStudyApi(ctx: ApiClientContext) {
     studyCalendar(days = 180) {
       return ctx.request<StudyCalendarDay[]>(`/dashboard/study-calendar?days=${days}`);
     },
+    studyCalendarRange(from: string, to: string) {
+      const query = new URLSearchParams({ from, to });
+      return ctx.request<StudyCalendarDay[]>(`/dashboard/study-calendar?${query}`);
+    },
     deckStats(deckId: string) {
       return ctx.request<DeckStats>(`/dashboard/decks/${deckId}/stats`);
     },

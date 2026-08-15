@@ -1,8 +1,9 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
 import { CALENDAR_REPOSITORY_PORT } from '@core/application/ports/out/calendar.port';
 import type { CalendarEventRecord, CalendarRepositoryPort } from '@core/application/ports/out/calendar.port';
 import { FocusService } from './focus.service';
 import { TaskService } from './task.service';
+import { GymService } from './gym.service';
 
 type CalendarTask = {
   id: string;
@@ -48,6 +49,7 @@ export class CalendarService {
     private readonly tasks: TaskService,
     private readonly focus: FocusService,
     @Inject(CALENDAR_REPOSITORY_PORT) private readonly repository: CalendarRepositoryPort,
+    @Optional() private readonly gymService?: GymService,
   ) {}
 
   async timeline(userId: string, from: string, to: string) {
@@ -57,10 +59,11 @@ export class CalendarService {
       throw new BadRequestException('Invalid calendar range');
     }
 
-    const [taskPage, focusSessions, externalEvents] = await Promise.all([
+    const [taskPage, focusSessions, externalEvents, workouts] = await Promise.all([
       this.tasks.listTasks(userId, { from, to, limit: 100 }),
       this.focus.listFocusSessions(userId, { from, to, limit: 100 }),
       this.repository.listVisibleEvents(userId, fromDate, toDate),
+      this.gymService ? this.gymService.getWorkouts(userId, { status: 'COMPLETED', from: fromDate, to: toDate }).catch(() => []) : Promise.resolve([]),
     ]);
 
     const taskItems: TimelineItem[] = (taskPage.data as CalendarTask[]).flatMap((task): TimelineItem[] => {
@@ -128,12 +131,38 @@ export class CalendarService {
       timeZone: event.timeZone ?? null,
     }));
 
+    const workoutItems: TimelineItem[] = (workouts || []).map((w) => {
+      const startAt = w.startedAt ? new Date(w.startedAt).toISOString() : new Date(w.createdAt).toISOString();
+      const endAt = w.endedAt
+        ? new Date(w.endedAt).toISOString()
+        : w.durationMinutes
+          ? new Date(new Date(startAt).getTime() + w.durationMinutes * 60000).toISOString()
+          : startAt;
+      return {
+        id: w.id,
+        kind: 'WORKOUT',
+        title: w.title || 'Workout',
+        startAt,
+        endAt,
+        dueAt: null,
+        allDay: false,
+        taskId: null,
+        workoutId: w.id,
+        sourceId: w.id,
+        sourceName: 'Gym',
+        color: 'EMERALD',
+        priority: null,
+        readOnly: true,
+        status: 'COMPLETED',
+      };
+    });
+
     return {
       from,
       to,
-      items: [...taskItems, ...focusItems, ...externalItems].filter((item) => overlapsCalendarRange(item, fromDate, toDate)).sort(
-        (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
-      ),
+      items: [...taskItems, ...focusItems, ...externalItems, ...workoutItems]
+        .filter((item) => overlapsCalendarRange(item, fromDate, toDate))
+        .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()),
     };
   }
 }

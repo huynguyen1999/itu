@@ -89,8 +89,6 @@ struct GrowthView: View {
                 }
             .iTuPinnedHeader {
                 growthHeader
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 18)
             }
                 .background(
                     LinearGradient(
@@ -111,37 +109,33 @@ struct GrowthView: View {
     }
 
     private var growthHeader: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 6) {
-                iTuSectionLabel(title: "GROWTH & GAMIFICATION", color: iTuTheme.amber)
-                Text("Growth Engine")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(iTuTheme.ink)
-                Text("Earn XP, level up attributes, unlock skills, and redeem rewards.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(iTuTheme.inkDim)
+        iTuPageHeader(
+            kicker: "GROWTH & GAMIFICATION",
+            title: "Growth Engine",
+            description: "Earn XP, level up attributes, unlock skills, and redeem rewards.",
+            actions: {
+                HStack(spacing: 6) {
+                    Image(systemName: "circle.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(iTuTheme.gold)
+                    Text("\(userCoins) Coins")
+                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                        .foregroundStyle(iTuTheme.pageHeaderForeground)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.1))
+                .clipShape(Capsule())
+                .overlay { Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1) }
+                Button { showGrowthSettings = true } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 14, weight: .semibold))
+                        .accessibilityLabel("Growth settings")
+                }
+                .buttonStyle(iTuHeaderGhostButtonStyle())
+                .pointingHandCursor()
             }
-            Spacer()
-            HStack(spacing: 6) {
-                Image(systemName: "circle.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(iTuTheme.gold)
-                Text("\(userCoins) Coins")
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundStyle(iTuTheme.ink)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(iTuTheme.goldSoft)
-            .clipShape(Capsule())
-            Button { showGrowthSettings = true } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 14, weight: .semibold))
-                    .accessibilityLabel("Growth settings")
-            }
-            .buttonStyle(iTuGhostButtonStyle())
-            .pointingHandCursor()
-        }
+        )
     }
 
     private var growthRail: some View {

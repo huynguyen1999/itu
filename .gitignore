@@ -30,3 +30,11 @@ coverage/
 .playwright-cli
 .roo
 plans/
+
+# Cloudflare bypass tool
+tools/cloudflare-bypass/.cf-storage.json
+tools/cloudflare-bypass/.cf-profile/
+tools/cloudflare-bypass/.tokens.json
+tools/cloudflare-bypass/last-registration-report.json
+tools/cloudflare-bypass/page-dump.html
+tools/cloudflare-bypass/node_modules/

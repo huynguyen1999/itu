@@ -17,6 +17,10 @@ enum iTuTheme {
     static let teal = Color(lightHex: 0x167F71, darkHex: 0x40A6B5)
     static let mint = Color(hex: 0x3FB6A4)
     static let mintTint = Color(lightHex: 0xF1FAF7, darkHex: 0x102F28)
+    static let pageHeaderForeground = Color(lightHex: 0xEDF3F0, darkHex: 0xEDF3F0)
+    static let pageHeaderForegroundMuted = Color(lightHex: 0xC1D8D0, darkHex: 0xA7BBB5)
+    static let pageHeaderKicker = Color(lightHex: 0x72D3BE, darkHex: 0x72D3BE)
+    static let pageHeaderDivider = Color.white.opacity(0.14)
     static let syncBlue = Color(hex: 0x4F8FCF)
     static let amber = Color(hex: 0xE19A2E)
     static let amberTint = Color(lightHex: 0xFBECD2, darkHex: 0x3B2B14)
@@ -270,6 +274,55 @@ struct iTuGhostButtonStyle: ButtonStyle {
                     isCursorPushed = false
                 }
             }
+    }
+}
+
+struct iTuHeaderSecondaryButtonStyle: ButtonStyle {
+    var height: CGFloat = 34
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(iTuTheme.pageHeaderForeground)
+            .padding(.horizontal, 14)
+            .frame(minHeight: height)
+            .background(
+                configuration.isPressed
+                    ? Color.white.opacity(0.2)
+                    : Color.white.opacity(isHovered ? 0.16 : 0.1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.white.opacity(isHovered ? 0.42 : 0.24), lineWidth: 1)
+            }
+            .opacity(isEnabled ? 1 : 0.48)
+            .onHover { isHovered = $0 && isEnabled }
+    }
+}
+
+struct iTuHeaderGhostButtonStyle: ButtonStyle {
+    var height: CGFloat = 34
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(iTuTheme.pageHeaderForegroundMuted)
+            .padding(.horizontal, 10)
+            .frame(minHeight: height)
+            .background(
+                configuration.isPressed
+                    ? Color.white.opacity(0.18)
+                    : Color.white.opacity(isHovered ? 0.12 : 0)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .foregroundStyle(isHovered ? iTuTheme.pageHeaderForeground : iTuTheme.pageHeaderForegroundMuted)
+            .opacity(isEnabled ? 1 : 0.48)
+            .onHover { isHovered = $0 && isEnabled }
     }
 }
 

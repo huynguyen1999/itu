@@ -21,7 +21,7 @@ import type {
   CardImage,
   Deck,
   ProductivityTask,
-  TrashBudgetTransaction,
+  TrashExpense,
   TrashExerciseDefinition,
   TrashGymWorkout,
   TrashJournalEntry,
@@ -279,7 +279,7 @@ function TrashRowItem({
 export function rowsForFilter(snapshot: TrashSnapshot, filter: TrashFilter): TrashRow[] {
   const tasks = snapshot.tasks.map((task) => taskRow(task));
   const journal = (snapshot.journalEntries ?? []).map((entry) => journalRow(entry));
-  const budget = (snapshot.budgetTransactions ?? []).map((transaction) => budgetRow(transaction));
+  const budget = (snapshot.expenses ?? []).map((expense) => expenseRow(expense));
   const gym = [
     ...(snapshot.gymWorkouts ?? []).map((workout) => workoutRow(workout)),
     ...(snapshot.gymExercises ?? []).map((exercise) => exerciseRow(exercise)),
@@ -314,15 +314,15 @@ function journalRow(entry: TrashJournalEntry): TrashRow {
   };
 }
 
-function budgetRow(transaction: TrashBudgetTransaction): TrashRow {
-  const category = transaction.categoryRel?.name || transaction.category || 'Uncategorized';
+function expenseRow(expense: TrashExpense): TrashRow {
+  const category = expense.categoryRel?.name || expense.category || 'Uncategorized';
   return {
-    id: transaction.id,
+    id: expense.id,
     kind: 'budget',
-    title: transaction.merchant || category,
-    typeLabel: 'Budget transaction',
-    detail: `${transaction.amount} ${transaction.currency}`,
-    deletedAt: transaction.deletedAt,
+    title: expense.merchant || category,
+    typeLabel: 'Expense',
+    detail: expense.amount,
+    deletedAt: expense.deletedAt,
     icon: ReceiptText,
   };
 }
@@ -388,7 +388,7 @@ function trashKey(
   | 'cardImages'
   | 'tasks'
   | 'journalEntries'
-  | 'budgetTransactions'
+  | 'expenses'
   | 'gymWorkouts'
   | 'gymExercises' {
   if (kind === 'deck') return 'decks';
@@ -396,7 +396,7 @@ function trashKey(
   if (kind === 'cardImage') return 'cardImages';
   if (kind === 'task') return 'tasks';
   if (kind === 'journal') return 'journalEntries';
-  if (kind === 'budget') return 'budgetTransactions';
+  if (kind === 'budget') return 'expenses';
   if (kind === 'gymWorkout') return 'gymWorkouts';
   return 'gymExercises';
 }
@@ -407,7 +407,7 @@ function restoreRow(row: TrashRow) {
   if (row.kind === 'cardImage') return api.restoreCardImage(row.id);
   if (row.kind === 'task') return api.restoreTrashTask(row.id);
   if (row.kind === 'journal') return api.restoreTrashJournalEntry(row.id);
-  if (row.kind === 'budget') return api.restoreTrashBudgetTransaction(row.id);
+  if (row.kind === 'budget') return api.restoreTrashExpense(row.id);
   if (row.kind === 'gymWorkout') return api.restoreTrashGymWorkout(row.id);
   return api.restoreTrashGymExercise(row.id);
 }
@@ -418,7 +418,7 @@ function deleteRow(row: TrashRow) {
   if (row.kind === 'cardImage') return api.deleteTrashCardImage(row.id);
   if (row.kind === 'task') return api.deleteTrashTask(row.id);
   if (row.kind === 'journal') return api.deleteTrashJournalEntry(row.id);
-  if (row.kind === 'budget') return api.deleteTrashBudgetTransaction(row.id);
+  if (row.kind === 'budget') return api.deleteTrashExpense(row.id);
   if (row.kind === 'gymWorkout') return api.deleteTrashGymWorkout(row.id);
   return api.deleteTrashGymExercise(row.id);
 }

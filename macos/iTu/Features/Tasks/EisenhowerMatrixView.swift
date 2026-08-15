@@ -31,18 +31,11 @@ struct EisenhowerMatrixView: View {
             let pagePadding: CGFloat = isMedium || isNarrow ? 12 : 16
 
             VStack(alignment: .leading, spacing: spacing) {
-                // Header overview bar
-                HStack(alignment: .center) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        iTuSectionLabel(title: "Prioritization Matrix", color: iTuTheme.teal)
-                        Text("Eisenhower Matrix")
-                            .font(.system(size: isNarrow ? 20 : 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(iTuTheme.ink)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 8)
-
-                    HStack(spacing: isNarrow ? 6 : 8) {
+                iTuPageHeader(
+                    kicker: "Prioritization Matrix",
+                    title: "Eisenhower Matrix",
+                    actions: {
+                        HStack(spacing: isNarrow ? 6 : 8) {
                         HStack(spacing: 7) {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 11))
@@ -84,12 +77,12 @@ struct EisenhowerMatrixView: View {
                         if !isNarrow {
                             Text("\(projection.mappedCount) mapped")
                                 .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(iTuTheme.inkFaint)
+                                .foregroundStyle(iTuTheme.pageHeaderForegroundMuted)
                                 .lineLimit(1)
                         }
                     }
-                }
-                .padding(.horizontal, 4)
+                    }
+                )
 
                 // Matrix Workspace
                 if isNarrow || isShort {

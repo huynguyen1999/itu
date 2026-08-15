@@ -17,8 +17,9 @@ import { createUlid } from './ulid';
 import { awardGrowthActivityWithReceipt, reverseGrowthActivity, reverseGrowthActivityWithReceipt } from '@core/application/use-cases/growth-awards';
 import { ensureHabitGrowthRule } from '@core/application/use-cases/ensure-habit-growth-rule';
 import { focusActionSemanticPayload, focusAdjustSemanticPayload, focusPayloadsEqual, focusStartSemanticPayload } from './focus-idempotency';
-import { commitmentDefaults, commitmentFeatureEnabled, evaluateMissedCommitment, recoveryWindowOpen, reverseCommitmentPenalty } from '@core/application/use-cases/habit-commitments';
+import { commitmentDefaults, commitmentFeatureEnabled, commitmentSnapshot, evaluateMissedCommitment, recoveryWindowOpen, reverseCommitmentPenalty } from '@core/application/use-cases/habit-commitments';
 import { settleFocusGrowth } from './prisma-focus.persistence';
+import { isHabitDateInRange, isHabitScheduled, localDateKey, logicalLocalDate, parseLocalDate, periodBounds, statusForValue, type HabitCalendarDefinition } from '@core/application/use-cases/habit-v2';
 import {
   assertClientId,
   enumValue,
@@ -31,6 +32,72 @@ import {
   HABIT_ACTION_MARKER_PREFIX,
 } from './prisma-sync.helpers';
 
+function syncedHabitStatus(
+  occurrence: { occurrenceDate: Date; habit: any },
+  value: number,
+  weekStartDay = 1,
+  cutoffHour = 0,
+) {
+  const habit = occurrence.habit as HabitCalendarDefinition;
+  const date = localDateKey(occurrence.occurrenceDate);
+  const periodEnd = habit.scheduleType === HabitScheduleType.TIMES_PER_PERIOD
+    ? periodBounds(date, String(habit.period ?? 'WEEK').toUpperCase() === 'MONTH' ? 'MONTH' : 'WEEK', weekStartDay).end
+    : date;
+  const closed = logicalLocalDate(new Date(), habit.timezone ?? 'UTC', cutoffHour) > periodEnd;
+  return statusForValue(habit, value, undefined, closed);
+}
+
+async function habitSyncPreferences(tx: any, userId: string) {
+  const record = tx.userPreferences?.findUnique
+    ? await tx.userPreferences.findUnique({ where: { userId }, select: { habitPreferences: true } })
+    : null;
+  const preferences = record?.habitPreferences as { weekStartDay?: unknown; dayRolloverCutoffHour?: unknown } | null | undefined;
+  const cutoff = Number(preferences?.dayRolloverCutoffHour ?? 4);
+  return {
+    weekStartDay: String(preferences?.weekStartDay).toUpperCase() === 'SUNDAY' ? 0 : 1,
+    cutoffHour: Number.isInteger(cutoff) ? Math.min(23, Math.max(0, cutoff)) : 4,
+  };
+}
+
+async function ensureSyncedHabitOccurrence(tx: any, userId: string, habitId: string, localDate: string) {
+  const habit = await tx.habit.findFirst({ where: { id: habitId, userId }, include: { checklistItems: true } });
+  if (!habit) throw new InvalidSyncMutationException('Habit is unavailable');
+  if (!isHabitDateInRange(habit, localDate)) throw new InvalidSyncMutationException('Habit is not active on this date');
+  const preferences = await habitSyncPreferences(tx, userId);
+  const bucketDate = habit.scheduleType === HabitScheduleType.TIMES_PER_PERIOD
+    ? periodBounds(localDate, String(habit.period ?? 'WEEK').toUpperCase() === 'MONTH' ? 'MONTH' : 'WEEK', preferences.weekStartDay).start
+    : localDate;
+  if (!isHabitScheduled(habit, bucketDate, preferences.weekStartDay)) throw new InvalidSyncMutationException('Habit is not scheduled for this date');
+  const occurrenceDate = parseLocalDate(bucketDate);
+  const existing = await tx.habitOccurrence.findUnique({
+    where: { habitId_occurrenceDate: { habitId, occurrenceDate } },
+    include: { habit: true },
+  });
+  if (existing) return existing;
+  const policy = commitmentFeatureEnabled()
+    ? await tx.habitCommitmentPolicy.findFirst({
+        where: {
+          habitId,
+          userId,
+          enabled: true,
+          effectiveFrom: { lte: occurrenceDate },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: occurrenceDate } }],
+        },
+      })
+    : null;
+  return tx.habitOccurrence.create({
+    data: {
+      id: createUlid(),
+      habitId,
+      occurrenceDate,
+      ...(policy ? commitmentSnapshot(policy) : {}),
+      checklistItems: habit.checklistItems.length
+        ? { create: habit.checklistItems.map((item: any) => ({ id: createUlid(), sourceItemId: item.id, title: item.title, required: item.required, sortOrder: item.sortOrder })) }
+        : undefined,
+    },
+    include: { habit: true },
+  });
+}
 
 export class PrismaSyncFocusHabits {
   readonly kinds: readonly string[] = ["focussession.create","focussession.action","focussession.adjust","habit.create","habit.update","habit.commitment-policy","habitoccurrence.commitment-evaluate","habitoccurrence.commitment-excuse","habitoccurrence.checkin","habitoccurrence.action","habitoccurrence.checklist"];
@@ -372,7 +439,13 @@ export class PrismaSyncFocusHabits {
           where: { id: mutation.entityId, habit: { userId } },
           include: { habit: true },
         });
-        if (!occurrence) return notFound(mutation, 'habitoccurrence');
+        if (!occurrence) {
+          const habitId = optionalString(payload, 'habitId');
+          const localDate = optionalString(payload, 'localDate');
+          if (!habitId || !localDate) return notFound(mutation, 'habitoccurrence');
+          occurrence = await ensureSyncedHabitOccurrence(tx, userId, habitId, localDate);
+        }
+        if (!occurrence) throw new InvalidSyncMutationException('Habit occurrence is unavailable');
         const source = enumValue(HabitProgressSource, payload.source ?? 'MANUAL', 'source');
         const sourceEventId = requiredString(payload, 'idempotencyKey');
         const inputValue = typeof payload.value === 'number' ? payload.value : 0;
@@ -422,11 +495,9 @@ export class PrismaSyncFocusHabits {
         const incompleteRequired = await tx.habitOccurrenceChecklistItem.count({
           where: { occurrenceId: occurrence.id, required: true, completedAt: null },
         });
-        const targetReached =
-          occurrence.habit.direction === HabitDirection.BUILD
-            ? value >= occurrence.habit.targetValue
-            : value <= occurrence.habit.targetValue;
-        const completed = targetReached && incompleteRequired === 0;
+        const preferences = await habitSyncPreferences(tx, userId);
+        const projectedStatus = syncedHabitStatus(occurrence, value, preferences.weekStartDay, preferences.cutoffHour);
+        const completed = projectedStatus === 'COMPLETED' && incompleteRequired === 0;
         const updated = await tx.habitOccurrence.update({
           where: { id: occurrence.id },
           data: {
@@ -462,11 +533,17 @@ export class PrismaSyncFocusHabits {
         return null;
       }
       case 'habitoccurrence.action': {
-        const occurrence = await tx.habitOccurrence.findFirst({
+        let occurrence = await tx.habitOccurrence.findFirst({
           where: { id: mutation.entityId, habit: { userId } },
           include: { habit: true },
         });
-        if (!occurrence) return notFound(mutation, 'habitoccurrence');
+        if (!occurrence) {
+          const habitId = optionalString(payload, 'habitId');
+          const localDate = optionalString(payload, 'localDate');
+          if (!habitId || !localDate) return notFound(mutation, 'habitoccurrence');
+          occurrence = await ensureSyncedHabitOccurrence(tx, userId, habitId, localDate);
+        }
+        if (!occurrence) throw new InvalidSyncMutationException('Habit occurrence is unavailable');
         const action = requiredString(payload, 'action');
         if (!['skip', 'fail', 'undo'].includes(action)) throw new InvalidSyncMutationException('Invalid habit action');
         const idempotencyKey = optionalString(payload, 'idempotencyKey');
@@ -539,11 +616,9 @@ export class PrismaSyncFocusHabits {
             tx.habitOccurrenceChecklistItem.count({ where: { occurrenceId: occurrence.id, required: true, completedAt: null } }),
           ]);
           const value = progress._sum.value ?? 0;
-          const targetReached =
-            occurrence.habit.direction === HabitDirection.BUILD
-              ? value >= occurrence.habit.targetValue
-              : value <= occurrence.habit.targetValue;
-          const completed = targetReached && incompleteRequired === 0;
+          const preferences = await habitSyncPreferences(tx, userId);
+          const projectedStatus = syncedHabitStatus(occurrence, value, preferences.weekStartDay, preferences.cutoffHour);
+          const completed = projectedStatus === 'COMPLETED' && incompleteRequired === 0;
           const updatedOccurrence = await tx.habitOccurrence.update({
             where: { id: occurrence.id },
             data: {

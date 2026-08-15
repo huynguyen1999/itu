@@ -18,18 +18,95 @@ enum HabitOccurrenceStatus: String, Codable, Sendable {
     case skipped = "SKIPPED"
 }
 
+enum HabitProjectedStatus: String, Codable, Sendable {
+    case completed = "COMPLETED"
+    case partial = "PARTIAL"
+    case pending = "PENDING"
+    case missed = "MISSED"
+    case skipped = "SKIPPED"
+    case failed = "FAILED"
+    case rest = "REST"
+    case notScheduled = "NOT_SCHEDULED"
+}
+
+struct HabitPreferencesModel: Codable, Equatable, Sendable {
+    var dayRolloverCutoffHour: Int = 4
+    var weekStartDay: String = "MONDAY"
+}
+
+struct HabitDayStateModel: Codable, Identifiable, Equatable, Sendable {
+    let habitId: String?
+    let localDate: String
+    let scheduled: Bool
+    let status: HabitProjectedStatus
+    let value: Double
+    let targetValue: Double
+    let progressRatio: Double
+    let occurrenceId: String?
+    let periodStart: String?
+    let periodEnd: String?
+
+    var id: String { "\(habitId ?? ""):\(localDate)" }
+}
+
+struct HabitCalendarResponse: Codable, Sendable {
+    let from: String
+    let to: String
+    let days: [HabitDayStateModel]
+}
+
+struct HabitProgressResultModel: Codable, Sendable {
+    let habitId: String
+    let occurrenceId: String
+    let localDate: String
+    let status: HabitOccurrenceStatus
+    let value: Double
+    let targetValue: Double
+    let progressRatio: Double
+    let growthReceipt: GrowthAwardReceipt?
+}
+
+struct HabitQuickLogRequest: Identifiable, Equatable, Sendable {
+    let habitId: String
+    let localDate: String
+
+    var id: String { "\(habitId):\(localDate)" }
+}
+
+struct HabitProgressLogModel: Codable, Identifiable, Sendable {
+    let id: String
+    let occurrenceId: String
+    let source: String
+    let value: Double
+    let recordedAt: String
+}
+
+struct HabitReminderDeliveryModel: Codable, Sendable {
+    let id: String
+    let status: String
+    let scheduledFor: String
+}
+
+struct HabitChecklistItemModel: Codable, Identifiable, Equatable, Sendable {
+    let id: String?
+    var title: String
+    var required: Bool
+    var sortOrder: Double?
+}
+
 struct HabitOccurrenceModel: Codable, Identifiable, Equatable, Sendable {
     let id: String
     let habitId: String
     let occurrenceDate: String
     var status: HabitOccurrenceStatus
     var value: Double
+    var growthReceipt: GrowthAwardReceipt?
 
     var localDayString: String {
         iTuDateSupport.localDayString(from: occurrenceDate)
     }
     private enum CodingKeys: String, CodingKey {
-        case id, habitId, occurrenceDate, status, habit, checkIn, progressLogs
+        case id, habitId, occurrenceDate, status, habit, checkIn, progressLogs, growthReceipt
     }
 
     init(
@@ -37,13 +114,15 @@ struct HabitOccurrenceModel: Codable, Identifiable, Equatable, Sendable {
         habitId: String,
         occurrenceDate: String,
         status: HabitOccurrenceStatus = .pending,
-        value: Double = 0
+        value: Double = 0,
+        growthReceipt: GrowthAwardReceipt? = nil
     ) {
         self.id = id
         self.habitId = habitId
         self.occurrenceDate = occurrenceDate
         self.status = status
         self.value = value
+        self.growthReceipt = growthReceipt
     }
 
     init(from decoder: Decoder) throws {
@@ -57,6 +136,7 @@ struct HabitOccurrenceModel: Codable, Identifiable, Equatable, Sendable {
         }
         occurrenceDate = try container.decode(String.self, forKey: .occurrenceDate)
         status = try container.decodeIfPresent(HabitOccurrenceStatus.self, forKey: .status) ?? .pending
+        growthReceipt = try container.decodeIfPresent(GrowthAwardReceipt.self, forKey: .growthReceipt)
 
         if let checkIn = try container.decodeIfPresent(HabitCheckInReference.self, forKey: .checkIn) {
             value = checkIn.value
@@ -73,10 +153,11 @@ struct HabitOccurrenceModel: Codable, Identifiable, Equatable, Sendable {
         try container.encode(occurrenceDate, forKey: .occurrenceDate)
         try container.encode(status, forKey: .status)
         try container.encode(value, forKey: .value)
+        try container.encodeIfPresent(growthReceipt, forKey: .growthReceipt)
     }
 
     private enum EncodingKeys: String, CodingKey {
-        case id, habitId, occurrenceDate, status, value
+        case id, habitId, occurrenceDate, status, value, growthReceipt
     }
 
     private struct HabitReference: Decodable {
@@ -113,6 +194,10 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
     var endDate: String?
     var timeBlockId: String?
     var tagIds: [String]
+    var allowedSkips: Int
+    var restDays: [Int]
+    var reminderTimes: [String]
+    var checklistItems: [HabitChecklistItemModel]
     var archivedAt: String?
     var currentStreak: Int
     var bestStreak: Int
@@ -126,7 +211,7 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
         case id, name, title, description, icon, color, frequency, scheduleType
         case targetValue, targetType, unit, targetDaysPerWeek, direction, weekdays, archivedAt
         case intervalDays, timesPerPeriod, period, startDate, endDate
-        case timeBlockId
+        case timeBlockId, allowedSkips, restDays, reminderTimes, reminders, checklistItems
         case tags
         case currentStreak, bestStreak
         case isCompletedToday, totalCompletions, createdAt, version, stats
@@ -153,6 +238,10 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
         endDate: String? = nil,
         timeBlockId: String? = nil,
         tagIds: [String] = [],
+        allowedSkips: Int = 0,
+        restDays: [Int] = [],
+        reminderTimes: [String] = [],
+        checklistItems: [HabitChecklistItemModel] = [],
         archivedAt: String? = nil,
         currentStreak: Int = 0,
         bestStreak: Int = 0,
@@ -182,6 +271,10 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
         self.endDate = endDate
         self.timeBlockId = timeBlockId
         self.tagIds = tagIds
+        self.allowedSkips = allowedSkips
+        self.restDays = restDays
+        self.reminderTimes = reminderTimes
+        self.checklistItems = checklistItems
         self.archivedAt = archivedAt
         self.currentStreak = currentStreak
         self.bestStreak = bestStreak
@@ -231,6 +324,14 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
         timeBlockId = try container.decodeIfPresent(String.self, forKey: .timeBlockId)
         let tagAssignments = try container.decodeIfPresent([TaskTagAssignmentDTO].self, forKey: .tags) ?? []
         tagIds = tagAssignments.map { $0.tag.id }
+        allowedSkips = try container.decodeIfPresent(Int.self, forKey: .allowedSkips) ?? 0
+        restDays = try container.decodeIfPresent([Int].self, forKey: .restDays) ?? []
+        if let reminders = try container.decodeIfPresent([HabitReminderReference].self, forKey: .reminders) {
+            reminderTimes = reminders.map(\.timeLocal)
+        } else {
+            reminderTimes = try container.decodeIfPresent([String].self, forKey: .reminderTimes) ?? []
+        }
+        checklistItems = try container.decodeIfPresent([HabitChecklistItemModel].self, forKey: .checklistItems) ?? []
         archivedAt = try container.decodeIfPresent(String.self, forKey: .archivedAt)
         currentStreak = try container.decodeIfPresent(Int.self, forKey: .currentStreak) ?? 0
         bestStreak = try container.decodeIfPresent(Int.self, forKey: .bestStreak) ?? 0
@@ -265,6 +366,10 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
         if !tagIds.isEmpty {
             try container.encode(tagIds.map { TaskTagAssignmentDTO(tag: TaskTagDTO(id: $0)) }, forKey: .tags)
         }
+        try container.encode(allowedSkips, forKey: .allowedSkips)
+        try container.encode(restDays, forKey: .restDays)
+        try container.encode(reminderTimes, forKey: .reminderTimes)
+        try container.encode(checklistItems, forKey: .checklistItems)
         try container.encodeIfPresent(archivedAt, forKey: .archivedAt)
         try container.encode(currentStreak, forKey: .currentStreak)
         try container.encode(bestStreak, forKey: .bestStreak)
@@ -273,6 +378,10 @@ struct HabitModel: Codable, Identifiable, Equatable, Sendable {
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(version, forKey: .version)
         try container.encodeIfPresent(stats, forKey: .stats)
+    }
+
+    private struct HabitReminderReference: Decodable {
+        let timeLocal: String
     }
 
     static func sampleHabits() -> [HabitModel] {
@@ -359,28 +468,47 @@ struct HabitTimeBlockModel: Codable, Identifiable, Equatable, Sendable {
 struct HabitStatsModel: Codable, Equatable, Sendable {
     let currentStreak: Int
     let bestStreak: Int
+    let streakUnit: String
     let successRate: Double
     let focusedMinutes: Double
     let completed: Int
+    let missed: Int
     let failed: Int
     let skipped: Int
     let total: Int
-    let heatmap: [[String: JSONValue]]
+    let last30Rate: Double
+    let previous30Rate: Double
+    let last90Rate: Double
+    let averageValue: Double
+    let strongestWeekday: Int?
+    let weakestWeekday: Int?
+    let heatmap: [HabitDayStateModel]
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         currentStreak = try values.decodeIfPresent(Int.self, forKey: .currentStreak) ?? 0
         bestStreak = try values.decodeIfPresent(Int.self, forKey: .bestStreak) ?? 0
+        streakUnit = try values.decodeIfPresent(String.self, forKey: .streakUnit) ?? "DAY"
         successRate = try values.decodeIfPresent(Double.self, forKey: .successRate) ?? 0
         focusedMinutes = try values.decodeIfPresent(Double.self, forKey: .focusedMinutes) ?? 0
         completed = try values.decodeIfPresent(Int.self, forKey: .completed) ?? 0
+        missed = try values.decodeIfPresent(Int.self, forKey: .missed)
+            ?? values.decodeIfPresent(Int.self, forKey: .failed)
+            ?? 0
         failed = try values.decodeIfPresent(Int.self, forKey: .failed) ?? 0
         skipped = try values.decodeIfPresent(Int.self, forKey: .skipped) ?? 0
-        total = try values.decodeIfPresent(Int.self, forKey: .total) ?? completed + failed + skipped
-        heatmap = try values.decodeIfPresent([[String: JSONValue]].self, forKey: .heatmap) ?? []
+        total = try values.decodeIfPresent(Int.self, forKey: .total) ?? completed + missed + skipped
+        last30Rate = try values.decodeIfPresent(Double.self, forKey: .last30Rate) ?? successRate
+        previous30Rate = try values.decodeIfPresent(Double.self, forKey: .previous30Rate) ?? 0
+        last90Rate = try values.decodeIfPresent(Double.self, forKey: .last90Rate) ?? successRate
+        averageValue = try values.decodeIfPresent(Double.self, forKey: .averageValue) ?? 0
+        strongestWeekday = try values.decodeIfPresent(Int.self, forKey: .strongestWeekday)
+        weakestWeekday = try values.decodeIfPresent(Int.self, forKey: .weakestWeekday)
+        heatmap = try values.decodeIfPresent([HabitDayStateModel].self, forKey: .heatmap) ?? []
     }
 
     private enum CodingKeys: String, CodingKey {
-        case currentStreak, bestStreak, successRate, focusedMinutes, completed, failed, skipped, total, heatmap
+        case currentStreak, bestStreak, streakUnit, successRate, focusedMinutes, completed, missed, failed, skipped, total,
+             last30Rate, previous30Rate, last90Rate, averageValue, strongestWeekday, weakestWeekday, heatmap
     }
 }

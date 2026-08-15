@@ -20,6 +20,7 @@ import {
   calculateDailyStreak,
 } from '../journalDate';
 import { DailyStreakBadge } from './DailyStreakBadge';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 interface NotePageProps {
   isDaily?: boolean;
@@ -215,25 +216,21 @@ export function NotePage({ isDaily = false }: NotePageProps) {
       {/* Signature Panel Frame */}
       <div className="itu-daily-panel">
         {/* Panel Header */}
-        <div className="itu-daily-header">
-          <div>
-            <p className="itu-daily-eyebrow">
-              {isDaily ? `Daily writing · ${dayOfWeek || 'Today'}` : 'Journal · Writing'}
-            </p>
-            <h1 className="itu-daily-title">
-              <input
-                type="text"
-                placeholder={isDaily ? 'Daily note' : 'Note title…'}
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  void handleAutosave(undefined, e.target.value);
-                }}
-                className="bg-transparent border-none outline-none font-serif text-3xl font-medium w-full text-foreground placeholder:text-muted-foreground/40"
-              />
-            </h1>
-
-            {/* Meta Row: Date chip, Tag chips, + Add tag */}
+        <PageHeader
+          kicker={isDaily ? `Daily writing · ${dayOfWeek || 'Today'}` : 'Journal · Writing'}
+          title={
+            <input
+              type="text"
+              placeholder={isDaily ? 'Daily note' : 'Note title…'}
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                void handleAutosave(undefined, e.target.value);
+              }}
+              className="w-full bg-transparent text-[1.75rem] font-extrabold leading-[1.05] tracking-[-0.04em] text-white outline-none placeholder:text-white/40"
+            />
+          }
+          description={
             <div className="itu-daily-meta-row">
               <label className="itu-daily-chip cursor-pointer" title="Change date">
                 <Calendar className="w-3.5 h-3.5 text-primary shrink-0" />
@@ -307,11 +304,10 @@ export function NotePage({ isDaily = false }: NotePageProps) {
                 )}
               </div>
             </div>
-          </div>
-
-          {/* Signature Concentric SVG Streak Rings */}
+          }
+        >
           <DailyStreakBadge value={streakCount} label="Day streak" />
-        </div>
+        </PageHeader>
 
         {/* Body Layout: 2 Columns */}
         <div className="itu-daily-body-row">

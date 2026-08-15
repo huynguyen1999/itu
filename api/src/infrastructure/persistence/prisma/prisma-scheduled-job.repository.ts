@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ScheduledJobStatus } from '@core/domain/enums';
+import { ScheduledJobStatus, ScheduledJobType } from '@core/domain/enums';
 import { IReminderRepository, IScheduledJobRepository } from '@core/application/ports/out/repositories.port';
 import type { CreateScheduledJobData } from '@core/application/ports/out/repository-types.port';
-import { ReminderStatus, TaskStatus } from '@prisma/client';
+import { HabitReminderDeliveryStatus, ReminderStatus, TaskStatus } from '@prisma/client';
+import { addLocalDays, isHabitScheduled, localDateKey, localDateTimeToUtc, parseLocalDate, projectHabitDays } from '@core/application/use-cases/habit-v2';
 import { PrismaService } from './prisma.service';
 import { mapScheduledJob } from './prisma.mappers';
 import { createUlid } from './ulid';
@@ -142,5 +143,129 @@ export class PrismaReminderRepository implements IReminderRepository {
       });
       return true;
     });
+  }
+
+  async deliverHabitReminder(deliveryId: string): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const delivery = await tx.habitReminderDelivery.findUnique({
+        where: { id: deliveryId },
+        include: {
+          reminder: { include: { habit: true } },
+          occurrence: { include: { progressLogs: true } },
+        },
+      });
+      if (!delivery || (delivery.status !== HabitReminderDeliveryStatus.SCHEDULED && delivery.status !== HabitReminderDeliveryStatus.SNOOZED)) return false;
+      if (!delivery.reminder.enabled || delivery.reminder.habit.archivedAt || delivery.scheduledFor > new Date()) return false;
+      const localDate = localDateKey(delivery.localDate);
+      const preferences = tx.userPreferences?.findUnique
+        ? await tx.userPreferences.findUnique({ where: { userId: delivery.reminder.habit.userId }, select: { habitPreferences: true } })
+        : null;
+      const habitPreferences = preferences?.habitPreferences as { weekStartDay?: unknown; dayRolloverCutoffHour?: unknown } | null | undefined;
+      const weekStartDay = String(habitPreferences?.weekStartDay).toUpperCase() === 'SUNDAY' ? 0 : 1;
+      const cutoff = Number(habitPreferences?.dayRolloverCutoffHour ?? 4);
+      const cutoffHour = Number.isInteger(cutoff) ? Math.min(23, Math.max(0, cutoff)) : 4;
+      const occurrence = delivery.occurrence ?? (tx.habitOccurrence?.findUnique
+        ? await tx.habitOccurrence.findUnique({
+            where: {
+              habitId_occurrenceDate: {
+                habitId: delivery.reminder.habitId,
+                occurrenceDate: parseLocalDate(localDate),
+              },
+            },
+            include: { progressLogs: true },
+          })
+        : null);
+      const state = projectHabitDays(
+        delivery.reminder.habit,
+        localDate,
+        localDate,
+        occurrence ? [occurrence] : [],
+        new Date(),
+        weekStartDay,
+        cutoffHour,
+      )[0];
+      if (!state || ['COMPLETED', 'SKIPPED', 'FAILED', 'MISSED'].includes(state.status)) {
+        await tx.habitReminderDelivery.update({ where: { id: delivery.id }, data: { status: HabitReminderDeliveryStatus.CANCELED } });
+        await this.scheduleNextHabitReminder(tx, delivery, new Date());
+        return false;
+      }
+      const claimed = await tx.habitReminderDelivery.updateMany({
+        where: { id: delivery.id, status: { in: [HabitReminderDeliveryStatus.SCHEDULED, HabitReminderDeliveryStatus.SNOOZED] }, deliveredAt: null },
+        data: { status: HabitReminderDeliveryStatus.DELIVERED, deliveredAt: new Date() },
+      });
+      if (claimed.count) {
+        await tx.notification.upsert({
+          where: { habitReminderDeliveryId: delivery.id },
+          create: {
+            id: createUlid(),
+            userId: delivery.reminder.habit.userId,
+            habitReminderDeliveryId: delivery.id,
+            title: delivery.reminder.habit.name,
+            body: "You haven't completed this habit yet.",
+            actionUrl: '/habits',
+          },
+          update: {
+            title: delivery.reminder.habit.name,
+            body: "You haven't completed this habit yet.",
+            actionUrl: '/habits',
+            readAt: null,
+            createdAt: new Date(),
+          },
+        });
+        await this.scheduleNextHabitReminder(tx, delivery, new Date());
+      }
+      return claimed.count > 0;
+    });
+  }
+
+  private async scheduleNextHabitReminder(tx: any, delivery: any, now: Date): Promise<void> {
+    const habit = delivery.reminder.habit;
+    if (!delivery.reminder.enabled || habit.archivedAt) return;
+    const preferences = tx.userPreferences?.findUnique
+      ? await tx.userPreferences.findUnique({ where: { userId: habit.userId }, select: { habitPreferences: true } })
+      : null;
+    const weekStartDay = String(preferences?.habitPreferences?.weekStartDay).toUpperCase() === 'SUNDAY' ? 0 : 1;
+    const timezone = habit.timezone ?? 'UTC';
+    const currentDate = localDateKey(delivery.localDate);
+    for (let offset = 1; offset <= 366; offset += 1) {
+      const localDate = addLocalDays(currentDate, offset);
+      if (!isHabitScheduled(habit, localDate, weekStartDay)) continue;
+      const scheduledFor = localDateTimeToUtc(localDate, delivery.reminder.timeLocal, timezone);
+      if (scheduledFor <= now) continue;
+      const localDateValue = new Date(`${localDate}T00:00:00.000Z`);
+      const existing = await tx.habitReminderDelivery.findUnique({
+        where: { reminderId_localDate: { reminderId: delivery.reminder.id, localDate: localDateValue } },
+      });
+      if (existing && existing.status !== HabitReminderDeliveryStatus.CANCELED) return;
+      const nextDeliveryId = existing?.id ?? createUlid();
+      const jobId = createUlid();
+      await tx.scheduledJob.create({
+        data: {
+          id: jobId,
+          userId: habit.userId,
+          type: ScheduledJobType.HABIT_REMINDER,
+          payload: { deliveryId: nextDeliveryId },
+          runAt: scheduledFor,
+        },
+      });
+      if (existing) {
+        await tx.habitReminderDelivery.update({
+          where: { id: existing.id },
+          data: { status: HabitReminderDeliveryStatus.SCHEDULED, scheduledFor, scheduledJobId: jobId, snoozedFrom: null, deliveredAt: null },
+        });
+      } else {
+        await tx.habitReminderDelivery.create({
+          data: {
+            id: nextDeliveryId,
+            reminderId: delivery.reminder.id,
+            localDate: localDateValue,
+            scheduledFor,
+            status: HabitReminderDeliveryStatus.SCHEDULED,
+            scheduledJobId: jobId,
+          },
+        });
+      }
+      return;
+    }
   }
 }

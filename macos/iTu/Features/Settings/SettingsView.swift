@@ -113,17 +113,11 @@ struct SettingsView: View {
     }
 
     private var pageHeader: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            iTuSectionLabel(title: "Preferences & System", color: iTuTheme.teal)
-            Text("Settings")
-                .font(.system(size: 26, weight: .bold, design: .rounded))
-                .foregroundStyle(iTuTheme.ink)
-            Text("Configure appearance, Gemini credentials, desktop sync, and Companion window behavior.")
-                .font(.system(size: 13))
-                .foregroundStyle(iTuTheme.inkDim)
-        }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 18)
+        iTuPageHeader(
+            kicker: "Preferences & System",
+            title: "Settings",
+            description: "Configure appearance, Gemini credentials, desktop sync, and Companion window behavior."
+        )
     }
 }
 

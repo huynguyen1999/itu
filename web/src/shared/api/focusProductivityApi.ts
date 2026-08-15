@@ -1,5 +1,6 @@
 import { createUlid } from '../sync/syncIdentity';
 import type { ApiClientContext } from './apiContext';
+import { SYNC_KINDS } from '../sync/syncKinds';
 import type {
   FocusMutationResponse,
   FocusPreset,
@@ -7,6 +8,11 @@ import type {
   FocusSound,
   FocusSoundPreference,
   Habit,
+  HabitCalendarResponse,
+  HabitDayState,
+  HabitInsights,
+  HabitProgressResult,
+  HabitProgressLog,
   HabitMutationResponse,
   HabitOccurrence,
   HabitStats,
@@ -219,6 +225,79 @@ export function createFocusProductivityApi(ctx: ApiClientContext) {
     habitOccurrences(from: string, to: string) {
       return ctx.request<HabitOccurrence[]>(
         `/productivity/habit-occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      );
+    },
+    habitCalendar(from: string, to: string) {
+      return ctx.request<HabitCalendarResponse>(
+        `/productivity/habits/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      );
+    },
+    habitInsights(id: string, from: string, to: string) {
+      return ctx.request<HabitInsights>(
+        `/productivity/habits/${id}/insights?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      );
+    },
+    progressHabit(
+      habitId: string,
+      data: { localDate: string; value: number; idempotencyKey: string },
+    ) {
+      const entityId = createUlid();
+      return ctx.offlineMutation<HabitProgressResult>(
+        {
+          kind: SYNC_KINDS.habit.checkIn,
+          entityId,
+          payload: { habitId, ...data, source: 'MANUAL' },
+          immediate: true,
+          optimistic: {
+            habitId,
+            occurrenceId: entityId,
+            localDate: data.localDate,
+            status: 'PENDING',
+            value: data.value,
+            targetValue: 1,
+            progressRatio: 0,
+          },
+        },
+        () => ctx.request<HabitProgressResult>(`/productivity/habits/${habitId}/progress`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      );
+    },
+    habitProgress(habitId: string, from?: string, to?: string) {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      return ctx.request<HabitProgressLog[]>(`/productivity/habits/${habitId}/progress${params.toString() ? `?${params.toString()}` : ''}`);
+    },
+    deleteHabitProgress(progressId: string) {
+      return ctx.request<HabitProgressLog>(`/productivity/habit-progress/${progressId}`, { method: 'DELETE' });
+    },
+    habitDateAction(
+      habitId: string,
+      data: { localDate: string; action: 'SKIP' | 'FAIL' | 'UNDO'; idempotencyKey: string },
+    ) {
+      const entityId = createUlid();
+      return ctx.offlineMutation<HabitProgressResult>(
+        {
+          kind: SYNC_KINDS.habit.action,
+          entityId,
+          payload: { habitId, localDate: data.localDate, action: data.action.toLowerCase(), idempotencyKey: data.idempotencyKey },
+          immediate: true,
+          optimistic: {
+            habitId,
+            occurrenceId: entityId,
+            localDate: data.localDate,
+            status: data.action === 'SKIP' ? 'SKIPPED' : data.action === 'FAIL' ? 'FAILED' : 'PENDING',
+            value: 0,
+            targetValue: 1,
+            progressRatio: 0,
+          },
+        },
+        () => ctx.request<HabitProgressResult>(`/productivity/habits/${habitId}/occurrence-action`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
       );
     },
     checkInHabit(

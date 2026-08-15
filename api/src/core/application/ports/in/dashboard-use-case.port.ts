@@ -56,5 +56,6 @@ export interface DeckStats {
 export interface IDashboardUseCase {
   summary(userId: string): Promise<DashboardSummary>;
   studyCalendar(userId: string, days?: number): Promise<StudyCalendarDay[]>;
+  studyCalendarRange(userId: string, from: string, to: string): Promise<StudyCalendarDay[]>;
   deckStats(userId: string, deckId: string): Promise<DeckStats>;
 }

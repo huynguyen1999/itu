@@ -12,13 +12,28 @@ export interface StatisticsDisplaySettings {
   grouping: 'DAY' | 'WEEK' | 'MONTH';
   showTrendComparison: boolean;
   showZeroValueSeries: boolean;
+  visibleDomains: StatisticsDomainKey[];
 }
+
+export const STATISTICS_DOMAIN_KEYS = ['productivity', 'habits', 'learning', 'gym', 'budget', 'growth', 'digital'] as const;
+export type StatisticsDomainKey = (typeof STATISTICS_DOMAIN_KEYS)[number];
+
+const statisticsDomainLabels: Record<StatisticsDomainKey, string> = {
+  productivity: 'Productivity',
+  habits: 'Habits',
+  learning: 'Learning',
+  gym: 'Gym',
+  budget: 'Budget',
+  growth: 'Growth',
+  digital: 'Digital',
+};
 
 export const DEFAULT_STATISTICS_DISPLAY_SETTINGS: StatisticsDisplaySettings = {
   defaultDateRange: '30D',
   grouping: 'DAY',
   showTrendComparison: true,
   showZeroValueSeries: false,
+  visibleDomains: [...STATISTICS_DOMAIN_KEYS],
 };
 
 const STATISTICS_SETTINGS_STORAGE_KEY = 'itu.statistics-settings';
@@ -28,6 +43,9 @@ export function getStoredStatisticsSettings(): StatisticsDisplaySettings {
     const raw = safeLocalStorage.getItem(STATISTICS_SETTINGS_STORAGE_KEY);
     if (!raw) return DEFAULT_STATISTICS_DISPLAY_SETTINGS;
     const parsed = JSON.parse(raw);
+    const visibleDomains = Array.isArray(parsed?.visibleDomains)
+      ? STATISTICS_DOMAIN_KEYS.filter((domain) => parsed.visibleDomains.includes(domain))
+      : DEFAULT_STATISTICS_DISPLAY_SETTINGS.visibleDomains;
     return {
       defaultDateRange: ['1D', '7D', '30D', '90D', '1Y'].includes(parsed?.defaultDateRange)
         ? parsed.defaultDateRange
@@ -43,6 +61,7 @@ export function getStoredStatisticsSettings(): StatisticsDisplaySettings {
         typeof parsed?.showZeroValueSeries === 'boolean'
           ? parsed.showZeroValueSeries
           : DEFAULT_STATISTICS_DISPLAY_SETTINGS.showZeroValueSeries,
+      visibleDomains,
     };
   } catch {
     return DEFAULT_STATISTICS_DISPLAY_SETTINGS;
@@ -115,6 +134,25 @@ export function StatisticsSettingsPopover({
               className="h-4 w-4 rounded border-gray-300 text-primary"
             />
           </FeatureSettingsRow>
+        </FeatureSettingsSection>
+
+        <FeatureSettingsSection title="Visible domains">
+          {STATISTICS_DOMAIN_KEYS.map((domain) => (
+            <FeatureSettingsRow key={domain} label={statisticsDomainLabels[domain]}>
+              <input
+                type="checkbox"
+                checked={settings.visibleDomains.includes(domain)}
+                onChange={(e) =>
+                  onChange({
+                    visibleDomains: e.target.checked
+                      ? [...new Set([...settings.visibleDomains, domain])]
+                      : settings.visibleDomains.filter((visibleDomain) => visibleDomain !== domain),
+                  })
+                }
+                className="h-4 w-4 rounded border-gray-300 text-primary"
+              />
+            </FeatureSettingsRow>
+          ))}
         </FeatureSettingsSection>
       </div>
     </FeatureSettingsPopover>

@@ -578,11 +578,28 @@ export class PrismaProductivityRepository implements IProductivityRepository {
   async listNotifications(userId: string, filter?: any) {
     const take = filter?.limit ? Math.min(filter.limit, 50) : 50;
 
-    return this.db.notification.findMany({
+    const rows = await this.db.notification.findMany({
       where: { userId },
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       take,
       ...(filter?.cursor && { cursor: { id: filter.cursor }, skip: 1 }),
+    });
+    const deliveryIds = rows.flatMap((row) => row.habitReminderDeliveryId ? [row.habitReminderDeliveryId] : []);
+    const deliveries = deliveryIds.length
+      ? await this.db.habitReminderDelivery.findMany({
+          where: { id: { in: deliveryIds } },
+          select: { id: true, localDate: true, reminder: { select: { habitId: true, habit: { select: { targetType: true } } } } },
+        })
+      : [];
+    const deliveryById = new Map(deliveries.map((delivery) => [delivery.id, delivery]));
+    return rows.map((notification) => {
+      const delivery = notification.habitReminderDeliveryId ? deliveryById.get(notification.habitReminderDeliveryId) : undefined;
+      return {
+      ...notification,
+      habitId: delivery?.reminder.habitId ?? null,
+      habitLocalDate: delivery?.localDate?.toISOString().slice(0, 10) ?? null,
+      habitTargetType: delivery?.reminder.habit.targetType ?? null,
+      };
     });
   }
 
@@ -735,6 +752,27 @@ export class PrismaProductivityRepository implements IProductivityRepository {
   }
   async listHabitOccurrences(userId: string, filter?: any) {
     return this.habits.listHabitOccurrences(userId, filter);
+  }
+  async listHabitCalendar(userId: string, filter: { from: string; to: string; habitId?: string }) {
+    return this.habits.listHabitCalendar(userId, filter);
+  }
+  async checkInByDate(userId: string, habitId: string, localDate: string, data: any) {
+    return this.habits.checkInByDate(userId, habitId, localDate, data);
+  }
+  async habitOccurrenceActionByDate(userId: string, habitId: string, localDate: string, action: 'skip' | 'fail' | 'undo', idempotencyKey?: string) {
+    return this.habits.habitOccurrenceActionByDate(userId, habitId, localDate, action, idempotencyKey);
+  }
+  async listHabitProgress(userId: string, habitId: string, filter?: { from?: string; to?: string }) {
+    return this.habits.listHabitProgress(userId, habitId, filter);
+  }
+  async habitInsights(userId: string, habitId: string, filter: { from: string; to: string }) {
+    return this.habits.habitInsights(userId, habitId, filter);
+  }
+  async habitReminderAction(userId: string, deliveryId: string, action: 'snooze' | 'dismiss' | 'complete', remindAt?: string) {
+    return this.habits.habitReminderAction(userId, deliveryId, action, remindAt);
+  }
+  async deleteHabitProgress(userId: string, progressId: string) {
+    return this.habits.deleteHabitProgress(userId, progressId);
   }
   async findHabitOccurrenceById(userId: string, id: string) {
     return this.habits.findHabitOccurrenceById(userId, id);

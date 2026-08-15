@@ -37,4 +37,13 @@ describe('PageHeader', () => {
     expect(markup.indexOf('itu-page-header-sticky__controls')).toBeGreaterThan(markup.indexOf('<header'));
     expect(markup).toContain('>7 days</button>');
   });
+
+  it('supports a title-only header', () => {
+    const markup = renderToStaticMarkup(<PageHeader title="Trash" />);
+
+    expect(markup).toContain('itu-page-header-sticky__title');
+    expect(markup).not.toContain('itu-page-header-sticky__kicker');
+    expect(markup).not.toContain('itu-page-header-sticky__description');
+    expect(markup).not.toContain('itu-page-header-sticky__actions');
+  });
 });

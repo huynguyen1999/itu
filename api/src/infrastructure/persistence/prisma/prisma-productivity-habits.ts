@@ -3,17 +3,34 @@ import {
   FocusSessionStatus,
   CommitmentPolicyLevel,
   GrowthSourceType,
-  HabitDirection,
   HabitOccurrenceStatus,
   HabitProgressSource,
+  HabitReminderDeliveryStatus,
   HabitScheduleType,
   Prisma,
+  ScheduledJobStatus,
+  ScheduledJobType,
 } from '@prisma/client';
 import { DomainException, EntityNotFoundException } from '@core/domain/exceptions';
 import { PrismaService } from './prisma.service';
 import { createUlid } from './ulid';
 import { PrismaFocusPersistence } from './prisma-focus.persistence';
-import { isHabitScheduled, utcDay } from '@core/application/use-cases/productivity-rules';
+import { utcDay } from '@core/application/use-cases/productivity-rules';
+import {
+  addLocalDays,
+  calculateInsights,
+  effectiveTarget,
+  isHabitDateInRange,
+  isHabitScheduled,
+  localDateKey,
+  localDateTimeToUtc,
+  logicalLocalDate,
+  parseLocalDate,
+  periodBounds,
+  projectHabitDays,
+  statusForValue,
+  type HabitDayState,
+} from '@core/application/use-cases/habit-v2';
 import { awardGrowthActivityWithReceipt, reverseGrowthActivityWithReceipt, GrowthAwardReceipt } from '@core/application/use-cases/growth-awards';
 import { ensureHabitGrowthRule } from '@core/application/use-cases/ensure-habit-growth-rule';
 import { HABIT_ACTION_MARKER_PREFIX } from './prisma-sync.helpers';
@@ -23,6 +40,18 @@ import { commitmentDefaults, commitmentFeatureEnabled, commitmentSnapshot, evalu
 const DAY_MS = 86_400_000;
 const MAX_HABIT_RANGE_DAYS = 366;
 const HABIT_GENERATION_LOOKBACK_DAYS = 31;
+
+function normalizeLocalDate(value: string): string {
+  const date = value.slice(0, 10);
+  parseLocalDate(date);
+  return date;
+}
+
+function weekStartDayFromPreferences(value: unknown): number {
+  if (!value || typeof value !== 'object') return 1;
+  const day = (value as { weekStartDay?: unknown }).weekStartDay;
+  return String(day).toUpperCase() === 'SUNDAY' ? 0 : 1;
+}
 
 async function serializableWithRetry<T>(db: PrismaService, work: (tx: any) => Promise<T>, label: string): Promise<T> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -55,6 +84,21 @@ export class PrismaProductivityHabits {
 
   constructor(private readonly db: PrismaService) {
     this.focus = new PrismaFocusPersistence(db);
+  }
+
+  private async habitCalendarPreferences(db: any, userId: string): Promise<{ weekStartDay: number; dayRolloverCutoffHour: number }> {
+    if (!db.userPreferences?.findUnique) return { weekStartDay: 1, dayRolloverCutoffHour: 4 };
+    const preferences = await db.userPreferences.findUnique({ where: { userId }, select: { habitPreferences: true } });
+    const raw = preferences?.habitPreferences as { dayRolloverCutoffHour?: unknown } | null | undefined;
+    const cutoff = Number(raw?.dayRolloverCutoffHour ?? 4);
+    return {
+      weekStartDay: weekStartDayFromPreferences(preferences?.habitPreferences),
+      dayRolloverCutoffHour: Number.isInteger(cutoff) ? Math.min(23, Math.max(0, cutoff)) : 4,
+    };
+  }
+
+  private async habitWeekStartDay(db: any, userId: string): Promise<number> {
+    return (await this.habitCalendarPreferences(db, userId)).weekStartDay;
   }
 
   listFocusPresets(userId: string) { return this.focus.listFocusPresets(userId); }
@@ -109,7 +153,29 @@ export class PrismaProductivityHabits {
 
   async createHabit(userId: string, data: any) {
     const tagIds = await this.availableTagIds(userId, data.tagIds);
+    const reminderTimes: string[] = Array.isArray(data.reminderTimes)
+      ? Array.from(new Set<string>(data.reminderTimes.filter((time: unknown) => typeof time === 'string') as string[]))
+      : [];
+    if (reminderTimes.length > 3) throw new DomainException('A habit may have at most 3 reminders', 'TOO_MANY_HABIT_REMINDERS', 400);
+    const checklistItems = Array.isArray(data.checklistItems) ? data.checklistItems : [];
     return this.db.$transaction(async (tx) => {
+      const taskTemplate = data.taskTemplate
+        ? await tx.habitTaskTemplate.create({
+            data: {
+              id: createUlid(),
+              userId,
+              title: data.taskTemplate.title,
+              descriptionMarkdown: data.taskTemplate.descriptionMarkdown ?? '',
+              taskListId: data.taskTemplate.projectId ?? null,
+              sectionId: data.taskTemplate.sectionId ?? null,
+              priority: data.taskTemplate.priority ?? 'NONE',
+              estimatedMinutes: data.taskTemplate.estimatedMinutes ?? null,
+              tagIds: data.taskTemplate.tagIds ?? [],
+              syncPolicy: data.taskTemplate.syncPolicy ?? 'NONE',
+              enabled: data.taskTemplate.enabled ?? false,
+            },
+          })
+        : null;
       const habit = await tx.habit.create({
         data: {
           id: createUlid(),
@@ -134,10 +200,27 @@ export class PrismaProductivityHabits {
           difficulty: data.difficulty ?? 1,
           allowedSkips: data.allowedSkips ?? 0,
           restDays: data.restDays ?? [],
+          taskTemplateId: data.taskTemplateId ?? null,
+          taskTemplateConfigId: taskTemplate?.id ?? null,
+          focusPresetId: data.focusPresetId ?? null,
           tags: tagIds.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
+          reminders: reminderTimes.length
+            ? { create: reminderTimes.map((timeLocal) => ({ id: createUlid(), timeLocal, enabled: true })) }
+            : undefined,
+          checklistItems: checklistItems.length
+            ? {
+                create: checklistItems.map((item: any, index: number) => ({
+                  id: createUlid(),
+                  title: item.title,
+                  required: item.required ?? false,
+                  sortOrder: index,
+                })),
+              }
+            : undefined,
         },
       });
       await ensureHabitGrowthRule(tx, userId, habit.id);
+      await this.scheduleHabitReminders(tx, userId, habit.id);
       return tx.habit.findUniqueOrThrow({ where: { id: habit.id }, include: HABIT_INCLUDE });
     });
   }
@@ -146,7 +229,31 @@ export class PrismaProductivityHabits {
     const existing = await this.db.habit.findFirst({ where: { id, userId } });
     if (!existing) return null;
     const tagIds = data.tagIds === undefined ? undefined : await this.availableTagIds(userId, data.tagIds);
+    const reminderTimes = data.reminderTimes === undefined
+      ? undefined
+      : Array.from(new Set<string>((Array.isArray(data.reminderTimes) ? data.reminderTimes : []).filter((time: unknown) => typeof time === 'string')));
+    if (reminderTimes && reminderTimes.length > 3) throw new DomainException('A habit may have at most 3 reminders', 'TOO_MANY_HABIT_REMINDERS', 400);
+    const checklistItems = data.checklistItems === undefined
+      ? undefined
+      : (Array.isArray(data.checklistItems) ? data.checklistItems : []).filter((item: any) => typeof item?.title === 'string' && item.title.trim().length > 0);
+    const rescheduleReminders = data.reminderTimes !== undefined || ['timezone', 'scheduleType', 'weekdays', 'intervalDays', 'timesPerPeriod', 'period', 'startDate', 'endDate', 'archived'].some((key) => data[key] !== undefined);
     return this.db.$transaction(async (tx) => {
+      if (rescheduleReminders) await this.cancelHabitReminderJobs(tx, id);
+      if (reminderTimes !== undefined) await tx.habitReminder.deleteMany({ where: { habitId: id } });
+      if (checklistItems !== undefined) {
+        await tx.habitChecklistItem.deleteMany({ where: { habitId: id } });
+        if (checklistItems.length) {
+          await tx.habitChecklistItem.createMany({
+            data: checklistItems.map((item: any, index: number) => ({
+              id: createUlid(),
+              habitId: id,
+              title: item.title.trim(),
+              required: item.required ?? false,
+              sortOrder: index,
+            })),
+          });
+        }
+      }
       if (tagIds) {
         await tx.habitTagAssignment.deleteMany({ where: { habitId: id } });
         if (tagIds.length) {
@@ -182,7 +289,12 @@ export class PrismaProductivityHabits {
           version: { increment: 1 },
         },
       });
-      return tx.habit.findUniqueOrThrow({ where: { id }, include: HABIT_INCLUDE });
+      if (reminderTimes !== undefined && reminderTimes.length) {
+        await tx.habitReminder.createMany({ data: reminderTimes.map((timeLocal) => ({ id: createUlid(), habitId: id, timeLocal, enabled: true })) });
+      }
+      const updated = await tx.habit.findUniqueOrThrow({ where: { id }, include: HABIT_INCLUDE });
+      if (rescheduleReminders && !updated.archivedAt) await this.scheduleHabitReminders(tx, userId, id);
+      return updated;
     });
   }
 
@@ -201,13 +313,63 @@ export class PrismaProductivityHabits {
   }
 
   async deleteHabit(userId: string, id: string) {
-    const breached = await this.db.growthCommitmentPenalty.count({ where: { userId, occurrence: { habitId: id } } });
-    if (breached > 0) {
-      await this.db.habit.updateMany({ where: { id, userId }, data: { archivedAt: new Date(), version: { increment: 1 } } });
-      return true;
+    return this.db.$transaction(async (tx) => {
+      const habit = await tx.habit.findFirst({ where: { id, userId }, select: { id: true } });
+      if (!habit) return false;
+      await this.cancelHabitReminderJobs(tx, id);
+      const breached = await tx.growthCommitmentPenalty.count({ where: { userId, occurrence: { habitId: id } } });
+      if (breached > 0) {
+        await tx.habit.update({ where: { id }, data: { archivedAt: new Date(), version: { increment: 1 } } });
+        return true;
+      }
+      const deleted = await tx.habit.deleteMany({ where: { id, userId } });
+      return deleted.count > 0;
+    });
+  }
+
+  private async cancelHabitReminderJobs(tx: any, habitId: string) {
+    const deliveries = await tx.habitReminderDelivery.findMany({
+      where: { reminder: { habitId }, status: { in: [HabitReminderDeliveryStatus.SCHEDULED, HabitReminderDeliveryStatus.SNOOZED] } },
+      select: { id: true, scheduledJobId: true },
+    });
+    const jobIds = deliveries.flatMap((delivery: { scheduledJobId: string | null }) => delivery.scheduledJobId ? [delivery.scheduledJobId] : []);
+    if (jobIds.length) {
+      await tx.scheduledJob.updateMany({
+        where: { id: { in: jobIds }, status: { in: [ScheduledJobStatus.SCHEDULED, ScheduledJobStatus.PUBLISHING, ScheduledJobStatus.PUBLISHED] } },
+        data: { status: ScheduledJobStatus.CANCELED },
+      });
     }
-    const deleted = await this.db.habit.deleteMany({ where: { id, userId } });
-    return deleted.count > 0;
+    if (deliveries.length) {
+      await tx.habitReminderDelivery.updateMany({ where: { id: { in: deliveries.map((delivery: { id: string }) => delivery.id) } }, data: { status: HabitReminderDeliveryStatus.CANCELED } });
+    }
+  }
+
+  private async scheduleHabitReminders(tx: any, userId: string, habitId: string, now = new Date()) {
+    const habit = await tx.habit.findFirst({ where: { id: habitId, userId }, include: { reminders: true } });
+    if (!habit || habit.archivedAt) return;
+    const calendarPreferences = await this.habitCalendarPreferences(tx, userId);
+    const firstDate = logicalLocalDate(now, habit.timezone ?? 'UTC', calendarPreferences.dayRolloverCutoffHour);
+    const weekStartDay = calendarPreferences.weekStartDay;
+    for (let offset = 0; offset < 7; offset += 1) {
+      const localDate = addLocalDays(firstDate, offset);
+      if (!isHabitScheduled(habit, localDate, weekStartDay)) continue;
+      for (const reminder of habit.reminders.filter((item: { enabled: boolean }) => item.enabled)) {
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(reminder.timeLocal)) continue;
+        const scheduledFor = localDateTimeToUtc(localDate, reminder.timeLocal, habit.timezone ?? 'UTC');
+        if (scheduledFor <= now) continue;
+        const existing = await tx.habitReminderDelivery.findUnique({ where: { reminderId_localDate: { reminderId: reminder.id, localDate: parseLocalDate(localDate) } } });
+        if (existing && existing.status !== HabitReminderDeliveryStatus.CANCELED) continue;
+        const deliveryId = existing?.id ?? createUlid();
+        const jobId = createUlid();
+        if (existing) {
+          await tx.habitReminderDelivery.update({ where: { id: existing.id }, data: { scheduledFor, status: HabitReminderDeliveryStatus.SCHEDULED, scheduledJobId: jobId, snoozedFrom: null, deliveredAt: null } });
+        } else {
+          await tx.habitReminderDelivery.create({ data: { id: deliveryId, reminderId: reminder.id, localDate: parseLocalDate(localDate), scheduledFor, status: HabitReminderDeliveryStatus.SCHEDULED } });
+        }
+        await tx.scheduledJob.create({ data: { id: jobId, userId, type: ScheduledJobType.HABIT_REMINDER, payload: { deliveryId }, runAt: scheduledFor } });
+        await tx.habitReminderDelivery.update({ where: { id: deliveryId }, data: { scheduledJobId: jobId } });
+      }
+    }
   }
 
   // ─── Habit Occurrences ──────────────────────────────────────────────────────
@@ -221,45 +383,6 @@ export class PrismaProductivityHabits {
       }
 
       const generationFrom = new Date(from.getTime() - HABIT_GENERATION_LOOKBACK_DAYS * DAY_MS);
-      const habits = await this.db.habit.findMany({
-        where: {
-          userId,
-          archivedAt: null,
-          startDate: { lte: to },
-          ...(filter.habitId ? { id: filter.habitId } : {}),
-        },
-        include: { checklistItems: true },
-      });
-
-      await this.db.$transaction(async (tx) => {
-        for (const habit of habits) {
-          for (let date = new Date(generationFrom); date <= to; date = new Date(date.getTime() + DAY_MS)) {
-            if (!isHabitScheduled(habit, date)) continue;
-            const policy = commitmentFeatureEnabled() && tx.habitCommitmentPolicy?.findFirst
-              ? await tx.habitCommitmentPolicy.findFirst({ where: { habitId: habit.id, userId, enabled: true, effectiveFrom: { lte: date }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: date } }] } })
-              : null;
-            const occurrence = await tx.habitOccurrence.upsert({
-              where: { habitId_occurrenceDate: { habitId: habit.id, occurrenceDate: date } },
-              create: { id: createUlid(), habitId: habit.id, occurrenceDate: date, ...(policy ? commitmentSnapshot(policy) : {}) },
-              update: {},
-            });
-            if (habit.checklistItems.length) {
-              await tx.habitOccurrenceChecklistItem.createMany({
-                data: habit.checklistItems.map((item) => ({
-                  id: createUlid(),
-                  occurrenceId: occurrence.id,
-                  sourceItemId: item.id,
-                  title: item.title,
-                  required: item.required,
-                  sortOrder: item.sortOrder,
-                })),
-                skipDuplicates: true,
-              });
-            }
-          }
-        }
-      });
-
       const occurrences = await this.db.habitOccurrence.findMany({
         where: {
           habit: { userId },
@@ -269,22 +392,7 @@ export class PrismaProductivityHabits {
         include: { habit: true, checkIn: true, checklistItems: true },
         orderBy: [{ occurrenceDate: 'asc' }, { id: 'asc' }],
       });
-
-      return occurrences.filter((occurrence) => {
-        if (occurrence.habit.scheduleType !== HabitScheduleType.TIMES_PER_PERIOD) {
-          return occurrence.occurrenceDate >= from && occurrence.occurrenceDate <= to;
-        }
-        const period = (occurrence.habit.period ?? 'WEEK').toUpperCase();
-        if (period === 'MONTH') {
-          return (
-            occurrence.occurrenceDate.getUTCFullYear() === to.getUTCFullYear() &&
-            occurrence.occurrenceDate.getUTCMonth() === to.getUTCMonth()
-          );
-        }
-        const mondayOffset = (to.getUTCDay() + 6) % 7;
-        const monday = new Date(to.getTime() - mondayOffset * DAY_MS);
-        return occurrence.occurrenceDate.getTime() === monday.getTime();
-      });
+      return occurrences.filter((occurrence) => occurrence.occurrenceDate >= from && occurrence.occurrenceDate <= to);
     }
 
     const where: Prisma.HabitOccurrenceWhereInput = {
@@ -306,6 +414,54 @@ export class PrismaProductivityHabits {
       ...(filter?.limit ? { take: Math.min(filter.limit, 50) } : {}),
       ...(filter?.cursor && { cursor: { id: filter.cursor }, skip: 1 }),
     });
+  }
+
+  async listHabitCalendar(userId: string, filter: { from: string; to: string; habitId?: string }) {
+    const fromKey = normalizeLocalDate(filter.from);
+    const toKey = normalizeLocalDate(filter.to);
+    const from = parseLocalDate(fromKey);
+    const to = parseLocalDate(toKey);
+    if (to < from || to.getTime() - from.getTime() > MAX_HABIT_RANGE_DAYS * DAY_MS) {
+      throw new DomainException('Habit range must be between 0 and 366 days');
+    }
+    const habits = await this.db.habit.findMany({
+      where: {
+        userId,
+        archivedAt: null,
+        startDate: { lte: to },
+        ...(filter.habitId ? { id: filter.habitId } : {}),
+      },
+    });
+    if (habits.length === 0) return { from: fromKey, to: toKey, days: [] };
+    const calendarPreferences = await this.habitCalendarPreferences(this.db, userId);
+    const stored = await this.db.habitOccurrence.findMany({
+      where: {
+        habitId: { in: habits.map((habit) => habit.id) },
+        occurrenceDate: { gte: new Date(from.getTime() - HABIT_GENERATION_LOOKBACK_DAYS * DAY_MS), lte: to },
+      },
+      include: { progressLogs: true },
+      orderBy: [{ occurrenceDate: 'asc' }, { id: 'asc' }],
+    });
+    const storedByHabit = new Map<string, any[]>();
+    for (const occurrence of stored) {
+      const items = storedByHabit.get(occurrence.habitId) ?? [];
+      items.push(occurrence);
+      storedByHabit.set(occurrence.habitId, items);
+    }
+    const days: Array<{ habitId: string } & HabitDayState> = [];
+    for (const habit of habits) {
+      const projected = projectHabitDays(
+        habit,
+        fromKey,
+        toKey,
+        storedByHabit.get(habit.id) ?? [],
+        new Date(),
+        calendarPreferences.weekStartDay,
+        calendarPreferences.dayRolloverCutoffHour,
+      );
+      days.push(...projected.map((day) => ({ habitId: habit.id, ...day })));
+    }
+    return { from: fromKey, to: toKey, days };
   }
 
   async findHabitOccurrenceById(userId: string, id: string) {
@@ -534,7 +690,10 @@ export class PrismaProductivityHabits {
   // ─── Habit Check-in & Actions ──────────────────────────────────────────────
 
   async checkIn(userId: string, occurrenceId: string, input: any) {
-    return serializableWithRetry(this.db, async (tx) => {
+    return serializableWithRetry(this.db, (tx) => this.checkInInTransaction(tx, userId, occurrenceId, input), 'Habit check-in');
+  }
+
+  private async checkInInTransaction(tx: any, userId: string, occurrenceId: string, input: any) {
       let occurrence = await tx.habitOccurrence.findFirst({
         where: { id: occurrenceId, habit: { userId } },
         include: { habit: true },
@@ -554,7 +713,16 @@ export class PrismaProductivityHabits {
           (existingLog.adjusted ?? false) === (input.adjusted ?? false) &&
           (existingLog.note ?? null) === (input.note ?? null);
         if (!samePayload) throw new DomainException('Habit check-in idempotency key was reused with a different payload');
-        return { ...occurrence, growthReceipt: existingLog.growthReceipt ?? null };
+        const total = await tx.habitProgressLog.aggregate({ where: { occurrenceId }, _sum: { value: true } });
+        const value = total._sum.value ?? 0;
+        const targetValue = effectiveTarget(occurrence.habit);
+        return {
+          ...occurrence,
+          value,
+          targetValue,
+          progressRatio: Math.min(1, value / targetValue),
+          growthReceipt: existingLog.growthReceipt ?? null,
+        };
       }
       // Evaluate on the server before applying a delayed check-in. A client may
       // have been offline past the deadline; recovery then reverses the penalty
@@ -582,15 +750,22 @@ export class PrismaProductivityHabits {
       }
       const total = await tx.habitProgressLog.aggregate({ where: { occurrenceId }, _sum: { value: true } });
       const value = total._sum.value ?? 0;
-      const targetReached =
-        occurrence.habit.direction === HabitDirection.BUILD
-          ? value >= occurrence.habit.targetValue
-          : value <= occurrence.habit.targetValue;
+      const occurrenceDate = localDateKey(occurrence.occurrenceDate ?? new Date());
+      const calendarPreferences = await this.habitCalendarPreferences(tx, userId);
+      const weekStartDay = calendarPreferences.weekStartDay;
+      const periodEnd = occurrence.habit.scheduleType === HabitScheduleType.TIMES_PER_PERIOD
+        ? periodBounds(occurrenceDate, String(occurrence.habit.period ?? 'WEEK').toUpperCase() === 'MONTH' ? 'MONTH' : 'WEEK', weekStartDay).end
+        : occurrenceDate;
+      const closed = logicalLocalDate(new Date(), occurrence.habit.timezone ?? 'UTC', calendarPreferences.dayRolloverCutoffHour) > periodEnd;
+      const projectedStatus = statusForValue(occurrence.habit, value, undefined, closed);
+      const targetReached = projectedStatus === 'COMPLETED';
+      const failed = projectedStatus === 'FAILED';
       const incompleteRequired = await tx.habitOccurrenceChecklistItem.count({
         where: { occurrenceId, required: true, completedAt: null },
       });
-      const newStatus =
-        targetReached && incompleteRequired === 0 ? HabitOccurrenceStatus.COMPLETED : HabitOccurrenceStatus.PENDING;
+      const newStatus = failed
+        ? HabitOccurrenceStatus.FAILED
+        : targetReached && incompleteRequired === 0 ? HabitOccurrenceStatus.COMPLETED : HabitOccurrenceStatus.PENDING;
 
       const updated = await tx.habitOccurrence.update({
         where: { id: occurrenceId },
@@ -639,12 +814,161 @@ export class PrismaProductivityHabits {
         },
       });
 
-      return { ...updated, growthReceipt };
-    }, 'Habit check-in');
+      return {
+        ...updated,
+        value,
+        targetValue: effectiveTarget(occurrence.habit),
+        progressRatio: Math.min(1, value / effectiveTarget(occurrence.habit)),
+        growthReceipt,
+      };
+  }
+
+  private async ensureHabitOccurrenceInTransaction(tx: any, userId: string, habitId: string, localDate: string) {
+    const habit = await tx.habit.findFirst({ where: { id: habitId, userId }, include: { checklistItems: true } });
+    if (!habit) throw new EntityNotFoundException('Habit', habitId);
+    if (!isHabitDateInRange(habit, localDate)) throw new DomainException('Habit is not active on this date', 'HABIT_NOT_SCHEDULED', 400);
+    const weekStartDay = await this.habitWeekStartDay(tx, userId);
+    const bucketDate = habit.scheduleType === HabitScheduleType.TIMES_PER_PERIOD
+      ? periodBounds(localDate, String(habit.period ?? 'WEEK').toUpperCase() === 'MONTH' ? 'MONTH' : 'WEEK', weekStartDay).start
+      : localDate;
+    if (!isHabitScheduled(habit, bucketDate, weekStartDay)) throw new DomainException('Habit is not scheduled for this date', 'HABIT_NOT_SCHEDULED', 400);
+    const occurrenceDate = new Date(`${bucketDate}T00:00:00.000Z`);
+    const existing = await tx.habitOccurrence.findUnique({
+      where: { habitId_occurrenceDate: { habitId, occurrenceDate } },
+      include: { habit: true, checkIn: true, checklistItems: true },
+    });
+    if (existing) return existing;
+    const policy = commitmentFeatureEnabled()
+      ? await tx.habitCommitmentPolicy.findFirst({ where: { habitId, userId, enabled: true, effectiveFrom: { lte: occurrenceDate }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: occurrenceDate } }] } })
+      : null;
+    const occurrence = await tx.habitOccurrence.create({
+      data: {
+        id: createUlid(),
+        habitId,
+        occurrenceDate,
+        ...(policy ? commitmentSnapshot(policy) : {}),
+        checklistItems: habit.checklistItems.length
+          ? { create: habit.checklistItems.map((item: any) => ({ id: createUlid(), sourceItemId: item.id, title: item.title, required: item.required, sortOrder: item.sortOrder })) }
+          : undefined,
+      },
+      include: { habit: true, checkIn: true, checklistItems: true },
+    });
+    return occurrence;
+  }
+
+  async checkInByDate(userId: string, habitId: string, localDate: string, input: any) {
+    const date = normalizeLocalDate(localDate);
+    return serializableWithRetry(this.db, async (tx) => {
+      const occurrence = await this.ensureHabitOccurrenceInTransaction(tx, userId, habitId, date);
+      const result = await this.checkInInTransaction(tx, userId, occurrence.id, input);
+      return { ...result, habitId, occurrenceId: result.id, localDate: date };
+    }, 'Habit progress');
+  }
+
+  async habitOccurrenceActionByDate(
+    userId: string,
+    habitId: string,
+    localDate: string,
+    action: 'skip' | 'fail' | 'undo',
+    idempotencyKey?: string,
+  ) {
+    const date = normalizeLocalDate(localDate);
+    return serializableWithRetry(this.db, async (tx) => {
+      const occurrence = await this.ensureHabitOccurrenceInTransaction(tx, userId, habitId, date);
+      return this.habitOccurrenceActionInTransaction(tx, userId, occurrence.id, action, idempotencyKey);
+    }, 'Habit occurrence action');
+  }
+
+  async listHabitProgress(userId: string, habitId: string, filter: { from?: string; to?: string } = {}) {
+    const from = filter.from ? normalizeLocalDate(filter.from) : undefined;
+    const to = filter.to ? normalizeLocalDate(filter.to) : undefined;
+    return this.db.habitProgressLog.findMany({
+      where: {
+        occurrence: {
+          habitId,
+          habit: { userId },
+          ...(filter.from || filter.to
+            ? {
+                occurrenceDate: {
+                  ...(from ? { gte: parseLocalDate(from) } : {}),
+                  ...(to ? { lte: parseLocalDate(to) } : {}),
+                },
+              }
+            : {}),
+        },
+      },
+      orderBy: { recordedAt: 'desc' },
+    });
+  }
+
+  async deleteHabitProgress(userId: string, progressId: string) {
+    return serializableWithRetry(this.db, async (tx) => {
+      const log = await tx.habitProgressLog.findFirst({
+        where: { id: progressId, occurrence: { habit: { userId } } },
+        include: { occurrence: { include: { habit: true } } },
+      });
+      if (!log) return null;
+      if (log.note?.startsWith(HABIT_ACTION_MARKER_PREFIX)) {
+        throw new DomainException('Habit action markers cannot be deleted');
+      }
+      const before = log.occurrence;
+      await tx.habitProgressLog.delete({ where: { id: progressId } });
+      const total = await tx.habitProgressLog.aggregate({ where: { occurrenceId: before.id }, _sum: { value: true } });
+      const value = total._sum.value ?? 0;
+      const date = localDateKey(before.occurrenceDate);
+      const calendarPreferences = await this.habitCalendarPreferences(tx, userId);
+      const weekStartDay = calendarPreferences.weekStartDay;
+      const periodEnd = before.habit.scheduleType === HabitScheduleType.TIMES_PER_PERIOD
+        ? periodBounds(date, String(before.habit.period ?? 'WEEK').toUpperCase() === 'MONTH' ? 'MONTH' : 'WEEK', weekStartDay).end
+        : date;
+      const projectedStatus = statusForValue(
+        before.habit,
+        value,
+        undefined,
+        logicalLocalDate(new Date(), before.habit.timezone ?? 'UTC', calendarPreferences.dayRolloverCutoffHour) > periodEnd,
+      );
+      const required = await tx.habitOccurrenceChecklistItem.count({ where: { occurrenceId: before.id, required: true, completedAt: null } });
+      const newStatus = projectedStatus === 'FAILED'
+        ? HabitOccurrenceStatus.FAILED
+        : projectedStatus === 'COMPLETED' && required === 0 ? HabitOccurrenceStatus.COMPLETED : HabitOccurrenceStatus.PENDING;
+      const updated = await tx.habitOccurrence.update({
+        where: { id: before.id },
+        data: { status: newStatus, statusSource: HabitProgressSource.MANUAL, statusChangedAt: new Date() },
+        include: { habit: true, checkIn: true, checklistItems: true },
+      });
+      let growthReceipt: GrowthAwardReceipt | null = null;
+      if (before.status !== HabitOccurrenceStatus.COMPLETED && newStatus === HabitOccurrenceStatus.COMPLETED) {
+        await ensureHabitGrowthRule(tx, userId, before.habitId);
+        growthReceipt = await awardGrowthActivityWithReceipt(tx, userId, GrowthSourceType.HABIT, before.habitId, before.habit.name, {}, before.id);
+      } else if (before.status === HabitOccurrenceStatus.COMPLETED && newStatus !== HabitOccurrenceStatus.COMPLETED) {
+        growthReceipt = await reverseGrowthActivityWithReceipt(tx, userId, GrowthSourceType.HABIT, before.id, before.habit.name);
+      }
+      await tx.syncChange.create({
+        data: {
+          userId,
+          entityType: 'habitoccurrence',
+          entityId: updated.id,
+          operation: 'UPSERT',
+          data: updated as unknown as Prisma.InputJsonValue,
+        },
+      });
+      return {
+        ...updated,
+        progressLogId: progressId,
+        value,
+        targetValue: effectiveTarget(before.habit),
+        progressRatio: Math.min(1, value / effectiveTarget(before.habit)),
+        occurrence: updated,
+        growthReceipt,
+      };
+    }, 'Habit progress deletion');
   }
 
   async habitOccurrenceAction(userId: string, id: string, action: 'skip' | 'fail' | 'undo', idempotencyKey?: string) {
-    return this.db.$transaction(async (tx) => {
+    return serializableWithRetry(this.db, (tx) => this.habitOccurrenceActionInTransaction(tx, userId, id, action, idempotencyKey), 'Habit occurrence action');
+  }
+
+  private async habitOccurrenceActionInTransaction(tx: any, userId: string, id: string, action: 'skip' | 'fail' | 'undo', idempotencyKey?: string) {
       const occurrence = await tx.habitOccurrence.findFirst({
         where: { id, habit: { userId } },
         include: { habit: true },
@@ -656,7 +980,16 @@ export class PrismaProductivityHabits {
         const existingMarker = await tx.habitProgressLog.findUnique({ where: { source_sourceEventId: { source: HabitProgressSource.MANUAL, sourceEventId: markerId } } });
         if (existingMarker) {
           if (existingMarker.note !== `${HABIT_ACTION_MARKER_PREFIX}${action}`) throw new DomainException('Habit action idempotency key was reused with a different payload');
-          return { ...occurrence, growthReceipt: existingMarker.growthReceipt ?? null };
+          const total = await tx.habitProgressLog.aggregate({ where: { occurrenceId: id }, _sum: { value: true } });
+          const value = total._sum.value ?? 0;
+          const targetValue = effectiveTarget(occurrence.habit);
+          return {
+            ...occurrence,
+            value,
+            targetValue,
+            progressRatio: Math.min(1, value / targetValue),
+            growthReceipt: existingMarker.growthReceipt ?? null,
+          };
         }
         markerRecordId = createUlid();
         await tx.habitProgressLog.create({
@@ -720,8 +1053,7 @@ export class PrismaProductivityHabits {
       });
 
       return { ...updated, growthReceipt };
-    });
-  }
+    }
 
   async updateChecklistItem(userId: string, id: string, data: any) {
     return this.db.habitOccurrenceChecklistItem.update({ where: { id }, data });
@@ -752,12 +1084,22 @@ export class PrismaProductivityHabits {
           tx.habitOccurrenceChecklistItem.count({ where: { occurrenceId, required: true, completedAt: null } }),
         ]);
         const value = progress._sum.value ?? 0;
-        const targetReached =
-          occurrence.habit.direction === HabitDirection.BUILD
-            ? value >= occurrence.habit.targetValue
-            : value <= occurrence.habit.targetValue;
+        const occurrenceDate = localDateKey(occurrence.occurrenceDate);
+        const calendarPreferences = await this.habitCalendarPreferences(tx, userId);
+        const weekStartDay = calendarPreferences.weekStartDay;
+        const periodEnd = occurrence.habit.scheduleType === HabitScheduleType.TIMES_PER_PERIOD
+          ? periodBounds(occurrenceDate, String(occurrence.habit.period ?? 'WEEK').toUpperCase() === 'MONTH' ? 'MONTH' : 'WEEK', weekStartDay).end
+          : occurrenceDate;
+        const projectedStatus = statusForValue(
+          occurrence.habit,
+          value,
+          undefined,
+          logicalLocalDate(new Date(), occurrence.habit.timezone ?? 'UTC', calendarPreferences.dayRolloverCutoffHour) > periodEnd,
+        );
         const newStatus =
-          targetReached && !incompleteRequired ? HabitOccurrenceStatus.COMPLETED : HabitOccurrenceStatus.PENDING;
+          projectedStatus === 'FAILED'
+            ? HabitOccurrenceStatus.FAILED
+            : projectedStatus === 'COMPLETED' && !incompleteRequired ? HabitOccurrenceStatus.COMPLETED : HabitOccurrenceStatus.PENDING;
 
         const updatedOccurrence = await tx.habitOccurrence.update({
           where: { id: occurrenceId },
@@ -803,61 +1145,132 @@ export class PrismaProductivityHabits {
     });
   }
 
-  private computeStats(habit: { allowedSkips: number }, occurrences: any[]) {
-    let currentStreak = 0;
-    let skipBudget = habit.allowedSkips;
-    for (const item of occurrences) {
-      if (item.status === HabitOccurrenceStatus.COMPLETED) currentStreak += 1;
-      else if (item.status === HabitOccurrenceStatus.SKIPPED && skipBudget > 0) {
-        currentStreak += 1;
-        skipBudget -= 1;
-      } else break;
-    }
-    let bestStreak = 0;
-    let running = 0;
-    for (const item of [...occurrences].reverse()) {
-      if (item.status === HabitOccurrenceStatus.COMPLETED) running += 1;
-      else if (item.status === HabitOccurrenceStatus.SKIPPED) running += 1;
-      else running = 0;
-      bestStreak = Math.max(bestStreak, running);
-    }
-    const completed = occurrences.filter((item) => item.status === HabitOccurrenceStatus.COMPLETED).length;
-    const eligible = occurrences.filter((item) => item.status !== HabitOccurrenceStatus.SKIPPED).length;
-    const focusedMinutes = occurrences
-      .flatMap((item) => item.progressLogs)
-      .filter((log) => log.source === HabitProgressSource.FOCUS_SESSION)
-      .reduce((sum, log) => sum + log.value, 0);
-    return {
-      streak: currentStreak,
-      currentStreak,
-      bestStreak,
-      successRate: eligible ? completed / eligible : 0,
-      focusedMinutes,
-      completed,
-      failed: occurrences.filter((item) => item.status === HabitOccurrenceStatus.FAILED).length,
-      skipped: occurrences.filter((item) => item.status === HabitOccurrenceStatus.SKIPPED).length,
-    };
-  }
-
   async habitStats(userId: string, habitId: string) {
     const habit = await this.db.habit.findFirst({ where: { id: habitId, userId } });
     if (!habit) throw new EntityNotFoundException('Habit', habitId);
-    const occurrences = await this.db.habitOccurrence.findMany({
-      where: { habitId },
-      include: { progressLogs: true },
-      orderBy: { occurrenceDate: 'desc' },
-      take: 366,
+    const calendarPreferences = await this.habitCalendarPreferences(this.db, userId);
+    const to = logicalLocalDate(new Date(), habit.timezone ?? 'UTC', calendarPreferences.dayRolloverCutoffHour);
+    const insights = await this.habitInsights(userId, habitId, { from: addLocalDays(to, -365), to });
+    const focused = await this.db.habitProgressLog.aggregate({
+      where: { occurrence: { habitId }, source: HabitProgressSource.FOCUS_SESSION },
+      _sum: { value: true },
     });
-    return this.computeStats(habit, occurrences);
+    return {
+      ...insights,
+      streak: insights.currentStreak,
+      successRate: insights.last30Rate,
+      focusedMinutes: focused._sum.value ?? 0,
+      missed: insights.missed,
+      failed: insights.missed,
+      total: insights.heatmap.length,
+    };
+  }
+
+  async habitInsights(userId: string, habitId: string, filter: { from: string; to: string }) {
+    const habit = await this.db.habit.findFirst({ where: { id: habitId, userId } });
+    if (!habit) throw new EntityNotFoundException('Habit', habitId);
+    const fromKey = normalizeLocalDate(filter.from);
+    const toKey = normalizeLocalDate(filter.to);
+    const from = parseLocalDate(fromKey);
+    const to = parseLocalDate(toKey);
+    const calendarPreferences = await this.habitCalendarPreferences(this.db, userId);
+    if (to < from || to.getTime() - from.getTime() > MAX_HABIT_RANGE_DAYS * DAY_MS) {
+      throw new DomainException('Habit range must be between 0 and 366 days');
+    }
+    const occurrences = await this.db.habitOccurrence.findMany({
+      where: {
+        habitId,
+        occurrenceDate: { gte: new Date(from.getTime() - HABIT_GENERATION_LOOKBACK_DAYS * DAY_MS), lte: to },
+      },
+      include: { progressLogs: true },
+      orderBy: { occurrenceDate: 'asc' },
+    });
+    return calculateInsights(
+      habit,
+      projectHabitDays(habit, fromKey, toKey, occurrences, new Date(), calendarPreferences.weekStartDay, calendarPreferences.dayRolloverCutoffHour),
+      toKey,
+    );
+  }
+
+  async habitReminderAction(userId: string, deliveryId: string, action: 'snooze' | 'dismiss' | 'complete', remindAt?: string) {
+    const requestedAt = remindAt ? new Date(remindAt) : new Date(Date.now() + 15 * 60 * 1000);
+    if (action === 'snooze' && (Number.isNaN(requestedAt.getTime()) || requestedAt <= new Date())) {
+      throw new DomainException('Habit reminder snooze time must be in the future', 'INVALID_REMINDER_TIME', 400);
+    }
+    return this.db.$transaction(async (tx) => {
+      const delivery = await tx.habitReminderDelivery.findFirst({
+        where: { id: deliveryId, reminder: { habit: { userId } } },
+        include: { reminder: { include: { habit: true } } },
+      });
+      if (!delivery) throw new EntityNotFoundException('Habit reminder delivery', deliveryId);
+      if (!([HabitReminderDeliveryStatus.SCHEDULED, HabitReminderDeliveryStatus.SNOOZED, HabitReminderDeliveryStatus.DELIVERED] as HabitReminderDeliveryStatus[]).includes(delivery.status)) {
+        return delivery;
+      }
+      if (action === 'complete') {
+        if (String(delivery.reminder.habit.targetType).toUpperCase() !== 'BOOLEAN') {
+          throw new DomainException('Only BOOLEAN habits can be completed from a reminder', 'HABIT_REMINDER_REQUIRES_LOG', 400);
+        }
+        const occurrence = await this.ensureHabitOccurrenceInTransaction(tx, userId, delivery.reminder.habitId, localDateKey(delivery.localDate));
+        const result = await this.checkInInTransaction(tx, userId, occurrence.id, {
+          value: effectiveTarget(delivery.reminder.habit),
+          source: HabitProgressSource.MANUAL,
+          idempotencyKey: `habit-reminder:${delivery.id}:complete`,
+        });
+        if (delivery.scheduledJobId) {
+          await tx.scheduledJob.updateMany({
+            where: { id: delivery.scheduledJobId, status: { notIn: [ScheduledJobStatus.COMPLETED, ScheduledJobStatus.CANCELED] } },
+            data: { status: ScheduledJobStatus.CANCELED },
+          });
+        }
+        await tx.notification.updateMany({ where: { habitReminderDeliveryId: delivery.id }, data: { readAt: new Date() } });
+        const updatedDelivery = await tx.habitReminderDelivery.update({
+          where: { id: delivery.id },
+          data: { status: HabitReminderDeliveryStatus.DISMISSED, scheduledJobId: null },
+        });
+        await this.scheduleHabitReminders(tx, userId, delivery.reminder.habitId);
+        return { ...result, delivery: updatedDelivery };
+      }
+      if (delivery.scheduledJobId) {
+        await tx.scheduledJob.updateMany({
+          where: { id: delivery.scheduledJobId, status: { notIn: [ScheduledJobStatus.COMPLETED, ScheduledJobStatus.CANCELED] } },
+          data: { status: ScheduledJobStatus.CANCELED },
+        });
+      }
+      if (action === 'dismiss') {
+        await tx.notification.updateMany({ where: { habitReminderDeliveryId: delivery.id }, data: { readAt: new Date() } });
+        const updatedDelivery = await tx.habitReminderDelivery.update({ where: { id: delivery.id }, data: { status: HabitReminderDeliveryStatus.DISMISSED, scheduledJobId: null } });
+        await this.scheduleHabitReminders(tx, userId, delivery.reminder.habitId);
+        return updatedDelivery;
+      }
+      const jobId = createUlid();
+      await tx.scheduledJob.create({
+        data: { id: jobId, userId, type: ScheduledJobType.HABIT_REMINDER, payload: { deliveryId: delivery.id }, runAt: requestedAt },
+      });
+      await tx.notification.updateMany({ where: { habitReminderDeliveryId: delivery.id }, data: { readAt: null } });
+      return tx.habitReminderDelivery.update({
+        where: { id: delivery.id },
+        data: {
+          status: HabitReminderDeliveryStatus.SNOOZED,
+          scheduledFor: requestedAt,
+          scheduledJobId: jobId,
+          snoozedFrom: delivery.scheduledFor,
+          deliveredAt: null,
+        },
+      });
+    });
   }
 
   async listHabitStats(userId: string, habitIds: string[]) {
     if (habitIds.length === 0) return {};
     const habits = await this.db.habit.findMany({ where: { id: { in: habitIds }, userId } });
+    const now = new Date();
     const occurrences = await this.db.habitOccurrence.findMany({
-      where: { habitId: { in: habitIds } },
+      where: {
+        habitId: { in: habitIds },
+        occurrenceDate: { gte: new Date(now.getTime() - 60 * DAY_MS), lte: new Date(now.getTime() + DAY_MS) },
+      },
       include: { progressLogs: true },
-      orderBy: { occurrenceDate: 'desc' },
+      orderBy: { occurrenceDate: 'asc' },
     });
     const byHabit = new Map<string, any[]>();
     for (const occ of occurrences) {
@@ -866,9 +1279,26 @@ export class PrismaProductivityHabits {
       byHabit.set(occ.habitId, list);
     }
     const result: Record<string, any> = {};
+    const calendarPreferences = await this.habitCalendarPreferences(this.db, userId);
     for (const habit of habits) {
-      const occs = (byHabit.get(habit.id) ?? []).slice(0, 366);
-      result[habit.id] = this.computeStats(habit, occs);
+      const to = logicalLocalDate(now, habit.timezone ?? 'UTC', calendarPreferences.dayRolloverCutoffHour);
+      const from = addLocalDays(to, -29);
+      const states = projectHabitDays(habit, from, to, byHabit.get(habit.id) ?? [], now, calendarPreferences.weekStartDay, calendarPreferences.dayRolloverCutoffHour);
+      const insights = calculateInsights(habit, states, to);
+      result[habit.id] = {
+        streak: insights.currentStreak,
+        currentStreak: insights.currentStreak,
+        bestStreak: insights.bestStreak,
+        successRate: insights.last30Rate,
+        focusedMinutes: (byHabit.get(habit.id) ?? [])
+          .flatMap((occurrence) => occurrence.progressLogs)
+          .filter((log) => log.source === HabitProgressSource.FOCUS_SESSION)
+          .reduce((sum, log) => sum + log.value, 0),
+        completed: insights.completed,
+        missed: insights.missed,
+        failed: insights.missed,
+        skipped: insights.skipped,
+      };
     }
     return result;
   }

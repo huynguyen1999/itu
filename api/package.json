@@ -25,6 +25,7 @@
     "prisma:deploy": "dotenv -e .env -- prisma migrate deploy",
     "prisma:seed": "dotenv -e .env -- tsx prisma/seed.ts",
     "journal:reset-dev": "dotenv -e .env -- tsx scripts/reset-journal-dev.ts",
+    "habits:reset-v2": "dotenv -e .env -- tsx scripts/reset-habits-v2.ts",
     "architecture:check": "node ../tools/check-architecture.mjs",
     "architecture:verify": "yarn architecture:check"
   },

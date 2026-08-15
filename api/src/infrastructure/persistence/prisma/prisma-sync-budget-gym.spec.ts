@@ -6,22 +6,22 @@ describe('PrismaSyncBudgetGym', () => {
   it('registers canonical and compatibility mutation names', () => {
     const handler = new PrismaSyncBudgetGym();
     expect(handler.kinds).toEqual(expect.arrayContaining([
-      'budgettransaction.create',
+      'expense.create',
       'gymworkout.create',
       'workout.update',
       'budgetpreferences.upsert',
-      'moneycategory.create',
-      'moneycategory.reorder',
-      'moneycategory.update',
-      'moneycategory.delete',
-      'moneybudgetperiod.update',
-      'moneycategorybudget.upsert',
-      'moneycategorybudget.delete',
+      'expensecategory.create',
+      'expensecategory.reorder',
+      'expensecategory.update',
+      'expensecategory.archive',
+      'monthlybudget.update',
+      'categorybudget.upsert',
+      'categorybudget.delete',
       'exercisedefinition.create',
       'exercisedefinition.update',
       'exercisedefinition.delete',
       'exercisedefinition.restore',
-      'budgettransaction.restore',
+      'expense.restore',
       'gymworkout.restore',
       'gymworkout.complete',
       'gymworkout.abandon',
@@ -84,7 +84,7 @@ describe('PrismaSyncBudgetGym', () => {
   it('restores a budget transaction and emits an upsert change', async () => {
     const handler = new PrismaSyncBudgetGym();
     const tx = {
-      budgetTransaction: {
+      expense: {
         findFirst: jest.fn().mockResolvedValue({ id: 'tx-1', userId: 'u1', version: 2 }),
         update: jest.fn().mockResolvedValue({ id: 'tx-1', version: 3 }),
       },
@@ -92,9 +92,9 @@ describe('PrismaSyncBudgetGym', () => {
     } as any;
 
     await expect(handler.applyMutation(tx, 'u1', {
-      id: 'm-restore', kind: 'budgettransaction.restore', entityId: 'tx-1', payload: {},
+      id: 'm-restore', kind: 'expense.restore', entityId: 'tx-1', payload: {},
     } as any)).resolves.toBeNull();
-    expect(tx.budgetTransaction.update).toHaveBeenCalledWith(expect.objectContaining({
+    expect(tx.expense.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } }),
     }));
     expect(tx.syncChange.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ operation: 'UPSERT' }) }));
@@ -103,7 +103,7 @@ describe('PrismaSyncBudgetGym', () => {
   it('rejects stale budget, gym workout, and exercise restores', async () => {
     const handler = new PrismaSyncBudgetGym();
     const tx = {
-      budgetTransaction: {
+      expense: {
         findFirst: jest.fn().mockResolvedValue({ id: 'tx-1', userId: 'u1', version: 3 }),
         update: jest.fn(),
       },
@@ -119,8 +119,8 @@ describe('PrismaSyncBudgetGym', () => {
     } as any;
 
     await expect(handler.applyMutation(tx, 'u1', {
-      id: 'm-stale-budget-restore', kind: 'budgettransaction.restore', entityId: 'tx-1', baseVersion: 2, payload: {},
-    } as any)).resolves.toMatchObject({ reason: 'STALE_VERSION', entityType: 'budgettransaction' });
+      id: 'm-stale-budget-restore', kind: 'expense.restore', entityId: 'tx-1', baseVersion: 2, payload: {},
+    } as any)).resolves.toMatchObject({ reason: 'STALE_VERSION', entityType: 'expense' });
     await expect(handler.applyMutation(tx, 'u1', {
       id: 'm-stale-workout-restore', kind: 'gymworkout.restore', entityId: 'workout-1', baseVersion: 3, payload: {},
     } as any)).resolves.toMatchObject({ reason: 'STALE_VERSION', entityType: 'gymworkout' });
@@ -128,9 +128,67 @@ describe('PrismaSyncBudgetGym', () => {
       id: 'm-stale-exercise-restore', kind: 'exercisedefinition.restore', entityId: 'exercise-1', baseVersion: 4, payload: {},
     } as any)).resolves.toMatchObject({ reason: 'STALE_VERSION', entityType: 'exercisedefinition' });
 
-    expect(tx.budgetTransaction.update).not.toHaveBeenCalled();
+    expect(tx.expense.update).not.toHaveBeenCalled();
     expect(tx.gymWorkout.update).not.toHaveBeenCalled();
     expect(tx.exerciseDefinition.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects cross-account expense IDs and invalid expense dates', async () => {
+    const handler = new PrismaSyncBudgetGym();
+    const tx = {
+      expense: {
+        findFirst: jest.fn()
+          .mockResolvedValueOnce({ id: 'expense-foreign', userId: 'u2' })
+          .mockResolvedValueOnce(null),
+        create: jest.fn(),
+      },
+      expenseCategory: { findFirst: jest.fn().mockResolvedValue({ id: 'food', userId: 'u1' }) },
+      syncChange: { create: jest.fn() },
+    } as any;
+
+    await expect(handler.applyMutation(tx, 'u1', {
+      id: 'm-foreign-expense', kind: 'expense.create', entityId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      payload: { categoryId: 'food', amount: '10.00', expenseDate: '2026-08-15' },
+    } as any)).rejects.toThrow('Expense does not belong to user');
+
+    await expect(handler.applyMutation(tx, 'u1', {
+      id: 'm-invalid-expense-date', kind: 'expense.create', entityId: '01ARZ3NDEKTSV4RRFFQ69G5FAW',
+      payload: { categoryId: 'food', amount: '10.00', expenseDate: '2026-02-30' },
+    } as any)).rejects.toThrow('expenseDate must be a valid calendar date');
+    expect(tx.expense.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid budget periods from offline mutations', async () => {
+    const handler = new PrismaSyncBudgetGym();
+    const tx = {
+      monthlyBudget: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+      syncChange: { create: jest.fn() },
+    } as any;
+
+    await expect(handler.applyMutation(tx, 'u1', {
+      id: 'm-invalid-period', kind: 'monthlybudget.update', entityId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      payload: { period: '2026-13', overallLimit: null },
+    } as any)).rejects.toThrow('period must be a valid YYYY-MM value');
+    expect(tx.monthlyBudget.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('rejects negative or non-string money from offline mutations', async () => {
+    const handler = new PrismaSyncBudgetGym();
+    const tx = {
+      expense: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      expenseCategory: { findFirst: jest.fn().mockResolvedValue({ id: 'food', userId: 'u1' }) },
+      syncChange: { create: jest.fn() },
+    } as any;
+
+    await expect(handler.applyMutation(tx, 'u1', {
+      id: 'm-negative-money', kind: 'expense.create', entityId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      payload: { categoryId: 'food', amount: '-1.00', expenseDate: '2026-08-15' },
+    } as any)).rejects.toThrow('amount must be a non-negative decimal string');
+    await expect(handler.applyMutation(tx, 'u1', {
+      id: 'm-number-money', kind: 'expense.create', entityId: '01ARZ3NDEKTSV4RRFFQ69G5FAW',
+      payload: { categoryId: 'food', amount: 1, expenseDate: '2026-08-15' },
+    } as any)).rejects.toThrow('amount must be a non-negative decimal string');
+    expect(tx.expense.create).not.toHaveBeenCalled();
   });
 
   it('merges granular set fields independently and records the winning field clock', async () => {

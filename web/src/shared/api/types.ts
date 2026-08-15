@@ -87,7 +87,7 @@ export interface TrashSnapshot {
   cardImages: CardImage[];
   tasks: ProductivityTask[];
   journalEntries: TrashJournalEntry[];
-  budgetTransactions: TrashBudgetTransaction[];
+  expenses: TrashExpense[];
   gymWorkouts: TrashGymWorkout[];
   gymExercises: TrashExerciseDefinition[];
 }
@@ -103,17 +103,15 @@ export interface TrashJournalEntry {
   deletedByDeviceId?: string | null;
 }
 
-export interface TrashBudgetTransaction {
+export interface TrashExpense {
   id: string;
   amount: string;
-  currency: string;
-  type: 'EXPENSE' | 'INCOME';
   categoryId?: string | null;
   categoryRel?: { name?: string | null } | null;
   category?: string | null;
   merchant?: string | null;
   paymentMethod?: string | null;
-  transactionAt?: string | null;
+  expenseDate?: string | null;
   note?: string | null;
   version: number;
   deletedAt: string;
@@ -501,7 +499,7 @@ export interface FocusSession {
 
 export type CalendarTimelineItem = {
   id: string;
-  kind: 'TASK_DURATION' | 'TASK_DUE' | 'FOCUS_SESSION' | 'EXTERNAL_EVENT';
+  kind: 'TASK_DURATION' | 'TASK_DUE' | 'FOCUS_SESSION' | 'EXTERNAL_EVENT' | 'WORKOUT';
   title: string;
   startAt: string;
   endAt?: string | null;
@@ -513,6 +511,7 @@ export type CalendarTimelineItem = {
   readOnly: boolean;
   status?: string | null;
   taskId?: string | null;
+  workoutId?: string | null;
   priority?: TaskPriority | null;
   description?: string | null;
   location?: string | null;
@@ -644,6 +643,62 @@ export interface HabitOccurrence {
   generatedTask?: ProductivityTask | null;
 }
 
+export type HabitDayStatus = 'COMPLETED' | 'PARTIAL' | 'PENDING' | 'MISSED' | 'SKIPPED' | 'FAILED' | 'REST' | 'NOT_SCHEDULED';
+
+export interface HabitDayState {
+  habitId?: string;
+  localDate: string;
+  scheduled: boolean;
+  status: HabitDayStatus;
+  value: number;
+  targetValue: number;
+  progressRatio: number;
+  occurrenceId?: string | null;
+  periodStart?: string;
+  periodEnd?: string;
+}
+
+export interface HabitCalendarResponse {
+  from: string;
+  to: string;
+  days: HabitDayState[];
+}
+
+export interface HabitInsights {
+  currentStreak: number;
+  bestStreak: number;
+  streakUnit: 'DAY' | 'PERIOD';
+  completed: number;
+  missed: number;
+  skipped: number;
+  last30Rate: number;
+  previous30Rate: number;
+  last90Rate: number;
+  averageValue: number;
+  strongestWeekday: number | null;
+  weakestWeekday: number | null;
+  heatmap: HabitDayState[];
+}
+
+export interface HabitProgressResult {
+  habitId: string;
+  occurrenceId: string;
+  localDate: string;
+  status: HabitOccurrence['status'];
+  value: number;
+  targetValue: number;
+  progressRatio: number;
+}
+
+export interface HabitProgressLog {
+  id: string;
+  source: HabitOccurrence['progressLogs'][number]['source'];
+  value: number;
+  note?: string | null;
+  adjusted: boolean;
+  recordedAt: string;
+}
+
 export type HabitMutationResponse = HabitOccurrence & { growthReceipt?: GrowthAwardReceipt | null };
 
 export interface HabitStats {
@@ -652,9 +707,13 @@ export interface HabitStats {
   successRate: number;
   focusedMinutes: number;
   completed: number;
+  missed: number;
   failed: number;
   skipped: number;
   total: number;
+  averageValue?: number;
+  strongestWeekday?: number | null;
+  weakestWeekday?: number | null;
   heatmap: Array<{ date: string; status: HabitOccurrence['status']; value: number }>;
 }
 

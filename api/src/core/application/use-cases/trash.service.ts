@@ -81,9 +81,9 @@ export class TrashService implements ITrashUseCase {
     return restored;
   }
 
-  async restoreBudgetTransaction(userId: string, transactionId: string): Promise<unknown> {
-    const restored = await this.trash.restoreBudgetTransaction(userId, transactionId);
-    if (!restored) throw new EntityNotFoundException('TrashBudgetTransaction', transactionId);
+  async restoreExpense(userId: string, expenseId: string): Promise<unknown> {
+    const restored = await this.trash.restoreExpense(userId, expenseId);
+    if (!restored) throw new EntityNotFoundException('TrashExpense', expenseId);
     return restored;
   }
 
@@ -105,9 +105,9 @@ export class TrashService implements ITrashUseCase {
     await Promise.allSettled(attachments.map((attachment) => this.media.delete(attachment.storageKey)));
   }
 
-  async deleteBudgetTransaction(userId: string, transactionId: string): Promise<void> {
-    const deleted = await this.trash.deleteBudgetTransaction(userId, transactionId);
-    if (!deleted) throw new EntityNotFoundException('TrashBudgetTransaction', transactionId);
+  async deleteExpense(userId: string, expenseId: string): Promise<void> {
+    const deleted = await this.trash.deleteExpense(userId, expenseId);
+    if (!deleted) throw new EntityNotFoundException('TrashExpense', expenseId);
   }
 
   async deleteGymWorkout(userId: string, workoutId: string): Promise<void> {

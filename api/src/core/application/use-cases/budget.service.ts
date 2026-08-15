@@ -1,86 +1,42 @@
 import { Inject, Injectable } from '@nestjs/common';
-import {
+import type {
   BUDGET_REPOSITORY_PORT,
   CreateCategoryDto,
+  CreateExpenseDto,
+  CreateRecurringExpenseDto,
+  ExpenseFilters,
+  IBudgetRepositoryPort,
   UpdateCategoryDto,
-  CreateTransactionDto,
-  UpdateTransactionDto,
+  UpdateExpenseDto,
+  UpdateRecurringExpenseDto,
 } from '../ports/out/budget-repository.port';
-import type { IBudgetRepositoryPort } from '../ports/out/budget-repository.port';
-import {
-  BudgetCategoryDomain,
-  BudgetPeriodDomain,
-  BudgetTransactionDomain,
-  BudgetOverviewDomain,
-} from '../../domain/budget/budget.domain';
+import { BUDGET_REPOSITORY_PORT as BUDGET_PORT } from '../ports/out/budget-repository.port';
 
 @Injectable()
 export class BudgetService {
-  constructor(
-    @Inject(BUDGET_REPOSITORY_PORT)
-    private readonly budgetRepo: IBudgetRepositoryPort,
-  ) {}
-
-  async getCategories(userId: string): Promise<BudgetCategoryDomain[]> {
-    return this.budgetRepo.getCategories(userId);
-  }
-
-  async createCategory(userId: string, dto: CreateCategoryDto): Promise<BudgetCategoryDomain> {
-    return this.budgetRepo.createCategory(userId, dto);
-  }
-
-  async updateCategory(userId: string, id: string, dto: UpdateCategoryDto): Promise<BudgetCategoryDomain> {
-    return this.budgetRepo.updateCategory(userId, id, dto);
-  }
-
-  async archiveCategory(userId: string, id: string): Promise<BudgetCategoryDomain> {
-    return this.budgetRepo.archiveCategory(userId, id);
-  }
-
-  async reorderCategories(userId: string, categoryIds: string[]): Promise<BudgetCategoryDomain[]> {
-    return this.budgetRepo.reorderCategories(userId, categoryIds);
-  }
-
-  async getPeriod(userId: string, periodStr: string): Promise<BudgetPeriodDomain> {
-    return this.budgetRepo.getPeriod(userId, periodStr);
-  }
-
-  async updatePeriod(userId: string, periodStr: string, overallLimit: string): Promise<BudgetPeriodDomain> {
-    return this.budgetRepo.updatePeriod(userId, periodStr, overallLimit);
-  }
-
-  async updateCategoryLimit(userId: string, periodStr: string, categoryId: string, limit: string): Promise<BudgetPeriodDomain> {
-    return this.budgetRepo.updateCategoryLimit(userId, periodStr, categoryId, limit);
-  }
-
-  async deleteCategoryLimit(userId: string, periodStr: string, categoryId: string): Promise<BudgetPeriodDomain> {
-    return this.budgetRepo.deleteCategoryLimit(userId, periodStr, categoryId);
-  }
-
-  async getTransactions(
-    userId: string,
-    options?: { period?: string; categoryId?: string; type?: 'EXPENSE' | 'INCOME' },
-  ): Promise<BudgetTransactionDomain[]> {
-    return this.budgetRepo.getTransactions(userId, options);
-  }
-
-  async getTransactionById(userId: string, id: string): Promise<BudgetTransactionDomain | null> {
-    return this.budgetRepo.getTransactionById(userId, id);
-  }
-
-  async createTransaction(userId: string, dto: CreateTransactionDto): Promise<BudgetTransactionDomain> {
-    return this.budgetRepo.createTransaction(userId, dto);
-  }
-
-  async updateTransaction(userId: string, id: string, dto: UpdateTransactionDto): Promise<BudgetTransactionDomain> {
-    return this.budgetRepo.updateTransaction(userId, id, dto);
-  }
-
-  async deleteTransaction(userId: string, id: string): Promise<void> {
-    return this.budgetRepo.deleteTransaction(userId, id);
-  }
-
-  async getOverview(userId: string, periodStr: string): Promise<BudgetOverviewDomain> {
-    return this.budgetRepo.getOverview(userId, periodStr);
-  }
+  constructor(@Inject(BUDGET_PORT) private readonly budgetRepo: IBudgetRepositoryPort) {}
+  getCategories(userId: string) { return this.budgetRepo.getCategories(userId); }
+  createCategory(userId: string, dto: CreateCategoryDto) { return this.budgetRepo.createCategory(userId, dto); }
+  updateCategory(userId: string, id: string, dto: UpdateCategoryDto) { return this.budgetRepo.updateCategory(userId, id, dto); }
+  archiveCategory(userId: string, id: string) { return this.budgetRepo.archiveCategory(userId, id); }
+  reorderCategories(userId: string, ids: string[]) { return this.budgetRepo.reorderCategories(userId, ids); }
+  getMonthlyBudget(userId: string, period: string) { return this.budgetRepo.getMonthlyBudget(userId, period); }
+  updateMonthlyBudget(userId: string, period: string, overallLimit: string | null) { return this.budgetRepo.updateMonthlyBudget(userId, period, overallLimit); }
+  updateCategoryLimit(userId: string, period: string, categoryId: string, limit: string) { return this.budgetRepo.updateCategoryLimit(userId, period, categoryId, limit); }
+  deleteCategoryLimit(userId: string, period: string, categoryId: string) { return this.budgetRepo.deleteCategoryLimit(userId, period, categoryId); }
+  getExpenses(userId: string, filters?: ExpenseFilters) { return this.budgetRepo.getExpenses(userId, filters); }
+  getExpense(userId: string, id: string) { return this.budgetRepo.getExpense(userId, id); }
+  createExpense(userId: string, dto: CreateExpenseDto) { return this.budgetRepo.createExpense(userId, dto); }
+  updateExpense(userId: string, id: string, dto: UpdateExpenseDto) { return this.budgetRepo.updateExpense(userId, id, dto); }
+  deleteExpense(userId: string, id: string) { return this.budgetRepo.deleteExpense(userId, id); }
+  restoreExpense(userId: string, id: string) { return this.budgetRepo.restoreExpense(userId, id); }
+  getRecurringExpenses(userId: string) { return this.budgetRepo.getRecurringExpenses(userId); }
+  createRecurringExpense(userId: string, dto: CreateRecurringExpenseDto) { return this.budgetRepo.createRecurringExpense(userId, dto); }
+  updateRecurringExpense(userId: string, id: string, dto: UpdateRecurringExpenseDto) { return this.budgetRepo.updateRecurringExpense(userId, id, dto); }
+  archiveRecurringExpense(userId: string, id: string) { return this.budgetRepo.archiveRecurringExpense(userId, id); }
+  confirmRecurringOccurrence(userId: string, id: string, date?: Date) { return this.budgetRepo.confirmRecurringOccurrence(userId, id, date); }
+  skipRecurringOccurrence(userId: string, id: string, date?: Date) { return this.budgetRepo.skipRecurringOccurrence(userId, id, date); }
+  getSummary(userId: string, period: string) { return this.budgetRepo.getSummary(userId, period); }
+  getReport(userId: string, period: string) { return this.budgetRepo.getReport(userId, period); }
+  getStatistics(userId: string, from: Date, to: Date) { return this.budgetRepo.getStatistics(userId, from, to); }
 }

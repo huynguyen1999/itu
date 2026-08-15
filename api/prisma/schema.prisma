@@ -79,6 +79,7 @@ enum ScheduledJobType {
   ACCOUNT_DELETE
   TRASH_PURGE
   TASK_REMINDER
+  HABIT_REMINDER
 }
 
 enum ScheduledJobStatus {
@@ -187,6 +188,14 @@ enum HabitProgressSource {
   SCREEN_TIME
   CALENDAR
   EXTERNAL
+}
+
+enum HabitReminderDeliveryStatus {
+  SCHEDULED
+  SNOOZED
+  DELIVERED
+  DISMISSED
+  CANCELED
 }
 
 enum CommitmentPolicyLevel {
@@ -315,7 +324,7 @@ model User {
   habitTimeBlocks             HabitTimeBlock[]
   habitTaskTemplates          HabitTaskTemplate[]
   growthSkills                GrowthSkill[]
-  growthAttributeMappings    GrowthAttributeMapping[]
+  growthAttributeMappings     GrowthAttributeMapping[]
   growthEarningRules          GrowthEarningRule[]
   growthLedgerEntries         GrowthLedgerEntry[]
   growthShopRewards           GrowthShopReward[]
@@ -327,18 +336,20 @@ model User {
   growthProfile               GrowthProfile?
   growthCycles                GrowthCycle[]
   growthResets                GrowthReset[]
-  growthCommitmentPolicies     HabitCommitmentPolicy[]
+  growthCommitmentPolicies    HabitCommitmentPolicy[]
   commitmentPenalties         GrowthCommitmentPenalty[]
   syncFieldClocks             SyncFieldClock[]
   journalEntries              JournalEntry[]
   journalTemplates            JournalTemplate[]
   journalTags                 JournalTag[]
-  budgetCategories            BudgetCategory[]
-  budgetPeriods               BudgetPeriod[]
-  budgetTransactions          BudgetTransaction[]
+  expenseCategories           ExpenseCategory[]
+  monthlyBudgets              MonthlyBudget[]
+  expenses                    Expense[]
+  recurringExpenses           RecurringExpense[]
   exerciseDefinitions         ExerciseDefinition[]
+  gymRoutines                 GymRoutine[]
   gymWorkouts                 GymWorkout[]
-  journalAttachments         JournalAttachment[]
+  journalAttachments          JournalAttachment[]
   preferences                 UserPreferences?
   usageSummaries              UsageSummary[]
   usageAppIdentities          UsageAppIdentity[]
@@ -351,22 +362,22 @@ model User {
 }
 
 model UserPreferences {
-  userId             String   @id
-  taskPreferences    Json     @default("{}")
-  focusPreferences   Json     @default("{}")
-  habitPreferences   Json     @default("{}")
-  matrixPreferences  Json     @default("{}")
-  growthPreferences  Json     @default("{}")
-  learnPreferences   Json     @default("{}")
-  journalPreferences Json     @default("{}")
-  moneyPreferences   Json     @default("{}")
-  budgetPreferences  Json     @default("{}")
-  gymPreferences     Json     @default("{}")
-  usagePreferences   Json     @default("{}")
+  userId              String   @id
+  taskPreferences     Json     @default("{}")
+  focusPreferences    Json     @default("{}")
+  habitPreferences    Json     @default("{}")
+  matrixPreferences   Json     @default("{}")
+  growthPreferences   Json     @default("{}")
+  learnPreferences    Json     @default("{}")
+  journalPreferences  Json     @default("{}")
+  moneyPreferences    Json     @default("{}")
+  budgetPreferences   Json     @default("{}")
+  gymPreferences      Json     @default("{}")
+  usagePreferences    Json     @default("{}")
   calendarPreferences Json     @default("{}")
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Role {
@@ -411,16 +422,16 @@ model RolePermission {
 }
 
 model RefreshSession {
-  id                       String    @id
-  userId                   String
-  tokenHash                String    @unique
-  expiresAt                DateTime
-  revokedAt                DateTime?
-  rotationGraceUntil       DateTime?
-  rotationRecoveryUsedAt   DateTime?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
-  user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                     String    @id
+  userId                 String
+  tokenHash              String    @unique
+  expiresAt              DateTime
+  revokedAt              DateTime?
+  rotationGraceUntil     DateTime?
+  rotationRecoveryUsedAt DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
   @@index([expiresAt])
@@ -447,16 +458,16 @@ model RateLimitBucket {
 }
 
 model SyncDevice {
-  id                     String             @id
+  id                     String                @id
   userId                 String
   platform               SyncDevicePlatform
   pushToken              String?
-  lastSeenAt             DateTime           @default(now())
+  lastSeenAt             DateTime              @default(now())
   lastKnownSyncCursor    String?
   notificationPreference Json?
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  user                   User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   usageSummaries         UsageSummary[]
   websiteUsageSummaries  WebsiteUsageSummary[]
 
@@ -465,19 +476,19 @@ model SyncDevice {
 }
 
 model UsageSummary {
-  userId        String
-  syncDeviceId  String
-  localDate     DateTime   @db.Date
-  hour          Int        @default(-1)
-  bundleId      String
-  displayName   String
-  timezone      String
-  activeSeconds Int
+  userId         String
+  syncDeviceId   String
+  localDate      DateTime   @db.Date
+  hour           Int        @default(-1)
+  bundleId       String
+  displayName    String
+  timezone       String
+  activeSeconds  Int
   engagedSeconds Int?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  syncDevice    SyncDevice @relation(fields: [syncDeviceId], references: [id], onDelete: Cascade)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncDevice     SyncDevice @relation(fields: [syncDeviceId], references: [id], onDelete: Cascade)
 
   @@id([syncDeviceId, localDate, hour, bundleId])
   @@index([userId, localDate])
@@ -520,23 +531,23 @@ model WebsiteUsageSummary {
 }
 
 model WebsiteActivitySession {
-  id                String
-  userId            String
-  installationId    String
-  browserBundleId   String
+  id                 String
+  userId             String
+  installationId     String
+  browserBundleId    String
   browserDisplayName String
-  startedAt         DateTime
-  endedAt           DateTime
-  activeSeconds     Int
-  hostname          String
-  url               String    @db.Text
-  iconUrl           String?   @db.Text
-  pageTitle         String?   @db.Text
-  isPrivate         Boolean   @default(false)
-  timezone          String
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt          DateTime
+  endedAt            DateTime
+  activeSeconds      Int
+  hostname           String
+  url                String   @db.Text
+  iconUrl            String?  @db.Text
+  pageTitle          String?  @db.Text
+  isPrivate          Boolean  @default(false)
+  timezone           String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([installationId, id])
   @@unique([userId, installationId, id])
@@ -644,19 +655,19 @@ model ReviewState {
 }
 
 model StudySession {
-  id          String             @id
-  userId      String?
-  deckId      String?
-  mode        StudyMode
-  rating      Int?
-  startedAt   DateTime           @default(now())
-  completedAt DateTime?
-  reviewed    Int                @default(0)
-  correct     Int                @default(0)
+  id            String             @id
+  userId        String?
+  deckId        String?
+  mode          StudyMode
+  rating        Int?
+  startedAt     DateTime           @default(now())
+  completedAt   DateTime?
+  reviewed      Int                @default(0)
+  correct       Int                @default(0)
   growthReceipt Json?
-  user        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
-  reviewLogs  ReviewLog[]
-  feedback    AiSessionFeedback?
+  user          User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reviewLogs    ReviewLog[]
+  feedback      AiSessionFeedback?
 
   @@index([userId, startedAt])
 }
@@ -682,10 +693,10 @@ model ReviewLog {
   createdAt          DateTime        @default(now())
   session            StudySession    @relation(fields: [sessionId], references: [id], onDelete: Restrict)
 
+  @@unique([userId, idempotencyKey])
   @@index([userId, sessionId])
   @@index([cardId, createdAt])
   @@index([userId, cardDeckId, createdAt])
-  @@unique([userId, idempotencyKey])
 }
 
 enum DeckIcon {
@@ -729,18 +740,18 @@ model AiJob {
 }
 
 model AiCredential {
-  id             String             @id
-  userId         String
+  id              String             @id
+  userId          String
   encryptedApiKey String
-  keyHint        String
-  enabled        Boolean            @default(true)
-  status         AiCredentialStatus @default(HEALTHY)
-  lastError      String?
-  lastUsedAt     DateTime?
-  cooldownUntil  DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyHint         String
+  enabled         Boolean            @default(true)
+  status          AiCredentialStatus @default(HEALTHY)
+  lastError       String?
+  lastUsedAt      DateTime?
+  cooldownUntil   DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, enabled, status, cooldownUntil, lastUsedAt])
 }
@@ -867,6 +878,7 @@ model Task {
   sourceHabit             Habit?              @relation("HabitSupportingTasks", fields: [sourceHabitId], references: [id], onDelete: SetNull)
   sourceHabitOccurrence   HabitOccurrence?    @relation(fields: [sourceHabitOccurrenceId], references: [id], onDelete: SetNull)
 
+  @@unique([userId, sourceHabitId, sourceHabitDate])
   @@index([userId, status, dueAt])
   @@index([userId, sortOrder])
   @@index([userId, scheduledStartAt])
@@ -875,7 +887,6 @@ model Task {
   @@index([sectionId, sortOrder])
   @@index([parentId])
   @@index([sourceHabitId])
-  @@unique([userId, sourceHabitId, sourceHabitDate])
 }
 
 model TaskSection {
@@ -920,26 +931,26 @@ model TaskTagAssignment {
 }
 
 model TaskReminder {
-  id             String         @id
-  userId         String
-  taskId         String
-  type           ReminderType   @default(ABSOLUTE)
-  remindAt       DateTime
-  relativeTo     ReminderRelativeTo?
-  offsetMinutes  Int?
+  id                String              @id
+  userId            String
+  taskId            String
+  type              ReminderType        @default(ABSOLUTE)
+  remindAt          DateTime
+  relativeTo        ReminderRelativeTo?
+  offsetMinutes     Int?
   calendarDayOffset Int?
-  timeOfDayMinutes Int?
-  timeZone       String?
-  status         ReminderStatus @default(SCHEDULED)
-  persistent     Boolean        @default(false)
-  snoozedFrom    DateTime?
-  deliveredAt    DateTime?
-  scheduledJobId String?        @unique
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  task           Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  notification   Notification?
+  timeOfDayMinutes  Int?
+  timeZone          String?
+  status            ReminderStatus      @default(SCHEDULED)
+  persistent        Boolean             @default(false)
+  snoozedFrom       DateTime?
+  deliveredAt       DateTime?
+  scheduledJobId    String?             @unique
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task              Task                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  notification      Notification?
 
   @@index([userId, status, remindAt])
   @@index([remindAt, status])
@@ -947,33 +958,33 @@ model TaskReminder {
 }
 
 model CalendarConnection {
-  id                 String                   @id
-  userId             String
-  provider           CalendarProvider
-  accountEmail       String?
+  id                    String                   @id
+  userId                String
+  provider              CalendarProvider
+  accountEmail          String?
   encryptedRefreshToken String?
-  accessTokenExpiresAt DateTime?
-  status             CalendarConnectionStatus @default(CONNECTED)
-  lastError          String?
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-  user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  calendars          ExternalCalendar[]
+  accessTokenExpiresAt  DateTime?
+  status                CalendarConnectionStatus @default(CONNECTED)
+  lastError             String?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  user                  User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calendars             ExternalCalendar[]
 
-  @@index([userId])
   @@unique([userId, provider, accountEmail])
+  @@index([userId])
 }
 
 model ExternalCalendar {
-  id                   String              @id
+  id                   String                  @id
   userId               String
   connectionId         String?
   provider             CalendarProvider
   providerCalendarId   String?
   name                 String
   url                  String?
-  color                String              @default("BLUE")
-  visible              Boolean             @default(true)
+  color                String                  @default("BLUE")
+  visible              Boolean                 @default(true)
   syncToken            String?
   etag                 String?
   lastModified         String?
@@ -983,37 +994,37 @@ model ExternalCalendar {
   channelId            String?
   resourceId           String?
   channelExpiration    DateTime?
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
-  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  connection           CalendarConnection? @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  user                 User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection           CalendarConnection?     @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   events               ExternalCalendarEvent[]
 
+  @@unique([connectionId, providerCalendarId])
   @@index([userId])
   @@index([connectionId])
-  @@unique([connectionId, providerCalendarId])
 }
 
 model ExternalCalendarEvent {
-  id             String           @id
-  userId         String
-  calendarId     String
-  externalId     String
-  recurrenceId   String?
-  title          String
-  description    String?
-  location       String?
-  startAt        DateTime
-  endAt          DateTime?
-  allDay         Boolean          @default(false)
-  timeZone       String?
-  status         String           @default("CONFIRMED")
-  etag           String?
-  readOnly       Boolean          @default(true)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  calendar       ExternalCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  id           String           @id
+  userId       String
+  calendarId   String
+  externalId   String
+  recurrenceId String?
+  title        String
+  description  String?
+  location     String?
+  startAt      DateTime
+  endAt        DateTime?
+  allDay       Boolean          @default(false)
+  timeZone     String?
+  status       String           @default("CONFIRMED")
+  etag         String?
+  readOnly     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calendar     ExternalCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
 
   @@unique([calendarId, externalId, recurrenceId])
   @@index([startAt])
@@ -1022,16 +1033,18 @@ model ExternalCalendarEvent {
 }
 
 model Notification {
-  id         String       @id
-  userId     String
-  reminderId String       @unique
-  title      String
-  body       String
-  actionUrl  String
-  readAt     DateTime?
-  createdAt  DateTime     @default(now())
-  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reminder   TaskReminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  id                      String                    @id
+  userId                  String
+  reminderId              String?                   @unique
+  habitReminderDeliveryId String?                   @unique
+  title                   String
+  body                    String
+  actionUrl               String
+  readAt                  DateTime?
+  createdAt               DateTime                  @default(now())
+  user                    User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reminder                TaskReminder?             @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  habitReminderDelivery  HabitReminderDelivery?    @relation(fields: [habitReminderDeliveryId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt, createdAt])
 }
@@ -1126,10 +1139,10 @@ model FocusSession {
   habitCheckIns         HabitCheckIn[]
   habitProgressLogs     HabitProgressLog[]
 
+  @@unique([userId, startIdempotencyKey])
   @@index([userId, status])
   @@index([userId, startedAt])
   @@index([taskId, startedAt])
-  @@unique([userId, startIdempotencyKey])
 }
 
 model FocusSound {
@@ -1151,14 +1164,14 @@ model FocusSound {
 }
 
 model FocusSoundPreference {
-  id        String     @id
+  id        String   @id
   userId    String
   soundKey  String
-  enabled   Boolean    @default(true)
-  sortOrder Int        @default(0)
-  volume    Int        @default(55)
-  updatedAt DateTime   @updatedAt
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled   Boolean  @default(true)
+  sortOrder Int      @default(0)
+  volume    Int      @default(55)
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, soundKey])
   @@index([userId, sortOrder])
@@ -1190,48 +1203,48 @@ model FocusInterruption {
 }
 
 model Habit {
-  id                   String               @id
+  id                   String                 @id
   userId               String
   name                 String
-  description          String               @default("")
-  icon                 String               @default("CHECK")
-  color                String               @default("EMERALD")
+  description          String                 @default("")
+  icon                 String                 @default("CHECK")
+  color                String                 @default("EMERALD")
   targetType           HabitTargetType
-  targetValue          Float                @default(1)
+  targetValue          Float                  @default(1)
   unit                 String?
   scheduleType         HabitScheduleType
-  weekdays             Int[]                @default([])
+  weekdays             Int[]                  @default([])
   intervalDays         Int?
   timesPerPeriod       Int?
   period               String?
   startDate            DateTime
   endDate              DateTime?
-  difficulty           Int                  @default(1)
-  allowedSkips         Int                  @default(0)
-  restDays             Int[]                @default([])
+  difficulty           Int                    @default(1)
+  allowedSkips         Int                    @default(0)
+  restDays             Int[]                  @default([])
   taskTemplateId       String?
-  showInTasks          Boolean              @default(false)
+  showInTasks          Boolean                @default(false)
   taskListId           String?
   focusPresetId        String?
   archivedAt           DateTime?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  version              Int                  @default(1)
-  direction            HabitDirection       @default(BUILD)
-  timezone             String               @default("UTC")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  version              Int                    @default(1)
+  direction            HabitDirection         @default(BUILD)
+  timezone             String                 @default("UTC")
   timeBlockId          String?
-  taskTemplateConfigId String?              @unique
-  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  taskList             TaskList?            @relation(fields: [taskListId], references: [id], onDelete: SetNull)
-  taskTemplate         Task?                @relation("HabitTaskTemplate", fields: [taskTemplateId], references: [id], onDelete: SetNull)
-  focusPreset          FocusPreset?         @relation(fields: [focusPresetId], references: [id], onDelete: SetNull)
+  taskTemplateConfigId String?                @unique
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskList             TaskList?              @relation(fields: [taskListId], references: [id], onDelete: SetNull)
+  taskTemplate         Task?                  @relation("HabitTaskTemplate", fields: [taskTemplateId], references: [id], onDelete: SetNull)
+  focusPreset          FocusPreset?           @relation(fields: [focusPresetId], references: [id], onDelete: SetNull)
   tags                 HabitTagAssignment[]
   reminders            HabitReminder[]
   occurrences          HabitOccurrence[]
-  timeBlock            HabitTimeBlock?      @relation(fields: [timeBlockId], references: [id], onDelete: SetNull)
+  timeBlock            HabitTimeBlock?        @relation(fields: [timeBlockId], references: [id], onDelete: SetNull)
   checklistItems       HabitChecklistItem[]
-  taskTemplateConfig   HabitTaskTemplate?   @relation(fields: [taskTemplateConfigId], references: [id], onDelete: SetNull)
-  supportingTasks      Task[]               @relation("HabitSupportingTasks")
+  taskTemplateConfig   HabitTaskTemplate?     @relation(fields: [taskTemplateConfigId], references: [id], onDelete: SetNull)
+  supportingTasks      Task[]                 @relation("HabitSupportingTasks")
   commitmentPolicy     HabitCommitmentPolicy?
 
   @@index([userId, archivedAt])
@@ -1306,60 +1319,83 @@ model HabitReminder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  deliveries HabitReminderDelivery[]
 
   @@unique([habitId, timeLocal])
 }
 
+model HabitReminderDelivery {
+  id            String                       @id
+  reminderId    String
+  occurrenceId  String?
+  localDate     DateTime                     @db.Date
+  scheduledFor  DateTime
+  status        HabitReminderDeliveryStatus  @default(SCHEDULED)
+  scheduledJobId String?                     @unique
+  snoozedFrom   DateTime?
+  deliveredAt   DateTime?
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+  reminder      HabitReminder                @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  occurrence    HabitOccurrence?             @relation(fields: [occurrenceId], references: [id], onDelete: SetNull)
+  notification  Notification?
+
+  @@unique([reminderId, localDate])
+  @@index([status, scheduledFor])
+  @@index([occurrenceId])
+}
+
 model HabitOccurrence {
-  id              String                         @id
-  habitId         String
-  occurrenceDate  DateTime
-  status          HabitOccurrenceStatus          @default(PENDING)
-  statusSource    HabitProgressSource?
-  statusChangedAt DateTime?
-  createdAt       DateTime                       @default(now())
-  updatedAt       DateTime                       @updatedAt
-  habit           Habit                          @relation(fields: [habitId], references: [id], onDelete: Cascade)
-  checkIn         HabitCheckIn?
-  progressLogs    HabitProgressLog[]
-  checklistItems  HabitOccurrenceChecklistItem[]
-  generatedTask   Task?
-  commitmentState HabitCommitmentState       @default(NONE)
-  commitmentPolicyId String?
-  commitmentPolicyVersion Int?
-  commitmentPolicyLevel CommitmentPolicyLevel?
-  commitmentExpectedAccountXp Int?
-  commitmentPenaltyRate Float?
-  commitmentGraceMinutes Int?
+  id                              String                         @id
+  habitId                         String
+  occurrenceDate                  DateTime
+  status                          HabitOccurrenceStatus          @default(PENDING)
+  statusSource                    HabitProgressSource?
+  statusChangedAt                 DateTime?
+  createdAt                       DateTime                       @default(now())
+  updatedAt                       DateTime                       @updatedAt
+  habit                           Habit                          @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  checkIn                         HabitCheckIn?
+  progressLogs                    HabitProgressLog[]
+  checklistItems                  HabitOccurrenceChecklistItem[]
+  generatedTask                   Task?
+  commitmentState                 HabitCommitmentState           @default(NONE)
+  commitmentPolicyId              String?
+  commitmentPolicyVersion         Int?
+  commitmentPolicyLevel           CommitmentPolicyLevel?
+  commitmentExpectedAccountXp     Int?
+  commitmentPenaltyRate           Float?
+  commitmentGraceMinutes          Int?
   commitmentRecoveryWindowMinutes Int?
-  commitmentTimezone String?
-  commitmentEffectiveFrom DateTime?
-  commitmentBreachAt DateTime?
-  commitmentPenalty GrowthCommitmentPenalty?
-  commitmentPolicy HabitCommitmentPolicy? @relation(fields: [commitmentPolicyId], references: [id], onDelete: SetNull)
+  commitmentTimezone              String?
+  commitmentEffectiveFrom         DateTime?
+  commitmentBreachAt              DateTime?
+  commitmentPenalty               GrowthCommitmentPenalty?
+  commitmentPolicy                HabitCommitmentPolicy?         @relation(fields: [commitmentPolicyId], references: [id], onDelete: SetNull)
+  reminderDeliveries              HabitReminderDelivery[]
 
   @@unique([habitId, occurrenceDate])
   @@index([occurrenceDate, status])
 }
 
 model HabitCommitmentPolicy {
-  id                    String                 @id
+  id                    String                @id
   userId                String
-  habitId               String                 @unique
-  enabled               Boolean                @default(false)
-  level                 CommitmentPolicyLevel  @default(GENTLE)
+  habitId               String                @unique
+  enabled               Boolean               @default(false)
+  level                 CommitmentPolicyLevel @default(GENTLE)
   expectedAccountXp     Int
   penaltyRate           Float
   graceMinutes          Int
   recoveryWindowMinutes Int
   timezone              String
-  version               Int                    @default(1)
-  effectiveFrom        DateTime               @default(now())
-  effectiveTo          DateTime?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  habit                 Habit                  @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  version               Int                   @default(1)
+  effectiveFrom         DateTime              @default(now())
+  effectiveTo           DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit                 Habit                 @relation(fields: [habitId], references: [id], onDelete: Cascade)
   occurrences           HabitOccurrence[]
 
   @@index([userId, enabled])
@@ -1415,20 +1451,20 @@ model HabitCheckIn {
 }
 
 model GrowthProfile {
-  id              String                @id
-  userId          String                @unique
-  accountBaseXp   Int                   @default(75)
-  activeCycleId   String
-  onboardingState GrowthOnboardingState @default(NOT_STARTED)
-  rewardPreset    GrowthRewardPreset    @default(STANDARD)
-  lifetimeEarnedXp Int                  @default(0)
-  outstandingPenaltyDebt Int            @default(0)
-  highestLevelReached Int               @default(1)
-  protectedLevelFloor Int               @default(1)
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  activeCycle     GrowthCycle           @relation(fields: [activeCycleId], references: [id])
+  id                     String                @id
+  userId                 String                @unique
+  accountBaseXp          Int                   @default(75)
+  activeCycleId          String
+  onboardingState        GrowthOnboardingState @default(NOT_STARTED)
+  rewardPreset           GrowthRewardPreset    @default(STANDARD)
+  lifetimeEarnedXp       Int                   @default(0)
+  outstandingPenaltyDebt Int                   @default(0)
+  highestLevelReached    Int                   @default(1)
+  protectedLevelFloor    Int                   @default(1)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  user                   User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeCycle            GrowthCycle           @relation(fields: [activeCycleId], references: [id])
 }
 
 model GrowthCycle {
@@ -1481,8 +1517,8 @@ model GrowthSkill {
   ruleAwards         GrowthEarningRuleSkill[]
   taskRewardDefaults GrowthTaskRewardDefaultSkill[]
   ledgerEntries      GrowthLedgerEntry[]
-  attributeMappings  GrowthAttributeMapping[] @relation("GrowthAttributeMappingSkill")
-  mappedFromSkills    GrowthAttributeMapping[] @relation("GrowthAttributeMappingAttribute")
+  attributeMappings  GrowthAttributeMapping[]       @relation("GrowthAttributeMappingSkill")
+  mappedFromSkills   GrowthAttributeMapping[]       @relation("GrowthAttributeMappingAttribute")
 
   @@unique([userId, kind, name])
   @@unique([userId, starterKey])
@@ -1613,25 +1649,25 @@ model GrowthTaskRewardDefaultSkill {
 }
 
 model GrowthLedgerEntry {
-  id            String                  @id
-  userId        String
-  currency      GrowthCurrency
-  skillId       String?
-  amount        Int
-  kind          GrowthLedgerKind
-  sourceType    String
-  sourceId      String
-  entryKey      String
-  reversalOfId  String?
-  cycleId       String?
-  titleSnapshot String
-  metadata      Json                    @default("{}")
-  createdAt     DateTime                @default(now())
-  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  skill         GrowthSkill?            @relation(fields: [skillId], references: [id], onDelete: Restrict)
-  reversalOf    GrowthLedgerEntry?      @relation("GrowthLedgerReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
-  reversals     GrowthLedgerEntry[]     @relation("GrowthLedgerReversal")
-  redemption    GrowthRewardRedemption?
+  id                String                   @id
+  userId            String
+  currency          GrowthCurrency
+  skillId           String?
+  amount            Int
+  kind              GrowthLedgerKind
+  sourceType        String
+  sourceId          String
+  entryKey          String
+  reversalOfId      String?
+  cycleId           String?
+  titleSnapshot     String
+  metadata          Json                     @default("{}")
+  createdAt         DateTime                 @default(now())
+  user              User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill             GrowthSkill?             @relation(fields: [skillId], references: [id], onDelete: Restrict)
+  reversalOf        GrowthLedgerEntry?       @relation("GrowthLedgerReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversals         GrowthLedgerEntry[]      @relation("GrowthLedgerReversal")
+  redemption        GrowthRewardRedemption?
   commitmentPenalty GrowthCommitmentPenalty?
 
   @@unique([userId, entryKey])
@@ -1640,22 +1676,22 @@ model GrowthLedgerEntry {
 }
 
 model GrowthCommitmentPenalty {
-  id             String                 @id
-  userId         String
-  occurrenceId   String                 @unique
-  ledgerEntryId  String                 @unique
-  amount         Int
-  state          CommitmentPenaltyState @default(ACTIVE)
-  reason         String
-  policySnapshot Json
-  idempotencyKey String
-  breachedAt     DateTime
-  reversedAt     DateTime?
+  id              String                 @id
+  userId          String
+  occurrenceId    String                 @unique
+  ledgerEntryId   String                 @unique
+  amount          Int
+  state           CommitmentPenaltyState @default(ACTIVE)
+  reason          String
+  policySnapshot  Json
+  idempotencyKey  String
+  breachedAt      DateTime
+  reversedAt      DateTime?
   reversalEntryId String?
-  createdAt      DateTime               @default(now())
-  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  occurrence     HabitOccurrence        @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
-  ledgerEntry    GrowthLedgerEntry      @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+  createdAt       DateTime               @default(now())
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  occurrence      HabitOccurrence        @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
+  ledgerEntry     GrowthLedgerEntry      @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
 
   @@unique([userId, idempotencyKey])
   @@index([userId, state, createdAt])
@@ -1764,11 +1800,6 @@ enum JournalEntryKind {
   DAILY_REVIEW
 }
 
-enum TransactionType {
-  EXPENSE
-  INCOME
-}
-
 enum PaymentMethod {
   CASH
   BANK_TRANSFER
@@ -1798,57 +1829,61 @@ enum ExerciseMetricType {
 }
 
 model JournalEntry {
-  id              String                 @id
-  userId          String
-  kind            JournalEntryKind
-  title           String
-  contentMarkdown String                 @default("")
-  entryDate       DateTime               @db.Date
-  timezone        String                 @default("UTC")
-  templateId      String?
-  version         Int                    @default(1)
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  deletedAt       DateTime?
+  id                String                 @id
+  userId            String
+  kind              JournalEntryKind
+  title             String
+  contentMarkdown   String                 @default("")
+  entryDate         DateTime               @db.Date
+  timezone          String                 @default("UTC")
+  templateId        String?
+  version           Int                    @default(1)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  deletedAt         DateTime?
   deletedByDeviceId String?
-  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  template        JournalTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  weeklyReview    JournalWeeklyReview?
-  dailyReview     JournalDailyReview?
-  revisions       JournalEntryRevision[]
-  tags            JournalTagAssignment[]
-  attachments     JournalAttachment[]
+  contextType       String?
+  contextId         String?
+  contextData       Json?
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template          JournalTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  weeklyReview      JournalWeeklyReview?
+  dailyReview       JournalDailyReview?
+  revisions         JournalEntryRevision[]
+  tags              JournalTagAssignment[]
+  attachments       JournalAttachment[]
 
   @@index([userId, entryDate])
   @@index([userId, kind, entryDate])
   @@index([userId, deletedAt])
+  @@index([userId, contextType, contextId])
 }
 
 model JournalWeeklyReview {
-  entryId         String       @id
-  periodStart     DateTime     @db.Date
-  periodEnd       DateTime     @db.Date
-  summarySnapshot Json
-  wentWellMarkdown String?
-  frictionMarkdown String?
-  learnedMarkdown String?
+  entryId                       String       @id
+  periodStart                   DateTime     @db.Date
+  periodEnd                     DateTime     @db.Date
+  summarySnapshot               Json
+  wentWellMarkdown              String?
+  frictionMarkdown              String?
+  learnedMarkdown               String?
   differentFromLastWeekMarkdown String?
-  nextWeekMarkdown String?
-  experimentSnapshot Json?
-  comparisonSnapshot Json?
-  aiInsightsSnapshot Json?
-  aiGenerationJobId String?
-  aiGeneratedAt DateTime?
-  aiPromptVersion String?
-  aiSourceEntryVersion Int?
-  entry           JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  nextWeekMarkdown              String?
+  experimentSnapshot            Json?
+  comparisonSnapshot            Json?
+  aiInsightsSnapshot            Json?
+  aiGenerationJobId             String?
+  aiGeneratedAt                 DateTime?
+  aiPromptVersion               String?
+  aiSourceEntryVersion          Int?
+  entry                         JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([periodStart, periodEnd])
 }
 
 model JournalDailyReview {
   entryId              String       @id
-  periodDate            DateTime     @db.Date
+  periodDate           DateTime     @db.Date
   summarySnapshot      Json         @default("{}")
   wentWellMarkdown     String?
   frictionMarkdown     String?
@@ -1869,152 +1904,239 @@ enum GymWorkoutStatus {
   COMPLETED
 }
 
-model BudgetCategory {
-  id         String                @id
-  userId     String
-  name       String
-  type       TransactionType       @default(EXPENSE)
-  icon       String?
-  color      String?               @default("TEAL")
-  sortOrder  Int                   @default(0)
-  archivedAt DateTime?
-  createdAt  DateTime              @default(now())
-  updatedAt  DateTime              @updatedAt
-  version    Int                   @default(1)
-  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  limits     BudgetCategoryLimit[]
-  transactions BudgetTransaction[]
+model ExpenseCategory {
+  id                String                @id
+  userId            String
+  name              String
+  icon              String?
+  color             String?               @default("TEAL")
+  sortOrder         Int                   @default(0)
+  archivedAt        DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  version           Int                   @default(1)
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  limits            CategoryBudgetLimit[]
+  expenses          Expense[]
+  recurringExpenses RecurringExpense[]
 
   @@unique([userId, name])
   @@index([userId, archivedAt])
-  @@map("MoneyCategory")
 }
 
-model BudgetPeriod {
-  id              String                @id
-  userId          String
-  period          String                // e.g. "2026-08"
-  currency        String                @default("VND")
-  overallLimit    Decimal               @db.Decimal(18, 2)
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  version         Int                   @default(1)
-  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  categoryBudgets BudgetCategoryLimit[]
+model MonthlyBudget {
+  id             String                @id
+  userId         String
+  period         String // e.g. "2026-08"
+  overallLimit   Decimal?              @db.Decimal(18, 2)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  version        Int                   @default(1)
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryLimits CategoryBudgetLimit[]
 
   @@unique([userId, period])
   @@index([userId, period])
-  @@map("MoneyBudgetPeriod")
 }
 
-model BudgetCategoryLimit {
-  id             String            @id
-  budgetPeriodId String
-  categoryId     String
-  limit          Decimal           @db.Decimal(18, 2)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  budgetPeriod   BudgetPeriod      @relation(fields: [budgetPeriodId], references: [id], onDelete: Cascade)
-  category       BudgetCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+model CategoryBudgetLimit {
+  id              String          @id
+  monthlyBudgetId String
+  categoryId      String
+  limit           Decimal         @db.Decimal(18, 2)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  version         Int             @default(1)
+  monthlyBudget   MonthlyBudget   @relation(fields: [monthlyBudgetId], references: [id], onDelete: Cascade)
+  category        ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
-  @@unique([budgetPeriodId, categoryId])
-  @@map("MoneyCategoryBudget")
+  @@unique([monthlyBudgetId, categoryId])
+  @@index([categoryId])
 }
 
-model BudgetTransaction {
-  id             String          @id
-  userId         String
-  type           TransactionType  @default(EXPENSE)
-  amount         Decimal         @db.Decimal(18, 2)
-  currency       String          @default("VND")
-  categoryId     String
-  merchant       String?
-  paymentMethod  PaymentMethod   @default(CASH)
-  accountId      String?
-  transactionAt  DateTime        @default(now())
-  note           String?
-  version        Int             @default(1)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  deletedAt      DateTime?
-  deletedByDeviceId String?
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  categoryRel    BudgetCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+model Expense {
+  id                      String            @id
+  userId                  String
+  amount                  Decimal           @db.Decimal(18, 2)
+  categoryId              String
+  merchant                String?
+  paymentMethod           PaymentMethod     @default(CASH)
+  expenseDate             DateTime          @db.Date
+  recurringExpenseId      String?
+  recurringOccurrenceDate DateTime?         @db.Date
+  note                    String?
+  version                 Int               @default(1)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  deletedAt               DateTime?
+  deletedByDeviceId       String?
+  user                    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category                ExpenseCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  recurringExpense        RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
 
-  @@index([userId, transactionAt])
+  @@unique([recurringExpenseId, recurringOccurrenceDate])
+  @@index([userId, expenseDate])
   @@index([userId, deletedAt])
-  @@index([categoryId, transactionAt])
+  @@index([categoryId, expenseDate])
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+model RecurringExpense {
+  id            String             @id
+  userId        String
+  name          String?
+  categoryId    String
+  amount        Decimal            @db.Decimal(18, 2)
+  merchant      String?
+  paymentMethod PaymentMethod      @default(CASH)
+  note          String?
+  frequency     RecurringFrequency
+  startDate     DateTime           @db.Date
+  nextDueDate   DateTime           @db.Date
+  isActive      Boolean            @default(true)
+  archivedAt    DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  version       Int                @default(1)
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category      ExpenseCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  expenses      Expense[]
+
+  @@index([userId, isActive, nextDueDate])
+  @@index([userId, archivedAt])
 }
 
 model ExerciseDefinition {
-  id                   String                   @id
-  userId               String
-  name                 String
-  normalizedName       String
-  description          String?
-  imageStorageKey      String?
-  imageUrl             String?
-  metricType           ExerciseMetricType       @default(WEIGHT_REPS)
-  equipment            String?
-  primaryMuscleGroup   String?
-  secondaryMuscleGroups String[]               @default([])
-  defaultWeightUnit    WeightUnit               @default(KG)
-  defaultRestSeconds   Int?
-  archivedAt           DateTime?
-  deletedAt            DateTime?
-  deletedByDeviceId    String?
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
-  version              Int                      @default(1)
-  user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                    String               @id
+  userId                String
+  name                  String
+  normalizedName        String
+  description           String?
+  imageStorageKey       String?
+  imageUrl              String?
+  metricType            ExerciseMetricType   @default(WEIGHT_REPS)
+  equipment             String?
+  primaryMuscleGroup    String?
+  secondaryMuscleGroups String[]             @default([])
+  defaultWeightUnit     WeightUnit           @default(KG)
+  defaultRestSeconds    Int?
+  origin                String               @default("CUSTOM")
+  catalogKey            String?
+  catalogVersion        Int?
+  userNotes             String?
+  isFavorite            Boolean              @default(false)
+  archivedAt            DateTime?
+  deletedAt             DateTime?
+  deletedByDeviceId     String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  version               Int                  @default(1)
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   gymWorkoutExercises   GymWorkoutExercise[]
+  gymRoutineExercises   GymRoutineExercise[]
 
   @@unique([userId, normalizedName])
   @@index([userId, name])
+  @@index([userId, catalogKey])
+  @@index([userId, isFavorite])
   @@index([userId, archivedAt])
   @@index([userId, deletedAt])
 }
 
-model GymWorkout {
-  id              String          @id
-  userId          String
-  title           String?
-  source          String?
-  status          GymWorkoutStatus @default(IN_PROGRESS)
-  startedAt       DateTime?
-  endedAt         DateTime?
-  durationMinutes Int?
-  version         Int             @default(1)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  deletedAt       DateTime?
+model GymRoutine {
+  id                String               @id
+  userId            String
+  name              String
+  description       String?
+  sortOrder         Int                  @default(0)
+  archivedAt        DateTime?
+  deletedAt         DateTime?
   deletedByDeviceId String?
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercises       GymWorkoutExercise[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  version           Int                  @default(1)
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises         GymRoutineExercise[]
+  workouts          GymWorkout[]
+
+  @@index([userId, sortOrder])
+  @@index([userId, archivedAt])
+  @@index([userId, deletedAt])
+}
+
+model GymRoutineExercise {
+  id                    String             @id
+  routineId             String
+  exerciseId            String
+  sortOrder             Int                @default(0)
+  setCount              Int                @default(3)
+  targetRepsMin         Int?
+  targetRepsMax         Int?
+  targetDurationSeconds Int?
+  targetDistanceMeters  Float?
+  restSeconds           Int?
+  note                  String?
+  version               Int                @default(1)
+  deletedAt             DateTime?
+  deletedByDeviceId     String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  routine               GymRoutine         @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercise              ExerciseDefinition @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@index([routineId, sortOrder])
+  @@index([routineId, deletedAt])
+  @@index([exerciseId])
+}
+
+model GymWorkout {
+  id                String               @id
+  userId            String
+  routineId         String?
+  title             String?
+  source            String?
+  status            GymWorkoutStatus     @default(IN_PROGRESS)
+  startedAt         DateTime?
+  endedAt           DateTime?
+  durationMinutes   Int?
+  version           Int                  @default(1)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  deletedAt         DateTime?
+  deletedByDeviceId String?
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routine           GymRoutine?          @relation(fields: [routineId], references: [id], onDelete: SetNull)
+  exercises         GymWorkoutExercise[]
 
   @@index([userId, startedAt])
+  @@index([userId, routineId])
   @@index([userId, deletedAt])
   @@index([userId, status])
 }
 
 model GymWorkoutExercise {
-  id             String          @id
-  workoutId      String
-  exerciseId     String
-  exerciseName   String
-  metricType     ExerciseMetricType
-  weightUnit     WeightUnit
-  sortOrder      Int             @default(0)
-  note           String?
-  restSeconds    Int?
-  version        Int              @default(1)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  deletedAt      DateTime?
+  id                String             @id
+  workoutId         String
+  exerciseId        String
+  exerciseName      String
+  metricType        ExerciseMetricType
+  weightUnit        WeightUnit
+  sortOrder         Int                @default(0)
+  note              String?
+  restSeconds       Int?
+  version           Int                @default(1)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  deletedAt         DateTime?
   deletedByDeviceId String?
-  workout        GymWorkout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-  exercise       ExerciseDefinition @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
-  sets           GymWorkoutSet[]
+  workout           GymWorkout         @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise          ExerciseDefinition @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  sets              GymWorkoutSet[]
 
   @@index([workoutId, sortOrder])
   @@index([workoutId, deletedAt])
@@ -2022,19 +2144,19 @@ model GymWorkoutExercise {
 }
 
 model GymWorkoutSet {
-  id                String            @id
+  id                String             @id
   workoutExerciseId String
-  sortOrder         Int               @default(0)
+  sortOrder         Int                @default(0)
   type              WorkoutSetType     @default(NORMAL)
   reps              Int?
-  weight            Decimal?          @db.Decimal(8, 2)
+  weight            Decimal?           @db.Decimal(8, 2)
   durationSeconds   Int?
   distanceMeters    Float?
-  rpe               Decimal?          @db.Decimal(3, 1)
+  rpe               Decimal?           @db.Decimal(3, 1)
   completedAt       DateTime?
-  version           Int               @default(1)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  version           Int                @default(1)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   deletedAt         DateTime?
   deletedByDeviceId String?
   workoutExercise   GymWorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)

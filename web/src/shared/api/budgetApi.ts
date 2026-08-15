@@ -2,7 +2,182 @@ import type { ApiClientContext } from './apiContext';
 import { createUlid } from '../sync/syncIdentity';
 import { SYNC_KINDS } from '../sync/syncKinds';
 
-type MoneyAmount = string | number;
+export type MoneyAmount = string | number;
+export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'E_WALLET' | 'OTHER';
+export type RecurringFrequency = 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+
+export interface BudgetCategory {
+  id: string;
+  userId?: string;
+  name: string;
+  icon?: string | null;
+  color?: string | null;
+  sortOrder: number;
+  archivedAt?: string | null;
+  version?: number;
+}
+
+export interface Expense {
+  id: string;
+  userId?: string;
+  amount: string;
+  category: string;
+  categoryId: string;
+  merchant?: string | null;
+  paymentMethod: PaymentMethod;
+  expenseDate: string;
+  note?: string | null;
+  recurringExpenseId?: string | null;
+  recurringOccurrenceDate?: string | null;
+  version?: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  deletedAt?: string | null;
+}
+
+export interface CategoryBudgetLimit {
+  id: string;
+  monthlyBudgetId: string;
+  categoryId: string;
+  limit: string;
+  version?: number;
+}
+
+export interface MonthlyBudget {
+  id: string;
+  userId?: string;
+  period: string;
+  overallLimit: string | null;
+  categoryLimits: CategoryBudgetLimit[];
+  version?: number;
+}
+
+export interface RecurringExpense {
+  id: string;
+  userId?: string;
+  name?: string | null;
+  category: string;
+  categoryId: string;
+  amount: string;
+  merchant?: string | null;
+  paymentMethod: PaymentMethod;
+  note?: string | null;
+  frequency: RecurringFrequency;
+  startDate: string;
+  nextDueDate: string;
+  isActive: boolean;
+  archivedAt?: string | null;
+  version?: number;
+}
+
+export interface BudgetSummary {
+  period: string;
+  spent: string;
+  overallLimit: string | null;
+  remaining: string | null;
+  previousSpent: string;
+  changeAmount: string;
+  changePercentage: number | null;
+  categories: Array<{
+    category: BudgetCategory;
+    limit: string | null;
+    spent: string;
+    remaining: string | null;
+    percentage: number | null;
+  }>;
+  recentExpenses: Expense[];
+  dueRecurring: RecurringExpense[];
+}
+
+export interface BudgetReport {
+  period: string;
+  spendingOverTime: Array<{ date: string; amount: string; cumulative: string }>;
+  categoryBreakdown: Array<{ categoryId: string; category: string; amount: string; percentage: number }>;
+  monthlyOutflow: Array<{ bucket: string; amount: string }>;
+  previousMonthComparison: { current: string; previous: string; difference: string; percentage: number | null };
+  topMerchants: Array<{ merchant: string; amount: string; count: number }>;
+  topCategories: Array<{ categoryId: string; category: string; amount: string; count: number }>;
+}
+
+export interface BudgetStatistics {
+  from: string;
+  to: string;
+  spent: string;
+  expenseCount: number;
+  previousSpent: string;
+  changeAmount: string;
+  trend: Array<{ date: string; amount: string }>;
+}
+
+export interface ExpenseFilters {
+  period?: string;
+  from?: string;
+  to?: string;
+  categoryId?: string;
+  paymentMethod?: PaymentMethod;
+  merchant?: string;
+  search?: string;
+}
+
+export type BudgetApi = {
+  getBudgetSummary(period: string): Promise<BudgetSummary>;
+  getBudgetReport(period: string): Promise<BudgetReport>;
+  getBudgetStatistics(from: string, to: string): Promise<BudgetStatistics>;
+  getBudgetCategories(): Promise<BudgetCategory[]>;
+  createBudgetCategory(data: { name: string; icon?: string; color?: string; sortOrder?: number }): Promise<BudgetCategory>;
+  reorderBudgetCategories(data: { categoryIds: string[] }): Promise<BudgetCategory[]>;
+  updateBudgetCategory(id: string, data: Partial<{ name: string; icon: string; color: string; sortOrder: number }>): Promise<BudgetCategory>;
+  archiveBudgetCategory(id: string): Promise<BudgetCategory>;
+  getMonthlyBudget(period: string): Promise<MonthlyBudget>;
+  updateMonthlyBudget(period: string, overallLimit: MoneyAmount | null): Promise<MonthlyBudget>;
+  updateBudgetCategoryLimit(period: string, categoryId: string, limit: MoneyAmount): Promise<CategoryBudgetLimit>;
+  deleteBudgetCategoryLimit(period: string, categoryId: string): Promise<void>;
+  getBudgetExpenses(filters?: ExpenseFilters): Promise<Expense[]>;
+  getBudgetExpenseById(id: string): Promise<Expense>;
+  createBudgetExpense(data: {
+    amount: MoneyAmount;
+    categoryId: string;
+    merchant?: string;
+    paymentMethod?: PaymentMethod;
+    expenseDate: string;
+    note?: string;
+  }): Promise<Expense>;
+  updateBudgetExpense(id: string, data: Partial<{
+    amount: MoneyAmount;
+    categoryId: string;
+    merchant: string | null;
+    paymentMethod: PaymentMethod;
+    expenseDate: string;
+    note: string | null;
+  }>): Promise<Expense>;
+  deleteBudgetExpense(id: string): Promise<void>;
+  getRecurringExpenses(): Promise<RecurringExpense[]>;
+  createRecurringExpense(data: {
+    name?: string;
+    categoryId: string;
+    amount: MoneyAmount;
+    merchant?: string;
+    paymentMethod?: PaymentMethod;
+    note?: string;
+    frequency: RecurringFrequency;
+    startDate: string;
+  }): Promise<RecurringExpense>;
+  updateRecurringExpense(id: string, data: Partial<{
+    name: string | null;
+    categoryId: string;
+    amount: MoneyAmount;
+    merchant: string | null;
+    paymentMethod: PaymentMethod;
+    note: string | null;
+    frequency: RecurringFrequency;
+    startDate: string;
+    nextDueDate: string;
+    isActive: boolean;
+  }>): Promise<RecurringExpense>;
+  archiveRecurringExpense(id: string): Promise<RecurringExpense>;
+  confirmRecurringExpense(id: string, occurrenceDate?: string): Promise<void>;
+  skipRecurringExpense(id: string, occurrenceDate?: string): Promise<void>;
+};
 
 function decimalString(value: MoneyAmount): string {
   const text = String(value).trim();
@@ -14,167 +189,87 @@ function decimalString(value: MoneyAmount): string {
   return Number.isFinite(number) ? number.toFixed(2) : '0.00';
 }
 
-export type BudgetApi = {
-  getBudgetOverview(period?: string): Promise<any>;
-  getBudgetCategories(): Promise<any[]>;
-  createBudgetCategory(data: { name: string; type?: 'EXPENSE' | 'INCOME'; icon?: string; color?: string }): Promise<any>;
-  reorderBudgetCategories(data: { categoryIds: string[] }): Promise<any>;
-  updateBudgetCategory(id: string, data: Partial<{ name: string; type: 'EXPENSE' | 'INCOME'; icon: string; color: string }>): Promise<any>;
-  archiveBudgetCategory(id: string): Promise<any>;
-  getBudgetPeriod(period: string): Promise<any>;
-  updateBudgetPeriod(period: string, data: { overallLimit: MoneyAmount }): Promise<any>;
-  updateBudgetCategoryLimit(period: string, categoryId: string, data: { limit: MoneyAmount }): Promise<any>;
-  deleteBudgetCategoryLimit(period: string, categoryId: string): Promise<any>;
-  getBudgetTransactions(filters?: { period?: string; categoryId?: string; type?: 'EXPENSE' | 'INCOME' }): Promise<any[]>;
-  getBudgetTransactionById(id: string): Promise<any>;
-  createBudgetTransaction(data: {
-    amount: MoneyAmount;
-    currency?: string;
-    type?: 'EXPENSE' | 'INCOME';
-    categoryId: string;
-    merchant?: string;
-    paymentMethod?: string;
-    transactionAt?: string;
-    note?: string;
-  }): Promise<any>;
-  updateBudgetTransaction(id: string, data: Partial<{
-    amount: MoneyAmount;
-    currency: string;
-    type: 'EXPENSE' | 'INCOME';
-    categoryId: string;
-    merchant: string;
-    paymentMethod: string;
-    transactionAt: string;
-    note: string;
-  }>): Promise<any>;
-  deleteBudgetTransaction(id: string): Promise<any>;
-};
+function json(body: unknown): RequestInit {
+  return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+}
 
 export function createBudgetApi(ctx: ApiClientContext): BudgetApi {
   return {
-    getBudgetOverview(period?: string) {
-      const q = period ? `?period=${encodeURIComponent(period)}` : '';
-      return ctx.request(`/budget/overview${q}`);
+    getBudgetSummary(period) { return ctx.request(`/budget/summary?period=${encodeURIComponent(period)}`); },
+    getBudgetReport(period) { return ctx.request(`/budget/reports?period=${encodeURIComponent(period)}`); },
+    getBudgetStatistics(from, to) {
+      const query = new URLSearchParams({ from, to });
+      return ctx.request(`/budget/statistics?${query}`);
     },
-    getBudgetCategories() {
-      return ctx.request('/budget/categories');
-    },
+    getBudgetCategories() { return ctx.request('/budget/categories'); },
     createBudgetCategory(data) {
       const id = createUlid();
-      const optimistic = {
-        id,
-        ...data,
-        type: data.type ?? 'EXPENSE',
-        icon: data.icon ?? 'other',
-        color: data.color ?? 'TEAL',
-        sortOrder: 0,
-        archivedAt: null,
-        version: 1,
-      };
-      return ctx.offlineMutation({ kind: SYNC_KINDS.budgetCategory.create, entityId: id, payload: data, optimistic }, () =>
-        ctx.request('/budget/categories', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        }),
-      );
+      const optimistic: BudgetCategory = { id, ...data, sortOrder: data.sortOrder ?? 0, archivedAt: null, version: 1 };
+      return ctx.offlineMutation({ kind: SYNC_KINDS.budgetCategory.create, entityId: id, payload: data, optimistic }, () => ctx.request('/budget/categories', { method: 'POST', ...json(data) }));
     },
     reorderBudgetCategories(data) {
-      const id = createUlid();
-      return ctx.offlineMutation({ kind: SYNC_KINDS.budgetCategory.reorder, entityId: id, payload: data, optimistic: undefined }, () =>
-        ctx.request('/budget/categories/reorder', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        }),
-      );
+      return ctx.offlineMutation({ kind: SYNC_KINDS.budgetCategory.reorder, entityId: createUlid(), payload: data, optimistic: [] }, () => ctx.request('/budget/categories/reorder', { method: 'PATCH', ...json(data) }));
     },
     updateBudgetCategory(id, data) {
-      return ctx.offlineMutation(
-        { kind: SYNC_KINDS.budgetCategory.update, entityId: id, payload: data, baseVersion: (data as { version?: number }).version, optimistic: { id, ...data } },
-        () =>
-          ctx.request(`/budget/categories/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
-          }),
-      );
+      return ctx.offlineMutation({ kind: SYNC_KINDS.budgetCategory.update, entityId: id, payload: data, optimistic: { id, ...data } as BudgetCategory }, () => ctx.request(`/budget/categories/${id}`, { method: 'PATCH', ...json(data) }));
     },
     archiveBudgetCategory(id) {
-      return ctx.offlineMutation(
-        { kind: SYNC_KINDS.budgetCategory.delete, entityId: id, payload: {}, immediate: true, optimistic: { id, archivedAt: new Date().toISOString() } },
-        () => ctx.request(`/budget/categories/${id}`, { method: 'DELETE' }),
-      );
+      return ctx.offlineMutation({ kind: SYNC_KINDS.budgetCategory.archive, entityId: id, payload: {}, immediate: true, optimistic: { id, archivedAt: new Date().toISOString() } as BudgetCategory }, () => ctx.request(`/budget/categories/${id}`, { method: 'DELETE' }));
     },
-    getBudgetPeriod(period) {
-      return ctx.request(`/budget/periods/${period}`);
+    getMonthlyBudget(period) { return ctx.request(`/budget/months/${period}`); },
+    updateMonthlyBudget(period, overallLimit) {
+      const payload = { period, overallLimit: overallLimit === null ? null : decimalString(overallLimit) };
+      return ctx.offlineMutation({ kind: SYNC_KINDS.monthlyBudget.update, entityId: createUlid(), payload, optimistic: { id: payload.period, ...payload, categoryLimits: [] } as MonthlyBudget }, () => ctx.request(`/budget/months/${period}`, { method: 'PUT', ...json(payload) }));
     },
-    updateBudgetPeriod(period, data) {
-      const payload = { period, overallLimit: decimalString(data.overallLimit) };
-      return ctx.offlineMutation({ kind: SYNC_KINDS.budgetPeriod.update, entityId: period, payload, optimistic: { id: period, ...payload } }, () =>
-        ctx.request(`/budget/periods/${period}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }),
-      );
-    },
-    updateBudgetCategoryLimit(period, categoryId, data) {
-      const payload = { period, categoryId, limit: decimalString(data.limit) };
-      return ctx.offlineMutation({ kind: SYNC_KINDS.budgetCategoryLimit.upsert, entityId: `${period}:${categoryId}`, payload, optimistic: { id: `${period}:${categoryId}`, ...payload } }, () =>
-        ctx.request(`/budget/periods/${period}/categories/${categoryId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }),
-      );
+    updateBudgetCategoryLimit(period, categoryId, limit) {
+      const payload = { period, categoryId, limit: decimalString(limit) };
+      return ctx.offlineMutation({ kind: SYNC_KINDS.categoryBudget.upsert, entityId: createUlid(), payload, optimistic: { id: `${period}:${categoryId}`, monthlyBudgetId: period, categoryId, limit: payload.limit } }, () => ctx.request(`/budget/months/${period}/categories/${categoryId}`, { method: 'PUT', ...json(payload) }));
     },
     deleteBudgetCategoryLimit(period, categoryId) {
-      return ctx.offlineMutation(
-        { kind: SYNC_KINDS.budgetCategoryLimit.delete, entityId: `${period}:${categoryId}`, payload: { period, categoryId }, immediate: true, optimistic: { id: `${period}:${categoryId}`, deletedAt: new Date().toISOString() } },
-        () => ctx.request(`/budget/periods/${period}/categories/${categoryId}`, { method: 'DELETE' }),
-      );
+      return ctx.offlineMutation({ kind: SYNC_KINDS.categoryBudget.delete, entityId: `${period}:${categoryId}`, payload: { period, categoryId }, immediate: true, optimistic: undefined }, () => ctx.request(`/budget/months/${period}/categories/${categoryId}`, { method: 'DELETE' }));
     },
-    getBudgetTransactions(filters) {
+    getBudgetExpenses(filters) {
       const params = new URLSearchParams();
-      if (filters?.period) params.append('period', filters.period);
-      if (filters?.categoryId) params.append('categoryId', filters.categoryId);
-      if (filters?.type) params.append('type', filters.type);
-      const q = params.toString() ? `?${params.toString()}` : '';
-      return ctx.request(`/budget/transactions${q}`);
+      for (const [key, value] of Object.entries(filters ?? {})) if (value) params.set(key, value);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      return ctx.request(`/budget/expenses${query}`);
     },
-    getBudgetTransactionById(id) {
-      return ctx.request(`/budget/transactions/${id}`);
-    },
-    createBudgetTransaction(data) {
+    getBudgetExpenseById(id) { return ctx.request(`/budget/expenses/${id}`); },
+    createBudgetExpense(data) {
       const id = createUlid();
-      const payload = { ...data, amount: decimalString(data.amount), currency: data.currency ?? 'VND' };
-      const optimistic = { id, ...payload, version: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-      return ctx.offlineMutation({ kind: SYNC_KINDS.budgetTransaction.create, entityId: id, payload, optimistic }, () =>
-        ctx.request('/budget/transactions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }),
-      );
+      const payload = { ...data, amount: decimalString(data.amount), paymentMethod: data.paymentMethod ?? 'CASH' };
+      const optimistic: Expense = { id, ...payload, category: '', version: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      return ctx.offlineMutation({ kind: SYNC_KINDS.expense.create, entityId: id, payload, optimistic }, () => ctx.request('/budget/expenses', { method: 'POST', ...json(payload) }));
     },
-    updateBudgetTransaction(id, data) {
+    updateBudgetExpense(id, data) {
       const payload = { ...data, ...(data.amount === undefined ? {} : { amount: decimalString(data.amount) }) };
-      return ctx.offlineMutation(
-        { kind: SYNC_KINDS.budgetTransaction.update, entityId: id, payload, baseVersion: (data as { version?: number }).version, optimistic: { id, ...payload } },
-        () =>
-          ctx.request(`/budget/transactions/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          }),
-      );
+      return ctx.offlineMutation({ kind: SYNC_KINDS.expense.update, entityId: id, payload, optimistic: { id, ...payload } as Expense }, () => ctx.request(`/budget/expenses/${id}`, { method: 'PATCH', ...json(payload) }));
     },
-    deleteBudgetTransaction(id) {
-      return ctx.offlineMutation(
-        { kind: SYNC_KINDS.budgetTransaction.delete, entityId: id, payload: {}, immediate: true, optimistic: { id, deletedAt: new Date().toISOString() } },
-        () => ctx.request(`/budget/transactions/${id}`, { method: 'DELETE' }),
-      );
+    deleteBudgetExpense(id) {
+      return ctx.offlineMutation({ kind: SYNC_KINDS.expense.delete, entityId: id, payload: {}, immediate: true, optimistic: undefined }, () => ctx.request(`/budget/expenses/${id}`, { method: 'DELETE' }));
+    },
+    getRecurringExpenses() { return ctx.request('/budget/recurring'); },
+    createRecurringExpense(data) {
+      const id = createUlid();
+      const payload = { ...data, amount: decimalString(data.amount), paymentMethod: data.paymentMethod ?? 'CASH' };
+      const optimistic: RecurringExpense = { id, ...payload, category: '', nextDueDate: payload.startDate, isActive: true, archivedAt: null, version: 1 };
+      return ctx.offlineMutation({ kind: SYNC_KINDS.recurringExpense.create, entityId: id, payload, optimistic }, () => ctx.request('/budget/recurring', { method: 'POST', ...json(payload) }));
+    },
+    updateRecurringExpense(id, data) {
+      const payload = { ...data, ...(data.amount === undefined ? {} : { amount: decimalString(data.amount) }) };
+      return ctx.offlineMutation({ kind: SYNC_KINDS.recurringExpense.update, entityId: id, payload, optimistic: { id, ...payload } as RecurringExpense }, () => ctx.request(`/budget/recurring/${id}`, { method: 'PATCH', ...json(payload) }));
+    },
+    archiveRecurringExpense(id) {
+      return ctx.offlineMutation({ kind: SYNC_KINDS.recurringExpense.archive, entityId: id, payload: {}, immediate: true, optimistic: { id, archivedAt: new Date().toISOString(), isActive: false } as RecurringExpense }, () => ctx.request(`/budget/recurring/${id}`, { method: 'DELETE' }));
+    },
+    confirmRecurringExpense(id, occurrenceDate) {
+      const expenseId = createUlid();
+      const payload = { ...(occurrenceDate ? { occurrenceDate } : {}), expenseId };
+      return ctx.offlineMutation({ kind: SYNC_KINDS.recurringExpense.confirm, entityId: id, payload, immediate: true, optimistic: undefined }, () => ctx.request(`/budget/recurring/${id}/confirm`, { method: 'POST', ...json(payload) }));
+    },
+    skipRecurringExpense(id, occurrenceDate) {
+      const payload = occurrenceDate ? { occurrenceDate } : {};
+      return ctx.offlineMutation({ kind: SYNC_KINDS.recurringExpense.skip, entityId: id, payload, immediate: true, optimistic: undefined }, () => ctx.request(`/budget/recurring/${id}/skip`, { method: 'POST', ...json(payload) }));
     },
   };
 }

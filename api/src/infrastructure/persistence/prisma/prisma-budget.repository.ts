@@ -1,23 +1,33 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
-import {
-  IBudgetRepositoryPort,
-  CreateCategoryDto,
-  UpdateCategoryDto,
-  CreateTransactionDto,
-  UpdateTransactionDto,
-} from '@core/application/ports/out/budget-repository.port';
-import {
-  BudgetCategoryDomain,
-  BudgetPeriodDomain,
-  BudgetTransactionDomain,
-  BudgetOverviewDomain,
-  CategoryOverviewStat,
+import { PaymentMethod as PrismaPaymentMethod, Prisma, RecurringFrequency as PrismaRecurringFrequency } from '@prisma/client';
+import { DomainException, EntityNotFoundException } from '@core/domain/exceptions';
+import { hcmcCurrentPeriod } from '@core/application/utils/calendar';
+import { advanceRecurringDate } from '@core/domain/budget/recurrence';
+import type {
+  BudgetCategorySummaryDomain,
+  BudgetReportDomain,
+  BudgetStatisticsDomain,
+  BudgetSummaryDomain,
+  CategoryBudgetLimitDomain,
+  ExpenseCategoryDomain,
+  ExpenseDomain,
+  MonthlyBudgetDomain,
+  PaymentMethod,
+  RecurringExpenseDomain,
 } from '@core/domain/budget/budget.domain';
+import type {
+  CreateCategoryDto,
+  CreateExpenseDto,
+  CreateRecurringExpenseDto,
+  ExpenseFilters,
+  IBudgetRepositoryPort,
+  UpdateCategoryDto,
+  UpdateExpenseDto,
+  UpdateRecurringExpenseDto,
+} from '@core/application/ports/out/budget-repository.port';
+import { PrismaService } from './prisma.service';
 import { createUlid } from './ulid';
-import { Prisma, TransactionType, PaymentMethod } from '@prisma/client';
 import { recordSyncChange } from './prisma-sync-mutation.shared';
-import { hcmcMonthBounds } from '@core/application/utils/calendar';
 
 export const BUDGET_CATEGORY_CATALOG = [
   { name: 'Food', icon: 'food', color: 'EMERALD' },
@@ -30,374 +40,326 @@ export const BUDGET_CATEGORY_CATALOG = [
   { name: 'Fitness', icon: 'fitness', color: 'EMERALD' },
   { name: 'Travel', icon: 'travel', color: 'SLATE' },
   { name: 'Other', icon: 'other', color: 'SLATE' },
-];
-const CATEGORY_ICONS = new Set(BUDGET_CATEGORY_CATALOG.map((item) => item.icon));
+] as const;
+
+const CATEGORY_ICONS = new Set<string>(BUDGET_CATEGORY_CATALOG.map((item) => item.icon));
 const CATEGORY_COLORS = new Set(['EMERALD', 'BLUE', 'VIOLET', 'AMBER', 'ROSE', 'INDIGO', 'TEAL', 'SLATE']);
-function validateCategoryVisuals(icon?: string | null, color?: string | null): void {
-  if (icon !== undefined && icon !== null && !CATEGORY_ICONS.has(icon)) throw new Error('Unsupported budget category icon');
-  if (color !== undefined && color !== null && !CATEGORY_COLORS.has(color.toUpperCase())) throw new Error('Unsupported budget category color');
+const PAYMENT_METHODS = new Set<string>(Object.values(PrismaPaymentMethod));
+
+const asMoney = (value: Prisma.Decimal | string | number | null | undefined) => value == null ? null : new Prisma.Decimal(value).toFixed(2);
+const asDateOnly = (value: Date) => new Date(`${value.toISOString().slice(0, 10)}T00:00:00.000Z`);
+const dateOnlyMonthBounds = (period: string) => {
+  const [year, month] = period.split('-').map(Number);
+  const next = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, '0')}`;
+  return { start: new Date(`${period}-01T00:00:00.000Z`), end: new Date(`${next}-01T00:00:00.000Z`) };
+};
+const periodPattern = /^(\d{4})-(\d{2})$/;
+
+export function assertBudgetPeriod(period: string): void {
+  const match = periodPattern.exec(period);
+  const month = match ? Number(match[2]) : 0;
+  if (!match || month < 1 || month > 12) throw new DomainException('Budget period must be a valid YYYY-MM value', 'INVALID_BUDGET_PERIOD', 400);
+}
+
+const previousPeriod = (period: string) => {
+  const [year, month] = period.split('-').map(Number);
+  return month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`;
+};
+
+function validateVisuals(icon?: string | null, color?: string | null): void {
+  if (icon != null && !CATEGORY_ICONS.has(icon)) throw new DomainException('Unsupported expense category icon', 'INVALID_CATEGORY', 400);
+  if (color != null && !CATEGORY_COLORS.has(color.toUpperCase())) throw new DomainException('Unsupported expense category color', 'INVALID_CATEGORY', 400);
+}
+
+function validatePaymentMethod(value: string | undefined): PaymentMethod {
+  const normalized = value ?? PrismaPaymentMethod.CASH;
+  if (!PAYMENT_METHODS.has(normalized)) throw new DomainException('Unsupported payment method', 'INVALID_PAYMENT_METHOD', 400);
+  return normalized as PaymentMethod;
 }
 
 @Injectable()
 export class PrismaBudgetRepository implements IBudgetRepositoryPort {
   constructor(private readonly prisma: PrismaService) {}
 
-  private mapCategory(c: any): BudgetCategoryDomain {
-    return {
-      id: c.id,
-      userId: c.userId,
-      name: c.name,
-      type: c.type,
-      icon: c.icon,
-      color: c.color,
-      sortOrder: c.sortOrder,
-      archivedAt: c.archivedAt,
-      createdAt: c.createdAt,
-      updatedAt: c.updatedAt,
-      version: c.version ?? 1,
-    };
+  private mapCategory(value: any): ExpenseCategoryDomain {
+    return { id: value.id, userId: value.userId, name: value.name, icon: value.icon, color: value.color, sortOrder: value.sortOrder, archivedAt: value.archivedAt, createdAt: value.createdAt, updatedAt: value.updatedAt, version: value.version ?? 1 };
   }
 
-  private mapTransaction(e: any): BudgetTransactionDomain {
-    return {
-      id: e.id,
-      userId: e.userId,
-      type: e.type || 'EXPENSE',
-      amount: new Prisma.Decimal(e.amount || 0).toFixed(2),
-      currency: e.currency || 'VND',
-      category: e.categoryRel?.name || 'OTHER',
-      categoryId: e.categoryId || null,
-      merchant: e.merchant || null,
-      paymentMethod: e.paymentMethod || 'CASH',
-      transactionAt: e.transactionAt,
-      note: e.note || null,
-      version: e.version ?? 1,
-      createdAt: e.createdAt,
-      updatedAt: e.updatedAt,
-      deletedAt: e.deletedAt || null,
-      deletedByDeviceId: e.deletedByDeviceId || null,
-    };
+  private mapExpense(value: any): ExpenseDomain {
+    return { id: value.id, userId: value.userId, amount: asMoney(value.amount)!, category: value.category?.name ?? 'Other', categoryId: value.categoryId, merchant: value.merchant, paymentMethod: value.paymentMethod, expenseDate: value.expenseDate, note: value.note, recurringExpenseId: value.recurringExpenseId, recurringOccurrenceDate: value.recurringOccurrenceDate, version: value.version ?? 1, createdAt: value.createdAt, updatedAt: value.updatedAt, deletedAt: value.deletedAt, deletedByDeviceId: value.deletedByDeviceId };
   }
 
-  async getCategories(userId: string): Promise<BudgetCategoryDomain[]> {
-    let categories = await this.prisma.budgetCategory.findMany({
-      where: { userId, archivedAt: null },
-      orderBy: { sortOrder: 'asc' },
+  private mapRecurring(value: any): RecurringExpenseDomain {
+    return { id: value.id, userId: value.userId, name: value.name, category: value.category?.name ?? 'Other', categoryId: value.categoryId, amount: asMoney(value.amount)!, merchant: value.merchant, paymentMethod: value.paymentMethod, note: value.note, frequency: value.frequency, startDate: value.startDate, nextDueDate: value.nextDueDate, isActive: value.isActive, archivedAt: value.archivedAt, createdAt: value.createdAt, updatedAt: value.updatedAt, version: value.version ?? 1 };
+  }
+
+  private mapLimit(value: any): CategoryBudgetLimitDomain {
+    return { id: value.id, monthlyBudgetId: value.monthlyBudgetId, categoryId: value.categoryId, limit: asMoney(value.limit)!, createdAt: value.createdAt, updatedAt: value.updatedAt, version: value.version ?? 1, category: value.category ? this.mapCategory(value.category) : undefined };
+  }
+
+  private mapMonthlyBudget(value: any): MonthlyBudgetDomain {
+    return { id: value.id, userId: value.userId, period: value.period, overallLimit: asMoney(value.overallLimit), createdAt: value.createdAt, updatedAt: value.updatedAt, version: value.version ?? 1, categoryLimits: (value.categoryLimits ?? []).map((limit: any) => this.mapLimit(limit)) };
+  }
+
+  private async category(userId: string, id: string, tx = this.prisma) {
+    const category = await tx.expenseCategory.findFirst({ where: { id, userId } });
+    if (!category) throw new EntityNotFoundException('Expense category', id);
+    return category;
+  }
+
+  private async ensureDefaultCategories(userId: string): Promise<void> {
+    const count = await this.prisma.expenseCategory.count({ where: { userId } });
+    if (count > 0) return;
+    await this.prisma.expenseCategory.createMany({
+      data: BUDGET_CATEGORY_CATALOG.map((category, sortOrder) => ({
+        id: createUlid(), userId, name: category.name, icon: category.icon, color: category.color, sortOrder,
+      })),
+      skipDuplicates: true,
     });
-
-    return categories.map((c) => this.mapCategory(c));
   }
 
-  async createCategory(userId: string, dto: CreateCategoryDto): Promise<BudgetCategoryDomain> {
-    validateCategoryVisuals(dto.icon, dto.color);
-    const count = await this.prisma.budgetCategory.count({ where: { userId } });
-    const category = await this.prisma.budgetCategory.create({
-      data: {
-        id: createUlid(),
-        userId,
-        name: dto.name,
-        type: (dto.type as TransactionType) || TransactionType.EXPENSE,
-        icon: dto.icon || null,
-        color: dto.color ? dto.color.toUpperCase() : 'TEAL',
-        sortOrder: dto.sortOrder ?? count,
-      },
-    });
-    return this.mapCategory(category);
+  async getCategories(userId: string) {
+    await this.ensureDefaultCategories(userId);
+    const values = await this.prisma.expenseCategory.findMany({ where: { userId, archivedAt: null }, orderBy: { sortOrder: 'asc' } });
+    return values.map((value) => this.mapCategory(value));
   }
 
-  async updateCategory(userId: string, id: string, dto: UpdateCategoryDto): Promise<BudgetCategoryDomain> {
-    validateCategoryVisuals(dto.icon, dto.color);
-    const existing = await this.prisma.budgetCategory.findFirst({ where: { id, userId } });
-    if (!existing) {
-      throw new Error(`Category ${id} not found`);
-    }
-
-    const category = await this.prisma.budgetCategory.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name } : {}),
-        ...(dto.type !== undefined ? { type: dto.type as TransactionType } : {}),
-        ...(dto.icon !== undefined ? { icon: dto.icon } : {}),
-        ...(dto.color !== undefined ? { color: dto.color.toUpperCase() } : {}),
-        ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
-        version: { increment: 1 },
-      },
-    });
-    return this.mapCategory(category);
+  async createCategory(userId: string, dto: CreateCategoryDto) {
+    validateVisuals(dto.icon, dto.color);
+    const count = await this.prisma.expenseCategory.count({ where: { userId } });
+    const value = await this.prisma.expenseCategory.create({ data: { id: createUlid(), userId, name: dto.name.trim(), icon: dto.icon ?? null, color: dto.color?.toUpperCase() ?? 'TEAL', sortOrder: dto.sortOrder ?? count } });
+    return this.mapCategory(value);
   }
 
-  async archiveCategory(userId: string, id: string): Promise<BudgetCategoryDomain> {
-    const existing = await this.prisma.budgetCategory.findFirst({ where: { id, userId } });
-    if (!existing) {
-      throw new Error(`Category ${id} not found`);
-    }
-
-    const category = await this.prisma.budgetCategory.update({
-      where: { id },
-      data: { archivedAt: new Date(), version: { increment: 1 } },
-    });
-    return this.mapCategory(category);
+  async updateCategory(userId: string, id: string, dto: UpdateCategoryDto) {
+    await this.category(userId, id);
+    validateVisuals(dto.icon, dto.color);
+    const value = await this.prisma.expenseCategory.update({ where: { id }, data: { ...(dto.name !== undefined ? { name: dto.name.trim() } : {}), ...(dto.icon !== undefined ? { icon: dto.icon } : {}), ...(dto.color !== undefined ? { color: dto.color.toUpperCase() } : {}), ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}), version: { increment: 1 } } });
+    return this.mapCategory(value);
   }
 
-  async reorderCategories(userId: string, categoryIds: string[]): Promise<BudgetCategoryDomain[]> {
-    const userCategories = await this.prisma.budgetCategory.findMany({
-      where: { userId, id: { in: categoryIds } },
-    });
-    const validIds = new Set(userCategories.map((c) => c.id));
+  async archiveCategory(userId: string, id: string) {
+    await this.category(userId, id);
+    const value = await this.prisma.expenseCategory.update({ where: { id }, data: { archivedAt: new Date(), version: { increment: 1 } } });
+    return this.mapCategory(value);
+  }
 
-    await this.prisma.$transaction(
-      categoryIds.filter((id) => validIds.has(id)).map((id, index) =>
-        this.prisma.budgetCategory.update({
-          where: { id },
-          data: { sortOrder: index },
-        }),
-      ),
-    );
+  async reorderCategories(userId: string, categoryIds: string[]) {
+    await this.prisma.$transaction(categoryIds.map((id, sortOrder) => this.prisma.expenseCategory.updateMany({ where: { id, userId }, data: { sortOrder, version: { increment: 1 } } })));
     return this.getCategories(userId);
   }
 
-  async getPeriod(userId: string, periodStr: string): Promise<BudgetPeriodDomain> {
-    let period = await this.prisma.budgetPeriod.findUnique({
-      where: { userId_period: { userId, period: periodStr } },
-      include: {
-        categoryBudgets: {
-          include: { category: true },
-        },
-      },
+  async getMonthlyBudget(userId: string, period: string) {
+    assertBudgetPeriod(period);
+    const value = await this.prisma.monthlyBudget.upsert({ where: { userId_period: { userId, period } }, create: { id: createUlid(), userId, period }, update: {}, include: { categoryLimits: { include: { category: true } } } });
+    return this.mapMonthlyBudget(value);
+  }
+
+  async updateMonthlyBudget(userId: string, period: string, overallLimit: string | null) {
+    assertBudgetPeriod(period);
+    const value = await this.prisma.monthlyBudget.upsert({ where: { userId_period: { userId, period } }, create: { id: createUlid(), userId, period, overallLimit }, update: { overallLimit, version: { increment: 1 } }, include: { categoryLimits: { include: { category: true } } } });
+    return this.mapMonthlyBudget(value);
+  }
+
+  async updateCategoryLimit(userId: string, period: string, categoryId: string, limit: string) {
+    assertBudgetPeriod(period);
+    await this.category(userId, categoryId);
+    const monthlyBudget = await this.prisma.monthlyBudget.upsert({ where: { userId_period: { userId, period } }, create: { id: createUlid(), userId, period }, update: {} });
+    const value = await this.prisma.categoryBudgetLimit.upsert({ where: { monthlyBudgetId_categoryId: { monthlyBudgetId: monthlyBudget.id, categoryId } }, create: { id: createUlid(), monthlyBudgetId: monthlyBudget.id, categoryId, limit }, update: { limit, version: { increment: 1 } }, include: { category: true } });
+    return this.mapLimit(value);
+  }
+
+  async deleteCategoryLimit(userId: string, period: string, categoryId: string) {
+    assertBudgetPeriod(period);
+    const monthlyBudget = await this.prisma.monthlyBudget.findUnique({ where: { userId_period: { userId, period } } });
+    if (monthlyBudget) await this.prisma.categoryBudgetLimit.deleteMany({ where: { monthlyBudgetId: monthlyBudget.id, categoryId } });
+  }
+
+  async getExpenses(userId: string, filters: ExpenseFilters = {}) {
+    const where: Prisma.ExpenseWhereInput = { userId, deletedAt: null };
+    if (filters.period) { assertBudgetPeriod(filters.period); const bounds = dateOnlyMonthBounds(filters.period); where.expenseDate = { gte: bounds.start, lt: bounds.end }; }
+    if (filters.from || filters.to) where.expenseDate = { ...(where.expenseDate as Prisma.DateTimeFilter ?? {}), ...(filters.from ? { gte: asDateOnly(filters.from) } : {}), ...(filters.to ? { lte: asDateOnly(filters.to) } : {}) };
+    if (filters.categoryId) where.categoryId = filters.categoryId;
+    if (filters.paymentMethod) where.paymentMethod = filters.paymentMethod as PrismaPaymentMethod;
+    const search = filters.search ?? filters.merchant;
+    if (search) where.OR = [{ merchant: { contains: search, mode: 'insensitive' } }, { note: { contains: search, mode: 'insensitive' } }];
+    const values = await this.prisma.expense.findMany({ where, include: { category: true }, orderBy: [{ expenseDate: 'desc' }, { createdAt: 'desc' }] });
+    return values.map((value) => this.mapExpense(value));
+  }
+
+  async getExpense(userId: string, id: string, includeDeleted = false) {
+    const value = await this.prisma.expense.findFirst({ where: { id, userId, ...(includeDeleted ? {} : { deletedAt: null }) }, include: { category: true } });
+    return value ? this.mapExpense(value) : null;
+  }
+
+  async createExpense(userId: string, dto: CreateExpenseDto) {
+    await this.category(userId, dto.categoryId);
+    const value = await this.prisma.expense.create({ data: { id: createUlid(), userId, categoryId: dto.categoryId, amount: dto.amount, merchant: dto.merchant ?? null, paymentMethod: validatePaymentMethod(dto.paymentMethod) as PrismaPaymentMethod, expenseDate: asDateOnly(dto.expenseDate), note: dto.note ?? null, recurringExpenseId: dto.recurringExpenseId, recurringOccurrenceDate: dto.recurringOccurrenceDate ? asDateOnly(dto.recurringOccurrenceDate) : undefined }, include: { category: true } });
+    return this.mapExpense(value);
+  }
+
+  async updateExpense(userId: string, id: string, dto: UpdateExpenseDto) {
+    const existing = await this.prisma.expense.findFirst({ where: { id, userId, deletedAt: null } });
+    if (!existing) throw new EntityNotFoundException('Expense', id);
+    if (dto.categoryId) await this.category(userId, dto.categoryId);
+    const value = await this.prisma.expense.update({ where: { id }, data: { ...(dto.amount !== undefined ? { amount: dto.amount } : {}), ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}), ...(dto.merchant !== undefined ? { merchant: dto.merchant } : {}), ...(dto.paymentMethod !== undefined ? { paymentMethod: validatePaymentMethod(dto.paymentMethod) as PrismaPaymentMethod } : {}), ...(dto.expenseDate !== undefined ? { expenseDate: asDateOnly(dto.expenseDate) } : {}), ...(dto.note !== undefined ? { note: dto.note } : {}), version: { increment: 1 } }, include: { category: true } });
+    return this.mapExpense(value);
+  }
+
+  async deleteExpense(userId: string, id: string) {
+    const result = await this.prisma.expense.updateMany({ where: { id, userId, deletedAt: null }, data: { deletedAt: new Date(), version: { increment: 1 } } });
+    if (!result.count) throw new EntityNotFoundException('Expense', id);
+  }
+
+  async restoreExpense(userId: string, id: string) {
+    const result = await this.prisma.expense.updateMany({ where: { id, userId, deletedAt: { not: null } }, data: { deletedAt: null, deletedByDeviceId: null, version: { increment: 1 } } });
+    if (!result.count) return null;
+    return this.getExpense(userId, id);
+  }
+
+  async getRecurringExpenses(userId: string) {
+    const values = await this.prisma.recurringExpense.findMany({ where: { userId, archivedAt: null }, include: { category: true }, orderBy: [{ isActive: 'desc' }, { nextDueDate: 'asc' }] });
+    return values.map((value) => this.mapRecurring(value));
+  }
+
+  async createRecurringExpense(userId: string, dto: CreateRecurringExpenseDto) {
+    await this.category(userId, dto.categoryId);
+    const startDate = asDateOnly(dto.startDate);
+    const value = await this.prisma.recurringExpense.create({ data: { id: createUlid(), userId, name: dto.name ?? null, categoryId: dto.categoryId, amount: dto.amount, merchant: dto.merchant ?? null, paymentMethod: validatePaymentMethod(dto.paymentMethod) as PrismaPaymentMethod, note: dto.note ?? null, frequency: dto.frequency as PrismaRecurringFrequency, startDate, nextDueDate: dto.nextDueDate ? asDateOnly(dto.nextDueDate) : startDate }, include: { category: true } });
+    return this.mapRecurring(value);
+  }
+
+  async updateRecurringExpense(userId: string, id: string, dto: UpdateRecurringExpenseDto) {
+    const existing = await this.prisma.recurringExpense.findFirst({ where: { id, userId, archivedAt: null } });
+    if (!existing) throw new EntityNotFoundException('Recurring expense', id);
+    if (dto.categoryId) await this.category(userId, dto.categoryId);
+    const value = await this.prisma.recurringExpense.update({ where: { id }, data: { ...(dto.name !== undefined ? { name: dto.name } : {}), ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}), ...(dto.amount !== undefined ? { amount: dto.amount } : {}), ...(dto.merchant !== undefined ? { merchant: dto.merchant } : {}), ...(dto.paymentMethod !== undefined ? { paymentMethod: validatePaymentMethod(dto.paymentMethod) as PrismaPaymentMethod } : {}), ...(dto.note !== undefined ? { note: dto.note } : {}), ...(dto.frequency !== undefined ? { frequency: dto.frequency as PrismaRecurringFrequency } : {}), ...(dto.startDate !== undefined ? { startDate: asDateOnly(dto.startDate) } : {}), ...(dto.nextDueDate !== undefined ? { nextDueDate: asDateOnly(dto.nextDueDate) } : {}), ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}), version: { increment: 1 } }, include: { category: true } });
+    return this.mapRecurring(value);
+  }
+
+  async archiveRecurringExpense(userId: string, id: string) {
+    const existing = await this.prisma.recurringExpense.findFirst({ where: { id, userId, archivedAt: null } });
+    if (!existing) throw new EntityNotFoundException('Recurring expense', id);
+    const value = await this.prisma.recurringExpense.update({ where: { id }, data: { archivedAt: new Date(), isActive: false, version: { increment: 1 } }, include: { category: true } });
+    return this.mapRecurring(value);
+  }
+
+  async confirmRecurringOccurrence(userId: string, id: string, occurrenceDate?: Date) {
+    return this.prisma.$transaction(async (tx) => {
+      const recurring = await tx.recurringExpense.findFirst({ where: { id, userId, archivedAt: null, isActive: true }, include: { category: true } });
+      if (!recurring) throw new EntityNotFoundException('Recurring expense', id);
+      const date = asDateOnly(occurrenceDate ?? recurring.nextDueDate);
+      const existing = await tx.expense.findFirst({ where: { userId, recurringExpenseId: id, recurringOccurrenceDate: date }, include: { category: true } });
+      if (existing) return this.mapExpense(existing);
+      if (date.getTime() !== asDateOnly(recurring.nextDueDate).getTime()) throw new DomainException('Recurring occurrence is no longer current', 'STALE_RECURRING_OCCURRENCE', 409);
+      const expense = await tx.expense.create({ data: { id: createUlid(), userId, categoryId: recurring.categoryId, amount: recurring.amount, merchant: recurring.merchant, paymentMethod: recurring.paymentMethod, expenseDate: date, note: recurring.note, recurringExpenseId: recurring.id, recurringOccurrenceDate: date }, include: { category: true } });
+      const nextDueDate = advanceRecurringDate(date, recurring.frequency, recurring.startDate);
+      const updated = await tx.recurringExpense.update({ where: { id }, data: { nextDueDate, version: { increment: 1 } }, include: { category: true } });
+      await recordSyncChange(tx, userId, 'expense', expense.id, 'UPSERT', expense);
+      await recordSyncChange(tx, userId, 'recurringexpense', updated.id, 'UPSERT', updated);
+      return this.mapExpense(expense);
     });
+  }
 
-    if (!period) {
-      period = await this.prisma.budgetPeriod.create({
-        data: {
-          id: createUlid(),
-          userId,
-          period: periodStr,
-          currency: 'VND',
-          overallLimit: '0.00',
-        },
-        include: {
-          categoryBudgets: {
-            include: { category: true },
-          },
-        },
-      });
+  async skipRecurringOccurrence(userId: string, id: string, occurrenceDate?: Date) {
+    return this.prisma.$transaction(async (tx) => {
+      const recurring = await tx.recurringExpense.findFirst({ where: { id, userId, archivedAt: null, isActive: true }, include: { category: true } });
+      if (!recurring) throw new EntityNotFoundException('Recurring expense', id);
+      const date = asDateOnly(occurrenceDate ?? recurring.nextDueDate);
+      if (date.getTime() !== asDateOnly(recurring.nextDueDate).getTime()) throw new DomainException('Recurring occurrence is no longer current', 'STALE_RECURRING_OCCURRENCE', 409);
+      const nextDueDate = advanceRecurringDate(date, recurring.frequency, recurring.startDate);
+      const updated = await tx.recurringExpense.update({ where: { id }, data: { nextDueDate, version: { increment: 1 } }, include: { category: true } });
+      await recordSyncChange(tx, userId, 'recurringexpense', updated.id, 'UPSERT', updated);
+      return this.mapRecurring(updated);
+    });
+  }
+
+  private async comparisonExpenses(userId: string, period: string, previous: string) {
+    const currentPeriod = hcmcCurrentPeriod();
+    if (period !== currentPeriod) return this.getExpenses(userId, { period: previous });
+    const today = new Date();
+    const day = Number(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit' }).format(today));
+    const { start, end } = dateOnlyMonthBounds(previous);
+    const previousEnd = new Date(Math.min(end.getTime() - 86_400_000, start.getTime() + Math.max(day - 1, 0) * 86_400_000));
+    return this.getExpenses(userId, { from: start, to: previousEnd });
+  }
+
+  async getSummary(userId: string, period: string): Promise<BudgetSummaryDomain> {
+    assertBudgetPeriod(period);
+    const previous = previousPeriod(period);
+    const [budget, categories, expenses, previousExpenses, recurring] = await Promise.all([this.getMonthlyBudget(userId, period), this.getCategories(userId), this.getExpenses(userId, { period }), this.comparisonExpenses(userId, period, previous), this.getRecurringExpenses(userId)]);
+    const total = expenses.reduce((sum, value) => sum.add(value.amount), new Prisma.Decimal(0));
+    const previousTotal = previousExpenses.reduce((sum, value) => sum.add(value.amount), new Prisma.Decimal(0));
+    const categoryTotals = new Map<string, Prisma.Decimal>();
+    for (const expense of expenses) categoryTotals.set(expense.categoryId, (categoryTotals.get(expense.categoryId) ?? new Prisma.Decimal(0)).add(expense.amount));
+    const limits = new Map(budget.categoryLimits.map((limit) => [limit.categoryId, limit.limit]));
+    const categorySummary: BudgetCategorySummaryDomain[] = categories.map((category) => {
+      const spent = categoryTotals.get(category.id) ?? new Prisma.Decimal(0);
+      const limit = limits.get(category.id) ?? null;
+      const limitDecimal = limit == null ? null : new Prisma.Decimal(limit);
+      return { category, limit, spent: spent.toFixed(2), remaining: limitDecimal?.sub(spent).toFixed(2) ?? null, percentage: limitDecimal && !limitDecimal.isZero() ? Math.round(spent.div(limitDecimal).toNumber() * 1000) / 10 : null };
+    });
+    const overall = budget.overallLimit == null ? null : new Prisma.Decimal(budget.overallLimit);
+    const change = total.sub(previousTotal);
+    return { period, spent: total.toFixed(2), overallLimit: budget.overallLimit, remaining: overall?.sub(total).toFixed(2) ?? null, previousSpent: previousTotal.toFixed(2), changeAmount: change.toFixed(2), changePercentage: previousTotal.isZero() ? null : Math.round(change.div(previousTotal).toNumber() * 1000) / 10, categories: categorySummary, recentExpenses: expenses.slice(0, 5), dueRecurring: recurring.filter((value) => value.isActive && value.nextDueDate <= new Date()) };
+  }
+
+  async getReport(userId: string, period: string): Promise<BudgetReportDomain> {
+    assertBudgetPeriod(period);
+    const previous = previousPeriod(period);
+    const [expenses, previousExpenses] = await Promise.all([this.getExpenses(userId, { period }), this.comparisonExpenses(userId, period, previous)]);
+    const byDate = new Map<string, Prisma.Decimal>();
+    const byCategory = new Map<string, { name: string; amount: Prisma.Decimal; count: number }>();
+    const byMerchant = new Map<string, { amount: Prisma.Decimal; count: number }>();
+    for (const expense of expenses) {
+      const date = expense.expenseDate.toISOString().slice(0, 10);
+      byDate.set(date, (byDate.get(date) ?? new Prisma.Decimal(0)).add(expense.amount));
+      const category = byCategory.get(expense.categoryId) ?? { name: expense.category, amount: new Prisma.Decimal(0), count: 0 };
+      category.amount = category.amount.add(expense.amount); category.count += 1; byCategory.set(expense.categoryId, category);
+      if (expense.merchant?.trim()) { const merchant = expense.merchant.trim(); const item = byMerchant.get(merchant) ?? { amount: new Prisma.Decimal(0), count: 0 }; item.amount = item.amount.add(expense.amount); item.count += 1; byMerchant.set(merchant, item); }
     }
+    const dates = [...byDate.keys()].sort(); let cumulative = new Prisma.Decimal(0);
+    const spendingOverTime = dates.map((date) => { const amount = byDate.get(date)!; cumulative = cumulative.add(amount); return { date, amount: amount.toFixed(2), cumulative: cumulative.toFixed(2) }; });
+    const total = expenses.reduce((sum, value) => sum.add(value.amount), new Prisma.Decimal(0));
+    const categoryBreakdown = [...byCategory.entries()].sort((a, b) => b[1].amount.comparedTo(a[1].amount)).map(([categoryId, value]) => ({ categoryId, category: value.name, amount: value.amount.toFixed(2), percentage: total.isZero() ? 0 : Math.round(value.amount.div(total).toNumber() * 1000) / 10 }));
+    const weekly = new Map<string, Prisma.Decimal>();
+    for (const [date, amount] of byDate) { const day = Number(date.slice(8, 10)); const bucket = `week-${Math.ceil(day / 7)}`; weekly.set(bucket, (weekly.get(bucket) ?? new Prisma.Decimal(0)).add(amount)); }
+    const previousTotal = previousExpenses.reduce((sum, value) => sum.add(value.amount), new Prisma.Decimal(0));
+    const difference = total.sub(previousTotal);
+    return { period, spendingOverTime, categoryBreakdown, monthlyOutflow: [...weekly.entries()].map(([bucket, amount]) => ({ bucket, amount: amount.toFixed(2) })), previousMonthComparison: { current: total.toFixed(2), previous: previousTotal.toFixed(2), difference: difference.toFixed(2), percentage: previousTotal.isZero() ? null : Math.round(difference.div(previousTotal).toNumber() * 1000) / 10 }, topMerchants: [...byMerchant.entries()].sort((a, b) => b[1].amount.comparedTo(a[1].amount)).slice(0, 5).map(([merchant, value]) => ({ merchant, amount: value.amount.toFixed(2), count: value.count })), topCategories: [...byCategory.entries()].sort((a, b) => b[1].amount.comparedTo(a[1].amount)).slice(0, 5).map(([categoryId, value]) => ({ categoryId, category: value.name, amount: value.amount.toFixed(2), count: value.count })) };
+  }
 
+  async getStatistics(userId: string, from: Date, to: Date): Promise<BudgetStatisticsDomain> {
+    const dayCount = Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 86_400_000));
+    const previousFrom = new Date(from.getTime() - dayCount * 86_400_000);
+    const [current, previous] = await Promise.all([
+      this.aggregateStatistics(userId, from, to),
+      this.aggregateStatistics(userId, previousFrom, from),
+    ]);
+    const end = new Date(to.getTime() - 86_400_000);
     return {
-      id: period.id,
-      userId: period.userId,
-      period: period.period,
-      currency: period.currency,
-      overallLimit: new Prisma.Decimal(period.overallLimit).toFixed(2),
-      createdAt: period.createdAt,
-      updatedAt: period.updatedAt,
-      version: period.version ?? 1,
-      categoryBudgets: period.categoryBudgets.map((cb) => ({
-        id: cb.id,
-        budgetPeriodId: cb.budgetPeriodId,
-        categoryId: cb.categoryId,
-        limit: new Prisma.Decimal(cb.limit).toFixed(2),
-        createdAt: cb.createdAt,
-        updatedAt: cb.updatedAt,
-        category: cb.category ? this.mapCategory(cb.category) : undefined,
-      })),
+      from: from.toISOString().slice(0, 10),
+      to: end.toISOString().slice(0, 10),
+      spent: current.total.toFixed(2),
+      expenseCount: current.count,
+      previousSpent: previous.total.toFixed(2),
+      changeAmount: current.total.sub(previous.total).toFixed(2),
+      trend: current.trend,
     };
   }
 
-  async updatePeriod(userId: string, periodStr: string, overallLimit: string): Promise<BudgetPeriodDomain> {
-    await this.prisma.budgetPeriod.upsert({
-      where: { userId_period: { userId, period: periodStr } },
-      create: {
-        id: createUlid(),
-        userId,
-        period: periodStr,
-        currency: 'VND',
-          overallLimit: new Prisma.Decimal(overallLimit),
-      },
-      update: {
-          overallLimit: new Prisma.Decimal(overallLimit),
-        version: { increment: 1 },
-      },
-    });
-    return this.getPeriod(userId, periodStr);
-  }
-
-  async updateCategoryLimit(userId: string, periodStr: string, categoryId: string, limit: string): Promise<BudgetPeriodDomain> {
-    const period = await this.getPeriod(userId, periodStr);
-    await this.prisma.budgetCategoryLimit.upsert({
-      where: { budgetPeriodId_categoryId: { budgetPeriodId: period.id, categoryId } },
-      create: {
-        id: createUlid(),
-        budgetPeriodId: period.id,
-        categoryId,
-          limit: new Prisma.Decimal(limit),
-      },
-      update: {
-          limit: new Prisma.Decimal(limit),
-      },
-    });
-    return this.getPeriod(userId, periodStr);
-  }
-
-  async deleteCategoryLimit(userId: string, periodStr: string, categoryId: string): Promise<BudgetPeriodDomain> {
-    const period = await this.getPeriod(userId, periodStr);
-    await this.prisma.budgetCategoryLimit.deleteMany({
-      where: { budgetPeriodId: period.id, categoryId },
-    });
-    return this.getPeriod(userId, periodStr);
-  }
-
-  async getTransactions(userId: string, options?: { period?: string; categoryId?: string; type?: 'EXPENSE' | 'INCOME' }): Promise<BudgetTransactionDomain[]> {
-    const where: any = { userId, deletedAt: null };
-
-    if (options?.categoryId) {
-      where.categoryId = options.categoryId;
-    }
-
-    if (options?.type) {
-      where.type = options.type;
-    }
-
-    if (options?.period) {
-      const bounds = hcmcMonthBounds(options.period);
-      where.transactionAt = { gte: bounds.start, lt: bounds.end };
-    }
-
-    const entries = await this.prisma.budgetTransaction.findMany({
-      where,
-      include: { categoryRel: true },
-      orderBy: { transactionAt: 'desc' },
-    });
-
-    return entries.map((e) => this.mapTransaction(e));
-  }
-
-  async getTransactionById(userId: string, id: string): Promise<BudgetTransactionDomain | null> {
-    const entry = await this.prisma.budgetTransaction.findFirst({
-      where: { id, userId, deletedAt: null },
-      include: { categoryRel: true },
-    });
-    return entry ? this.mapTransaction(entry) : null;
-  }
-
-  async createTransaction(userId: string, dto: CreateTransactionDto): Promise<BudgetTransactionDomain> {
-    const entryId = createUlid();
-    const transactionAt = dto.transactionAt ? new Date(dto.transactionAt) : new Date();
-
-    const dbCat = await this.prisma.budgetCategory.findUnique({ where: { id: dto.categoryId } });
-    if (!dbCat || dbCat.userId !== userId) throw new Error(`Category ${dto.categoryId} not found`);
-    const entry = await this.prisma.budgetTransaction.create({
-      data: {
-        id: entryId,
-        userId,
-        type: (dto.type as TransactionType) || TransactionType.EXPENSE,
-        amount: dto.amount,
-        currency: dto.currency || 'VND',
-        categoryId: dto.categoryId,
-        merchant: dto.merchant || null,
-        paymentMethod: (dto.paymentMethod as PaymentMethod) || PaymentMethod.CASH,
-        transactionAt,
-        note: dto.note || null,
-      },
-      include: { categoryRel: true },
-    });
-    const mapped = this.mapTransaction(entry);
-    await this.prisma.$transaction(async (tx) => recordSyncChange(tx, userId, 'budgettransaction', entry.id, 'UPSERT', entry));
-    return mapped;
-  }
-
-  async updateTransaction(userId: string, id: string, dto: UpdateTransactionDto): Promise<BudgetTransactionDomain> {
-    const existing = await this.getTransactionById(userId, id);
-    if (!existing) {
-      throw new Error(`Transaction ${id} not found`);
-    }
-
-    const updateData: any = {};
-
-    if (dto.merchant !== undefined) {
-      updateData.merchant = dto.merchant;
-    }
-    if (dto.note !== undefined) {
-      updateData.note = dto.note;
-    }
-    if (dto.transactionAt !== undefined) {
-      updateData.transactionAt = new Date(dto.transactionAt);
-    }
-    if (dto.type !== undefined) updateData.type = dto.type as TransactionType;
-    if (dto.amount !== undefined) updateData.amount = dto.amount;
-    if (dto.currency !== undefined) updateData.currency = dto.currency;
-    if (dto.paymentMethod !== undefined) updateData.paymentMethod = dto.paymentMethod as PaymentMethod;
-    if (dto.categoryId !== undefined) {
-      const dbCat = await this.prisma.budgetCategory.findUnique({ where: { id: dto.categoryId } });
-      if (!dbCat || dbCat.userId !== userId) throw new Error(`Category ${dto.categoryId} not found`);
-      updateData.categoryId = dto.categoryId;
-    }
-
-    const entry = await this.prisma.budgetTransaction.update({
-      where: { id },
-      data: {
-        ...updateData,
-        version: { increment: 1 },
-      },
-      include: { categoryRel: true },
-    });
-    await this.prisma.$transaction(async (tx) => recordSyncChange(tx, userId, 'budgettransaction', entry.id, 'UPSERT', entry));
-    return this.mapTransaction(entry);
-  }
-
-  async deleteTransaction(userId: string, id: string): Promise<void> {
-    const result = await this.prisma.budgetTransaction.updateMany({
-      where: { id, userId, deletedAt: null },
-      data: { deletedAt: new Date(), version: { increment: 1 } },
-    });
-    if (result.count === 0) throw new Error(`Transaction ${id} not found`);
-    await this.prisma.$transaction(async (tx) => recordSyncChange(tx, userId, 'budgettransaction', id, 'DELETE', { id }));
-  }
-
-  async getOverview(userId: string, periodStr: string): Promise<BudgetOverviewDomain> {
-    const period = await this.getPeriod(userId, periodStr);
-    const categories = await this.getCategories(userId);
-    const transactions = await this.getTransactions(userId, { period: periodStr });
-
-    let totalIncome = new Prisma.Decimal(0);
-    let totalSpent = new Prisma.Decimal(0);
-    const spentByCategory: Record<string, Prisma.Decimal> = {};
-
-    for (const tx of transactions) {
-      if (tx.type === 'INCOME') {
-        totalIncome = totalIncome.add(new Prisma.Decimal(tx.amount));
-      } else {
-        totalSpent = totalSpent.add(new Prisma.Decimal(tx.amount));
-        if (tx.categoryId) {
-          spentByCategory[tx.categoryId] = (spentByCategory[tx.categoryId] || new Prisma.Decimal(0)).add(new Prisma.Decimal(tx.amount));
-        }
-      }
-    }
-
-    const categoryStats: CategoryOverviewStat[] = categories.map((cat) => {
-      const limitObj = period.categoryBudgets.find((cb) => cb.categoryId === cat.id);
-      const budget = new Prisma.Decimal(limitObj ? limitObj.limit : 0);
-      const spent = spentByCategory[cat.id] || new Prisma.Decimal(0);
-      const remaining = budget.sub(spent).greaterThan(0) ? budget.sub(spent) : new Prisma.Decimal(0);
-      const percentage = budget.greaterThan(0) ? Math.min(100, Math.round(spent.div(budget).toNumber() * 100 * 10) / 10) : 0;
-
-      return {
-        category: cat,
-        budget: budget.toFixed(2),
-        spent: spent.toFixed(2),
-        remaining: remaining.toFixed(2),
-        percentage,
-      };
-    });
-
+  private async aggregateStatistics(userId: string, from: Date, to: Date) {
+    const where = { userId, deletedAt: null, expenseDate: { gte: from, lt: to } };
+    const [totals, daily] = await Promise.all([
+      this.prisma.expense.aggregate({ where, _sum: { amount: true }, _count: { _all: true } }),
+      this.prisma.expense.groupBy({ by: ['expenseDate'], where, _sum: { amount: true } }),
+    ]);
     return {
-      period: periodStr,
-      currency: period.currency || 'VND',
-      income: totalIncome.toFixed(2),
-      spent: totalSpent.toFixed(2),
-      overallBudget: new Prisma.Decimal(period.overallLimit).toFixed(2),
-      remainingBudget: (new Prisma.Decimal(period.overallLimit).sub(totalSpent).greaterThan(0) ? new Prisma.Decimal(period.overallLimit).sub(totalSpent) : new Prisma.Decimal(0)).toFixed(2),
-      categories: categoryStats,
+      total: new Prisma.Decimal(totals._sum.amount ?? 0),
+      count: totals._count._all,
+      trend: daily
+        .sort((a, b) => a.expenseDate.getTime() - b.expenseDate.getTime())
+        .map((entry) => ({ date: entry.expenseDate.toISOString().slice(0, 10), amount: new Prisma.Decimal(entry._sum.amount ?? 0).toFixed(2) })),
     };
   }
 }

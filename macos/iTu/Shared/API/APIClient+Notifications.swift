@@ -45,4 +45,26 @@ extension APIClient {
     func dismissTaskReminder(id: String) async throws {
         let _: TaskReminderModel = try await request(path: "/productivity/task-reminders/\(id)/dismiss", method: "POST")
     }
+
+    func snoozeHabitReminder(deliveryId: String, remindAt: String) async throws {
+        let _: HabitReminderDeliveryModel = try await request(
+            path: "/productivity/habit-reminder-deliveries/\(deliveryId)/snooze",
+            method: "POST",
+            body: ["remindAt": .string(remindAt)] as [String: JSONValue]
+        )
+    }
+
+    func dismissHabitReminder(deliveryId: String) async throws {
+        let _: HabitReminderDeliveryModel = try await request(
+            path: "/productivity/habit-reminder-deliveries/\(deliveryId)/dismiss",
+            method: "POST"
+        )
+    }
+
+    func completeHabitReminder(deliveryId: String) async throws {
+        let _: HabitProgressResultModel = try await request(
+            path: "/productivity/habit-reminder-deliveries/\(deliveryId)/complete",
+            method: "POST"
+        )
+    }
 }

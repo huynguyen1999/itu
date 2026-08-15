@@ -62,7 +62,7 @@ export function App() {
 
           {/* Legacy redirects */}
           <Route path="/journal/money" element={<Navigate to="/budget" replace />} />
-          <Route path="/journal/money/transactions" element={<Navigate to="/budget/transactions" replace />} />
+          <Route path="/journal/money/transactions" element={<Navigate to="/budget/expenses" replace />} />
           <Route path="/journal/money/budgets" element={<Navigate to="/budget/budgets" replace />} />
           <Route path="/journal/money/calendar" element={<Navigate to="/budget" replace />} />
           <Route path="/journal/gym" element={<Navigate to="/gym" replace />} />

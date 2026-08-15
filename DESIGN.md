@@ -122,6 +122,20 @@ Both clients expose the same workspace language: Home, Plan, Matrix, Focus, Cale
 
 iTu ships one visual language across platforms. The token vocabulary is duplicated deliberately so each platform is self-contained: a platform-neutral `--itu-*` CSS custom-property namespace in [`web/src/styles/app.css`](web/src/styles/app.css) for the React/Tailwind client, and the matching semantic roles in [`macos/iTu/Shared/UI/iTuTheme.swift`](macos/iTu/Shared/UI/iTuTheme.swift) for the SwiftUI client. Light-mode source values align across clients; native `Color(lightHex:darkHex:)` and the web `.dark` theme intentionally override surface, ink, and accent values for each appearance. macOS also exposes `forestRaised`, `gold`, and `goldSoft` convenience roles. **Token names and roles are the contract; any LLM generating code for either platform must reference this document's token vocabulary and add a role before inventing a color.** Web webfonts map to system fonts on native: `Manrope` → SF Pro, `IBM Plex Mono` → SF Mono (`Design.monospaced`), `Fraunces` → New York serif. Native controls and SF Symbols remain native; parity is semantic and tonal, not pixel-identical.
 
+## Page Header Contract
+
+Every top-level page uses the same semantic order where the content exists:
+
+```text
+kicker       optional page or workspace context
+title        required primary page identity
+description  optional supporting context
+actions      contextual page actions
+controls     optional secondary toolbar, filter, or search row
+```
+
+The web `PageHeader` and macOS `iTuPageHeader` own this hierarchy. Both use a forest/deep-forest surface, mint kicker, high-contrast title, muted description, soft divider, and the shared action vocabulary. Web and macOS may differ in width, wrapping, pinning, controls, and native control presentation; they do not need pixel-identical layouts.
+
 ## Colors
 
 The color system combines organic forest teals, refreshing mint tones, warm amber/coral accents, and restrained gold/violet reward signals into a focused, serene productivity environment. Tokens are grouped by role below; each cites its web CSS variable and (where it exists) its macOS `iTuTheme` name.

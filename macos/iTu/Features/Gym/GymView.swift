@@ -5,6 +5,7 @@ struct GymView: View {
     @SceneStorage("gym.selectedTab") private var selectedTab = "Overview"
     @SceneStorage("gym.historyFilter") private var historyFilter = "COMPLETED"
     @State private var showingGymSettings = false
+    @State private var editingWorkoutID: String?
 
     private var activeWorkout: WorkoutModel? {
         model.gymWorkouts.first { ["IN_PROGRESS", "ACTIVE"].contains($0.status) && $0.deletedAt == nil }
@@ -20,7 +21,14 @@ struct GymView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         switch selectedTab {
                         case "Active":
-                            if let activeWorkout {
+                            if let editingWorkout = editingWorkoutID.flatMap({ id in model.gymWorkouts.first(where: { $0.id == id }) }) {
+                                ActiveWorkoutView(
+                                    workout: editingWorkout,
+                                    onFinished: { editingWorkoutID = nil; selectedTab = "History" },
+                                    onDiscarded: { editingWorkoutID = nil; selectedTab = "History" },
+                                    isHistorical: true
+                                )
+                            } else if let activeWorkout {
                                 ActiveWorkoutView(
                                     workout: activeWorkout,
                                     onFinished: { selectedTab = "History" },
@@ -32,8 +40,33 @@ struct GymView: View {
                                     onContinueWorkoutClicked: { selectedTab = "Active" }
                                 )
                             }
+                        case "Routines":
+                            GymRoutinesView(onStartWorkout: { routineId in
+                                Task {
+                                    if await model.startGymWorkoutFromRoutine(routineId: routineId) != nil {
+                                        selectedTab = "Active"
+                                    }
+                                }
+                            })
                         case "History":
-                            GymHistoryView(historyFilter: $historyFilter)
+                            GymHistoryView(
+                                historyFilter: $historyFilter,
+                                onRepeatWorkout: { workoutID in
+                                    Task {
+                                        if await model.repeatGymWorkout(workoutId: workoutID) != nil { selectedTab = "Active" }
+                                    }
+                                },
+                                onSaveAsRoutine: { workoutID in
+                                    Task { _ = await model.createGymRoutineFromWorkout(workoutId: workoutID) }
+                                },
+                                onUpdateRoutine: { routineID, workoutID in
+                                    Task { _ = await model.updateGymRoutineFromWorkout(routineId: routineID, workoutId: workoutID) }
+                                },
+                                onEditWorkout: { workoutID in
+                                    editingWorkoutID = workoutID
+                                    selectedTab = "Active"
+                                }
+                            )
                         case "Exercises":
                             ExerciseLibraryView()
                         default:
@@ -53,9 +86,10 @@ struct GymView: View {
         .task {
             await model.refreshCoordinator.run(.gym, force: false) {
                 async let overview: Void = model.loadGymOverview()
+                async let routines: Void = model.loadGymRoutines()
                 async let exercises: Void = model.loadGymExercises()
                 async let workouts: Void = model.loadGymWorkouts()
-                _ = await (overview, exercises, workouts)
+                _ = await (overview, routines, exercises, workouts)
             }
         }
     }
@@ -78,6 +112,7 @@ struct GymView: View {
 
             VStack(spacing: 4) {
                 railButton("Overview", icon: "square.grid.2x2", tab: "Overview")
+                railButton("Routines", icon: "list.bullet.clipboard", tab: "Routines")
                 if activeWorkout != nil {
                     railButton("Active Session", icon: "figure.strengthtraining.traditional", tab: "Active", isHighlighted: true)
                 }
@@ -131,40 +166,31 @@ struct GymView: View {
     }
 
     private var pageHeader: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(selectedTab == "Active" ? "Active Workout" : selectedTab)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(iTuTheme.ink)
-                Text(headerSubtitle)
-                    .font(.system(size: 12))
-                    .foregroundStyle(iTuTheme.inkDim)
-            }
-            Spacer()
-            HStack(spacing: 8) {
+        iTuPageHeader(
+            kicker: "TRACKING",
+            title: selectedTab == "Active" ? "Active Workout" : selectedTab,
+            description: headerSubtitle,
+            actions: {
                 if activeWorkout != nil && selectedTab != "Active" {
                     Button {
                         selectedTab = "Active"
                     } label: {
                         Label("Resume Workout", systemImage: "figure.strengthtraining.traditional")
                     }
-                    .buttonStyle(iTuSecondaryButtonStyle(height: 28))
+                    .buttonStyle(iTuHeaderSecondaryButtonStyle(height: 34))
                 }
 
                 Button("Gym settings", systemImage: "gearshape") {
                     showingGymSettings.toggle()
                 }
                 .labelStyle(.iconOnly)
-                .buttonStyle(.plain)
+                .buttonStyle(iTuHeaderGhostButtonStyle())
                 .help("Gym preferences")
                 .popover(isPresented: $showingGymSettings, arrowEdge: .top) {
                     GymSettingsPopoverView()
                 }
             }
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
-        .background(iTuTheme.canvas)
+        )
     }
 
     private var headerSubtitle: String {

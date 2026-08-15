@@ -3,6 +3,8 @@ import {
   GYM_REPOSITORY_PORT,
   CreateExerciseDto,
   UpdateExerciseDto,
+  CreateRoutineDto,
+  UpdateRoutineDto,
   CreateWorkoutDto,
   UpdateWorkoutDto,
 } from '../ports/out/gym-repository.port';
@@ -12,6 +14,9 @@ import {
   WorkoutDomain,
   ExerciseStatsDomain,
   GymOverviewDomain,
+  GymExerciseProgressDomain,
+  GymAnalyticsDomain,
+  GymRoutineDomain,
   WorkoutStatus,
 } from '../../domain/gym/gym.domain';
 
@@ -22,8 +27,11 @@ export class GymService {
     private readonly gymRepo: IGymRepositoryPort,
   ) {}
 
-  async getExercises(userId: string): Promise<ExerciseDomain[]> {
-    return this.gymRepo.getExercises(userId);
+  async getExercises(
+    userId: string,
+    options?: { search?: string; muscle?: string; equipment?: string; favoriteOnly?: boolean },
+  ): Promise<ExerciseDomain[]> {
+    return this.gymRepo.getExercises(userId, options);
   }
 
   async getExerciseById(userId: string, id: string): Promise<ExerciseDomain | null> {
@@ -36,6 +44,10 @@ export class GymService {
 
   async updateExercise(userId: string, id: string, dto: UpdateExerciseDto): Promise<ExerciseDomain> {
     return this.gymRepo.updateExercise(userId, id, dto);
+  }
+
+  async toggleFavoriteExercise(userId: string, id: string): Promise<ExerciseDomain> {
+    return this.gymRepo.toggleFavoriteExercise(userId, id);
   }
 
   async archiveExercise(userId: string, id: string): Promise<ExerciseDomain> {
@@ -54,7 +66,54 @@ export class GymService {
     return this.gymRepo.getExerciseStats(userId, id);
   }
 
-  async getWorkouts(userId: string, options?: { status?: WorkoutStatus; limit?: number }): Promise<WorkoutDomain[]> {
+  async getExerciseProgress(
+    userId: string,
+    id: string,
+    range?: '1M' | '3M' | '6M' | '1Y' | 'ALL',
+  ): Promise<GymExerciseProgressDomain> {
+    return this.gymRepo.getExerciseProgress(userId, id, range);
+  }
+
+  async getRoutines(userId: string): Promise<GymRoutineDomain[]> {
+    return this.gymRepo.getRoutines(userId);
+  }
+
+  async getRoutineById(userId: string, id: string): Promise<GymRoutineDomain | null> {
+    return this.gymRepo.getRoutineById(userId, id);
+  }
+
+  async createRoutine(userId: string, dto: CreateRoutineDto): Promise<GymRoutineDomain> {
+    return this.gymRepo.createRoutine(userId, dto);
+  }
+
+  async updateRoutine(userId: string, id: string, dto: UpdateRoutineDto): Promise<GymRoutineDomain> {
+    return this.gymRepo.updateRoutine(userId, id, dto);
+  }
+
+  async archiveRoutine(userId: string, id: string): Promise<GymRoutineDomain> {
+    return this.gymRepo.archiveRoutine(userId, id);
+  }
+
+  async deleteRoutine(userId: string, id: string): Promise<void> {
+    return this.gymRepo.deleteRoutine(userId, id);
+  }
+
+  async startWorkoutFromRoutine(userId: string, routineId: string): Promise<WorkoutDomain> {
+    return this.gymRepo.startWorkoutFromRoutine(userId, routineId);
+  }
+
+  async createRoutineFromWorkout(userId: string, workoutId: string, name?: string): Promise<GymRoutineDomain> {
+    return this.gymRepo.createRoutineFromWorkout(userId, workoutId, name);
+  }
+
+  async updateRoutineFromWorkout(userId: string, routineId: string, workoutId: string): Promise<GymRoutineDomain> {
+    return this.gymRepo.updateRoutineFromWorkout(userId, routineId, workoutId);
+  }
+
+  async getWorkouts(
+    userId: string,
+    options?: { status?: WorkoutStatus; limit?: number; from?: Date; to?: Date },
+  ): Promise<WorkoutDomain[]> {
     return this.gymRepo.getWorkouts(userId, options);
   }
 
@@ -68,6 +127,10 @@ export class GymService {
 
   async updateWorkout(userId: string, id: string, dto: UpdateWorkoutDto): Promise<WorkoutDomain> {
     return this.gymRepo.updateWorkout(userId, id, dto);
+  }
+
+  async repeatWorkout(userId: string, workoutId: string): Promise<WorkoutDomain> {
+    return this.gymRepo.repeatWorkout(userId, workoutId);
   }
 
   async deleteWorkout(userId: string, id: string): Promise<void> {
@@ -84,5 +147,9 @@ export class GymService {
 
   async getOverview(userId: string): Promise<GymOverviewDomain> {
     return this.gymRepo.getOverview(userId);
+  }
+
+  async getAnalytics(userId: string, range?: '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM', from?: Date, to?: Date): Promise<GymAnalyticsDomain> {
+    return this.gymRepo.getAnalytics(userId, range, from, to);
   }
 }

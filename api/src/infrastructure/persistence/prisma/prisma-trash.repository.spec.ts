@@ -4,7 +4,7 @@ import { PrismaTrashRepository } from './prisma-trash.repository';
 describe('PrismaTrashRepository global collections', () => {
   const prisma = {
     $transaction: jest.fn(async (work: (tx: any) => unknown) => work(prisma)),
-    budgetTransaction: { deleteMany: jest.fn() },
+    expense: { deleteMany: jest.fn() },
     gymWorkout: { deleteMany: jest.fn() },
     exerciseDefinition: { findFirst: jest.fn(), delete: jest.fn() },
     gymWorkoutExercise: { count: jest.fn() },
@@ -16,12 +16,12 @@ describe('PrismaTrashRepository global collections', () => {
     repository = new PrismaTrashRepository(prisma);
   });
 
-  it('hard-deletes budget transactions only when owned and already trashed', async () => {
-    prisma.budgetTransaction.deleteMany.mockResolvedValue({ count: 0 });
+  it('hard-deletes expenses only when owned and already trashed', async () => {
+    prisma.expense.deleteMany.mockResolvedValue({ count: 0 });
 
-    await expect(repository.deleteBudgetTransaction('user-1', 'tx-1')).resolves.toBe(false);
-    expect(prisma.budgetTransaction.deleteMany).toHaveBeenCalledWith({
-      where: { id: 'tx-1', userId: 'user-1', deletedAt: { not: null } },
+    await expect(repository.deleteExpense('user-1', 'expense-1')).resolves.toBe(false);
+    expect(prisma.expense.deleteMany).toHaveBeenCalledWith({
+      where: { id: 'expense-1', userId: 'user-1', deletedAt: { not: null } },
     });
   });
 

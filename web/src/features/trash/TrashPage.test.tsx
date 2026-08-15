@@ -47,12 +47,10 @@ const snapshot: TrashSnapshot = {
     },
   ],
   journalEntries: [{ id: 'entry-1', kind: 'NOTE', title: 'Note', version: 2, deletedAt: '2026-08-10T00:00:00.000Z' }],
-  budgetTransactions: [
+  expenses: [
     {
-      id: 'transaction-1',
+      id: 'expense-1',
       amount: '12.50',
-      currency: 'VND',
-      type: 'EXPENSE',
       merchant: 'Coffee',
       version: 2,
       deletedAt: '2026-08-10T00:00:00.000Z',
@@ -75,7 +73,7 @@ describe('TrashPage filters', () => {
 
   it('keeps truthful type and decimal amount metadata', () => {
     const budget = rowsForFilter(snapshot, 'Budget')[0];
-    expect(budget.typeLabel).toBe('Budget transaction');
-    expect(budget.detail).toBe('12.50 VND');
+    expect(budget.typeLabel).toBe('Expense');
+    expect(budget.detail).toBe('12.50');
   });
 });

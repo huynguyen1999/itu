@@ -104,6 +104,9 @@ export interface JournalEntry {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;
+  contextType?: string | null;
+  contextId?: string | null;
+  contextData?: Record<string, unknown> | null;
   weeklyReview?: JournalWeeklyReview | null;
   dailyReview?: JournalDailyReview | null;
   tags?: JournalTag[];
@@ -128,6 +131,8 @@ export interface JournalTemplate {
 export interface SearchJournalFilter {
   kind?: JournalEntryKind;
   tagId?: string;
+  contextType?: string;
+  contextId?: string;
   startDate?: string;
   endDate?: string;
   query?: string;

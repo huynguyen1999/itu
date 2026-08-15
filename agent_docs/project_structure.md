@@ -41,7 +41,7 @@ The API, web, macOS, and workflow directories are independent Git repositories o
 - `web/src/features/focus/FocusPage.tsx` owns Focus queries and mutations; `components/FocusTimerCard.tsx` owns timer/audio/task presentation, `FocusRecordsCard.tsx` owns history browsing, and `FocusRecordEditorDialog.tsx` owns record-edit presentation.
 - `web/src/features/decks/DeckDetailPage.tsx` is a composition root over `DeckHeader`, `DeckAiCardGenerator`, `DeckCardsPanel`, `DeckStatsPanel`, and `MoveCardsDialog`; card/deck behavior remains inside the decks feature.
 - `web/src/features/gym/active/ActiveWorkoutPage.tsx` owns active-workout queries, mutations, and sync policy; `ExercisePickerDialog.tsx` owns exercise-library search/filter/custom creation, while `WorkoutExerciseList.tsx` owns exercise and set editing presentation.
-- `web/src/features/statistics/StatisticsPage.tsx` owns range selection and statistics queries; `StatisticsUsageSection.tsx` and `StatisticsWebsiteUsageSection.tsx` own app/website usage presentation and local drill-down state, while pure display formatting remains in `statistics.ts`.
+- `web/src/features/statistics/StatisticsPage.tsx` owns range selection and composes Statistics sections; `statisticsPeriod.ts` and `statisticsQueries.ts` own shared period/query coordination, `StatisticsOverviewSection.tsx`, `StatisticsTrendsSection.tsx`, and `StatisticsGrowthSection.tsx` own overview presentation, and `StatisticsUsageSection.tsx` plus `StatisticsWebsiteUsageSection.tsx` own app/website usage presentation and local drill-down state. Pure display formatting remains in `statistics.ts`.
 - `web/src/features/habits/HabitsPage.tsx` owns weekly habit grouping and occurrence actions; `HabitEditor.tsx` and `HabitDetail.tsx` own create/edit dialog state, while `HabitFormFields.tsx` and `habitModel.ts` hold shared habit form/date pieces.
 - `web/src/features/gym/exercises/ExerciseLibraryPage.tsx` owns exercise filtering, selection, and composition; `CreateExerciseForm.tsx` owns creation/upload state, while `ExerciseInspector.tsx` owns editing and exercise history presentation.
 - `web/src/features/journal/daily/DailyReviewPage.tsx` owns daily-review queries, save/generate actions, and composition; `DailyReviewLedger.tsx` and `DailyReviewInsights.tsx` own the metric and AI presentation surfaces.
@@ -72,7 +72,7 @@ dependencies; remaining exported types are retained API/domain contracts.
 
 ## macOS ownership
 
-- `macos/iTu/Features`: native feature surfaces for authentication, conflicts, focus, Growth, habits, home, learning, menu bar, notifications, settings, shell, statistics, and tasks.
+- `macos/iTu/Features`: native feature surfaces for authentication, conflicts, focus, Growth, habits, home, learning, menu bar, notifications, settings, shell, statistics, and tasks. Statistics is split into store, overview, domain-summary, trend, usage, and website-detail sections.
 - `macos/iTu/App/AppModel.swift` and `AppModel+*.swift` split the same `AppModel` type into feature-responsibility extensions; `macos/iTu/Shared/Persistence/OfflineStore.swift` and `OfflineStore+*.swift` use the same pattern for persistence responsibilities.
 - AppModel extensions keep Budget, Gym, Notifications, and Trash responsibilities separate; matching OfflineStore extensions keep their persistence and pending-mutation replay separate while preserving the shared facade.
 - `macos/iTu.xcodeproj/project.pbxproj` uses synchronized root groups for `iTu` and `iTuTests`, so files under those groups are auto-included by the Xcode targets.

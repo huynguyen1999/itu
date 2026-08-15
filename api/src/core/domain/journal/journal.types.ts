@@ -81,6 +81,9 @@ export interface JournalEntryModel {
   updatedAt: Date;
   deletedAt?: Date | null;
   deletedByDeviceId?: string | null;
+  contextType?: string | null;
+  contextId?: string | null;
+  contextData?: Record<string, unknown> | null;
   weeklyReview?: JournalWeeklyReviewModel | null;
   dailyReview?: JournalDailyReviewModel | null;
   tags?: JournalTagModel[];

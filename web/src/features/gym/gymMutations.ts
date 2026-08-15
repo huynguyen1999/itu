@@ -176,6 +176,115 @@ export function useUpdateGymWorkoutTitle() {
   });
 }
 
+export function useToggleFavoriteExercise() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.toggleFavoriteExercise(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gym', 'exercises'] });
+    },
+  });
+}
+
+export function useCreateGymRoutine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; description?: string; exercises?: any[] }) => api.createGymRoutine(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gym', 'routines'] });
+    },
+  });
+}
+
+export function useUpdateGymRoutine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.updateGymRoutine(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gym', 'routines'] });
+      queryClient.invalidateQueries({ queryKey: ['gym', 'routine'] });
+    },
+  });
+}
+
+export function useDeleteGymRoutine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteGymRoutine(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gym', 'routines'] });
+    },
+  });
+}
+
+export function useArchiveGymRoutine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.archiveGymRoutine(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gym', 'routines'] });
+    },
+  });
+}
+
+export function useStartWorkoutFromRoutine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (routineId: string) => api.startWorkoutFromRoutine(routineId),
+    onSuccess: (workout) => {
+      queryClient.setQueryData(['gym', 'workout', workout.id], workout);
+      queryClient.invalidateQueries({ queryKey: ['gym'] });
+    },
+  });
+}
+
+export function useCreateRoutineFromWorkout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workoutId, name }: { workoutId: string; name?: string }) =>
+      api.createRoutineFromWorkout(workoutId, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gym', 'routines'] });
+    },
+  });
+}
+
+export function useUpdateRoutineFromWorkout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ routineId, workoutId }: { routineId: string; workoutId: string }) =>
+      api.updateRoutineFromWorkout(routineId, workoutId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gym', 'routines'] });
+      queryClient.invalidateQueries({ queryKey: ['gym', 'routine'] });
+    },
+  });
+}
+
+export function useRepeatGymWorkout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (workoutId: string) => api.repeatWorkout(workoutId),
+    onSuccess: (workout) => {
+      queryClient.setQueryData(['gym', 'workout', workout.id], workout);
+      queryClient.invalidateQueries({ queryKey: ['gym'] });
+    },
+  });
+}
+
+export function useUpdateCompletedWorkout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.updateGymWorkout(id, data),
+    onSuccess: (_updated, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['gym', 'workout', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['gym', 'workouts'] });
+      queryClient.invalidateQueries({ queryKey: ['gym', 'overview'] });
+      queryClient.invalidateQueries({ queryKey: ['gym', 'analytics'] });
+    },
+  });
+}
+
 export function useAbandonGymWorkout() {
   const queryClient = useQueryClient();
   return useMutation({

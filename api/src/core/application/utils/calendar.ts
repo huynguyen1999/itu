@@ -1,4 +1,5 @@
 const HCMC_OFFSET = '+07:00';
+export const PRODUCT_CALENDAR_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
 export function hcmcDateOnly(value: string): Date {
   const datePart = value.slice(0, 10);
@@ -8,6 +9,17 @@ export function hcmcDateOnly(value: string): Date {
 
 export function formatDateOnly(value: Date | string): string {
   return (value instanceof Date ? value : new Date(value)).toISOString().slice(0, 10);
+}
+
+export function hcmcDateKey(value: Date): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: PRODUCT_CALENDAR_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(value);
+  const values = Object.fromEntries(parts.map(({ type, value: part }) => [type, part]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 export function hcmcMonthBounds(period: string): { start: Date; end: Date } {

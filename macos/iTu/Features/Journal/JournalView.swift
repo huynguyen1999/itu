@@ -252,10 +252,6 @@ struct JournalView: View {
 
     private var templatesView: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Templates")
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(iTuTheme.ink)
-
             let templates = model.journalTemplates.filter { $0.archivedAt == nil }
             if templates.isEmpty {
                 Text("No custom templates available.")
@@ -292,51 +288,34 @@ struct JournalView: View {
     }
 
     private var pageHeader: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
+        iTuPageHeader(
+            kicker: "JOURNAL",
+            title: selectedNoteID == nil ? destination.title : "Editor",
+            description: selectedNoteID == nil
+                ? (destination == .templates
+                    ? "Create and reuse prompts for recurring journal entries."
+                    : "Capture thoughts, log reviews, and track daily reflections.")
+                : nil,
+            actions: {
                 if selectedNoteID != nil {
-                    HStack(spacing: 8) {
-                        Button {
-                            selectedNoteID = nil
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "chevron.left")
-                                Text("Back")
-                            }
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(iTuTheme.teal)
-                        }
-                        .buttonStyle(.plain)
-
-                        Text("· Editor")
-                            .font(.system(size: 12))
-                            .foregroundStyle(iTuTheme.inkDim)
+                    Button {
+                        selectedNoteID = nil
+                    } label: {
+                        Label("Back", systemImage: "chevron.left")
                     }
-                } else {
-                    Text(destination.title)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(iTuTheme.ink)
-                    Text("Capture thoughts, log reviews, and track daily reflections.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(iTuTheme.inkDim)
+                    .buttonStyle(iTuHeaderGhostButtonStyle())
+                }
+                Button("Journal preferences", systemImage: "gearshape") {
+                    showingSettings.toggle()
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(iTuHeaderGhostButtonStyle())
+                .help("Journal preferences")
+                .popover(isPresented: $showingSettings, arrowEdge: .top) {
+                    JournalSettingsPopover()
                 }
             }
-
-            Spacer()
-
-            Button("Journal preferences", systemImage: "gearshape") {
-                showingSettings.toggle()
-            }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.plain)
-            .help("Journal preferences")
-            .popover(isPresented: $showingSettings, arrowEdge: .top) {
-                JournalSettingsPopover()
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
-        .background(iTuTheme.canvas)
+        )
     }
 
     private func createNewNote() {

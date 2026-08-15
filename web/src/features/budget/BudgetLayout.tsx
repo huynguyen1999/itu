@@ -17,13 +17,17 @@ export function BudgetLayout() {
     mutationFn: (patch: Record<string, any>) => api.updateBudgetPreferences(patch),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-preferences'] }),
   });
-  const header = pathname === '/budget/transactions'
-      ? { title: 'Transactions', description: 'Review and manage recorded income and expenses.' }
+  const header = pathname === '/budget/expenses'
+      ? { title: 'Expenses', description: 'Search and manage recorded expenses.' }
       : pathname === '/budget/budgets'
         ? { title: 'Budgets', description: 'Set monthly category limits and monitor progress.' }
+        : pathname === '/budget/recurring'
+          ? { title: 'Recurring', description: 'Review recurring expenses and confirm them when due.' }
+          : pathname === '/budget/reports'
+            ? { title: 'Reports', description: 'Understand spending patterns and compare months.' }
         : pathname === '/budget/categories'
           ? { title: 'Categories', description: 'Organize the categories used by your budget.' }
-          : { title: 'Budget & Finances', description: 'Track expenses, income, monthly category limits, and financial overview' };
+          : { title: 'Budget', description: 'Track expenses, monthly limits, and spending reports.' };
 
   return (
     <div className="grid h-full min-h-0 w-full gap-0 pb-16 md:grid-cols-[224px_minmax(0,1fr)]">

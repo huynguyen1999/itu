@@ -3,6 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
   Flame,
   LayoutGrid,
   MoreHorizontal,
@@ -12,7 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { api } from '@/shared/api/client';
-import type { Habit, HabitOccurrence } from '@/shared/api/types';
+import type { Habit, HabitCalendarResponse, HabitDayState, HabitProgressLog } from '@/shared/api/types';
 import { Button } from '@/shared/ui/button';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { FeatureSettingsButton } from '@/shared/ui/feature-settings';
@@ -24,24 +27,34 @@ import {
 import type { HabitPreferences } from '@/shared/api/preferencesApi';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog';
 import { Input } from '@/shared/ui/input';
-import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { GrowthRewardChip, groupedGrowthRewardChips, type GrowthRewardChipModel } from '@/shared/ui/GrowthRewardChip';
 import {
   HabitIconBadge,
 } from './habitStyles';
 import { HabitDetail } from './HabitDetail';
 import { HabitEditor } from './HabitEditor';
-import { ANYTIME_GROUP, localDay, shiftDay } from './habitModel';
+import { ANYTIME_GROUP, localDay, updateHabitCalendarOptimistically } from './habitModel';
 
 function eventKey(prefix: string) {
   return `${prefix}:${Date.now()}:${crypto.randomUUID()}`;
 }
 
-function getWeekDays(referenceDate = new Date()) {
+function defaultHabitIncrement(habit: Habit) {
+  if (habit.targetType === 'BOOLEAN') return 1;
+  if (habit.targetType === 'COUNT') return 1;
+  if (habit.targetType === 'DURATION') return Math.max(5, Math.ceil(habit.targetValue / 6));
+  return Math.max(0.1, habit.targetValue / 4);
+}
+
+function getWeekDays(referenceDate = new Date(), weekStartDay: 'MONDAY' | 'SUNDAY' = 'MONDAY') {
+  const start = new Date(referenceDate);
+  start.setHours(12, 0, 0, 0);
+  const offset = weekStartDay === 'SUNDAY' ? start.getDay() : (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - offset);
   const days = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(referenceDate);
-    d.setDate(referenceDate.getDate() - i);
+  for (let i = 0; i < 7; i += 1) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
     days.push({
       dateStr: localDay(d),
       dayName: d.toLocaleDateString(undefined, { weekday: 'short' }),
@@ -65,28 +78,36 @@ export function HabitsPage() {
   });
   const [editor, setEditor] = useState(false);
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ item: HabitOccurrence; action: 'skip' | 'fail' } | null>(null);
+  const [quickLog, setQuickLog] = useState<{ habitId: string; localDate: string; from: string; to: string } | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
 
-  const weekDays = useMemo(() => getWeekDays(new Date()), []);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [jumpDate, setJumpDate] = useState(() => localDay(new Date()));
+  const weekStartDay = userPreferences.data?.habits.weekStartDay ?? 'MONDAY';
+  const weekDays = useMemo(() => {
+    const reference = new Date();
+    reference.setDate(reference.getDate() + weekOffset * 7);
+    return getWeekDays(reference, weekStartDay);
+  }, [weekOffset, weekStartDay]);
   const fromDate = weekDays[0].dateStr;
   const toDate = weekDays[weekDays.length - 1].dateStr;
-  const todayStr = localDay(new Date());
 
-  // Fetch one extra day on each side of the visible week. The API treats a
-  // date-only `to` as UTC midnight of that day, so an occurrence created later
-  // in the day (e.g. today's check-in) would otherwise fall outside the range
-  // and its circle would render as non-clickable "Not scheduled".
-  const occurrenceQueryFrom = shiftDay(fromDate, -1);
-  const occurrenceQueryTo = shiftDay(toDate, 1);
-
+  const jumpToDate = (value: string) => {
+    if (!value) return;
+    const selectedStart = getWeekDays(new Date(`${value}T12:00:00`), weekStartDay)[0].dateStr;
+    const currentStart = getWeekDays(new Date(), weekStartDay)[0].dateStr;
+    const selectedTime = new Date(`${selectedStart}T12:00:00`).getTime();
+    const currentTime = new Date(`${currentStart}T12:00:00`).getTime();
+    setJumpDate(value);
+    setWeekOffset(Math.round((selectedTime - currentTime) / (7 * 24 * 60 * 60 * 1000)));
+  };
   const habits = useQuery({ queryKey: ['habits'], queryFn: () => api.habits() });
   const timeBlocks = useQuery({ queryKey: ['habit-time-blocks'], queryFn: () => api.habitTimeBlocks() });
   const taskTags = useQuery({ queryKey: ['task-tags'], queryFn: () => api.taskTags() });
-  const occurrences = useQuery({
-    queryKey: ['habit-occurrences', occurrenceQueryFrom, occurrenceQueryTo],
-    queryFn: () => api.habitOccurrences(occurrenceQueryFrom, occurrenceQueryTo),
+  const calendar = useQuery({
+    queryKey: ['habit-calendar', fromDate, toDate],
+    queryFn: () => api.habitCalendar(fromDate, toDate),
   });
   const growthRules = useQuery({
     queryKey: ['growth', 'rules', 'HABIT'],
@@ -104,33 +125,58 @@ export function HabitsPage() {
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['habits'] }),
-      queryClient.invalidateQueries({ queryKey: ['habit-occurrences'] }),
+      queryClient.invalidateQueries({ queryKey: ['habit-calendar'] }),
       queryClient.invalidateQueries({ queryKey: ['habit-stats'] }),
     ]);
   };
 
-  const occurrenceAction = useMutation({
-    mutationFn: ({
-      id,
-      action,
-      idempotencyKey,
-    }: {
-      id: string;
-      action: 'skip' | 'fail' | 'undo';
-      idempotencyKey: string;
-    }) => api.habitOccurrenceAction(id, action, idempotencyKey),
+  const progressHabit = useMutation({
+    mutationFn: ({ habitId, localDate, value }: { habitId: string; localDate: string; value: number }) =>
+      api.progressHabit(habitId, { localDate, value, idempotencyKey: eventKey(`progress:${habitId}:${localDate}`) }),
+    onMutate: ({ habitId, localDate, value }) => {
+      const habit = habits.data?.find((item) => item.id === habitId);
+      const previous = queryClient.getQueryData<HabitCalendarResponse>(['habit-calendar', fromDate, toDate]);
+      if (habit) queryClient.setQueryData(['habit-calendar', fromDate, toDate], updateHabitCalendarOptimistically(previous, habit, localDate, value));
+      return { previous };
+    },
+    onError: (_error, _variables, context) => queryClient.setQueryData(['habit-calendar', fromDate, toDate], context?.previous),
+    onSettled: refresh,
   });
-
-  const checkIn = useMutation({
-    mutationFn: ({
-      occurrenceId,
-      value,
-      idempotencyKey,
-    }: {
-      occurrenceId: string;
-      value: number;
-      idempotencyKey: string;
-    }) => api.checkInHabit(occurrenceId, { value, idempotencyKey }),
+  const checkInExisting = useMutation({
+    mutationFn: ({ occurrenceId, habitId, localDate, value }: { occurrenceId: string; habitId: string; localDate: string; value: number }) =>
+      api.checkInHabit(occurrenceId, { value, idempotencyKey: eventKey(`progress:${occurrenceId}`) }),
+    onMutate: ({ habitId, localDate, value }) => {
+      const habit = habits.data?.find((item) => item.id === habitId);
+      const previous = queryClient.getQueryData<HabitCalendarResponse>(['habit-calendar', fromDate, toDate]);
+      if (habit) queryClient.setQueryData(['habit-calendar', fromDate, toDate], updateHabitCalendarOptimistically(previous, habit, localDate, value));
+      return { previous };
+    },
+    onError: (_error, _variables, context) => queryClient.setQueryData(['habit-calendar', fromDate, toDate], context?.previous),
+    onSettled: refresh,
+  });
+  const undoExisting = useMutation({
+    mutationFn: ({ occurrenceId, habitId, localDate }: { occurrenceId: string; habitId: string; localDate: string }) =>
+      api.habitOccurrenceAction(occurrenceId, 'undo', eventKey(`undo:${occurrenceId}`)),
+    onMutate: ({ habitId, localDate }) => {
+      const habit = habits.data?.find((item) => item.id === habitId);
+      const previous = queryClient.getQueryData<HabitCalendarResponse>(['habit-calendar', fromDate, toDate]);
+      if (habit) queryClient.setQueryData(['habit-calendar', fromDate, toDate], updateHabitCalendarOptimistically(previous, habit, localDate, 0, 'UNDO'));
+      return { previous };
+    },
+    onError: (_error, _variables, context) => queryClient.setQueryData(['habit-calendar', fromDate, toDate], context?.previous),
+    onSettled: refresh,
+  });
+  const habitDateAction = useMutation({
+    mutationFn: ({ habitId, localDate }: { habitId: string; localDate: string }) =>
+      api.habitDateAction(habitId, { localDate, action: 'UNDO', idempotencyKey: eventKey(`undo:${habitId}:${localDate}`) }),
+    onMutate: ({ habitId, localDate }) => {
+      const habit = habits.data?.find((item) => item.id === habitId);
+      const previous = queryClient.getQueryData<HabitCalendarResponse>(['habit-calendar', fromDate, toDate]);
+      if (habit) queryClient.setQueryData(['habit-calendar', fromDate, toDate], updateHabitCalendarOptimistically(previous, habit, localDate, 0, 'UNDO'));
+      return { previous };
+    },
+    onError: (_error, _variables, context) => queryClient.setQueryData(['habit-calendar', fromDate, toDate], context?.previous),
+    onSettled: refresh,
   });
 
   // Group active habits by their assigned habit group. Anytime contains ungrouped habits.
@@ -147,18 +193,13 @@ export function HabitsPage() {
       .map((name) => [name, map.get(name)!] as const);
   }, [habits.data, timeBlocks.data]);
 
-  // Occurrences index: `habitId:dateStr` -> HabitOccurrence.
-  // Dates are derived in the local timezone to match `weekDays`/`day.dateStr`,
-  // which prevents UTC/local off-by-one mismatches (e.g. in UTC+7) that made
-  // scheduled circles render as non-clickable "Not scheduled".
-  const occurrenceIndex = useMemo(() => {
-    const map = new Map<string, HabitOccurrence>();
-    for (const occ of occurrences.data ?? []) {
-      const key = `${occ.habit.id}:${localDay(new Date(occ.occurrenceDate))}`;
-      map.set(key, occ);
+  const calendarIndex = useMemo(() => {
+    const map = new Map<string, HabitDayState>();
+    for (const day of calendar.data?.days ?? []) {
+      map.set(`${day.habitId}:${day.localDate}`, day);
     }
     return map;
-  }, [occurrences.data]);
+  }, [calendar.data?.days]);
 
   const selectedHabit = habits.data?.find((habit) => habit.id === selectedHabitId) ?? null;
 
@@ -200,6 +241,31 @@ export function HabitsPage() {
           </div>
         }
       >
+        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setWeekOffset((value) => value - 1)}>
+          <ChevronLeft className="h-4 w-4" />
+          Previous
+        </Button>
+        <span className="hidden items-center gap-1.5 px-1 text-xs font-semibold text-muted-foreground sm:flex">
+          <CalendarDays className="h-3.5 w-3.5" />
+          {fromDate} – {toDate}
+        </span>
+        <label className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted" title="Jump to date">
+          <CalendarDays className="h-4 w-4" />
+          <input
+            type="date"
+            value={jumpDate}
+            onChange={(event) => jumpToDate(event.target.value)}
+            className="sr-only"
+            aria-label="Jump to date"
+          />
+        </label>
+        <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setWeekOffset(0)}>
+          Today
+        </Button>
+        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setWeekOffset((value) => value + 1)}>
+          Next
+          <ChevronRight className="h-4 w-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -267,23 +333,20 @@ export function HabitsPage() {
                         key={habit.id}
                         habit={habit}
                         weekDays={weekDays}
-                        occurrenceIndex={occurrenceIndex}
+                        calendarIndex={calendarIndex}
                         growthChips={growthChipsByHabit.get(habit.id) ?? []}
                         onOpen={() => setSelectedHabitId(habit.id)}
-                        onCheckIn={(occId, val) =>
-                          checkIn.mutate({
-                            occurrenceId: occId,
-                            value: val,
-                            idempotencyKey: eventKey(`manual:${occId}`),
-                          })
-                        }
-                        onUndo={(occId) =>
-                          occurrenceAction.mutate({
-                            id: occId,
-                            action: 'undo',
-                            idempotencyKey: eventKey(`undo:${occId}`),
-                          })
-                        }
+                        onQuickLog={(habitId, localDate, from, to) => setQuickLog({ habitId, localDate, from, to })}
+                        onCheckIn={(habitId, localDate, value) => {
+                          const state = calendarIndex.get(`${habitId}:${localDate}`);
+                          if (state?.occurrenceId) checkInExisting.mutate({ occurrenceId: state.occurrenceId, habitId, localDate, value });
+                          else progressHabit.mutate({ habitId, localDate, value });
+                        }}
+                        onUndo={(habitId, localDate) => {
+                          const occurrenceId = calendarIndex.get(`${habitId}:${localDate}`)?.occurrenceId;
+                          if (occurrenceId) undoExisting.mutate({ occurrenceId, habitId, localDate });
+                          else habitDateAction.mutate({ habitId, localDate });
+                        }}
                       />
                     ))}
                   </div>
@@ -330,26 +393,17 @@ export function HabitsPage() {
         tags={taskTags.data ?? []}
       />
 
-      <ConfirmDialog
-        open={!!confirmAction}
-        onOpenChange={(open) => !open && setConfirmAction(null)}
-        title={confirmAction?.action === 'fail' ? 'Record this as missed?' : 'Use a skip?'}
-        description={
-          confirmAction?.action === 'fail'
-            ? 'This keeps the history honest and ends the current streak.'
-            : 'A skip preserves the streak only while this habit still has an allowed skip available.'
-        }
-        confirmLabel={confirmAction?.action === 'fail' ? 'Record missed' : 'Skip today'}
-        onConfirm={() => {
-          if (!confirmAction) return;
-          occurrenceAction.mutate({
-            id: confirmAction.item.id,
-            action: confirmAction.action,
-            idempotencyKey: eventKey(`${confirmAction.action}:${confirmAction.item.id}`),
-          });
-          setConfirmAction(null);
-        }}
-      />
+      {quickLog && habits.data?.find((habit) => habit.id === quickLog.habitId) ? (
+        <HabitQuickLogDialog
+          habit={habits.data.find((habit) => habit.id === quickLog.habitId)!}
+          localDate={quickLog.localDate}
+          fromDate={quickLog.from}
+          toDate={quickLog.to}
+          open
+          onOpenChange={(open) => !open && setQuickLog(null)}
+        />
+      ) : null}
+
     </div>
   );
 }
@@ -430,22 +484,30 @@ function HabitGroupsDialog({
 function HabitRowItem({
   habit,
   weekDays,
-  occurrenceIndex,
+  calendarIndex,
   growthChips,
   onOpen,
+  onQuickLog,
   onCheckIn,
   onUndo,
 }: {
   habit: Habit;
   weekDays: Array<{ dateStr: string; isToday: boolean }>;
-  occurrenceIndex: Map<string, HabitOccurrence>;
+  calendarIndex: Map<string, HabitDayState>;
   growthChips: GrowthRewardChipModel[];
   onOpen: () => void;
-  onCheckIn: (occurrenceId: string, value: number) => void;
-  onUndo: (occurrenceId: string) => void;
+  onQuickLog: (habitId: string, localDate: string, from: string, to: string) => void;
+  onCheckIn: (habitId: string, localDate: string, value: number) => void;
+  onUndo: (habitId: string, localDate: string) => void;
 }) {
   const currentStreak = habit.stats?.currentStreak ?? 0;
   const bestStreak = habit.stats?.bestStreak ?? 0;
+  const periodState = habit.scheduleType === 'TIMES_PER_PERIOD'
+    ? [...calendarIndex.values()].find((state) =>
+        state.habitId === habit.id && state.periodStart && state.periodEnd &&
+        weekDays.some((day) => day.dateStr >= state.periodStart! && day.dateStr <= state.periodEnd!),
+      )
+    : null;
 
   return (
     <div className="group flex items-center justify-between rounded-xl border border-border/80 bg-card p-3.5 hover:border-border transition-colors">
@@ -466,12 +528,15 @@ function HabitRowItem({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground font-medium">
               <span className="flex items-center gap-1 text-blue-500">
                 <Zap className="h-3 w-3 fill-current" />
-                {bestStreak > 0 ? `${bestStreak} Days` : '0 Day'}
+                {bestStreak > 0 ? `${bestStreak} ${habit.scheduleType === 'TIMES_PER_PERIOD' ? 'Periods' : 'Days'}` : `0 ${habit.scheduleType === 'TIMES_PER_PERIOD' ? 'Period' : 'Day'}`}
               </span>
               <span className="flex items-center gap-1 text-amber-500">
                 <Flame className="h-3 w-3 fill-current" />
-                {currentStreak > 0 ? `${currentStreak} Day` : '0 Day'}
+                {currentStreak > 0 ? `${currentStreak} ${habit.scheduleType === 'TIMES_PER_PERIOD' ? 'Periods' : 'Day'}` : `0 ${habit.scheduleType === 'TIMES_PER_PERIOD' ? 'Period' : 'Day'}`}
               </span>
+              {habit.targetType !== 'BOOLEAN' && habit.scheduleType !== 'TIMES_PER_PERIOD' ? (
+                <span>{habit.stats?.averageValue ? `${habit.stats.averageValue} ${habit.unit ?? ''}` : `${habit.targetValue} ${habit.unit ?? ''}`}</span>
+              ) : null}
               {growthChips.slice(0, 3).map((chip) => (
                 <GrowthRewardChip key={chip.key} chip={chip} />
               ))}
@@ -480,51 +545,171 @@ function HabitRowItem({
           </div>
         </button>
 
-        {/* Right Side: 7-Day Completion Circles Matrix */}
-        <div className="col-span-7 md:col-span-6 grid grid-cols-7 text-center items-center justify-items-center">
-          {weekDays.map((day) => {
-            const occKey = `${habit.id}:${day.dateStr}`;
-            const occ = occurrenceIndex.get(occKey);
-
-            const isCompleted = occ?.status === 'COMPLETED';
-            const isFailed = occ?.status === 'FAILED';
-            const isSkipped = occ?.status === 'SKIPPED';
-
-            return (
-              <button
-                type="button"
-                key={day.dateStr}
-                onClick={() => {
-                  if (occ) {
-                    if (isCompleted) {
-                      onUndo(occ.id);
+        {habit.scheduleType === 'TIMES_PER_PERIOD' ? (
+          <button
+            type="button"
+            className="col-span-7 flex items-center justify-end gap-3 rounded-lg p-1 text-left hover:bg-muted/40 md:col-span-6"
+            disabled={!periodState}
+            onClick={() => {
+              if (!periodState) return;
+              const periodDate = weekDays.find((day) => periodState.periodStart && periodState.periodEnd && day.dateStr >= periodState.periodStart && day.dateStr <= periodState.periodEnd)?.dateStr ?? periodState.localDate;
+              onQuickLog(habit.id, periodDate, periodState.periodStart ?? periodDate, periodState.periodEnd ?? periodDate);
+            }}
+            aria-label={`${habit.name}, ${periodState?.value ?? 0} of ${habit.timesPerPeriod ?? 0} this ${String(habit.period ?? 'WEEK').toLowerCase()}`}
+          >
+            <div className="flex items-center gap-1" aria-label={`${periodState?.value ?? 0} of ${habit.timesPerPeriod ?? 0} this period`}>
+              {Array.from({ length: Math.min(habit.timesPerPeriod ?? 0, 10) }).map((_, index) => (
+                <span key={index} className={`h-2.5 w-2.5 rounded-full ${index < Math.floor(periodState?.value ?? 0) ? 'bg-emerald-500' : 'border border-muted-foreground/40'}`} />
+              ))}
+            </div>
+            <span className="text-xs font-semibold text-muted-foreground">{periodState?.value ?? 0} / {habit.timesPerPeriod ?? 0}</span>
+          </button>
+        ) : (
+          <div className="col-span-7 grid grid-cols-7 items-center justify-items-center text-center md:col-span-6">
+            {weekDays.map((day) => {
+              const state = calendarIndex.get(`${habit.id}:${day.dateStr}`);
+              const isCompleted = state?.status === 'COMPLETED';
+              const isPartial = state?.status === 'PARTIAL';
+              const isFailed = state?.status === 'FAILED' || state?.status === 'MISSED';
+              const isSkipped = state?.status === 'SKIPPED';
+              const disabled = !state?.scheduled || state.status === 'REST' || state.status === 'NOT_SCHEDULED';
+              return (
+                <button
+                  type="button"
+                  key={day.dateStr}
+                  disabled={disabled}
+                  onClick={() => {
+                    if (habit.targetType === 'BOOLEAN') {
+                      if (isCompleted) onUndo(habit.id, day.dateStr);
+                      else onCheckIn(habit.id, day.dateStr, 1);
                     } else {
-                      onCheckIn(occ.id, habit.targetValue || 1);
+                      onQuickLog(habit.id, day.dateStr, day.dateStr, day.dateStr);
                     }
-                  } else {
-                    const fallbackOccId = crypto.randomUUID();
-                    onCheckIn(fallbackOccId, habit.targetValue || 1);
-                  }
-                }}
-                className={`h-6 w-6 rounded-full flex items-center justify-center transition-all ${
-                  isCompleted
-                    ? 'bg-emerald-500 text-white shadow-sm scale-105'
-                    : isFailed
-                      ? 'bg-rose-500/20 text-rose-500 border border-rose-500/50'
-                      : isSkipped
-                        ? 'bg-muted text-muted-foreground border border-border'
-                        : 'border-2 border-muted-foreground/30 hover:border-emerald-500 hover:bg-emerald-500/10'
-                }`}
-                title={`${habit.name} - ${day.dateStr}: ${occ ? occ.status : 'Click to mark done'}`}
-              >
-                {isCompleted && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                {isFailed && <X className="h-3 w-3 stroke-[3]" />}
-              </button>
-            );
-          })}
-        </div>
+                  }}
+                  className={`h-6 w-6 rounded-full flex items-center justify-center transition-all ${
+                    isCompleted
+                      ? 'bg-emerald-500 text-white shadow-sm scale-105'
+                      : isPartial
+                        ? 'bg-amber-400/70 text-white border border-amber-500'
+                        : isFailed
+                          ? 'bg-rose-500/20 text-rose-500 border border-rose-500/50'
+                          : isSkipped
+                            ? 'bg-muted text-muted-foreground border border-border'
+                            : disabled
+                              ? 'border border-transparent opacity-30'
+                              : 'border-2 border-muted-foreground/30 hover:border-emerald-500 hover:bg-emerald-500/10'
+                  }`}
+                  aria-label={`${habit.name}, ${state?.value ?? 0} of ${state?.targetValue ?? habit.targetValue} ${habit.unit ?? ''}, ${day.dateStr}`}
+                  title={`${habit.name} - ${day.dateStr}: ${state?.status ?? 'Not scheduled'}`}
+                >
+                  {isCompleted && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                  {isFailed && <X className="h-3 w-3 stroke-[3]" />}
+                  {isPartial && <span className="h-2 w-2 rounded-full bg-white" />}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+export function HabitQuickLogDialog({
+  habit,
+  localDate,
+  fromDate,
+  toDate,
+  open,
+  onOpenChange,
+}: {
+  habit: Habit;
+  localDate: string;
+  fromDate: string;
+  toDate: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [amount, setAmount] = useState(() => String(defaultHabitIncrement(habit)));
+  const logs = useQuery({
+    queryKey: ['habit-progress', habit.id, fromDate, toDate],
+    queryFn: () => api.habitProgress(habit.id, fromDate, toDate),
+    enabled: open,
+  });
+  const save = useMutation({
+    mutationFn: () => {
+      const value = Number(amount);
+      if (!Number.isFinite(value) || value <= 0) throw new Error('Enter a value greater than zero');
+      return api.progressHabit(habit.id, { localDate, value, idempotencyKey: eventKey(`progress:${habit.id}:${localDate}`) });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['habits'] }),
+        queryClient.invalidateQueries({ queryKey: ['habit-calendar'] }),
+        queryClient.invalidateQueries({ queryKey: ['habit-progress', habit.id] }),
+      ]);
+      onOpenChange(false);
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (progressId: string) => api.deleteHabitProgress(progressId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['habits'] }),
+        queryClient.invalidateQueries({ queryKey: ['habit-calendar'] }),
+        queryClient.invalidateQueries({ queryKey: ['habit-progress', habit.id] }),
+      ]);
+    },
+  });
+  const total = (logs.data ?? []).reduce((sum, log) => sum + log.value, 0);
+  const recentLogs = (logs.data ?? []).filter((log) => log.value > 0).slice(0, 5);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm border-border bg-card">
+        <DialogHeader>
+          <DialogTitle>Log {habit.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="rounded-lg bg-muted/40 p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Progress</span>
+              <span className="font-semibold">{total} / {habit.scheduleType === 'TIMES_PER_PERIOD' ? habit.timesPerPeriod : habit.targetValue} {habit.unit ?? ''}</span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{fromDate === toDate ? localDate : `${fromDate} – ${toDate}`}</p>
+          </div>
+          <form
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!save.isPending) save.mutate();
+            }}
+          >
+            <Input
+              autoFocus
+              type="number"
+              min="0.1"
+              step="any"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              aria-label={`Amount in ${habit.unit ?? 'units'}`}
+            />
+            <Button type="submit" disabled={save.isPending}>Log</Button>
+          </form>
+          {save.error instanceof Error ? <p className="text-xs text-destructive">{save.error.message}</p> : null}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">Recent logs</p>
+            {recentLogs.length > 0 ? recentLogs.map((log: HabitProgressLog) => (
+              <div key={log.id} className="flex items-center justify-between rounded-md border border-border/70 px-3 py-2 text-xs">
+                <span>{log.value} {habit.unit ?? ''} · {new Date(log.recordedAt).toLocaleString()}</span>
+                <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-destructive" onClick={() => remove.mutate(log.id)} disabled={remove.isPending}>Delete</Button>
+              </div>
+            )) : <p className="text-xs text-muted-foreground">No logs for this period.</p>}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -46,6 +46,12 @@ This table records implemented surfaces visible in the current workspace. A surf
 
 The guides below explain how these features are partitioned rather than repeating their product behavior.
 
+Statistics is a composition surface, not a metric owner: Planning owns task
+completion, Focus owns focus duration, Habits owns completion rate, Learning
+owns reviews/cards, Gym owns workouts/training, Budget owns spending, Growth
+owns XP, and Usage owns app/website activity. The web and macOS Statistics
+clients combine those read models for the shared overview and comparisons.
+
 ## System context
 
 ```mermaid

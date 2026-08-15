@@ -1,21 +1,28 @@
 /** Canonical mutation/entity names shared by the offline Budget and Gym paths. */
 export const SYNC_KINDS = {
   budgetCategory: {
-    create: 'moneycategory.create',
-    update: 'moneycategory.update',
-    delete: 'moneycategory.delete',
-    reorder: 'moneycategory.reorder',
+    create: 'expensecategory.create',
+    update: 'expensecategory.update',
+    archive: 'expensecategory.archive',
+    reorder: 'expensecategory.reorder',
   },
-  budgetPeriod: { update: 'moneybudgetperiod.update' },
-  budgetCategoryLimit: {
-    upsert: 'moneycategorybudget.upsert',
-    delete: 'moneycategorybudget.delete',
+  monthlyBudget: { update: 'monthlybudget.update' },
+  categoryBudget: {
+    upsert: 'categorybudget.upsert',
+    delete: 'categorybudget.delete',
   },
-  budgetTransaction: {
-    create: 'budgettransaction.create',
-    update: 'budgettransaction.update',
-    delete: 'budgettransaction.delete',
-    restore: 'budgettransaction.restore',
+  expense: {
+    create: 'expense.create',
+    update: 'expense.update',
+    delete: 'expense.delete',
+    restore: 'expense.restore',
+  },
+  recurringExpense: {
+    create: 'recurringexpense.create',
+    update: 'recurringexpense.update',
+    archive: 'recurringexpense.archive',
+    confirm: 'recurringexpense.confirm',
+    skip: 'recurringexpense.skip',
   },
   budgetPreferences: { update: 'budgetpreferences.update' },
   calendarPreferences: { update: 'calendarpreferences.update' },
@@ -49,6 +56,23 @@ export const SYNC_KINDS = {
     complete: 'workout-set.complete',
     delete: 'workout-set.delete',
   },
+  gymRoutine: {
+    create: 'gymroutine.create',
+    update: 'gymroutine.update',
+    delete: 'gymroutine.delete',
+    archive: 'gymroutine.archive',
+    restore: 'gymroutine.restore',
+  },
+  gymRoutineExercise: {
+    create: 'gymroutineexercise.create',
+    update: 'gymroutineexercise.update',
+    delete: 'gymroutineexercise.delete',
+  },
   journal: { restore: 'journal.restore' },
   gymPreferences: { update: 'gympreferences.update' },
+  habit: {
+    checkIn: 'habitoccurrence.checkin',
+    action: 'habitoccurrence.action',
+    checklist: 'habitoccurrence.checklist',
+  },
 } as const;

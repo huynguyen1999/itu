@@ -1,67 +1,53 @@
 import {
-  BudgetCategoryDomain,
-  BudgetPeriodDomain,
-  BudgetTransactionDomain,
-  BudgetOverviewDomain,
+  BudgetReportDomain,
+  BudgetStatisticsDomain,
+  BudgetSummaryDomain,
+  CategoryBudgetLimitDomain,
+  ExpenseCategoryDomain,
+  ExpenseDomain,
+  MonthlyBudgetDomain,
+  RecurringExpenseDomain,
+  PaymentMethod,
+  RecurringFrequency,
 } from '../../../domain/budget/budget.domain';
 
-export interface CreateCategoryDto {
-  name: string;
-  type?: 'EXPENSE' | 'INCOME';
-  icon?: string;
-  color?: string;
-  sortOrder?: number;
-}
-
-export interface UpdateCategoryDto {
-  name?: string;
-  type?: 'EXPENSE' | 'INCOME';
-  icon?: string;
-  color?: string;
-  sortOrder?: number;
-}
-
-export interface CreateTransactionDto {
-  type: 'EXPENSE' | 'INCOME';
-  amount: string;
-  currency?: string;
-  categoryId: string;
-  merchant?: string;
-  paymentMethod?: string;
-  transactionAt: Date;
-  note?: string;
-}
-
-export interface UpdateTransactionDto {
-  type?: 'EXPENSE' | 'INCOME';
-  amount?: string;
-  currency?: string;
-  categoryId?: string;
-  merchant?: string;
-  paymentMethod?: string;
-  transactionAt?: Date;
-  note?: string;
-}
+export interface CreateCategoryDto { name: string; icon?: string; color?: string; sortOrder?: number; }
+export interface UpdateCategoryDto { name?: string; icon?: string; color?: string; sortOrder?: number; }
+export interface ExpenseFilters { period?: string; from?: Date; to?: Date; categoryId?: string; paymentMethod?: PaymentMethod; merchant?: string; search?: string; }
+export interface CreateExpenseDto { amount: string; categoryId: string; merchant?: string; paymentMethod?: PaymentMethod; expenseDate: Date; note?: string; recurringExpenseId?: string; recurringOccurrenceDate?: Date; }
+export type UpdateExpenseDto = Partial<CreateExpenseDto>;
+export interface CreateRecurringExpenseDto { name?: string; categoryId: string; amount: string; merchant?: string; paymentMethod?: PaymentMethod; note?: string; frequency: RecurringFrequency; startDate: Date; nextDueDate?: Date; }
+export type UpdateRecurringExpenseDto = Partial<CreateRecurringExpenseDto> & { isActive?: boolean };
 
 export const BUDGET_REPOSITORY_PORT = Symbol('BUDGET_REPOSITORY_PORT');
 
 export interface IBudgetRepositoryPort {
-  getCategories(userId: string): Promise<BudgetCategoryDomain[]>;
-  createCategory(userId: string, dto: CreateCategoryDto): Promise<BudgetCategoryDomain>;
-  updateCategory(userId: string, id: string, dto: UpdateCategoryDto): Promise<BudgetCategoryDomain>;
-  archiveCategory(userId: string, id: string): Promise<BudgetCategoryDomain>;
-  reorderCategories(userId: string, categoryIds: string[]): Promise<BudgetCategoryDomain[]>;
+  getCategories(userId: string): Promise<ExpenseCategoryDomain[]>;
+  createCategory(userId: string, dto: CreateCategoryDto): Promise<ExpenseCategoryDomain>;
+  updateCategory(userId: string, id: string, dto: UpdateCategoryDto): Promise<ExpenseCategoryDomain>;
+  archiveCategory(userId: string, id: string): Promise<ExpenseCategoryDomain>;
+  reorderCategories(userId: string, categoryIds: string[]): Promise<ExpenseCategoryDomain[]>;
 
-  getPeriod(userId: string, periodStr: string): Promise<BudgetPeriodDomain>;
-  updatePeriod(userId: string, periodStr: string, overallLimit: string): Promise<BudgetPeriodDomain>;
-  updateCategoryLimit(userId: string, periodStr: string, categoryId: string, limit: string): Promise<BudgetPeriodDomain>;
-  deleteCategoryLimit(userId: string, periodStr: string, categoryId: string): Promise<BudgetPeriodDomain>;
+  getMonthlyBudget(userId: string, period: string): Promise<MonthlyBudgetDomain>;
+  updateMonthlyBudget(userId: string, period: string, overallLimit: string | null): Promise<MonthlyBudgetDomain>;
+  updateCategoryLimit(userId: string, period: string, categoryId: string, limit: string): Promise<CategoryBudgetLimitDomain>;
+  deleteCategoryLimit(userId: string, period: string, categoryId: string): Promise<void>;
 
-  getTransactions(userId: string, options?: { period?: string; categoryId?: string; type?: 'EXPENSE' | 'INCOME' }): Promise<BudgetTransactionDomain[]>;
-  getTransactionById(userId: string, id: string): Promise<BudgetTransactionDomain | null>;
-  createTransaction(userId: string, dto: CreateTransactionDto): Promise<BudgetTransactionDomain>;
-  updateTransaction(userId: string, id: string, dto: UpdateTransactionDto): Promise<BudgetTransactionDomain>;
-  deleteTransaction(userId: string, id: string): Promise<void>;
+  getExpenses(userId: string, filters?: ExpenseFilters): Promise<ExpenseDomain[]>;
+  getExpense(userId: string, id: string, includeDeleted?: boolean): Promise<ExpenseDomain | null>;
+  createExpense(userId: string, dto: CreateExpenseDto): Promise<ExpenseDomain>;
+  updateExpense(userId: string, id: string, dto: UpdateExpenseDto): Promise<ExpenseDomain>;
+  deleteExpense(userId: string, id: string): Promise<void>;
+  restoreExpense(userId: string, id: string): Promise<ExpenseDomain | null>;
 
-  getOverview(userId: string, periodStr: string): Promise<BudgetOverviewDomain>;
+  getRecurringExpenses(userId: string): Promise<RecurringExpenseDomain[]>;
+  createRecurringExpense(userId: string, dto: CreateRecurringExpenseDto): Promise<RecurringExpenseDomain>;
+  updateRecurringExpense(userId: string, id: string, dto: UpdateRecurringExpenseDto): Promise<RecurringExpenseDomain>;
+  archiveRecurringExpense(userId: string, id: string): Promise<RecurringExpenseDomain>;
+  confirmRecurringOccurrence(userId: string, id: string, occurrenceDate?: Date): Promise<ExpenseDomain>;
+  skipRecurringOccurrence(userId: string, id: string, occurrenceDate?: Date): Promise<RecurringExpenseDomain>;
+
+  getSummary(userId: string, period: string): Promise<BudgetSummaryDomain>;
+  getReport(userId: string, period: string): Promise<BudgetReportDomain>;
+  getStatistics(userId: string, from: Date, to: Date): Promise<BudgetStatisticsDomain>;
 }

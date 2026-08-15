@@ -162,29 +162,29 @@ final class OfflineStoreTests: XCTestCase {
 
     func testServerTrashRowsPersistAcrossRestartAndRestoreQueuesMutation() async throws {
         let json = """
-        {"decks":[],"cards":[],"tasks":[],"journalEntries":[],"budgetTransactions":[{"id":"transaction-trash","userId":"user-1","type":"EXPENSE","amount":"12.50","currency":"VND","category":"Food","categoryId":"category-1","merchant":"Cafe","paymentMethod":"CASH","transactionAt":"2026-08-01T10:00:00Z","note":null,"version":3,"createdAt":"2026-08-01T09:00:00Z","updatedAt":"2026-08-01T10:00:00Z","deletedAt":"2026-08-01T10:00:00Z","deletedByDeviceId":"device-1"}],"gymWorkouts":[],"gymExercises":[]}
+        {"decks":[],"cards":[],"tasks":[],"journalEntries":[],"expenses":[{"id":"expense-trash","userId":"user-1","amount":"12.50","category":"Food","categoryId":"category-1","merchant":"Cafe","paymentMethod":"CASH","expenseDate":"2026-08-01","note":null,"version":3,"createdAt":"2026-08-01T09:00:00Z","updatedAt":"2026-08-01T10:00:00Z","deletedAt":"2026-08-01T10:00:00Z","deletedByDeviceId":"device-1"}],"gymWorkouts":[],"gymExercises":[]}
         """.data(using: .utf8)!
         let trash = try JSONDecoder().decode(TrashSnapshotModel.self, from: json)
         let store = OfflineStore(accountID: "trash-cache-user", baseURL: temporaryDirectory)
         _ = try await store.load()
 
         let cached = try await store.cacheTrashItems(trash)
-        XCTAssertEqual(cached.budgetTransactions.first?.deletedAt, "2026-08-01T10:00:00Z")
-        XCTAssertEqual(cached.budgetTransactions.first?.deletedByDeviceId, "device-1")
+        XCTAssertEqual(cached.expenses.first?.deletedAt, "2026-08-01T10:00:00Z")
+        XCTAssertEqual(cached.expenses.first?.deletedByDeviceId, "device-1")
 
         let reloadedStore = OfflineStore(accountID: "trash-cache-user", baseURL: temporaryDirectory)
         let reloaded = try await reloadedStore.load()
-        let deleted = try XCTUnwrap(reloaded.budgetTransactions.first)
-        XCTAssertEqual(reloaded.budgetTransactions.filter { $0.deletedAt != nil }.map(\.id), ["transaction-trash"])
-        let restored = BudgetTransactionModel(id: deleted.id, userId: deleted.userId, type: deleted.type, amount: deleted.amount, currency: deleted.currency, category: deleted.category, categoryId: deleted.categoryId, merchant: deleted.merchant, paymentMethod: deleted.paymentMethod, transactionAt: deleted.transactionAt, note: deleted.note, version: (deleted.version ?? 1) + 1, createdAt: deleted.createdAt, updatedAt: "2026-08-01T11:00:00Z", deletedAt: nil, deletedByDeviceId: nil)
-        let restoredSnapshot = try await reloadedStore.saveBudgetTransaction(restored, mutation: SyncMutation(id: "restore-1", kind: "budgettransaction.restore", entityId: restored.id, baseVersion: deleted.version, payload: ["deletedAt": .null], occurredAt: "2026-08-01T11:00:00Z"))
+        let deleted = try XCTUnwrap(reloaded.expenses.first)
+        XCTAssertEqual(reloaded.expenses.filter { $0.deletedAt != nil }.map(\.id), ["expense-trash"])
+        let restored = ExpenseModel(id: deleted.id, userId: deleted.userId, amount: deleted.amount, category: deleted.category, categoryId: deleted.categoryId, merchant: deleted.merchant, paymentMethod: deleted.paymentMethod, expenseDate: deleted.expenseDate, note: deleted.note, version: (deleted.version ?? 1) + 1, createdAt: deleted.createdAt, updatedAt: "2026-08-01T11:00:00Z", deletedAt: nil, deletedByDeviceId: nil)
+        let restoredSnapshot = try await reloadedStore.saveExpense(restored, mutation: SyncMutation(id: "restore-1", kind: "expense.restore", entityId: restored.id, baseVersion: deleted.version, payload: ["deletedAt": .null], occurredAt: "2026-08-01T11:00:00Z"))
 
-        XCTAssertNil(restoredSnapshot.budgetTransactions.first?.deletedAt)
-        XCTAssertEqual(restoredSnapshot.mutations.last?.kind, "budgettransaction.restore")
+        XCTAssertNil(restoredSnapshot.expenses.first?.deletedAt)
+        XCTAssertEqual(restoredSnapshot.mutations.last?.kind, "expense.restore")
         let restartedAgain = OfflineStore(accountID: "trash-cache-user", baseURL: temporaryDirectory)
         let finalSnapshot = try await restartedAgain.load()
-        XCTAssertNil(finalSnapshot.budgetTransactions.first?.deletedAt)
-        XCTAssertEqual(finalSnapshot.mutations.last?.kind, "budgettransaction.restore")
+        XCTAssertNil(finalSnapshot.expenses.first?.deletedAt)
+        XCTAssertEqual(finalSnapshot.mutations.last?.kind, "expense.restore")
     }
 
     func testTrashFilterEmptyCopyUsesCanonicalFilterName() {
@@ -668,6 +668,51 @@ final class OfflineStoreTests: XCTestCase {
         XCTAssertNotNil(created)
         XCTAssertEqual(created?.status, .completed)
         XCTAssertEqual(snapshot.mutations.last?.kind, "habitoccurrence.checkin")
+    }
+
+    func testOfflineLimitProgressStaysPendingUntilExceeded() async throws {
+        let store = OfflineStore(accountID: "test-user", baseURL: temporaryDirectory)
+        _ = try await store.load()
+        let habit = HabitModel(
+            id: "habit-limit",
+            name: "Coffee",
+            targetValue: 2,
+            targetType: "COUNT",
+            direction: .limit,
+            startDate: "2026-08-01T00:00:00Z"
+        )
+        _ = try await store.saveHabit(habit)
+
+        let under = try await store.checkInHabitDate(habitId: habit.id, date: "2026-08-04", value: 1)
+        XCTAssertEqual(under.habitOccurrences.first?.status, .pending)
+        let atLimit = try await store.checkInHabitDate(habitId: habit.id, date: "2026-08-04", value: 1)
+        XCTAssertEqual(atLimit.habitOccurrences.first?.status, .pending)
+        let exceeded = try await store.checkInHabitDate(habitId: habit.id, date: "2026-08-04", value: 1)
+        XCTAssertEqual(exceeded.habitOccurrences.first?.status, .failed)
+    }
+
+    func testOfflineDateActionCreatesSparseOccurrenceWithDateContext() async throws {
+        let store = OfflineStore(accountID: "test-user", baseURL: temporaryDirectory)
+        _ = try await store.load()
+        let habit = HabitModel(id: "habit-skip", name: "Stretch", startDate: "2026-08-01T00:00:00Z")
+        _ = try await store.saveHabit(habit)
+
+        let snapshot = try await store.habitOccurrenceActionDate(
+            habitId: habit.id,
+            date: "2026-08-04",
+            action: "skip",
+            idempotencyKey: "skip-key-123"
+        )
+        XCTAssertEqual(snapshot.habitOccurrences.first?.status, .skipped)
+        XCTAssertEqual(snapshot.mutations.last?.payload["habitId"], .string(habit.id))
+        XCTAssertEqual(snapshot.mutations.last?.payload["localDate"], .string("2026-08-04"))
+    }
+
+    func testHabitStatsDecodeUsesMissedMetric() throws {
+        let data = Data(#"{"currentStreak":2,"bestStreak":4,"streakUnit":"DAY","completed":8,"missed":3,"skipped":1,"heatmap":[]}"#.utf8)
+        let stats = try JSONDecoder().decode(HabitStatsModel.self, from: data)
+        XCTAssertEqual(stats.missed, 3)
+        XCTAssertEqual(stats.total, 12)
     }
 
     func testHabitOccurrenceRangeRefreshRemovesOnlyStaleRowsInsideRequestedRange() async throws {

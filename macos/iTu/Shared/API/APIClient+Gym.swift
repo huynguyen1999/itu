@@ -3,6 +3,10 @@ import Foundation
 extension APIClient {
     // MARK: - Gym
 
+    func getGymAnalytics(from: String, to: String) async throws -> GymAnalyticsModel {
+        try await request(path: "/gym/analytics?from=\(escapedPath(from))&to=\(escapedPath(to))")
+    }
+
     func getGymExercise(id: String) async throws -> ExerciseModel { try await request(path: "/gym/exercises/\(escapedPath(id))") }
     func updateGymExercise(id: String, patch: [String: JSONValue]) async throws -> ExerciseModel { try await request(path: "/gym/exercises/\(escapedPath(id))", method: "PATCH", body: patch) }
     func getGymExerciseStats(id: String) async throws -> ExerciseStatsModel { try await request(path: "/gym/exercises/\(escapedPath(id))/stats") }
@@ -66,9 +70,62 @@ extension APIClient {
         return try await request(path: query.isEmpty ? "/gym/workouts" : "/gym/workouts?\(query.joined(separator: "&"))")
     }
 
-    func createGymWorkout(title: String? = nil) async throws -> WorkoutModel {
+    func createGymWorkout(title: String? = nil, routineId: String? = nil) async throws -> WorkoutModel {
         var body: [String: JSONValue] = [:]
         if let title { body["title"] = .string(title) }
+        if let routineId { body["routineId"] = .string(routineId) }
         return try await request(path: "/gym/workouts", method: "POST", body: body)
+    }
+
+    func getGymRoutines() async throws -> [RoutineModel] {
+        try await request(path: "/gym/routines")
+    }
+
+    func getGymRoutine(id: String) async throws -> RoutineModel {
+        try await request(path: "/gym/routines/\(escapedPath(id))")
+    }
+
+    func createGymRoutine(name: String, description: String? = nil, exercises: [[String: JSONValue]] = []) async throws -> RoutineModel {
+        var body: [String: JSONValue] = [
+            "name": .string(name),
+            "exercises": .array(exercises.map { .object($0) })
+        ]
+        if let description, !description.isEmpty { body["description"] = .string(description) }
+        return try await request(path: "/gym/routines", method: "POST", body: body)
+    }
+
+    func updateGymRoutine(id: String, patch: [String: JSONValue]) async throws -> RoutineModel {
+        try await request(path: "/gym/routines/\(escapedPath(id))", method: "PATCH", body: patch)
+    }
+
+    func deleteGymRoutine(id: String) async throws {
+        let _: EmptyResponse = try await request(path: "/gym/routines/\(escapedPath(id))", method: "DELETE")
+    }
+
+    func startWorkoutFromRoutine(routineId: String) async throws -> WorkoutModel {
+        try await request(path: "/gym/routines/\(escapedPath(routineId))/start", method: "POST")
+    }
+
+    func repeatGymWorkout(workoutId: String) async throws -> WorkoutModel {
+        try await request(path: "/gym/workouts/\(escapedPath(workoutId))/repeat", method: "POST")
+    }
+
+    func createGymRoutineFromWorkout(workoutId: String, name: String? = nil) async throws -> RoutineModel {
+        var body: [String: JSONValue] = ["workoutId": .string(workoutId)]
+        if let name, !name.isEmpty { body["name"] = .string(name) }
+        return try await request(path: "/gym/routines/create-from-workout", method: "POST", body: body)
+    }
+
+    func updateGymRoutineFromWorkout(routineId: String, workoutId: String) async throws -> RoutineModel {
+        let body: [String: JSONValue] = ["workoutId": .string(workoutId)]
+        return try await request(
+            path: "/gym/routines/\(escapedPath(routineId))/update-from-workout",
+            method: "POST",
+            body: body
+        )
+    }
+
+    func toggleFavoriteGymExercise(id: String) async throws {
+        let _: EmptyResponse = try await request(path: "/gym/exercises/\(escapedPath(id))/favorite", method: "POST")
     }
 }

@@ -17,6 +17,9 @@ export interface CreateJournalEntryData {
   entryDate: Date;
   timezone?: string;
   templateId?: string | null;
+  contextType?: string | null;
+  contextId?: string | null;
+  contextData?: Record<string, unknown> | null;
   tagIds?: string[];
   weeklyReview?: {
     periodStart: Date;
@@ -56,6 +59,9 @@ export interface UpdateJournalEntryData {
   entryDate?: Date;
   timezone?: string;
   templateId?: string | null;
+  contextType?: string | null;
+  contextId?: string | null;
+  contextData?: Record<string, unknown> | null;
   tagIds?: string[];
   weeklyReview?: {
     periodStart?: Date;
@@ -80,6 +86,8 @@ export interface UpdateJournalEntryData {
 export interface JournalSearchFilter {
   kind?: JournalEntryKind;
   tagId?: string;
+  contextType?: string;
+  contextId?: string;
   startDate?: Date;
   endDate?: Date;
   query?: string;

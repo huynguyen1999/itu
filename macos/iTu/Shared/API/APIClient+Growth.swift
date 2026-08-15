@@ -114,6 +114,12 @@ extension APIClient {
         try await request(path: "/dashboard/study-calendar?days=\(max(1, min(days, 365)))")
     }
 
+    func fetchStudyCalendar(fromDate: String, toDate: String) async throws -> [StudyCalendarDayDTO] {
+        let from = fromDate.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? fromDate
+        let to = toDate.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? toDate
+        return try await request(path: "/dashboard/study-calendar?from=\(from)&to=\(to)")
+    }
+
     func fetchGrowthStatistics(fromDate: String, toDate: String) async throws -> GrowthStatisticsDTO {
         let from = fromDate.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? fromDate
         let to = toDate.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? toDate

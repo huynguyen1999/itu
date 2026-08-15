@@ -1,13 +1,9 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  BriefcaseBusiness,
   Car,
-  Coffee,
   Dumbbell,
-  Gift,
   GraduationCap,
   HeartPulse,
-  Home,
   MoreHorizontal,
   PartyPopper,
   Plane,
@@ -15,14 +11,10 @@ import {
   ShoppingBag,
   Tag,
   Utensils,
-  Wallet,
 } from 'lucide-react';
 
 export const CATEGORY_ICON_OPTIONS: readonly [string, LucideIcon][] = [
-  ['wallet', Wallet],
-  ['home', Home],
   ['food', Utensils],
-  ['coffee', Coffee],
   ['shopping', ShoppingBag],
   ['transport', Car],
   ['bills', ReceiptText],
@@ -31,8 +23,6 @@ export const CATEGORY_ICON_OPTIONS: readonly [string, LucideIcon][] = [
   ['education', GraduationCap],
   ['entertainment', PartyPopper],
   ['travel', Plane],
-  ['work', BriefcaseBusiness],
-  ['gifts', Gift],
   ['other', MoreHorizontal],
 ];
 

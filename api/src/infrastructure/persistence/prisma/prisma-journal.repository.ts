@@ -40,6 +40,9 @@ export function mapEntryToModel(entry: any): JournalEntryModel {
     updatedAt: entry.updatedAt,
     deletedAt: entry.deletedAt,
     deletedByDeviceId: entry.deletedByDeviceId,
+    contextType: entry.contextType,
+    contextId: entry.contextId,
+    contextData: entry.contextData as Record<string, unknown> | null,
     weeklyReview: entry.weeklyReview
       ? {
           entryId: entry.weeklyReview.entryId,
@@ -120,6 +123,8 @@ export class PrismaJournalRepository implements IJournalRepository {
     const where: any = { userId, ...(filter?.includeDeleted ? {} : { deletedAt: null }) };
     if (filter?.kind) where.kind = filter.kind;
     if (filter?.tagId) where.tags = { some: { tagId: filter.tagId } };
+    if (filter?.contextType) where.contextType = filter.contextType;
+    if (filter?.contextId) where.contextId = filter.contextId;
     if (filter?.startDate || filter?.endDate) {
       where.entryDate = {};
       if (filter.startDate) where.entryDate.gte = filter.startDate;
@@ -162,6 +167,9 @@ export class PrismaJournalRepository implements IJournalRepository {
           entryDate: data.entryDate,
           timezone: data.timezone ?? 'UTC',
           templateId: data.templateId ?? null,
+          contextType: data.contextType ?? null,
+          contextId: data.contextId ?? null,
+          contextData: data.contextData as Prisma.InputJsonValue | undefined,
           version: 1,
         },
       });
@@ -279,6 +287,11 @@ export class PrismaJournalRepository implements IJournalRepository {
           entryDate: data.entryDate ?? existing.entryDate,
           timezone: data.timezone ?? existing.timezone,
           templateId: data.templateId !== undefined ? data.templateId : existing.templateId,
+          contextType: data.contextType !== undefined ? data.contextType : existing.contextType,
+          contextId: data.contextId !== undefined ? data.contextId : existing.contextId,
+          contextData: data.contextData !== undefined
+            ? data.contextData === null ? Prisma.JsonNull : data.contextData as Prisma.InputJsonValue
+            : existing.contextData === null ? Prisma.JsonNull : existing.contextData as Prisma.InputJsonValue,
           version: existing.version + 1,
         },
       });
@@ -522,6 +535,9 @@ export class PrismaJournalRepository implements IJournalRepository {
       entryDate: new Date(snap.entryDate),
       timezone: snap.timezone,
       templateId: snap.templateId,
+      contextType: snap.contextType,
+      contextId: snap.contextId,
+      contextData: snap.contextData,
       tagIds: snap.tags?.map((t: any) => t.id),
       weeklyReview: snap.weeklyReview
         ? {

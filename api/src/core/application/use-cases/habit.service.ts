@@ -97,6 +97,10 @@ export class HabitService {
     return this.repo.listHabitOccurrences(userId, filter);
   }
 
+  async listHabitCalendar(userId: string, filter: { from: string; to: string; habitId?: string }) {
+    return this.repo.listHabitCalendar(userId, filter);
+  }
+
   async getCommitmentPolicy(userId: string, habitId: string) {
     return this.repo.getHabitCommitmentPolicy(userId, habitId);
   }
@@ -130,10 +134,33 @@ export class HabitService {
     return updated;
   }
 
+  async checkInByDate(userId: string, habitId: string, localDate: string, input: any) {
+    const updated = await this.repo.checkInByDate(userId, habitId, localDate, input);
+    await this.emitSyncChangeAndInvalidate(userId, 'habitoccurrence', updated.occurrenceId ?? updated.id, 'UPSERT', updated);
+    return updated;
+  }
+
   async habitOccurrenceAction(userId: string, id: string, action: 'skip' | 'fail' | 'undo', idempotencyKey?: string) {
     const updated = await this.repo.habitOccurrenceAction(userId, id, action, idempotencyKey);
     await this.emitSyncChangeAndInvalidate(userId, 'habitoccurrence', id, 'UPSERT', updated);
     return updated;
+  }
+
+  async habitOccurrenceActionByDate(userId: string, habitId: string, localDate: string, action: 'skip' | 'fail' | 'undo', idempotencyKey?: string) {
+    const updated = await this.repo.habitOccurrenceActionByDate(userId, habitId, localDate, action, idempotencyKey);
+    await this.emitSyncChangeAndInvalidate(userId, 'habitoccurrence', updated.id, 'UPSERT', updated);
+    return updated;
+  }
+
+  async listHabitProgress(userId: string, habitId: string, filter?: { from?: string; to?: string }) {
+    return this.repo.listHabitProgress(userId, habitId, filter);
+  }
+
+  async deleteHabitProgress(userId: string, progressId: string) {
+    const result = await this.repo.deleteHabitProgress(userId, progressId);
+    if (!result) throw new EntityNotFoundException('Habit progress log', progressId);
+    await this.emitSyncChangeAndInvalidate(userId, 'habitoccurrence', result.occurrence.id, 'UPSERT', result.occurrence);
+    return result;
   }
 
   async setOccurrenceChecklistItem(userId: string, occurrenceId: string, itemId: string, completed: boolean) {
@@ -142,6 +169,14 @@ export class HabitService {
 
   async habitStats(userId: string, habitId: string) {
     return this.repo.habitStats(userId, habitId);
+  }
+
+  async habitInsights(userId: string, habitId: string, filter: { from: string; to: string }) {
+    return this.repo.habitInsights(userId, habitId, filter);
+  }
+
+  async habitReminderAction(userId: string, deliveryId: string, action: 'snooze' | 'dismiss' | 'complete', remindAt?: string) {
+    return this.repo.habitReminderAction(userId, deliveryId, action, remindAt);
   }
 
   async listTimeBlocks(userId: string) {

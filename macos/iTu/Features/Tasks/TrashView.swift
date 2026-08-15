@@ -9,7 +9,7 @@ struct TrashView: View {
     private var decks: [DeckModel] { model.trashSnapshot?.decks ?? [] }
     private var cards: [CardModel] { model.trashSnapshot?.cards ?? [] }
     private var journal: [JournalNoteModel] { model.trashedJournalEntries }
-    private var budget: [BudgetTransactionModel] { model.trashedBudgetTransactions }
+    private var budget: [ExpenseModel] { model.trashedExpenses }
     private var workouts: [WorkoutModel] { model.trashedGymWorkouts }
     private var exercises: [ExerciseModel] { model.trashedGymExercises }
 
@@ -63,16 +63,32 @@ struct TrashView: View {
             .padding(24).frame(maxWidth: 980).frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .iTuPinnedHeader {
-            VStack(alignment: .leading, spacing: 14) {
-                trashHeader
-                Picker("Trash filter", selection: $filter) {
-                    ForEach(TrashFilter.allCases) { value in Text(value.title).tag(value) }
+            iTuPageHeader(
+                kicker: "SYSTEM & MAINTENANCE",
+                title: "Trash",
+                description: "Recover deleted content or permanently remove it.",
+                actions: {
+                    if model.syncPhase == .pending || model.syncPhase == .syncing {
+                        Label("Pending sync", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(iTuTheme.amber)
+                    }
+                    Text("\(totalCount) item\(totalCount == 1 ? "" : "s")")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(iTuTheme.pageHeaderForegroundMuted)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.1))
+                        .clipShape(Capsule())
+                },
+                controls: {
+                    Picker("Trash filter", selection: $filter) {
+                        ForEach(TrashFilter.allCases) { value in Text(value.title).tag(value) }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityLabel("Trash filter")
                 }
-                .pickerStyle(.segmented)
-                .accessibilityLabel("Trash filter")
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 18)
+            )
         }
         .background(iTuTheme.canvas)
         .alert(item: $deleteTarget) { target in
@@ -84,25 +100,6 @@ struct TrashView: View {
             await model.refreshCoordinator.run(.trash) {
                 await model.refreshTrash()
             }
-        }
-    }
-
-    private var trashHeader: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 5) {
-                iTuSectionLabel(title: "SYSTEM & MAINTENANCE", color: iTuTheme.inkFaint)
-                Text("Trash").font(.system(size: 26, weight: .bold, design: .rounded))
-                Text("Recover deleted content or permanently remove it.")
-                    .font(.system(size: 13)).foregroundStyle(iTuTheme.inkDim)
-            }
-            Spacer()
-            if model.syncPhase == .pending || model.syncPhase == .syncing {
-                Label("Pending sync", systemImage: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 11, weight: .medium)).foregroundStyle(iTuTheme.amber)
-            }
-            Text("\(totalCount) item\(totalCount == 1 ? "" : "s")")
-                .font(.system(size: 12, weight: .bold)).foregroundStyle(iTuTheme.inkDim)
-                .padding(.horizontal, 10).padding(.vertical, 6).background(iTuTheme.surface).clipShape(Capsule())
         }
     }
 
@@ -139,7 +136,7 @@ struct TrashView: View {
     private func deckRow(_ deck: DeckModel) -> some View { row(title: deck.title, type: "Flashcard Deck", deletedAt: nil, restore: { Task { await model.restoreTrashDeck(deck) } }, remove: { deleteTarget = .deck(deck) }) }
     private func cardRow(_ card: CardModel) -> some View { row(title: card.frontMarkdown.isEmpty ? "Untitled Flashcard" : card.frontMarkdown, type: "Flashcard", deletedAt: nil, restore: { Task { await model.restoreTrashCard(card) } }, remove: { deleteTarget = .card(card) }) }
     private func journalRow(_ value: JournalNoteModel) -> some View { row(title: value.title.isEmpty ? "Untitled note" : value.title, type: value.kind == "WEEKLY_REVIEW" ? "Weekly Review" : "Journal Entry", deletedAt: value.deletedAt, restore: { Task { await model.restoreTrashJournalEntry(value) } }, remove: { deleteTarget = .journal(value) }) }
-    private func budgetRow(_ value: BudgetTransactionModel) -> some View { row(title: value.merchant ?? value.category, type: "Budget Transaction", deletedAt: value.deletedAt, restore: { Task { await model.restoreTrashBudgetTransaction(value) } }, remove: { deleteTarget = .budget(value) }) }
+    private func budgetRow(_ value: ExpenseModel) -> some View { row(title: value.merchant ?? value.category, type: "Expense", deletedAt: value.deletedAt, restore: { Task { await model.restoreTrashExpense(value) } }, remove: { deleteTarget = .budget(value) }) }
     private func workoutRow(_ value: WorkoutModel) -> some View { row(title: value.title, type: "Gym Workout", deletedAt: value.deletedAt, restore: { Task { await model.restoreTrashGymWorkout(value) } }, remove: { deleteTarget = .workout(value) }) }
     private func exerciseRow(_ value: ExerciseModel) -> some View { row(title: value.name, type: "Exercise", deletedAt: value.deletedAt, restore: { Task { await model.restoreTrashGymExercise(value) } }, remove: { deleteTarget = .exercise(value) }) }
 
@@ -172,7 +169,7 @@ struct TrashView: View {
         case let .deck(value): await model.permanentlyDeleteTrashDeck(value)
         case let .card(value): await model.permanentlyDeleteTrashCard(value)
         case let .journal(value): await model.permanentlyDeleteTrashJournalEntry(value)
-        case let .budget(value): await model.permanentlyDeleteTrashBudgetTransaction(value)
+        case let .budget(value): await model.permanentlyDeleteTrashExpense(value)
         case let .workout(value): await model.permanentlyDeleteTrashGymWorkout(value)
         case let .exercise(value): await model.permanentlyDeleteTrashGymExercise(value)
         }
@@ -187,11 +184,11 @@ enum TrashFilter: String, CaseIterable, Identifiable {
 }
 
 private enum TrashDeleteTarget: Identifiable {
-    case task(ProductivityTask), deck(DeckModel), card(CardModel), journal(JournalNoteModel), budget(BudgetTransactionModel), workout(WorkoutModel), exercise(ExerciseModel)
+    case task(ProductivityTask), deck(DeckModel), card(CardModel), journal(JournalNoteModel), budget(ExpenseModel), workout(WorkoutModel), exercise(ExerciseModel)
     var id: String {
         switch self { case let .task(v): "task-\(v.id)"; case let .deck(v): "deck-\(v.id)"; case let .card(v): "card-\(v.id)"; case let .journal(v): "journal-\(v.id)"; case let .budget(v): "budget-\(v.id)"; case let .workout(v): "workout-\(v.id)"; case let .exercise(v): "exercise-\(v.id)" }
     }
     var message: String {
-        switch self { case let .task(v): "\(v.title) will no longer be recoverable."; case let .deck(v): "\(v.title) and its cards will no longer be recoverable."; case .card: "This Flashcard will no longer be recoverable."; case let .journal(v): "\(v.title.isEmpty ? "This Journal Entry" : v.title) will no longer be recoverable."; case .budget: "This Budget Transaction will no longer be recoverable."; case let .workout(v): "\(v.title) will no longer be recoverable."; case let .exercise(v): "\(v.name) will no longer be recoverable." }
+        switch self { case let .task(v): "\(v.title) will no longer be recoverable."; case let .deck(v): "\(v.title) and its cards will no longer be recoverable."; case .card: "This Flashcard will no longer be recoverable."; case let .journal(v): "\(v.title.isEmpty ? "This Journal Entry" : v.title) will no longer be recoverable."; case .budget: "This Expense will no longer be recoverable."; case let .workout(v): "\(v.title) will no longer be recoverable."; case let .exercise(v): "\(v.name) will no longer be recoverable." }
     }
 }

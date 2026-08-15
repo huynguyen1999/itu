@@ -74,9 +74,9 @@ export class PrismaReviewDataSource implements IReviewDataSource {
         where: { userId, status: 'COMPLETED', deletedAt: null, startedAt: { gte: start, lt: end } },
         include: { exercises: { where: { deletedAt: null }, include: { sets: { where: { deletedAt: null } } } } },
       }),
-      this.prisma.budgetTransaction.findMany({
-        where: { userId, deletedAt: null, transactionAt: { gte: start, lt: end }, type: 'EXPENSE' },
-        include: { categoryRel: { select: { name: true } } },
+      this.prisma.expense.findMany({
+        where: { userId, deletedAt: null, expenseDate: { gte: start, lt: end } },
+        include: { category: { select: { name: true } } },
       }),
       this.prisma.usageSummary.findMany({
         where: { userId, localDate: { gte: dateStart, lt: dateEndExclusive } },
@@ -109,11 +109,21 @@ export class PrismaReviewDataSource implements IReviewDataSource {
     const categoryTotals = new Map<string, number>();
     for (const transaction of transactions) {
       const amount = Number(transaction.amount);
-      transactionTotals.set(transaction.currency, (transactionTotals.get(transaction.currency) ?? 0) + amount);
-      const category = transaction.categoryRel.name;
+      transactionTotals.set('VND', (transactionTotals.get('VND') ?? 0) + amount);
+      const category = transaction.category.name;
       categoryTotals.set(category, (categoryTotals.get(category) ?? 0) + amount);
     }
-    const workoutSets = workouts.reduce((sum, workout) => sum + workout.exercises.reduce((exerciseSum, exercise) => exerciseSum + exercise.sets.filter((set) => set.completedAt).length, 0), 0);
+    const workoutSets = workouts.reduce(
+      (sum, workout) =>
+        sum +
+        workout.exercises.reduce(
+          (exerciseSum, exercise) =>
+            exerciseSum +
+            exercise.sets.filter((set) => set.completedAt && set.type !== 'WARM_UP' && set.type !== 'WARMUP').length,
+          0,
+        ),
+      0,
+    );
     const appTotals = new Map<string, { displayName: string; activeSeconds: number; engagedSeconds: number }>();
     for (const app of apps) {
       const current = appTotals.get(app.bundleId) ?? { displayName: app.displayName, activeSeconds: 0, engagedSeconds: 0 };
@@ -162,7 +172,7 @@ export class PrismaReviewDataSource implements IReviewDataSource {
         habits: coverage(habits.map((habit) => habit.occurrenceDate), period),
         journal: coverage(journalEntries.map((entry) => entry.entryDate), period),
         gym: coverage(workouts.map((workout) => workout.startedAt), period),
-        budget: coverage(transactions.map((transaction) => transaction.transactionAt), period),
+        budget: coverage(transactions.map((transaction) => transaction.expenseDate), period),
         appUsage: usageCoverage(apps.map((app) => app.localDate), period),
         websiteUsage: coverage(websites.map((session) => session.startedAt), period),
       },
@@ -175,7 +185,7 @@ export class PrismaReviewDataSource implements IReviewDataSource {
         habits: Object.entries(groupHabitDetails(habits)).map(([name, value]) => ({ name, ...value })),
         journal: journalContext(journalEntries),
         gym: workouts.slice(0, 20).map((workout) => ({ title: workout.title, durationMinutes: workout.durationMinutes, exercises: workout.exercises.map((exercise) => ({ name: exercise.exerciseName, sets: exercise.sets.filter((set) => set.completedAt).length })) })),
-        budget: { topTransactions: transactions.sort((a, b) => Number(b.amount) - Number(a.amount)).slice(0, 5).map((transaction) => ({ amount: String(transaction.amount), currency: transaction.currency, category: transaction.categoryRel.name, merchant: transaction.merchant, note: transaction.note })) },
+        budget: { topTransactions: transactions.sort((a, b) => Number(b.amount) - Number(a.amount)).slice(0, 5).map((transaction) => ({ amount: String(transaction.amount), currency: 'VND', category: transaction.category.name, merchant: transaction.merchant, note: transaction.note })) },
         appUsage: [...appTotals.entries()].sort((a, b) => b[1].activeSeconds - a[1].activeSeconds).slice(0, 10).map(([bundleId, value]) => ({ bundleId, ...value })),
         websiteUsage: [...websiteTotals.entries()].sort((a, b) => b[1].activeSeconds - a[1].activeSeconds).slice(0, 10).map(([hostname, value]) => ({ hostname, ...value })),
       },

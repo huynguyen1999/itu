@@ -8,12 +8,34 @@ private struct ServerUsagePreferences: Decodable {
     let excludedBundleIds: [String]
 }
 
+private struct ServerHabitPreferences: Decodable {
+    let dayRolloverCutoffHour: Int
+    let weekStartDay: String
+}
+
 private struct UserPreferencesResponse: Decodable {
     let usage: ServerUsagePreferences
+    let habits: ServerHabitPreferences?
 }
 
 extension APIClient {
     // MARK: - Usage
+
+    func fetchPreferences() async throws -> (usage: UsagePreferences, habits: HabitPreferencesModel) {
+        let response: UserPreferencesResponse = try await request(path: "/preferences")
+        return (
+            UsagePreferences(
+                enabled: response.usage.trackingEnabled,
+                websiteTrackingEnabled: response.usage.websiteTrackingEnabled,
+                retentionDays: response.usage.retentionDays,
+                idleThresholdSeconds: response.usage.idleThresholdSeconds,
+                excludedBundleIds: response.usage.excludedBundleIds
+            ),
+            response.habits.map {
+                HabitPreferencesModel(dayRolloverCutoffHour: $0.dayRolloverCutoffHour, weekStartDay: $0.weekStartDay)
+            } ?? HabitPreferencesModel()
+        )
+    }
 
     func uploadUsageSummaries(_ summaries: [UsageSummary], deviceId: String) async throws {
         let body: [String: JSONValue] = [
@@ -122,14 +144,11 @@ extension APIClient {
     }
 
     func fetchUsagePreferences() async throws -> UsagePreferences {
-        let response: UserPreferencesResponse = try await request(path: "/preferences")
-        return UsagePreferences(
-            enabled: response.usage.trackingEnabled,
-            websiteTrackingEnabled: response.usage.websiteTrackingEnabled,
-            retentionDays: response.usage.retentionDays,
-            idleThresholdSeconds: response.usage.idleThresholdSeconds,
-            excludedBundleIds: response.usage.excludedBundleIds
-        )
+        try await fetchPreferences().usage
+    }
+
+    func fetchHabitPreferences() async throws -> HabitPreferencesModel {
+        try await fetchPreferences().habits
     }
 
     func updateUsagePreferences(_ preferences: UsagePreferences) async throws {

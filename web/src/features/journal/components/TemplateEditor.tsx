@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LayoutTemplate, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useJournalTemplates } from '../journalQueries';
 import {
   useCreateJournalTemplateMutation,
@@ -8,6 +8,7 @@ import {
 } from '../journalMutations';
 import type { JournalEntryKind, JournalTemplate } from '../journal.types';
 import { Button } from '@/shared/ui/button';
+import { PageHeader } from '@/shared/ui/PageHeader';
 
 interface TemplateEditorProps {
   isOpen: boolean;
@@ -110,15 +111,14 @@ export function TemplateEditor({ isOpen, onClose, onSelectTemplate }: TemplateEd
         aria-modal="true"
         aria-labelledby="journal-templates-title"
       >
-        <div className="flex items-center justify-between border-b border-border pb-3">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <LayoutTemplate className="h-4 w-4 text-primary" />
-            <h2 id="journal-templates-title">Journal Templates</h2>
-          </div>
+        <PageHeader
+          kicker="JOURNAL"
+          title={<span id="journal-templates-title">Journal Templates</span>}
+        >
           <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close templates">
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </Button>
-        </div>
+        </PageHeader>
 
         <div className="flex-1 space-y-3 overflow-y-auto pr-1 text-xs">
           {!isCreating && (

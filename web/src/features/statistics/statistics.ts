@@ -7,6 +7,41 @@ export interface StatisticsDateRange {
   to: string;
 }
 
+export type StatisticsGrouping = 'DAY' | 'WEEK' | 'MONTH';
+
+export interface StatisticsPeriod extends StatisticsDateRange {
+  grouping: StatisticsGrouping;
+  comparisonFrom: string;
+  comparisonTo: string;
+}
+
+export const STATISTICS_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+
+export function statisticsPeriod(range: StatisticsDateRange, grouping: StatisticsGrouping = 'DAY'): StatisticsPeriod {
+  const ordered = range.from <= range.to ? range : { from: range.to, to: range.from };
+  const days = inclusiveDayCount(ordered);
+  const comparisonTo = addDateKey(ordered.from, -1);
+  return {
+    ...ordered,
+    grouping,
+    comparisonFrom: addDateKey(comparisonTo, -days + 1),
+    comparisonTo,
+  };
+}
+
+export function statisticsDateTimeRange(range: StatisticsDateRange) {
+  return {
+    from: `${range.from}T00:00:00.000+07:00`,
+    to: `${addDateKey(range.to, 1)}T00:00:00.000+07:00`,
+  };
+}
+
+export function addDateKey(value: string, amount: number) {
+  const date = parseDateKey(value);
+  date.setUTCDate(date.getUTCDate() + amount);
+  return utcDateKey(date);
+}
+
 export interface TrendPoint {
   key: string;
   label: string;
@@ -334,11 +369,10 @@ function finiteNumber(value: unknown) {
 }
 
 export function dateRangeForDays(days: number, today = new Date()): StatisticsDateRange {
-  const to = new Date(today);
-  to.setHours(0, 0, 0, 0);
+  const to = parseDateKey(dateKeyInStatisticsTimeZone(today));
   const from = new Date(to);
-  from.setDate(from.getDate() - days + 1);
-  return { from: localDateKey(from), to: localDateKey(to) };
+  from.setUTCDate(from.getUTCDate() - days + 1);
+  return { from: utcDateKey(from), to: utcDateKey(to) };
 }
 
 export function inclusiveDayCount(range: StatisticsDateRange) {
@@ -346,7 +380,12 @@ export function inclusiveDayCount(range: StatisticsDateRange) {
 }
 
 export function rangeLabel(range: StatisticsDateRange) {
-  const formatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: STATISTICS_TIME_ZONE,
+  });
   return `${formatter.format(parseDateKey(range.from))} – ${formatter.format(parseDateKey(range.to))}`;
 }
 
@@ -371,7 +410,9 @@ function bucketLabel(dateKey: string, mode: 'day' | 'week' | 'month') {
   const date = parseDateKey(dateKey);
   return date.toLocaleDateString(
     'en-US',
-    mode === 'month' ? { month: 'short', year: '2-digit' } : { month: 'short', day: 'numeric' },
+    mode === 'month'
+      ? { month: 'short', year: '2-digit', timeZone: STATISTICS_TIME_ZONE }
+      : { month: 'short', day: 'numeric', timeZone: STATISTICS_TIME_ZONE },
   );
 }
 
@@ -380,22 +421,30 @@ function enumerateDates(range: StatisticsDateRange) {
   const cursor = parseDateKey(range.from);
   const end = parseDateKey(range.to);
   while (cursor <= end) {
-    dates.push(localDateKey(cursor));
-    cursor.setDate(cursor.getDate() + 1);
+    dates.push(utcDateKey(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return dates;
 }
 
-function localDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function utcDateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function parseDateKey(value: string) {
   const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function dateKeyInStatisticsTimeZone(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: STATISTICS_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 

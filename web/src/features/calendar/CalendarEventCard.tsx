@@ -32,6 +32,7 @@ export interface CalendarEventCardProps {
 function itemLabel(item: CalendarTimelineItem): string {
   if (item.kind === 'TASK_DUE') return 'Due Date';
   if (item.kind === 'FOCUS_SESSION') return 'Focus Session';
+  if (item.kind === 'WORKOUT') return 'Workout';
   if (item.kind === 'EXTERNAL_EVENT') return 'Subscription';
   return 'Task';
 }

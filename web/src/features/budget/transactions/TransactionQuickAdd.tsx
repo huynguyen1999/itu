@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useBudgetCategories } from '../budgetQueries';
-import { useCreateBudgetTransaction } from '../budgetMutations';
+import { useCreateBudgetExpense } from '../budgetMutations';
 import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { CategoryIcon } from '../budgetCategoryIcons';
 import { Check, ChevronDown, Plus, X } from 'lucide-react';
-import { budgetDateTimeInputToIso, currentBudgetDateTimeInput } from '../budgetPeriod';
+import { currentBudgetDateTimeInput } from '../budgetPeriod';
+import type { PaymentMethod } from '@/shared/api/budgetApi';
 
 interface TransactionQuickAddProps {
   onClose?: () => void;
@@ -162,19 +163,18 @@ function CategoryCombobox({
 }
 
 export function TransactionQuickAdd({ onClose }: TransactionQuickAddProps) {
-  const [type, setType] = useState<'EXPENSE' | 'INCOME'>('EXPENSE');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [categoryQuery, setCategoryQuery] = useState('');
   const [categoryError, setCategoryError] = useState('');
   const [merchant, setMerchant] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('CASH');
-  const [transactionAt, setTransactionAt] = useState(currentBudgetDateTimeInput);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
+  const [expenseDate, setExpenseDate] = useState(() => currentBudgetDateTimeInput().slice(0, 10));
   const [note, setNote] = useState('');
 
   const { data: categories = [] } = useBudgetCategories();
   const typedCategories = categories as BudgetCategoryOption[];
-  const createTx = useCreateBudgetTransaction();
+  const createExpense = useCreateBudgetExpense();
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -190,15 +190,13 @@ export function TransactionQuickAdd({ onClose }: TransactionQuickAddProps) {
     }
     setCategoryError('');
 
-    createTx.mutate(
+    createExpense.mutate(
       {
-        type,
         amount: parsedAmount,
-        currency: 'VND',
         categoryId: selectedCategory.id,
         merchant: merchant.trim() || undefined,
         paymentMethod,
-        transactionAt: budgetDateTimeInputToIso(transactionAt),
+        expenseDate,
         note: note.trim() || undefined,
       },
       {
@@ -217,7 +215,7 @@ export function TransactionQuickAdd({ onClose }: TransactionQuickAddProps) {
   return (
     <Card className="space-y-4 border-primary/20 p-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">New Transaction</h4>
+        <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">New Expense</h4>
         {onClose && (
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} aria-label="Close new transaction">
             <X className="h-3.5 w-3.5" />
@@ -226,27 +224,6 @@ export function TransactionQuickAdd({ onClose }: TransactionQuickAddProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant={type === 'EXPENSE' ? 'default' : 'outline'}
-            size="sm"
-            className="flex-1 text-xs"
-            onClick={() => setType('EXPENSE')}
-          >
-            Expense
-          </Button>
-          <Button
-            type="button"
-            variant={type === 'INCOME' ? 'default' : 'outline'}
-            size="sm"
-            className="flex-1 text-xs"
-            onClick={() => setType('INCOME')}
-          >
-            Income
-          </Button>
-        </div>
-
         <div className="space-y-1">
           <label htmlFor="budget-transaction-amount" className="text-[11px] font-medium text-muted-foreground">
             Amount
@@ -294,7 +271,7 @@ export function TransactionQuickAdd({ onClose }: TransactionQuickAddProps) {
             <select
               id="budget-transaction-payment"
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
+              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs"
             >
               <option value="CASH">Cash</option>
@@ -322,13 +299,13 @@ export function TransactionQuickAdd({ onClose }: TransactionQuickAddProps) {
 
           <div className="space-y-1">
             <label htmlFor="budget-transaction-date" className="text-[11px] font-medium text-muted-foreground">
-              Date / Time
+              Date
             </label>
             <Input
-              id="budget-transaction-date"
-              type="datetime-local"
-              value={transactionAt}
-              onChange={(e) => setTransactionAt(e.target.value)}
+              id="budget-expense-date"
+              type="date"
+              value={expenseDate}
+              onChange={(e) => setExpenseDate(e.target.value)}
               className="text-xs font-mono"
             />
           </div>
@@ -347,15 +324,15 @@ export function TransactionQuickAdd({ onClose }: TransactionQuickAddProps) {
           />
         </div>
 
-        {createTx.isError && (
+        {createExpense.isError && (
           <p className="text-xs text-destructive" role="alert">
-            Could not save this transaction. Try again.
+            Could not save this expense. Try again.
           </p>
         )}
 
-        <Button type="submit" size="sm" className="mt-2 w-full gap-1.5" disabled={createTx.isPending}>
+        <Button type="submit" size="sm" className="mt-2 w-full gap-1.5" disabled={createExpense.isPending}>
           <Plus className="h-4 w-4" />
-          Save Transaction
+          Save Expense
         </Button>
       </form>
     </Card>

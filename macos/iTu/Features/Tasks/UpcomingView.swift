@@ -78,20 +78,12 @@ struct UpcomingView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .iTuPinnedHeader {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    iTuSectionLabel(title: "PLANNING", color: iTuTheme.teal)
-                    Text("Next 7 Days")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(iTuTheme.ink)
-                    Text("Tasks scheduled for today and the upcoming week.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(iTuTheme.inkDim)
-                }
-                quickCaptureHeader
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 18)
+            iTuPageHeader(
+                kicker: "PLANNING",
+                title: "Next 7 Days",
+                description: "Tasks scheduled for today and the upcoming week.",
+                controls: { quickCaptureHeader }
+            )
         }
         .background(
             LinearGradient(

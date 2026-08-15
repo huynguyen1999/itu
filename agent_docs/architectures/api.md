@@ -126,8 +126,8 @@ flowchart LR
 
 [`websocket-sync-invalidation.notifier.ts`](../../api/src/infrastructure/sync/websocket-sync-invalidation.notifier.ts) authenticates `/sync` upgrades with an access token plus device/client identity. It notifies every matching connection except the exact origin client. It does not transmit changed entities.
 
-Budget Transactions and Gym Workouts are separate synchronized entities. Their
-mutation handlers use `budgettransaction.*` and `gymworkout.*` kinds, enforce
+Budget Expenses and Gym Workouts are separate synchronized entities. Their
+mutation handlers use `expense.*` and `gymworkout.*` kinds, enforce
 versions/tombstones, and never route through `JournalEntry`. Journal sync is
 limited to `journal.*`, `journal_attachment.delete`,
 `journal_revision.restore`, `journal_template.*`, and `journal_tag.create`;

@@ -79,7 +79,7 @@ export class PrismaUserRepository implements IUserRepository {
         },
       });
       await this.createInitialUserContent(tx, createdUser.id);
-      await tx.budgetCategory?.createMany?.({ data: BUDGET_CATEGORY_CATALOG.map((category, sortOrder) => ({ id: createUlid(), userId: createdUser.id, name: category.name, type: 'EXPENSE' as const, icon: category.icon, color: category.color, sortOrder })), skipDuplicates: true });
+      await tx.expenseCategory.createMany({ data: BUDGET_CATEGORY_CATALOG.map((category, sortOrder) => ({ id: createUlid(), userId: createdUser.id, name: category.name, icon: category.icon, color: category.color, sortOrder })), skipDuplicates: true });
       return createdUser;
     });
     return mapUser(user);
@@ -278,7 +278,7 @@ export class PrismaUserRepository implements IUserRepository {
         }));
       if (!existingUser) {
         await this.createInitialUserContent(tx, linkedUser.id);
-        await tx.budgetCategory?.createMany?.({ data: BUDGET_CATEGORY_CATALOG.map((category, sortOrder) => ({ id: createUlid(), userId: linkedUser.id, name: category.name, type: 'EXPENSE' as const, icon: category.icon, color: category.color, sortOrder })), skipDuplicates: true });
+        await tx.expenseCategory.createMany({ data: BUDGET_CATEGORY_CATALOG.map((category, sortOrder) => ({ id: createUlid(), userId: linkedUser.id, name: category.name, icon: category.icon, color: category.color, sortOrder })), skipDuplicates: true });
       }
       await tx.oAuthIdentity.create({
         data: {

@@ -18,6 +18,7 @@ import { awardGrowthActivityWithReceipt } from '@core/application/use-cases/grow
 import { PrismaService } from './prisma.service';
 import { mapCard, mapReviewState, mapStudySession } from './prisma.mappers';
 import { createUlid } from './ulid';
+import { hcmcDateKey } from '@core/application/utils/calendar';
 
 function correctRate(correct: number, reviewed: number): number {
   return reviewed === 0 ? 0 : Math.round((correct / reviewed) * 100);
@@ -30,7 +31,7 @@ function startOfDay(date: Date): Date {
 }
 
 function formatDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return hcmcDateKey(date);
 }
 
 async function serializableWithRetry<T>(db: PrismaService, work: (tx: any) => Promise<T>, label: string): Promise<T> {

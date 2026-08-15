@@ -302,6 +302,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
     var focusSessions: [FocusSession] = []
     var habits: [HabitModel] = []
     var habitOccurrences: [HabitOccurrenceModel] = []
+    var habitPreferences: HabitPreferencesModel = HabitPreferencesModel()
     var decks: [DeckModel] = []
     var cardsByDeckId: [String: [CardModel]] = [:]
     var growthLevel: Int?
@@ -331,10 +332,13 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
     var usageAppIconUploadHashes: [String: String] = [:]
     var websiteUsageSummaries: [WebsiteUsageSummary] = []
     var websiteUsageUploadWatermarks: [String: Int] = [:]
-    var budgetCategories: [BudgetCategoryModel] = []
-    var budgetPeriods: [BudgetPeriodModel] = []
-    var budgetTransactions: [BudgetTransactionModel] = []
+    var budgetDataEpoch: Int = 2
+    var expenseCategories: [ExpenseCategoryModel] = []
+    var monthlyBudgets: [MonthlyBudgetModel] = []
+    var expenses: [ExpenseModel] = []
+    var recurringExpenses: [RecurringExpenseModel] = []
     var gymExercises: [ExerciseModel] = []
+    var gymRoutines: [RoutineModel] = []
     var gymWorkouts: [WorkoutModel] = []
     var budgetPreferences: BudgetPreferencesModel = BudgetPreferencesModel()
     var gymPreferences: GymPreferencesModel = GymPreferencesModel()
@@ -359,6 +363,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         case focusSessions
         case habits
         case habitOccurrences
+        case habitPreferences
         case decks
         case cardsByDeckId
         case growthLevel
@@ -388,7 +393,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         case usageAppIconUploadHashes
         case websiteUsageSummaries
         case websiteUsageUploadWatermarks
-        case budgetCategories, budgetPeriods, budgetTransactions, gymExercises, gymWorkouts, budgetPreferences, gymPreferences
+        case budgetDataEpoch, expenseCategories, monthlyBudgets, expenses, recurringExpenses, gymExercises, gymRoutines, gymWorkouts, budgetPreferences, gymPreferences
         case pendingGymExerciseImages
         case journalNotes, journalTags, journalTemplates, journalRevisionsByEntryID, journalPreferences, pendingJournalAttachments, pendingJournalAttachmentMetadata
         case calendarPreferences
@@ -408,6 +413,7 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         focusSessions = try values.decodeIfPresent([FocusSession].self, forKey: .focusSessions) ?? []
         habits = try values.decodeIfPresent([HabitModel].self, forKey: .habits) ?? []
         habitOccurrences = try values.decodeIfPresent([HabitOccurrenceModel].self, forKey: .habitOccurrences) ?? []
+        habitPreferences = try values.decodeIfPresent(HabitPreferencesModel.self, forKey: .habitPreferences) ?? HabitPreferencesModel()
         decks = try values.decodeIfPresent([DeckModel].self, forKey: .decks) ?? []
         cardsByDeckId = try values.decodeIfPresent([String: [CardModel]].self, forKey: .cardsByDeckId) ?? [:]
         growthLevel = try values.decodeIfPresent(Int.self, forKey: .growthLevel)
@@ -429,7 +435,13 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         pendingGrowthReceipts = try values.decodeIfPresent([String: GrowthAwardReceipt].self, forKey: .pendingGrowthReceipts) ?? [:]
         handledGrowthMutationIds = try values.decodeIfPresent([String].self, forKey: .handledGrowthMutationIds) ?? []
         handledGrowthReceiptKeys = try values.decodeIfPresent([String].self, forKey: .handledGrowthReceiptKeys) ?? []
-        mutations = try values.decodeIfPresent([SyncMutation].self, forKey: .mutations) ?? []
+        // Budget v2 epoch reset: never replay queued v1 mutations from an upgraded client.
+        mutations = (try values.decodeIfPresent([SyncMutation].self, forKey: .mutations) ?? []).filter { mutation in
+            !mutation.kind.hasPrefix("budgettransaction.") &&
+            !mutation.kind.hasPrefix("moneycategory.") &&
+            !mutation.kind.hasPrefix("moneybudgetperiod.") &&
+            !mutation.kind.hasPrefix("moneycategorybudget.")
+        }
         conflicts = try values.decodeIfPresent([SyncConflict].self, forKey: .conflicts) ?? []
         lastSyncTime = try values.decodeIfPresent(String.self, forKey: .lastSyncTime)
         usageSummaries = try values.decodeIfPresent([UsageSummary].self, forKey: .usageSummaries) ?? []
@@ -437,10 +449,13 @@ struct OfflineSnapshot: Codable, Equatable, Sendable {
         usageAppIconUploadHashes = try values.decodeIfPresent([String: String].self, forKey: .usageAppIconUploadHashes) ?? [:]
         websiteUsageSummaries = try values.decodeIfPresent([WebsiteUsageSummary].self, forKey: .websiteUsageSummaries) ?? []
         websiteUsageUploadWatermarks = try values.decodeIfPresent([String: Int].self, forKey: .websiteUsageUploadWatermarks) ?? [:]
-        budgetCategories = try values.decodeIfPresent([BudgetCategoryModel].self, forKey: .budgetCategories) ?? []
-        budgetPeriods = try values.decodeIfPresent([BudgetPeriodModel].self, forKey: .budgetPeriods) ?? []
-        budgetTransactions = try values.decodeIfPresent([BudgetTransactionModel].self, forKey: .budgetTransactions) ?? []
+        budgetDataEpoch = try values.decodeIfPresent(Int.self, forKey: .budgetDataEpoch) ?? 1
+        expenseCategories = try values.decodeIfPresent([ExpenseCategoryModel].self, forKey: .expenseCategories) ?? []
+        monthlyBudgets = try values.decodeIfPresent([MonthlyBudgetModel].self, forKey: .monthlyBudgets) ?? []
+        expenses = try values.decodeIfPresent([ExpenseModel].self, forKey: .expenses) ?? []
+        recurringExpenses = try values.decodeIfPresent([RecurringExpenseModel].self, forKey: .recurringExpenses) ?? []
         gymExercises = try values.decodeIfPresent([ExerciseModel].self, forKey: .gymExercises) ?? []
+        gymRoutines = try values.decodeIfPresent([RoutineModel].self, forKey: .gymRoutines) ?? []
         gymWorkouts = try values.decodeIfPresent([WorkoutModel].self, forKey: .gymWorkouts) ?? []
         budgetPreferences = try values.decodeIfPresent(BudgetPreferencesModel.self, forKey: .budgetPreferences) ?? BudgetPreferencesModel()
         gymPreferences = try values.decodeIfPresent(GymPreferencesModel.self, forKey: .gymPreferences) ?? GymPreferencesModel()

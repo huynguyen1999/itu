@@ -34,6 +34,7 @@ export class ScheduledJobProcessor {
       if (job.type === ScheduledJobType.ACCOUNT_DELETE) await this.deleteAccount(job.payload);
       if (job.type === ScheduledJobType.TRASH_PURGE) await this.purgeTrash();
       if (job.type === ScheduledJobType.TASK_REMINDER) await this.deliverReminder(job.payload);
+      if (job.type === ScheduledJobType.HABIT_REMINDER) await this.deliverHabitReminder(job.payload);
       await this.jobs.markCompleted(job.id);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -64,6 +65,18 @@ export class ScheduledJobProcessor {
       throw new Error('Scheduled reminder payload is missing reminderId');
     }
     await this.reminders.deliver((payload as { reminderId: string }).reminderId);
+  }
+
+  private async deliverHabitReminder(payload: unknown): Promise<void> {
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      typeof (payload as { deliveryId?: unknown }).deliveryId !== 'string'
+    ) {
+      throw new Error('Scheduled habit reminder payload is missing deliveryId');
+    }
+    if (!this.reminders.deliverHabitReminder) throw new Error('Habit reminder delivery is not configured');
+    await this.reminders.deliverHabitReminder((payload as { deliveryId: string }).deliveryId);
   }
 
   private userIdFromPayload(payload: unknown): string {

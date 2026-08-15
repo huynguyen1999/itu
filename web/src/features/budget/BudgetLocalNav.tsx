@@ -1,10 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ReceiptText, PieChart, Tags } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, PieChart, Tags, Repeat, BarChart3 } from 'lucide-react';
 
 const budgetTabs = [
   { to: '/budget', label: 'Overview', icon: LayoutDashboard, end: true },
-  { to: '/budget/transactions', label: 'Transactions', icon: ReceiptText, end: false },
+  { to: '/budget/expenses', label: 'Expenses', icon: ReceiptText, end: false },
   { to: '/budget/budgets', label: 'Budgets', icon: PieChart, end: false },
+  { to: '/budget/recurring', label: 'Recurring', icon: Repeat, end: false },
+  { to: '/budget/reports', label: 'Reports', icon: BarChart3, end: false },
   { to: '/budget/categories', label: 'Categories', icon: Tags, end: false },
 ] as const;
 

@@ -1,6 +1,17 @@
 import SwiftUI
 
 enum BudgetSupport {
+    static func tabIcon(_ tab: String) -> String {
+        switch tab {
+        case "Overview": return "chart.bar.xaxis"
+        case "Expenses": return "creditcard"
+        case "Budgets": return "gauge.with.dots.needle.33percent"
+        case "Recurring": return "repeat"
+        case "Reports": return "chart.xyaxis.line"
+        default: return "square.grid.2x2"
+        }
+    }
+
     static func categorySymbol(_ icon: String?) -> String {
         let normalized = (icon ?? "other")
             .trimmingCharacters(in: .whitespacesAndNewlines)

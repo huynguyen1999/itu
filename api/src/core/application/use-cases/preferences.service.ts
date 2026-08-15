@@ -58,7 +58,6 @@ export interface JournalPreferences {
 
 export interface MoneyPreferences {
   defaultCurrency: 'VND' | 'USD';
-  defaultTransactionType: 'EXPENSE' | 'INCOME';
   rememberPaymentMethod: boolean;
   merchantSuggestionsEnabled: boolean;
   budgetWarningThreshold: number;
@@ -166,7 +165,6 @@ export const DEFAULT_JOURNAL_PREFERENCES: JournalPreferences = {
 
 export const DEFAULT_MONEY_PREFERENCES: MoneyPreferences = {
   defaultCurrency: 'VND',
-  defaultTransactionType: 'EXPENSE',
   rememberPaymentMethod: true,
   merchantSuggestionsEnabled: true,
   budgetWarningThreshold: 80,

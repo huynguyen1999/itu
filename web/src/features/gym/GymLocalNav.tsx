@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, History, Dumbbell, Play } from 'lucide-react';
+import { LayoutDashboard, History, Dumbbell, Play, ClipboardList } from 'lucide-react';
 import type { GymWorkout } from './gymQueries';
 
 const gymTabs = [
   { to: '/gym', label: 'Overview', icon: LayoutDashboard, end: true },
+  { to: '/gym/routines', label: 'Routines', icon: ClipboardList, end: false },
   { to: '/gym/history', label: 'History', icon: History, end: false },
   { to: '/gym/exercises', label: 'Exercises', icon: Dumbbell, end: false },
 ] as const;

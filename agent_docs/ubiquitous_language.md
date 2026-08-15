@@ -71,7 +71,11 @@ This glossary defines the domain language evidenced by iTu's product documentati
 | **Journal Template** | A reusable title/body/defaults preset for a **Note** or **Weekly Review**. | Journal form, preset |
 | **Journal Attachment** | File metadata and upload state associated with a **Journal Entry**. | Journal file, media item |
 | **Journal Revision** | An immutable snapshot of a **Journal Entry** captured before an accepted update or restore. | Version, history item |
-| **Budget Transaction** | A standalone dated income or expense record owned by the Budget domain. | Expense, journal expense, money item |
+| **Expense** | A confirmed dated spending record owned by the Budget domain. Every Expense has an amount, category, and date; merchant, payment method, and note are optional metadata. | Budget transaction, income record |
+| **Expense Category** | A user-owned, ordered classification for **Expenses** that may be archived without invalidating historical records. | Budget category, spending type |
+| **Monthly Budget** | An optional overall spending limit for one calendar month, with signed remaining budget derived from actual **Expenses**. | Funding target, envelope budget |
+| **Category Budget Limit** | An optional spending limit for one **Expense Category** within one **Monthly Budget**. | Assignment, category target |
+| **Recurring Expense** | A user-owned expense template that becomes due by date and creates an **Expense** only after explicit confirmation. | Automatic transaction, scheduled transaction |
 | **Gym Workout** | A standalone exercise aggregate with `IN_PROGRESS` or `COMPLETED` status. | Journal workout, gym session |
 | **Exercise Definition** | A reusable Gym exercise definition whose presentation and unit defaults can be archived or edited. | Exercise template, movement |
 | **Workout Status** | The lifecycle state of a **Gym Workout**: `IN_PROGRESS` or `COMPLETED`. | Workout phase, gym state |
@@ -158,7 +162,8 @@ This glossary defines the domain language evidenced by iTu's product documentati
 - A **Journal Entry** may have many **Tags**, **Journal Attachments**, and
   **Journal Revisions**; a **Weekly Review** may include read-only Budget and
   Gym activity summaries.
-- The Budget domain owns **Budget Transactions**; the Gym domain owns
+- The Budget domain owns **Expenses**, **Expense Categories**, **Monthly Budgets**,
+  **Category Budget Limits**, and **Recurring Expenses**; the Gym domain owns
   **Exercise Definitions** and **Gym Workouts**. Neither is a Journal Entry.
 - A **Reminder** may produce one **Notification**.
 - A recurring **Task** produces zero or more **Task Occurrences**.

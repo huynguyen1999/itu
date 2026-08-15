@@ -31,12 +31,12 @@ extension APIClient {
         let _: EmptyResponse = try await request(path: "/trash/journal-entries/\(escapedPath(id))", method: "DELETE")
     }
 
-    func restoreTrashBudgetTransaction(id: String) async throws {
-        let _: EmptyResponse = try await request(path: "/trash/budget-transactions/\(escapedPath(id))/restore", method: "POST")
+    func restoreTrashExpense(id: String) async throws {
+        let _: EmptyResponse = try await request(path: "/trash/expenses/\(escapedPath(id))/restore", method: "POST")
     }
 
-    func permanentlyDeleteTrashBudgetTransaction(id: String) async throws {
-        let _: EmptyResponse = try await request(path: "/trash/budget-transactions/\(escapedPath(id))", method: "DELETE")
+    func permanentlyDeleteTrashExpense(id: String) async throws {
+        let _: EmptyResponse = try await request(path: "/trash/expenses/\(escapedPath(id))", method: "DELETE")
     }
 
     func restoreTrashGymWorkout(id: String) async throws {

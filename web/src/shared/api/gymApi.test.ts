@@ -3,18 +3,27 @@ import { createGymApi } from './gymApi';
 
 function offlineApi() {
   const mutations: Array<Record<string, unknown>> = [];
+  const request = vi.fn().mockResolvedValue({});
   const api = createGymApi({
-    request: vi.fn().mockResolvedValue({}),
+    request,
     stream: async () => new ReadableStream(),
     offlineMutation: async (input) => {
       mutations.push(input as unknown as Record<string, unknown>);
       return input.optimistic;
     },
   });
-  return { api, mutations };
+  return { api, mutations, request };
 }
 
 describe('offline-first gym mutations', () => {
+  it('requests analytics for an explicit date range', async () => {
+    const { api, request } = offlineApi();
+
+    await api.getGymAnalyticsForPeriod('2026-08-01', '2026-08-09');
+
+    expect(request).toHaveBeenCalledWith('/gym/analytics?from=2026-08-01&to=2026-08-09');
+  });
+
   it('creates only an in-progress workout through the start path', async () => {
     const { api, mutations } = offlineApi();
 

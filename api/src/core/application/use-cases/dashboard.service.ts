@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { TOKENS } from '@core/application/constants/tokens';
 import type {
   DashboardSummary,
@@ -12,6 +12,8 @@ import type {
   IStudySessionRepository,
 } from '@core/application/ports/out/repositories.port';
 import { EntityNotFoundException } from '@core/domain/exceptions';
+import { hcmcDateOnly } from '@core/application/utils/calendar';
+import { parseDate } from './usage-validation';
 
 @Injectable()
 export class DashboardService implements IDashboardUseCase {
@@ -60,6 +62,17 @@ export class DashboardService implements IDashboardUseCase {
     return this.sessions.studyCalendar(userId, from, to);
   }
 
+  async studyCalendarRange(userId: string, fromValue: string, toValue: string): Promise<StudyCalendarDay[]> {
+    const from = parseHcmcDate(fromValue, 'from');
+    const to = parseHcmcDate(toValue, 'to');
+    if (from > to) throw new BadRequestException('from must not be after to');
+    const toExclusive = new Date(to.getTime() + 86_400_000);
+    if ((toExclusive.getTime() - from.getTime()) / 86_400_000 > 365) {
+      throw new BadRequestException('Statistics date range cannot exceed 365 days');
+    }
+    return this.sessions.studyCalendar(userId, from, toExclusive);
+  }
+
   async deckStats(userId: string, deckId: string): Promise<DeckStats> {
     const stats = await this.sessions.deckStats(userId, deckId);
     if (!stats) {
@@ -92,4 +105,9 @@ function startOfDay(date: Date): Date {
   const next = new Date(date);
   next.setHours(0, 0, 0, 0);
   return next;
+}
+
+function parseHcmcDate(value: string, field: string): Date {
+  parseDate(value, field);
+  return hcmcDateOnly(value);
 }

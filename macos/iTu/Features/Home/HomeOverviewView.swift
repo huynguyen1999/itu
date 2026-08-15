@@ -61,18 +61,11 @@ struct HomeOverviewView: View {
     // MARK: - Header Bar
 
     private var headerBar: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            iTuSectionLabel(title: "Overview & Workspace", color: iTuTheme.teal)
-            Text("Home")
-                .font(.system(size: 26, weight: .bold, design: .serif))
-                .foregroundStyle(iTuTheme.ink)
-            Text("Your local-first task workspace and connected account status.")
-                .font(.system(size: 13))
-                .foregroundStyle(iTuTheme.inkDim)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 24)
-        .padding(.vertical, 18)
+        iTuPageHeader(
+            kicker: "Overview & Workspace",
+            title: "Home",
+            description: "Your local-first task workspace and connected account status."
+        )
     }
 
     // MARK: - Level & Today Activity Hero Card (Left Column)
@@ -366,7 +359,7 @@ struct HomeOverviewView: View {
 
     private var completedTodayHabitCount: Int {
         todayHabits.reduce(into: 0) { count, habit in
-            if model.habitOccurrence(habitId: habit.id, day: todayDateString)?.status == .completed {
+            if model.habitDayState(habitId: habit.id, day: todayDateString)?.status == .completed || model.habitOccurrence(habitId: habit.id, day: todayDateString)?.status == .completed {
                 count += 1
             }
         }
@@ -417,25 +410,30 @@ struct HomeOverviewView: View {
                     .iTuPanel(radius: 14)
             } else {
                 LazyVStack(spacing: 0) {
-                    ForEach(todayHabits) { habit in
+                    ForEach(todayHabits, id: \.id) { habit in
                         let occurrence = model.habitOccurrence(habitId: habit.id, day: todayDateString)
                         HStack(spacing: 12) {
-                            HabitOccurrenceButton(
+                            HabitQuickActionView(
+                                habit: habit,
                                 habitName: habit.name,
                                 dayLabel: "Today",
                                 dayNumber: Calendar.current.component(.day, from: Date()),
                                 dayDate: todayDateString,
                                 occurrence: occurrence,
+                                projectedState: model.habitDayState(habitId: habit.id, day: todayDateString),
                                 isLoading: model.habitOccurrencesLoading,
                                 didFailLoading: model.habitOccurrencesErrorMessage != nil,
                                 onCheckIn: { occurrence in
-                                    Task { await model.checkInHabitOccurrence(occurrence, value: max(1, habit.targetValue)) }
+                                    Task { await model.checkInHabitOccurrence(occurrence, value: habitQuickIncrement(habit)) }
                                 },
                                 onAction: { occurrence, action in
                                     Task { await model.habitOccurrenceAction(occurrence, action: action) }
                                 },
                                 onCheckInDate: {
-                                    Task { await model.checkInHabitDate(habitId: habit.id, date: todayDateString, value: max(1, habit.targetValue)) }
+                                    Task { await model.checkInHabitDate(habitId: habit.id, date: todayDateString, value: habitQuickIncrement(habit)) }
+                                },
+                                onActionDate: { action in
+                                    Task { await model.habitOccurrenceAction(habitId: habit.id, date: todayDateString, action: action) }
                                 }
                             )
                             Text(String(habit.icon.prefix(2)))
@@ -448,7 +446,13 @@ struct HomeOverviewView: View {
                                 Text(habit.name)
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundStyle(iTuTheme.ink)
-                                Text(habit.frequency.rawValue.capitalized)
+                                Group {
+                                    if let state = model.habitDayState(habitId: habit.id, day: todayDateString), state.targetValue > 1 {
+                                    Text("\(Int(state.value)) / \(Int(state.targetValue)) \(habit.unit ?? "")")
+                                    } else {
+                                        Text(habit.frequency.rawValue.capitalized)
+                                    }
+                                }
                                     .font(.system(size: 10, design: .monospaced))
                                     .foregroundStyle(iTuTheme.inkDim)
                             }

@@ -124,11 +124,11 @@ export interface ITrashRepository {
   deleteCardImage(userId: string, imageId: string): Promise<CardImageModel | null>;
   deleteTask(userId: string, taskId: string): Promise<boolean>;
   restoreJournalEntry(userId: string, entryId: string): Promise<any | null>;
-  restoreBudgetTransaction(userId: string, transactionId: string): Promise<any | null>;
+  restoreExpense(userId: string, expenseId: string): Promise<any | null>;
   restoreGymWorkout(userId: string, workoutId: string): Promise<any | null>;
   restoreGymExercise(userId: string, exerciseId: string): Promise<any | null>;
   deleteJournalEntry(userId: string, entryId: string): Promise<any[] | null>;
-  deleteBudgetTransaction(userId: string, transactionId: string): Promise<boolean>;
+  deleteExpense(userId: string, expenseId: string): Promise<boolean>;
   deleteGymWorkout(userId: string, workoutId: string): Promise<boolean>;
   deleteGymExercise(userId: string, exerciseId: string): Promise<any | null>;
   purgeExpired(cutoff: Date): Promise<CardImageModel[]>;
@@ -189,6 +189,7 @@ export interface IScheduledJobRepository {
 
 export interface IReminderRepository {
   deliver(reminderId: string): Promise<boolean>;
+  deliverHabitReminder?(deliveryId: string): Promise<boolean>;
 }
 
 export interface ISyncDeviceRepository {
@@ -398,6 +399,7 @@ export interface IProductivityRepository {
   deleteHabit(userId: string, id: string): Promise<boolean>;
 
   listHabitOccurrences(userId: string, filter?: any): Promise<any[]>;
+  listHabitCalendar(userId: string, filter: { from: string; to: string; habitId?: string }): Promise<any>;
   findHabitOccurrenceById(userId: string, id: string): Promise<any | null>;
   upsertHabitOccurrence(userId: string, data: any): Promise<any>;
   getHabitCommitmentPolicy(userId: string, habitId: string): Promise<any | null>;
@@ -405,6 +407,16 @@ export interface IProductivityRepository {
   evaluateHabitCommitment(userId: string, occurrenceId: string, now?: Date, idempotencyKey?: string): Promise<any>;
   excuseHabitCommitment(userId: string, occurrenceId: string, idempotencyKey?: string): Promise<any>;
   checkIn(userId: string, occurrenceId: string, data: any): Promise<any>;
+  checkInByDate(userId: string, habitId: string, localDate: string, data: any): Promise<any>;
+  habitOccurrenceActionByDate(
+    userId: string,
+    habitId: string,
+    localDate: string,
+    action: 'skip' | 'fail' | 'undo',
+    idempotencyKey?: string,
+  ): Promise<any>;
+  listHabitProgress(userId: string, habitId: string, filter?: { from?: string; to?: string }): Promise<any[]>;
+  deleteHabitProgress(userId: string, progressId: string): Promise<any | null>;
   habitOccurrenceAction(
     userId: string,
     id: string,
@@ -414,6 +426,8 @@ export interface IProductivityRepository {
   updateChecklistItem(userId: string, id: string, data: any): Promise<any>;
   setOccurrenceChecklistItem(userId: string, occurrenceId: string, itemId: string, completed: boolean): Promise<any>;
   habitStats(userId: string, habitId: string): Promise<any>;
+  habitInsights(userId: string, habitId: string, filter: { from: string; to: string }): Promise<any>;
+  habitReminderAction(userId: string, deliveryId: string, action: 'snooze' | 'dismiss' | 'complete', remindAt?: string): Promise<any>;
   listHabitStats(userId: string, habitIds: string[]): Promise<Record<string, any>>;
 
   // Task Tags & Notifications

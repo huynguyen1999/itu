@@ -22,9 +22,9 @@ export class PrismaJournalWeeklyReviewRepository implements IJournalWeeklyReview
         _count: true,
       }),
       this.prisma.reviewLog.count({ where: { userId, createdAt: { gte: periodStart, lte: periodEnd } } }),
-      this.prisma.budgetTransaction.findMany({
-        where: { userId, transactionAt: { gte: periodStart, lte: periodEnd }, deletedAt: null },
-        select: { amount: true, currency: true },
+      this.prisma.expense.findMany({
+        where: { userId, expenseDate: { gte: periodStart, lte: periodEnd }, deletedAt: null },
+        select: { amount: true },
       }),
       this.prisma.gymWorkout.count({ where: { userId, startedAt: { gte: periodStart, lte: periodEnd }, deletedAt: null } }),
       this.prisma.growthLedgerEntry.aggregate({
@@ -38,8 +38,8 @@ export class PrismaJournalWeeklyReviewRepository implements IJournalWeeklyReview
     });
     const expenseTotals = new Map<string, Prisma.Decimal>();
     for (const expense of expensesRaw) {
-      const current = expenseTotals.get(expense.currency);
-      expenseTotals.set(expense.currency, current ? current.add(expense.amount) : expense.amount);
+      const current = expenseTotals.get('VND');
+      expenseTotals.set('VND', current ? current.add(expense.amount) : expense.amount);
     }
 
     return {

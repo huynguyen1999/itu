@@ -127,9 +127,9 @@ export class TrashController {
     return this.trash.restoreJournalEntry(req.user.sub, entryId);
   }
 
-  @Post(REST_ROUTES.trashBudgetTransactionRestore)
-  restoreBudgetTransaction(@Req() req: AuthenticatedRequest, @Param('transactionId') transactionId: string) {
-    return this.trash.restoreBudgetTransaction(req.user.sub, transactionId);
+  @Post(REST_ROUTES.trashExpenseRestore)
+  restoreExpense(@Req() req: AuthenticatedRequest, @Param('expenseId') expenseId: string) {
+    return this.trash.restoreExpense(req.user.sub, expenseId);
   }
 
   @Post(REST_ROUTES.trashGymWorkoutRestore)
@@ -148,9 +148,9 @@ export class TrashController {
     return { ok: true };
   }
 
-  @Delete(REST_ROUTES.trashBudgetTransactionDelete)
-  async deleteBudgetTransaction(@Req() req: AuthenticatedRequest, @Param('transactionId') transactionId: string) {
-    await this.trash.deleteBudgetTransaction(req.user.sub, transactionId);
+  @Delete(REST_ROUTES.trashExpenseDelete)
+  async deleteExpense(@Req() req: AuthenticatedRequest, @Param('expenseId') expenseId: string) {
+    await this.trash.deleteExpense(req.user.sub, expenseId);
     return { ok: true };
   }
 
