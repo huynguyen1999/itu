@@ -2,6 +2,28 @@
 
 ## Session date
 
+2026-08-15
+
+## Completed
+
+- Replaced Budget v1 with the expense-only Budget v2 contract: Expenses, Expense Categories, Monthly Budgets, Category Budget Limits, Recurring Expenses, signed remaining values, derived reports, and explicit recurring confirmation/skip.
+- Applied the destructive local Budget reset migration, removed the old Budget tables and queued v1 mutation replay paths, and kept the macOS reset scoped to Budget data only. Existing reset accounts lazily receive the ten default categories on first category load.
+- Completed the REST, Prisma, sync, offline, macOS, and Web surfaces for expense CRUD, filtering/search, limits, recurring management, reports, Trash restore, and month selection. Updated the canonical glossary and platform architecture references to the v2 terms.
+
+## Verification
+
+- Local PostgreSQL: `20260815000000_budget_v2_reset` is applied; `Expense`, `ExpenseCategory`, `MonthlyBudget`, `CategoryBudgetLimit`, and `RecurringExpense` exist; old Budget tables are absent.
+- API: 81 suites / 375 tests, typecheck, and build passed.
+- Web: 64 files / 325 tests, typecheck, and production build passed.
+- macOS: signed Apple Development build and six focused Budget tests passed.
+- The Budget-scoped diff passes `git diff --check`. The repository also has two unrelated pre-existing Gym blank-line warnings; the only remaining Budget v1-name matches are the four intentional macOS queue-purge filters documented in `SyncModels.swift`.
+
+## Unfinished
+
+- No Budget implementation work remains in this cutover. Production deployment still requires the normal migration-target review; the destructive migration was verified only against the configured disposable local database.
+
+## Session date
+
 2026-08-13
 
 ## Completed

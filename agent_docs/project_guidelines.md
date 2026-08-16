@@ -20,7 +20,7 @@ Durable project context is maintained under `agent_docs/`. Read only the documen
 
 General rules:
 
-- Read this file and only the project context relevant to the selected route and task.
+- Read this file and only the project context relevant to the current task.
 - Update durable documentation only with verified facts.
 - Never delete a main project document without warning the user and receiving a second explicit confirmation.
 

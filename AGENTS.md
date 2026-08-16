@@ -2,7 +2,7 @@
 
 Canonical operating instructions for AI coding agents in this repository.
 
-**Scope.** This file governs how any AI agent (main agent or native worker) plans, executes, verifies, and documents work. It is runtime-neutral: it applies whether the active tool is Codex, Roo Code, Antigravity, or another compatible coding agent.
+**Scope.** This file governs how any AI agent plans, executes, verifies, and documents work. It is runtime-neutral: it applies whether the active tool is Codex, Roo Code, Antigravity, or another compatible coding agent.
 
 **Deference.** Tool-specific instruction files such as `GEMINI.md` and `.roo/rules/*` are adapters to this workflow. They must defer to this file and must not maintain a separate copy of project policy.
 
@@ -13,29 +13,16 @@ When instructions conflict, resolve them in this order (highest first):
 1. This file (`AGENTS.md`).
 2. [`agent_docs/project_guidelines.md`](agent_docs/project_guidelines.md) — project context, safety, architecture, technology, database, testing, and offline-first rules.
 3. [`agent_docs/ubiquitous_language.md`](agent_docs/ubiquitous_language.md) — the canonical domain terms and their aliases-to-avoid for code, UI copy, API contracts, documentation, and communication.
-4. Workflow documents under `agent_docs/workflows/` — [`agent_docs/workflows/route_selection.md`](agent_docs/workflows/route_selection.md) for route selection and the selected route's procedure.
+4. Workflow documents under `agent_docs/workflows/` — [`agent_docs/workflows/workflow.md`](agent_docs/workflows/workflow.md) for standard workflow procedures.
 5. Tool-specific adapters (`GEMINI.md`, `.roo/rules/*`).
 
 ## 2. Core Concepts
 
-### 2.1 Main Agent
+### 2.1 Agent Role
 
-The active top-level agent is the **main agent**, whatever the tool. It owns planning, decomposition, architecture, synthesis, product judgment, integration, and final proof. All workers report to it.
+The active top-level agent owns planning, decomposition, architecture, synthesis, product judgment, integration, and final proof. Perform the work directly.
 
-### 2.2 Route Selection
-
-The main agent selects a workflow route **automatically** at session start, based on task scope and complexity; the user does not need to name a route. The route determines whether subagents may be spawned and the documentation duties.
-
-| Route | What you do | Subagents |
-| --- | --- | --- |
-| **Direct** | Perform the work yourself | Never |
-| **Sub-agent** | Orchestrate native subagents | Yes |
-
-Default to the **Direct** route. Choose the **Sub-agent** route only when the task is large and complex enough that parallel, independently owned work packages reduce total time or risk, and the active tool provides suitable native subagents. The user may still override by naming a route. Full selection criteria, the Codex model policy, and per-route procedures are defined in [`agent_docs/workflows/route_selection.md`](agent_docs/workflows/route_selection.md).
-
-**DeepSeek profile (`deepseek-v4-flash`).** When the active profile is `deepseek-v4-flash` (Codex running against the DeepSeek API), always use the **Direct** route and never spawn subagents. The DeepSeek profile provides no native subagent orchestration, so the Sub-agent route is unavailable and falls back to Direct per **R5** and the Sub-agent-to-Direct fallback.
-
-### 2.3 Domain Language
+### 2.2 Domain Language
 
 Before writing code, UI copy, API contracts, or documentation, consult [`agent_docs/ubiquitous_language.md`](agent_docs/ubiquitous_language.md) and use its canonical terms. Avoid the aliases it flags, do not introduce parallel vocabulary for existing concepts, and extend the glossary when a new domain concept needs a name.
 
@@ -43,11 +30,8 @@ Before writing code, UI copy, API contracts, or documentation, consult [`agent_d
 
 These rules never change. Violating them is a hard error.
 
-- **R1. Native workers only.** Use only workers or subagents provided natively by the currently active tool.
-- **R2. No external agent runtimes.** Never invoke another coding-agent runtime through a CLI, SDK, API, MCP server, subprocess, or similar integration to perform repository work.
-- **R3. Roo Code / Antigravity → Codex ban.** Roo Code and Antigravity must not invoke Codex CLI, the Codex SDK, `codex exec`, `codex mcp-server`, or Codex agents as workers.
-- **R4. Worker ownership.** A native worker may implement, test, investigate, or document only within the ownership assigned by the main agent.
-- **R5. Missing native workers.** If the selected route requires native workers the active tool cannot provide, use the route fallback in [`agent_docs/workflows/route_selection.md`](agent_docs/workflows/route_selection.md) instead of calling an external agent.
+- **R1. No external agent runtimes.** Never invoke another coding-agent runtime through a CLI, SDK, API, MCP server, subprocess, or similar integration to perform repository work.
+- **R2. Roo Code / Antigravity → Codex ban.** Roo Code and Antigravity must not invoke Codex CLI, the Codex SDK, `codex exec`, `codex mcp-server`, or Codex agents.
 
 ## 4. Tool Execution and Batching
 
@@ -71,7 +55,6 @@ For each bounded work stage, identify independent, already-known, non-conflictin
 - A result that determines the next operation.
 - Adaptive investigation where the next target is not yet known.
 - Approvals or permission boundaries.
-- Agent spawn, wait, resume, message, or replacement operations.
 - Overlapping or order-sensitive writes.
 - Git staging, commits, resets, or other Git-state mutations.
 - Builds or tests sharing a build directory, generated output, database, port, fixture, or other mutable resource.
@@ -79,8 +62,8 @@ For each bounded work stage, identify independent, already-known, non-conflictin
 ### 4.4 Anti-Patterns
 
 - Do not split an otherwise batchable inspection across repeated outer tool calls.
-- Do not create extra work, broaden scope, obscure failure attribution, or increase worker count merely to fill a batch.
-- Tool-call concurrency is local to one agent thread. It does not change worker ownership, scope boundaries, subagent-concurrency limits, or report limits.
+- Do not create extra work, broaden scope, or obscure failure attribution merely to fill a batch.
+- Tool-call concurrency is local to one agent thread. It does not change scope boundaries or report limits.
 
 ## 5. Platform-Specific Paths
 

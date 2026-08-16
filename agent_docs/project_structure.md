@@ -8,7 +8,7 @@ web/       React/Vite application, feature modules, shared client behavior, and 
 macos/     Native SwiftUI application, shared models, persistence, sync, and tests
 tools/     Project tooling
 plans/     Planning artifacts
-agent_docs/ Durable project context and workflow routes
+agent_docs/ Durable project context
 ```
 
 The API, web, macOS, and workflow directories are independent Git repositories or repository boundaries inside the shared workspace. Existing uncommitted changes in those project repositories are user-owned and outside this documentation task.
@@ -97,5 +97,4 @@ dependencies; remaining exported types are retained API/domain contracts.
 - `agent_docs/project_progress.md`: durable implementation status.
 - `agent_docs/project_diary.md`: lasting decisions and lessons.
 - `agent_docs/latest_session_work.md`: cross-session handoff.
-- `agent_docs/workflows/route_selection.md`: route selection, working states, context loading, and documentation responsibility by route.
-- `agent_docs/workflows/direct_route.md` and `agent_docs/workflows/subagent_route.md`: per-route procedures.
+- `agent_docs/workflows/workflow.md`: development workflow, stage execution, tool batching, plans, status writes, and handoff procedures.
