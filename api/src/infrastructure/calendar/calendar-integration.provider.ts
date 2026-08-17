@@ -38,6 +38,11 @@ type GoogleEventsPage = { items: GoogleEvent[]; nextPageToken?: string; nextSync
 
 export function parseIcsEvents(text: string, from: Date, to: Date): ParsedCalendarEvent[] {
   const calendar = ICAL.Component.fromString(text);
+  for (const tz of calendar.getAllSubcomponents('vtimezone')) {
+    try {
+      ICAL.TimezoneService.register(tz);
+    } catch {}
+  }
   const result: ParsedCalendarEvent[] = [];
   for (const component of calendar.getAllSubcomponents('vevent')) {
     if (component.hasProperty('recurrence-id')) continue;
@@ -52,14 +57,14 @@ export function parseIcsEvents(text: string, from: Date, to: Date): ParsedCalend
         const startAt = details.startDate.toJSDate();
         const endAt = details.endDate?.toJSDate() ?? null;
         if (startAt >= to) break;
-        if (endAt && endAt <= from) continue;
+        if (endAt ? endAt <= from : startAt < from) continue;
         result.push(toParsedEvent(event, startAt, endAt, occurrence.toString(), details.item));
       }
       continue;
     }
     const startAt = event.startDate.toJSDate();
     const endAt = event.endDate?.toJSDate() ?? null;
-    if (startAt < to && (!endAt || endAt > from)) result.push(toParsedEvent(event, startAt, endAt, null, event));
+    if (startAt < to && (endAt ? endAt > from : startAt >= from)) result.push(toParsedEvent(event, startAt, endAt, null, event));
   }
   return result.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
 }

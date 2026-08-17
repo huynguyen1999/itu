@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "group:apple/Packages/iTuCore">
+   </FileRef>
+   <FileRef
+      location = "group:ios/iTu.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:macos/iTu.xcodeproj">
+   </FileRef>
+</Workspace>

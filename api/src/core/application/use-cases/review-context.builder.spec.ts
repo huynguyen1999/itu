@@ -23,21 +23,71 @@ describe('ReviewContextBuilder helpers', () => {
 
   it('makes weekly app and website comparisons citable evidence', async () => {
     const source = {
-      loadPeriodData: jest.fn()
-        .mockResolvedValueOnce({ coverage: {}, metrics: { appUsage: { activeSeconds: 600 }, websiteUsage: { activeSeconds: 300 } }, details: {} })
-        .mockResolvedValueOnce({ coverage: {}, metrics: { appUsage: { activeSeconds: 400 }, websiteUsage: { activeSeconds: 500 } }, details: {} }),
+      loadPeriodData: jest
+        .fn()
+        .mockResolvedValueOnce({
+          coverage: {},
+          metrics: { appUsage: { activeSeconds: 600 }, websiteUsage: { activeSeconds: 300 } },
+          details: {},
+        })
+        .mockResolvedValueOnce({
+          coverage: {},
+          metrics: { appUsage: { activeSeconds: 400 }, websiteUsage: { activeSeconds: 500 } },
+          details: {},
+        }),
     };
 
-    const context = await new ReviewContextBuilder(source).build('user-1', {
-      kind: 'WEEKLY',
-      startDate: '2026-08-10',
-      endDate: '2026-08-16',
-      timezone: 'Asia/Ho_Chi_Minh',
-    }, {});
+    const context = await new ReviewContextBuilder(source).build(
+      'user-1',
+      {
+        kind: 'WEEKLY',
+        startDate: '2026-08-10',
+        endDate: '2026-08-16',
+        timezone: 'Asia/Ho_Chi_Minh',
+      },
+      {},
+    );
 
-    expect(context.evidence).toEqual(expect.arrayContaining([
-      { id: 'comparison.appUsage.active_seconds', source: 'APP', label: '600 vs 400 last week' },
-      { id: 'comparison.websiteUsage.active_seconds', source: 'WEBSITE', label: '300 vs 500 last week' },
-    ]));
+    expect(context.evidence).toEqual(
+      expect.arrayContaining([
+        { id: 'comparison.appUsage.active_seconds', source: 'APP', label: '600 vs 400 last week' },
+        { id: 'comparison.websiteUsage.active_seconds', source: 'WEBSITE', label: '300 vs 500 last week' },
+      ]),
+    );
+  });
+
+  it('compares measured health totals without turning missing days into zero', async () => {
+    const source = {
+      loadPeriodData: jest
+        .fn()
+        .mockResolvedValueOnce({
+          coverage: {},
+          metrics: { health: { steps: 1000, exerciseMinutes: 30, workoutMinutes: 20 } },
+          details: {},
+        })
+        .mockResolvedValueOnce({
+          coverage: {},
+          metrics: { health: { steps: null, exerciseMinutes: null, workoutMinutes: null } },
+          details: {},
+        }),
+    };
+
+    const context = await new ReviewContextBuilder(source).build(
+      'user-1',
+      {
+        kind: 'WEEKLY',
+        startDate: '2026-08-10',
+        endDate: '2026-08-16',
+        timezone: 'Asia/Ho_Chi_Minh',
+      },
+      {},
+    );
+
+    expect(context.evidence).toEqual(
+      expect.arrayContaining([{ id: 'health.steps', source: 'HEALTH', label: '1000 steps this week' }]),
+    );
+    expect(context.evidence).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'comparison.health.steps' })]),
+    );
   });
 });

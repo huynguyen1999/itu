@@ -64,6 +64,56 @@ describe('UsageService', () => {
     expect(repo.replaceBatch).toHaveBeenCalledTimes(2);
   });
 
+  it('accepts iOS DeviceActivity snapshots with absolute event counters', async () => {
+    repo.findDevice.mockResolvedValue({ platform: 'IOS' });
+    repo.getTrackingPreferences.mockResolvedValue({ trackingEnabled: true, retentionDays: 90 });
+    repo.replaceBatch.mockResolvedValue(1);
+
+    await expect(new UsageService(repo).replaceBatch('user-1', {
+      deviceId: 'ios-device',
+      summaries: [{
+        source: 'DEVICE_ACTIVITY',
+        localDate: '2026-08-01',
+        hour: 9,
+        bundleId: 'com.example.Editor',
+        displayName: 'Editor',
+        timezone: 'Asia/Ho_Chi_Minh',
+        activeSeconds: 120,
+        pickups: 3,
+        notifications: 2,
+      }],
+    } as any)).resolves.toEqual({ accepted: true, replaced: 1 });
+
+    expect(repo.replaceBatch).toHaveBeenCalledWith('user-1', 'ios-device', [expect.objectContaining({
+      source: 'DEVICE_ACTIVITY',
+      activeSeconds: 120,
+      pickups: 3,
+      notifications: 2,
+    })]);
+  });
+
+  it('rejects DeviceActivity snapshots from macOS devices and negative event counters', async () => {
+    repo.findDevice.mockResolvedValue({ platform: 'MACOS' });
+    repo.getTrackingPreferences.mockResolvedValue({ trackingEnabled: true, retentionDays: 90 });
+    const service = new UsageService(repo);
+
+    await expect(service.replaceBatch('user-1', {
+      deviceId: 'mac-device',
+      summaries: [{ source: 'DEVICE_ACTIVITY', localDate: '2026-08-01', bundleId: 'a', displayName: 'A', timezone: 'UTC', activeSeconds: 1 }],
+    } as any)).rejects.toThrow('DeviceActivity usage requires an iOS Sync Device');
+
+    repo.findDevice.mockResolvedValue({ platform: 'IOS' });
+    await expect(service.replaceBatch('user-1', {
+      deviceId: 'ios-device',
+      summaries: [{ source: 'DEVICE_ACTIVITY', localDate: '2026-08-01', bundleId: 'a', displayName: 'A', timezone: 'UTC', activeSeconds: 1, pickups: -1 }],
+    } as any)).rejects.toThrow('pickups must be a nonnegative integer');
+
+    await expect(service.replaceBatch('user-1', {
+      deviceId: 'ios-device',
+      summaries: [{ source: 'DEVICE_ACTIVITY', localDate: '2026-08-01', bundleId: 'a', displayName: 'A', timezone: 'UTC', activeSeconds: 1, notifications: -1 }],
+    } as any)).rejects.toThrow('notifications must be a nonnegative integer');
+  });
+
   it('rejects an invalid hour bucket', async () => {
     repo.findDevice.mockResolvedValue({ platform: 'MACOS' });
     repo.getTrackingPreferences.mockResolvedValue({ trackingEnabled: true, retentionDays: 90 });
@@ -212,6 +262,33 @@ describe('UsageService', () => {
         localDate: expect.any(Date),
       }),
     ]);
+  });
+
+  it('keeps DeviceActivity website hours separate without a browser identity', async () => {
+    repo.findDevice.mockResolvedValue({ platform: 'IOS' });
+    repo.getTrackingPreferences.mockResolvedValue({ trackingEnabled: true, websiteTrackingEnabled: true, retentionDays: 90 });
+    repo.replaceWebsiteBatch.mockResolvedValue(2);
+
+    await expect(new UsageService(repo).replaceWebsiteBatch('user-1', {
+      deviceId: 'ios-device',
+      summaries: [
+        { source: 'DEVICE_ACTIVITY', localDate: '2026-08-01', hour: 9, browserDisplayName: 'Device Activity', hostname: 'example.com', url: 'https://example.com/a', timezone: 'UTC', activeSeconds: 10 },
+        { source: 'DEVICE_ACTIVITY', localDate: '2026-08-01', hour: 10, browserDisplayName: 'Device Activity', hostname: 'example.com', url: 'https://example.com/a', timezone: 'UTC', activeSeconds: 20 },
+      ],
+    } as any)).resolves.toEqual({ accepted: true, replaced: 2 });
+
+    expect(repo.replaceWebsiteBatch).toHaveBeenCalledWith('user-1', 'ios-device', [
+      expect.objectContaining({ source: 'DEVICE_ACTIVITY', hour: 9, browserBundleId: null, activeSeconds: 10 }),
+      expect.objectContaining({ source: 'DEVICE_ACTIVITY', hour: 10, browserBundleId: null, activeSeconds: 20 }),
+    ]);
+  });
+
+  it('rejects a browser source on an iOS website device', async () => {
+    repo.findDevice.mockResolvedValue({ platform: 'IOS' });
+    await expect(new UsageService(repo).replaceWebsiteBatch('user-1', {
+      deviceId: 'ios-device',
+      summaries: [{ source: 'BROWSER', localDate: '2026-08-01', browserBundleId: 'edge', browserDisplayName: 'Edge', hostname: 'example.com', timezone: 'UTC', activeSeconds: 1 }],
+    } as any)).rejects.toThrow('Browser website usage requires a macOS Sync Device');
   });
 
   it('supports one-day website ranges and rejects URLs outside the hostname', async () => {

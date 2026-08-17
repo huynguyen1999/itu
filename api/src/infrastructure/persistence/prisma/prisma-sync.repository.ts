@@ -1,10 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  CardStatus,
-  HabitProgressSource,
-  Prisma,
-  ReminderStatus,
-} from '@prisma/client';
+import { CardStatus, HabitProgressSource, Prisma, ReminderStatus } from '@prisma/client';
 import { SyncConflict, SyncMutation } from '@core/application/ports/in/sync-use-case.port';
 import {
   ApplySyncMutationsResult,
@@ -12,7 +7,7 @@ import {
   SyncChangesResult,
 } from '@core/application/ports/out/sync-repository.port';
 import { SrsSchedulerService } from '@core/application/use-cases/srs-scheduler.service';
-import { InvalidSyncMutationException } from '@core/domain/exceptions';
+import { DomainException, InvalidSyncMutationException } from '@core/domain/exceptions';
 import { PrismaService } from './prisma.service';
 import { PrismaSyncTransportMutations } from './prisma-sync-transport-mutations';
 import { PrismaSyncStudyMutations } from './prisma-sync-study-mutations';
@@ -21,13 +16,11 @@ import { PrismaSyncTasks } from './prisma-sync-tasks';
 import { PrismaSyncGrowthMutations } from './prisma-sync-growth-mutations';
 import { PrismaSyncJournal, JOURNAL_SYNC_INCLUDE } from './prisma-sync-journal';
 import { PrismaSyncBudgetGym } from './prisma-sync-budget-gym';
+import { PrismaSyncHealth, healthSummaryEntityId, healthWorkoutEntityId } from './prisma-sync-health';
 import { TASK_SYNC_INCLUDE, Tx } from './prisma-sync-mutation.shared';
 import { mapCard, mapDeck } from './prisma.mappers';
 import { deriveUrgency } from '@core/application/use-cases/productivity-rules';
-import {
-  syncValuesEqual,
-  HABIT_ACTION_MARKER_PREFIX,
-} from './prisma-sync.helpers';
+import { syncValuesEqual, HABIT_ACTION_MARKER_PREFIX } from './prisma-sync.helpers';
 
 const SYNC_MUTATION_TRANSACTION_OPTIONS = {
   maxWait: 5_000,
@@ -49,6 +42,7 @@ export class PrismaSyncRepository implements ISyncRepository {
   private readonly growthMutations = new PrismaSyncGrowthMutations();
   private readonly journalMutations = new PrismaSyncJournal();
   private readonly budgetGymMutations = new PrismaSyncBudgetGym();
+  private readonly healthMutations = new PrismaSyncHealth();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -63,57 +57,72 @@ export class PrismaSyncRepository implements ISyncRepository {
     const aiJobsToEnqueue: Array<{ id: string; kind: string }> = [];
     const mutationOutcomes: ApplySyncMutationsResult['mutationOutcomes'] = [];
 
-    for (const mutation of mutations) {
-      const applied = await this.prisma.$transaction(async (tx) => {
-        const mutationOutcome: { growthReceipt?: unknown } = {};
-        const alreadyProcessed = await tx.syncMutation.findUnique({ where: { id: mutation.id } });
-        if (alreadyProcessed) {
-          if (alreadyProcessed.userId !== userId)
-            throw new InvalidSyncMutationException('Mutation ID is already in use');
-          if (
-            alreadyProcessed.kind !== mutation.kind ||
-            alreadyProcessed.entityId !== mutation.entityId ||
-            !syncValuesEqual(alreadyProcessed.payload, mutation.payload)
-          ) {
-            throw new InvalidSyncMutationException('Mutation ID was reused with a different operation', {
-              reason: 'MUTATION_ID_REUSED',
-              mutationId: mutation.id,
-            });
+    try {
+      for (const mutation of mutations) {
+        const applied = await this.prisma.$transaction(async (tx) => {
+          const mutationOutcome: { growthReceipt?: unknown } = {};
+          const alreadyProcessed = await tx.syncMutation.findUnique({ where: { id: mutation.id } });
+          if (alreadyProcessed) {
+            if (alreadyProcessed.userId !== userId)
+              throw new InvalidSyncMutationException('Mutation ID is already in use');
+            if (
+              alreadyProcessed.kind !== mutation.kind ||
+              alreadyProcessed.entityId !== mutation.entityId ||
+              !syncValuesEqual(alreadyProcessed.payload, mutation.payload)
+            ) {
+              throw new InvalidSyncMutationException('Mutation ID was reused with a different operation', {
+                reason: 'MUTATION_ID_REUSED',
+                mutationId: mutation.id,
+              });
+            }
+            const storedOutcome =
+              alreadyProcessed.result &&
+              typeof alreadyProcessed.result === 'object' &&
+              !Array.isArray(alreadyProcessed.result)
+                ? (alreadyProcessed.result as Record<string, unknown>)
+                : undefined;
+            return { conflict: null, mutationOutcome: storedOutcome };
           }
-          const storedOutcome =
-            alreadyProcessed.result &&
-            typeof alreadyProcessed.result === 'object' &&
-            !Array.isArray(alreadyProcessed.result)
-              ? (alreadyProcessed.result as Record<string, unknown>)
-              : undefined;
-          return { conflict: null, mutationOutcome: storedOutcome };
-        }
 
-        const conflict = await this.applyMutation(tx, userId, { ...mutation, serverDeviceId: deviceId } as SyncMutation, mutationOutcome);
-        await tx.syncMutation.create({
-          data: {
-            id: mutation.id,
+          const conflict = await this.applyMutation(
+            tx,
             userId,
-            deviceId,
-            kind: mutation.kind,
-            entityId: mutation.entityId,
-            payload: mutation.payload as Prisma.InputJsonValue,
-            result: Object.keys(mutationOutcome).length ? (mutationOutcome as Prisma.InputJsonValue) : undefined,
-            occurredAt: new Date(mutation.occurredAt),
-          },
-        });
-        return {
-          conflict,
-          mutationOutcome: Object.keys(mutationOutcome).length ? mutationOutcome : undefined,
-        };
-      }, SYNC_MUTATION_TRANSACTION_OPTIONS);
+            { ...mutation, serverDeviceId: deviceId } as SyncMutation,
+            mutationOutcome,
+          );
+          await tx.syncMutation.create({
+            data: {
+              id: mutation.id,
+              userId,
+              deviceId,
+              kind: mutation.kind,
+              entityId: mutation.entityId,
+              payload: mutation.payload as Prisma.InputJsonValue,
+              result: Object.keys(mutationOutcome).length ? (mutationOutcome as Prisma.InputJsonValue) : undefined,
+              occurredAt: new Date(mutation.occurredAt),
+            },
+          });
+          return {
+            conflict,
+            mutationOutcome: Object.keys(mutationOutcome).length ? mutationOutcome : undefined,
+          };
+        }, SYNC_MUTATION_TRANSACTION_OPTIONS);
 
-      acknowledgedMutationIds.push(mutation.id);
-      if (applied.mutationOutcome) {
-        mutationOutcomes.push({ mutationId: mutation.id, ...applied.mutationOutcome });
+        acknowledgedMutationIds.push(mutation.id);
+        if (applied.mutationOutcome) {
+          mutationOutcomes.push({ mutationId: mutation.id, ...applied.mutationOutcome });
+        }
+        if (mutation.kind.startsWith('ai.')) aiJobsToEnqueue.push({ id: mutation.entityId, kind: mutation.kind });
+        if (applied.conflict) conflicts.push(applied.conflict);
       }
-      if (mutation.kind.startsWith('ai.')) aiJobsToEnqueue.push({ id: mutation.entityId, kind: mutation.kind });
-      if (applied.conflict) conflicts.push(applied.conflict);
+    } catch (error) {
+      if (acknowledgedMutationIds.length > 0 && error instanceof DomainException) {
+        throw new DomainException(error.message, error.code, error.status, {
+          ...error.details,
+          acknowledgedMutationIds,
+        });
+      }
+      throw error;
     }
 
     return { acknowledgedMutationIds, conflicts, aiJobsToEnqueue, mutationOutcomes };
@@ -134,33 +143,30 @@ export class PrismaSyncRepository implements ISyncRepository {
       };
     }
     const createSnapshot = shouldCreateSyncSnapshot(cursor, latestServerCursor);
-    const incrementalChanges =
-      createSnapshot
-        ? []
-        : await this.prisma.syncChange.findMany({
-            where: { userId, cursor: { gt: cursor } },
-            orderBy: { cursor: 'asc' },
-            take: 2000,
-          });
-    const rawChanges =
-      createSnapshot
-        ? (await this.initialSnapshot(userId)).map((change) => ({
-            cursor: latestServerCursor,
-            entityType: change.entityType,
-            entityId: change.entityId,
-            deleted: false,
-            data: change.data,
-          }))
-        : incrementalChanges.map((change) => ({
-            cursor: change.cursor,
-            entityType: change.entityType,
-            entityId: change.entityId,
-            deleted: change.operation === 'DELETE',
-            data: change.data,
-          }));
+    const incrementalChanges = createSnapshot
+      ? []
+      : await this.prisma.syncChange.findMany({
+          where: { userId, cursor: { gt: cursor } },
+          orderBy: { cursor: 'asc' },
+          take: 2000,
+        });
+    const rawChanges = createSnapshot
+      ? (await this.initialSnapshot(userId)).map((change) => ({
+          cursor: latestServerCursor,
+          entityType: change.entityType,
+          entityId: change.entityId,
+          deleted: false,
+          data: change.data,
+        }))
+      : incrementalChanges.map((change) => ({
+          cursor: change.cursor,
+          entityType: change.entityType,
+          entityId: change.entityId,
+          deleted: change.operation === 'DELETE',
+          data: change.data,
+        }));
     const changes = await this.hydrateChanges(userId, rawChanges);
-    const responseCursor =
-      createSnapshot ? latestServerCursor : (incrementalChanges.at(-1)?.cursor ?? cursor);
+    const responseCursor = createSnapshot ? latestServerCursor : (incrementalChanges.at(-1)?.cursor ?? cursor);
 
     return {
       cursor: String(responseCursor),
@@ -207,8 +213,20 @@ export class PrismaSyncRepository implements ISyncRepository {
           reviewStates: true,
         },
       }),
-      this.prisma.expense.findMany({ where: { userId, id: { in: ids('expense') }, deletedAt: null }, include: { category: true } }),
-      this.prisma.gymWorkout.findMany({ where: { userId, id: { in: workoutIds }, deletedAt: null }, include: { exercises: { where: { deletedAt: null }, include: { exercise: true, sets: { where: { deletedAt: null }, orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } } } }),
+      this.prisma.expense.findMany({
+        where: { userId, id: { in: ids('expense') }, deletedAt: null },
+        include: { category: true },
+      }),
+      this.prisma.gymWorkout.findMany({
+        where: { userId, id: { in: workoutIds }, deletedAt: null },
+        include: {
+          exercises: {
+            where: { deletedAt: null },
+            include: { exercise: true, sets: { where: { deletedAt: null }, orderBy: { sortOrder: 'asc' } } },
+            orderBy: { sortOrder: 'asc' },
+          },
+        },
+      }),
       this.deckStudyStats(userId, deckIds),
     ]);
 
@@ -237,8 +255,24 @@ export class PrismaSyncRepository implements ISyncRepository {
       resources.set(`gymworkout:${workout.id}`, workout);
       resources.set(`workout:${workout.id}`, workout);
     }
+    for (const change of changes) {
+      if ((change.entityType === 'healthsummary' || change.entityType === 'healthworkout') && !change.deleted) {
+        resources.set(`${change.entityType}:${change.entityId}`, change.data);
+      }
+    }
 
-    const completeTypes = new Set(['task', 'tasklist', 'habit', 'deck', 'card', 'expense', 'gymworkout', 'workout']);
+    const completeTypes = new Set([
+      'task',
+      'tasklist',
+      'habit',
+      'deck',
+      'card',
+      'expense',
+      'gymworkout',
+      'workout',
+      'healthsummary',
+      'healthworkout',
+    ]);
     return changes.map((change) => {
       const key = `${change.entityType}:${change.entityId}`;
       const resource = change.deleted ? null : resources.get(key);
@@ -334,10 +368,12 @@ export class PrismaSyncRepository implements ISyncRepository {
       this.growthMutations,
       this.budgetGymMutations,
       this.journalMutations,
+      this.healthMutations,
     ].find((candidate) => candidate.kinds.includes(mutation.kind));
     if (!handler) throw new InvalidSyncMutationException(`Unsupported sync mutation kind: ${mutation.kind}`);
     const conflict = await handler.applyMutation(tx, userId, mutation, outcome);
-    if (conflict === undefined) throw new InvalidSyncMutationException(`Unsupported sync mutation kind: ${mutation.kind}`);
+    if (conflict === undefined)
+      throw new InvalidSyncMutationException(`Unsupported sync mutation kind: ${mutation.kind}`);
     return conflict;
   }
 
@@ -387,6 +423,8 @@ export class PrismaSyncRepository implements ISyncRepository {
       expenses,
       recurringExpenses,
       gymWorkouts,
+      healthSummaries,
+      healthWorkouts,
     ] = await Promise.all([
       this.prisma.deck.findMany({ where: { userId, archived: false } }),
       this.prisma.card.findMany({ where: { userId, status: CardStatus.ACTIVE, deck: { archived: false } } }),
@@ -452,7 +490,14 @@ export class PrismaSyncRepository implements ISyncRepository {
       this.prisma.monthlyBudget.findMany({ where: { userId }, include: { categoryLimits: true } }),
       this.prisma.expense.findMany({ where: { userId, deletedAt: null }, include: { category: true } }),
       this.prisma.recurringExpense.findMany({ where: { userId, archivedAt: null }, include: { category: true } }),
-      this.prisma.gymWorkout.findMany({ where: { userId, deletedAt: null }, include: { exercises: { where: { deletedAt: null }, include: { exercise: true, sets: { where: { deletedAt: null } } } } } }),
+      this.prisma.gymWorkout.findMany({
+        where: { userId, deletedAt: null },
+        include: {
+          exercises: { where: { deletedAt: null }, include: { exercise: true, sets: { where: { deletedAt: null } } } },
+        },
+      }),
+      this.prisma.healthSummary.findMany({ where: { userId, source: 'HEALTH_KIT' } }),
+      this.prisma.healthWorkout.findMany({ where: { userId, source: 'HEALTH_KIT' } }),
     ]);
     const rows: Array<{ entityType: string; entityId: string; deleted: false; data: Prisma.JsonValue }> = [];
     const add = (entityType: string, values: Array<{ id: string }>) => {
@@ -507,6 +552,24 @@ export class PrismaSyncRepository implements ISyncRepository {
     add('expense', expenses as any);
     add('recurringexpense', recurringExpenses as any);
     add('gymworkout', gymWorkouts as any);
+    for (const summary of healthSummaries) {
+      const data = this.healthMutations.summaryData(summary);
+      rows.push({
+        entityType: 'healthsummary',
+        entityId: healthSummaryEntityId(summary.syncDeviceId, data.localDate),
+        deleted: false,
+        data: data as unknown as Prisma.JsonValue,
+      });
+    }
+    for (const workout of healthWorkouts) {
+      const data = this.healthMutations.workoutData(workout);
+      rows.push({
+        entityType: 'healthworkout',
+        entityId: healthWorkoutEntityId(workout.syncDeviceId, workout.healthKitUUID),
+        deleted: false,
+        data: data as unknown as Prisma.JsonValue,
+      });
+    }
     return rows;
   }
 }

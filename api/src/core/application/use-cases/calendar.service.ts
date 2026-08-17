@@ -38,9 +38,13 @@ type TimelineItem = {
 
 function overlapsCalendarRange(item: TimelineItem, from: Date, to: Date): boolean {
   const startAt = new Date(item.startAt);
-  if (item.allDay) return startAt >= from && startAt < to;
-  const endAt = item.endAt ? new Date(item.endAt) : startAt;
-  return startAt < to && endAt > from;
+  const endAt = item.endAt ? new Date(item.endAt) : null;
+  if (item.allDay) {
+    if (endAt) return startAt < to && endAt > from;
+    return startAt >= from && startAt < to;
+  }
+  const effectiveEndAt = endAt ?? startAt;
+  return startAt < to && effectiveEndAt > from;
 }
 
 @Injectable()

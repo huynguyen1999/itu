@@ -1,8 +1,10 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { USAGE_CONSTANTS } from '@core/application/constants/app.constants';
+import { USAGE_SOURCES } from '@core/application/ports/out/repositories.port';
 import type {
   IUsageRepository,
+  UsageSource,
   WebsiteActivitySessionWrite,
   WebsiteUsageSummaryWrite,
 } from '@core/application/ports/out/repositories.port';
@@ -58,6 +60,7 @@ export class UsageWebsiteService {
         detail.activeSeconds += row.activeSeconds;
         urls.set(row.url, detail);
       }
+      if (row.browserBundleId === null) continue;
       const browser = browsers.get(row.browserBundleId) ?? {
         browserBundleId: row.browserBundleId,
         browserDisplayName: row.browserDisplayName,
@@ -164,16 +167,19 @@ export class UsageWebsiteService {
       .map((row) => ({ ...row, localDate: localDateFor(row.startedAt, row.timezone) }))
       .filter((row) => row.localDate >= dateKey(start) && row.localDate <= dateKey(end));
     const byHostname = new Map<string, number>();
-    const byUrl = new Map<string, {
-      url: string;
-      hostname: string;
-      activeSeconds: number;
-      latestTitle: string | null;
-      latestAt: number;
-      iconUrl: string | null;
-      latestIconAt: number;
-      isPrivate: boolean;
-    }>();
+    const byUrl = new Map<
+      string,
+      {
+        url: string;
+        hostname: string;
+        activeSeconds: number;
+        latestTitle: string | null;
+        latestAt: number;
+        iconUrl: string | null;
+        latestIconAt: number;
+        isPrivate: boolean;
+      }
+    >();
     const daily = new Map<string, number>();
     for (const row of rows) {
       byHostname.set(row.hostname, (byHostname.get(row.hostname) ?? 0) + row.activeSeconds);
@@ -265,8 +271,20 @@ export class UsageWebsiteService {
     }
     const device = await this.usage.findDevice(userId, input.deviceId);
     if (!device) throw new ForbiddenException('Sync device does not belong to this user');
-    if (device.platform !== 'MACOS') {
+    if (input.summaries.length === 0 && device.platform !== 'MACOS') {
       throw new BadRequestException('Website usage summaries require a macOS Sync Device');
+    }
+    for (const rawSummary of input.summaries) {
+      const source = rawSummary.source ?? 'BROWSER';
+      if (!USAGE_SOURCES.includes(source) || source === 'MACOS_FOREGROUND' || source === 'HEALTH_KIT') {
+        throw new BadRequestException('source is invalid for website summaries');
+      }
+      if (source === 'DEVICE_ACTIVITY' && device.platform !== 'IOS') {
+        throw new BadRequestException('DeviceActivity website usage requires an iOS Sync Device');
+      }
+      if (source === 'BROWSER' && device.platform !== 'MACOS') {
+        throw new BadRequestException('Browser website usage requires a macOS Sync Device');
+      }
     }
     return this.writeBatch(userId, input.deviceId, input.summaries);
   }
@@ -287,7 +305,7 @@ export class UsageWebsiteService {
       throw new BadRequestException(`summaries must contain at most ${MAX_BATCH_SIZE} entries`);
     }
     const deviceId = await this.usage.ensureBrowserExtensionDevice(userId, input.installationId);
-    return this.writeBatch(userId, deviceId, input.summaries);
+    return this.writeBatch(userId, deviceId, input.summaries, 'BROWSER');
   }
 
   async delete(userId: string, from?: string, to?: string, all = false) {
@@ -298,23 +316,53 @@ export class UsageWebsiteService {
     return { deletedCount: await this.usage.deleteWebsite(userId, start, nextDay(end)) };
   }
 
-  private async writeBatch(userId: string, deviceId: string, summaries: WebsiteUsageSummaryInput[]) {
+  private async writeBatch(
+    userId: string,
+    deviceId: string,
+    summaries: WebsiteUsageSummaryInput[],
+    sourceOverride?: UsageSource,
+  ) {
     const preferences = await this.usage.getTrackingPreferences(userId);
     if (!preferences.trackingEnabled || !preferences.websiteTrackingEnabled) return { accepted: false, replaced: 0 };
 
     const unique = new Map<string, Omit<WebsiteUsageSummaryWrite, 'localDate'> & { localDate: string }>();
-    for (const summary of summaries) {
+    for (const rawSummary of summaries) {
+      const summary = rawSummary;
+      if (sourceOverride && summary.source !== undefined && summary.source !== sourceOverride) {
+        throw new BadRequestException('source is invalid for this website ingestion route');
+      }
+      const source = sourceOverride ?? summary.source ?? 'BROWSER';
+      if (!USAGE_SOURCES.includes(source) || source === 'MACOS_FOREGROUND' || source === 'HEALTH_KIT') {
+        throw new BadRequestException('source is invalid for website summaries');
+      }
       const localDate = parseDate(summary.localDate, 'localDate');
-      const browserBundleId = requireText(summary.browserBundleId, 'browserBundleId');
-      const browserDisplayName = requireText(summary.browserDisplayName, 'browserDisplayName');
+      if (source === 'DEVICE_ACTIVITY' && summary.browserBundleId !== undefined && summary.browserBundleId !== null) {
+        throw new BadRequestException('browserBundleId must be omitted for DeviceActivity summaries');
+      }
+      const browserBundleId =
+        source === 'DEVICE_ACTIVITY' ? null : requireText(summary.browserBundleId, 'browserBundleId');
+      const browserDisplayName =
+        source === 'DEVICE_ACTIVITY'
+          ? typeof summary.browserDisplayName === 'string' && summary.browserDisplayName.trim()
+            ? summary.browserDisplayName.trim()
+            : 'DeviceActivity'
+          : requireText(summary.browserDisplayName, 'browserDisplayName');
       const hostname = normalizeHostname(summary.hostname);
       const url = normalizeWebsiteUrl(summary.url, hostname);
       const timezone = requireTimezone(summary.timezone);
-      if (!Number.isInteger(summary.activeSeconds) || summary.activeSeconds < 0 || summary.activeSeconds > MAX_ACTIVE_SECONDS) {
+      const hour = summary.hour ?? -1;
+      if (!Number.isInteger(hour) || hour < -1 || hour > 23) {
+        throw new BadRequestException('hour must be an integer between -1 and 23');
+      }
+      if (
+        !Number.isInteger(summary.activeSeconds) ||
+        summary.activeSeconds < 0 ||
+        summary.activeSeconds > MAX_ACTIVE_SECONDS
+      ) {
         throw new BadRequestException('activeSeconds must be an integer between 0 and 86400');
       }
       const urlKey = url ? createHash('sha256').update(url).digest('hex') : `legacy:${hostname}`;
-      unique.set(`${dateKey(localDate)}\u0000${browserBundleId}\u0000${urlKey}`, {
+      unique.set(`${source}\u0000${dateKey(localDate)}\u0000${hour}\u0000${browserBundleId ?? ''}\u0000${urlKey}`, {
         localDate: dateKey(localDate),
         browserBundleId,
         browserDisplayName,
@@ -323,6 +371,8 @@ export class UsageWebsiteService {
         urlKey,
         timezone,
         activeSeconds: summary.activeSeconds,
+        source,
+        hour,
       });
     }
     const writes: WebsiteUsageSummaryWrite[] = [...unique.values()].map((summary) => ({

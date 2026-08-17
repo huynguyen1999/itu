@@ -93,6 +93,7 @@ export enum ScheduledJobStatus {
 
 export enum SyncDevicePlatform {
   WEB = 'WEB',
+  IOS = 'IOS',
   MACOS = 'MACOS',
 }
 

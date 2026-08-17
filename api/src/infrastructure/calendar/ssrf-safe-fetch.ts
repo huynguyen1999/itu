@@ -55,8 +55,14 @@ export async function fetchCalendarText(input: string): Promise<{ text: string; 
 }
 
 export function validateCalendarUrl(input: string): URL {
+  let normalized = input.trim();
+  if (normalized.startsWith('webcal://')) {
+    normalized = 'http://' + normalized.slice('webcal://'.length);
+  } else if (normalized.startsWith('webcals://')) {
+    normalized = 'https://' + normalized.slice('webcals://'.length);
+  }
   let url: URL;
-  try { url = new URL(input); } catch { throw new BadRequestException('Calendar URL is invalid'); }
+  try { url = new URL(normalized); } catch { throw new BadRequestException('Calendar URL is invalid'); }
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
     throw new BadRequestException('Calendar URL is invalid');
   }

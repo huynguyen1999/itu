@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsDateString,
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -15,8 +16,13 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { USAGE_SOURCES } from '@core/application/ports/out/repositories.port';
 
 export class UsageSummaryDto {
+  @IsOptional()
+  @IsIn(USAGE_SOURCES)
+  source?: (typeof USAGE_SOURCES)[number];
+
   @IsString()
   @Length(10, 10)
   localDate!: string;
@@ -52,6 +58,18 @@ export class UsageSummaryDto {
   @Min(0)
   @Max(86400)
   engagedSeconds?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  pickups?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  notifications?: number;
 }
 
 export class UsageSummaryBatchDto {
@@ -116,14 +134,27 @@ export class WebsiteUrlQueryDto extends UsageDateQueryDto {
 }
 
 export class WebsiteUsageSummaryDto {
+  @IsOptional()
+  @IsIn(USAGE_SOURCES)
+  source?: (typeof USAGE_SOURCES)[number];
+
   @IsString()
   @Length(10, 10)
   localDate!: string;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  hour?: number;
+
+  @IsOptional()
   @IsString()
   @Length(1, 255)
   browserBundleId!: string;
 
+  @IsOptional()
   @IsString()
   @Length(1, 255)
   browserDisplayName!: string;
@@ -231,3 +262,60 @@ export class WebsiteActivitySessionBatchDto {
   @Type(() => WebsiteActivitySessionDto)
   sessions!: WebsiteActivitySessionDto[];
 }
+
+export class ScreenTimeEventDto {
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, 128)
+  eventId!: string;
+
+  @IsOptional()
+  @IsIn(USAGE_SOURCES)
+  source?: (typeof USAGE_SOURCES)[number];
+
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, 128)
+  sourceDeviceId!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 255)
+  sourceDeviceName?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, 255)
+  bundleId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, 255)
+  displayName!: string;
+
+  @IsDateString()
+  startedAt!: string;
+
+  @IsDateString()
+  endedAt!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(86400)
+  durationSeconds!: number;
+}
+
+export class ScreenTimeUsageBatchDto {
+  @IsString()
+  @IsNotEmpty()
+  @Length(12, 128)
+  collectorDeviceId!: string;
+
+  @IsArray()
+  @ArrayMaxSize(5000)
+  @ValidateNested({ each: true })
+  @Type(() => ScreenTimeEventDto)
+  events!: ScreenTimeEventDto[];
+}
+

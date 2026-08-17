@@ -38,3 +38,5 @@ tools/cloudflare-bypass/.tokens.json
 tools/cloudflare-bypass/last-registration-report.json
 tools/cloudflare-bypass/page-dump.html
 tools/cloudflare-bypass/node_modules/
+
+apple/Packages/iTuCore/.build

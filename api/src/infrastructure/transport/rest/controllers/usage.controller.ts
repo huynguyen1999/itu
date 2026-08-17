@@ -19,6 +19,7 @@ import type { AuthenticatedRequest } from '../types/authenticated-request';
 import type { BrowserExtensionRequest } from '../types/browser-extension-request';
 import {
   BrowserExtensionUsageBatchDto,
+  ScreenTimeUsageBatchDto,
   UsageDateQueryDto,
   UsageSummaryBatchDto,
   WebsiteActivitySessionBatchDto,
@@ -29,6 +30,19 @@ import {
 import { REST_ROUTES } from '@core/application/constants/app.constants';
 import { MEDIA_ERRORS } from '@core/application/constants/app.constants';
 import type { AuthenticatedMultipartRequest } from '../types/authenticated-request';
+
+@ApiTags('Usage')
+@UseGuards(AuthGuard)
+@Controller(`${REST_ROUTES.usage}/screentime`)
+export class ScreenTimeUsageController {
+  constructor(private readonly usage: UsageService) {}
+
+  @ApiOperation({ operationId: 'ingestScreenTimeEvents' })
+  @Post('events/batch')
+  ingest(@Req() req: AuthenticatedRequest, @Body() body: ScreenTimeUsageBatchDto) {
+    return this.usage.ingestScreenTimeEvents(req.user.sub, body);
+  }
+}
 
 @ApiTags('Usage')
 @UseGuards(AuthGuard)

@@ -7,6 +7,7 @@ import { TOKENS } from '@core/application/constants/tokens';
 import type { ILogger } from '@core/application/ports/out/services.port';
 import {
   BrowserExtensionUsageController,
+  ScreenTimeUsageController,
   UsageController,
   UsageAppController,
   WebsiteUsageController,
@@ -46,7 +47,13 @@ class UsageRetentionScheduler implements OnModuleInit, OnModuleDestroy {
 
 @Module({
   imports: [AuthModule, PersistenceModule, MediaModule],
-  controllers: [UsageController, UsageAppController, WebsiteUsageController, BrowserExtensionUsageController],
+  controllers: [
+    ScreenTimeUsageController,
+    UsageController,
+    UsageAppController,
+    WebsiteUsageController,
+    BrowserExtensionUsageController,
+  ],
   providers: [UsageService, UsageRetentionScheduler, BrowserExtensionDsnGuard],
 })
 export class UsageModule {}

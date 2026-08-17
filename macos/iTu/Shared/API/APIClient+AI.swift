@@ -1,4 +1,18 @@
 import Foundation
+import iTuNetworking
+
+struct AiCredential: Codable, Identifiable, Equatable, Sendable {
+    let id: String
+    let keyHint: String
+    let enabled: Bool
+    let status: String
+    let lastError: String?
+    let lastUsedAt: String?
+    let cooldownUntil: String?
+    let createdAt: String
+    let updatedAt: String
+    let usable: Bool
+}
 
 private struct AiCredentialDeleteResponse: Decodable, Sendable {
     let success: Bool

@@ -1,5 +1,6 @@
 import Foundation
 import os
+import iTuNetworking
 
 private let authLifecycleLogger = Logger(subsystem: "com.itu.macos", category: "auth")
 
@@ -354,7 +355,17 @@ extension AppModel {
                 if sessionGeneration == runGeneration { hydrationTask = nil }
             }
             do {
-                let result = try await AccountHydrator(apiClient: apiClient, offlineStore: store).hydrate()
+                let result = try await AccountHydrator(
+                    apiClient: apiClient,
+                    offlineStore: store,
+                    isCurrent: { @MainActor [weak self] in
+                        guard let self else { return false }
+                        return !Task.isCancelled &&
+                            self.sessionGeneration == runGeneration &&
+                            self.user?.id == userID &&
+                            self.offlineStore === store
+                    }
+                ).hydrate()
                 guard !Task.isCancelled,
                       runGeneration == sessionGeneration,
                       user?.id == userID,
@@ -373,7 +384,21 @@ extension AppModel {
                 if let value = result.habitTimeBlocks { habitTimeBlocks = value }
                 if let value = result.studySessionHistory { studySessionHistory = value }
                 if let value = result.notifications { notifications = value }
-                lastHydratedAt = Date()
+                if result.failedResources.isEmpty {
+                    lastHydratedAt = Date()
+                } else {
+                    lastHydratedAt = nil
+                    let count = result.failedResources.count
+                    authLifecycleLogger.error(
+                        "auth.hydration.partial_failure count=\(count, privacy: .public) resources=\(result.failedResources.joined(separator: ","), privacy: .public)"
+                    )
+                    enqueueNotice(AppNotice(
+                        level: .warning,
+                        presentation: .toast,
+                        title: "Some data could not be refreshed",
+                        message: "Showing cached data for \(count) resource\(count == 1 ? "" : "s"); iTu will retry when it becomes active."
+                    ))
+                }
             } catch {
                 // Background hydration is deliberately silent; local state remains visible.
             }

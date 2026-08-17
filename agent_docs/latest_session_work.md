@@ -150,3 +150,382 @@ Apply and validate the required migrations, then run authenticated Web visual QA
 ## Next entry point
 
 When dependency access is available, run the signed macOS focused and full gates with automatic Apple Development signing. Then inspect/apply the separation migration only to the disposable local database and execute the two-device active-Workout conflict plus offline Journal attachment/revision acceptance flow.
+# Session date
+
+2026-08-17
+
+## Completed
+
+- Narrowed the in-progress iOS client to iPhone only: app, tests, widgets, and
+  Device Activity targets use device family `1`; the app shell is a single tab
+  navigation; Learn uses `NavigationStack`; Matrix uses a single-column layout.
+- Recorded the decision and revised delivery/acceptance criteria in
+  [`plan/ios-iphone-only.md`](../plan/ios-iphone-only.md).
+
+## Verification
+
+- Static inspection confirms no remaining iPad-specific shell, split-view, or
+  size-class references under `ios/`.
+- `xcodebuild -project ios/iTu.xcodeproj -scheme iTu -sdk iphonesimulator
+  -configuration Debug build` passed, including the app, widgets, Device
+  Activity extension, and shared `iTuCore` package.
+- The focused `testNavigationDestinationsExposePhase6Sections` simulator test
+  passed.
+- The full simulator suite compiled, but remains red on the pre-existing
+  `testHealthTransactionRollsBackOnPersistFailure` expectation and a later
+  test-process restart; those failures are unrelated to the iPhone-only scope
+  change.
+
+## Unfinished
+
+- Run the signed physical-iPhone/device-extension validation when the iOS
+  provisioning and simulator/device environment is available.
+
+## Follow-up: Screen Time import slice
+
+### Completed
+
+- Added the iPhone-only Device Activity report target and App Group snapshot
+  transport for hourly application and website activity.
+- Added normalization into the existing `UsageSummary` and
+  `WebsiteUsageSummary` models, absolute per-window replacement, and upload
+  through the existing usage batch endpoints.
+- Added focused tests for normalization and duplicate/stale-bucket handling.
+
+### Verification
+
+- iPhone simulator build passed, including the app, widgets, monitor,
+  Device Activity report extension, and shared `iTuCore` package.
+- Focused simulator tests passed:
+  `testDeviceActivityReportNormalizesHourlyApplicationsAndWebsites` and
+  `testDeviceActivityImportReplacesEmptyBucketsWithoutDuplicatingRows`.
+- Shared `iTuCore` `OfflineStoreTests` passed, including the existing Device
+  Activity replacement regressions.
+- Static iPhone-only scan still finds no iPad target-family, split-view, or
+  size-class references under `ios/`.
+
+### Unfinished
+
+- Validate Family Controls authorization, non-tokenized bundle/domain data,
+  report-extension callbacks, and real usage attribution on a provisioned
+  physical iPhone. The simulator verifies compilation and persistence logic,
+  not real Screen Time measurements.
+
+## Follow-up: Journal attachment sync slice
+
+### Completed
+
+- Ported the existing macOS pending-Journal-attachment uploader to iOS.
+- Wired upload draining into the normal sync lifecycle, preserving queued
+  bytes on failure and removing them only after the returned attachment is
+  persisted on the cached Journal entry.
+- Updated the iPhone Journal copy to describe offline queueing and automatic
+  reconnect upload.
+
+### Verification
+
+- iPhone simulator build passed, including the app, widgets, Device Activity
+  extensions, and shared `iTuCore` package.
+- Focused simulator tests passed for Screen Time normalization/replacement and
+  HealthKit date/interval normalization.
+- `git diff --check` passed.
+
+### Unfinished
+
+- Exercise attachment selection, offline relaunch, reconnect upload, and
+  server-visible attachment reconciliation on a physical iPhone.
+
+## Follow-up: iPhone review integration
+
+### Completed
+
+- Added phone-native daily and weekly review editors from Journal tools.
+- Loaded the existing daily/weekly review context endpoints, including
+  measured task, focus, habit, gym, app, website, and HealthKit metrics.
+- Saved review reflections and measured snapshots through the existing offline
+  Journal mutation/outbox path.
+- Added online AI insight generation and local reconciliation for review
+  entries.
+- Added an offline XCTest covering both review kinds and snapshot persistence.
+
+### Verification
+
+- `xcodebuild ... build-for-testing` passed for the iPhone app, extensions,
+  shared package, and test target.
+- The focused runtime test could not execute because the local CoreSimulator
+  service stopped; the same build successfully compiled and signed the test
+  bundle.
+- `git diff --check` remains clean.
+
+### Unfinished
+
+- Validate review loading, save/reconnect behavior, and AI insight generation
+  against an authenticated backend on a physical iPhone.
+
+## Follow-up: Growth Reset parity slice
+
+### Completed
+
+- Replaced the disabled iPhone Growth Reset placeholder with scope selection,
+  optional skill selection, server preview, affected-skill/coin summary, and
+  explicit destructive confirmation.
+- Reused the existing Growth Reset API contract and generated an idempotency
+  key for execution.
+- Kept reset online-only and refreshed the cached account state after success.
+
+### Verification
+
+- `xcodebuild ... build-for-testing` passed for the iPhone app, extensions,
+  shared package, and test target.
+- `git diff --check` passed.
+
+### Unfinished
+
+- Validate preview and execution against an authenticated backend, including
+  all three scopes, on a physical iPhone.
+
+## Follow-up: iPhone local notifications
+
+### Completed
+
+- Added a native `UserNotifications` scheduler for active task reminders and
+  countdown Focus completion.
+- Added foreground presentation and tap routing into the Plan or Focus
+  workspace.
+- Rebuilt managed pending requests from each current offline snapshot, so
+  completion, snooze, pause, logout, and account changes remove stale local
+  notifications without a background polling loop.
+- Added Settings permission state/request UI and a Task Detail reminder-create
+  flow using the existing server reminder endpoint.
+
+### Verification
+
+- `xcodebuild -project ios/iTu.xcodeproj -scheme iTu -sdk iphonesimulator
+  -configuration Debug -derivedDataPath /tmp/itu-ios-dd-notifications
+  build-for-testing` passed.
+- Added a focused permission-state XCTest contract.
+- `git diff --check` passed; the static iPhone-only scan still finds no iPad
+  target-family, split-view, or size-class references under `ios/`.
+
+### Unfinished
+
+- Validate notification permission, background delivery, Focus completion
+  delivery, and server reminder reconciliation on a provisioned physical
+  iPhone. Simulator coverage does not prove lock-screen delivery.
+
+## Follow-up: task and habit App Intents
+
+### Completed
+
+- Added `CreateTaskIntent` and `CompleteTaskIntent`.
+- Added `CompleteHabitIntent` and `IncrementHabitIntent`.
+- Routed each intent through `IOSAppProcessRegistry` into the existing
+  local-first `AppModel` and `OfflineStore` mutations.
+- Added an offline XCTest covering task creation/completion, habit increments,
+  and habit outbox persistence.
+
+### Verification
+
+- iPhone simulator `build-for-testing` passed with App Intents metadata
+  processing.
+- `testTaskAndHabitIntentsUseLocalFirstMutations` passed.
+- `git diff --check` passed.
+
+### Unfinished
+
+- Validate Shortcuts/Siri discovery and execution on a provisioned physical
+  iPhone after app termination.
+
+## Follow-up: HealthKit background refresh reliability
+
+### Completed
+
+- Registered the `BGAppRefreshTask` identifier from `iTuApp.init()` before the
+  first scene is created.
+- Changed the background handler to await the account-scoped HealthKit import
+  before calling `setTaskCompleted`.
+- Connected task expiration to cancellation of the in-flight import.
+
+### Verification
+
+- iPhone simulator `build-for-testing` passed after the lifecycle change.
+- Existing HealthKit normalization, anchor, and date-boundary tests remain in
+  the test target.
+- `git diff --check` passed.
+
+### Unfinished
+
+- Validate observer delivery, background refresh scheduling, and HealthKit
+  permission behavior on a provisioned physical iPhone.
+- The connected iPhone currently cannot run tests because Xcode reports that
+  its developer disk image cannot be mounted.
+
+## Follow-up: Screen Time report aggregation correctness
+
+### Completed
+
+- Fixed Device Activity report aggregation keys to include the actual local
+  date, hour, bundle identifier, and hostname values instead of literal source
+  text.
+- Fixed the Growth Reset action label and temporary test paths that had the
+  same interpolation typo.
+
+### Verification
+
+- Screen Time normalization and replacement tests passed.
+- iPhone target build passed after the report-extension change.
+- `git diff --check` passed.
+
+### Unfinished
+
+- Confirm multi-hour, multi-app, and multi-domain attribution from a real
+  provisioned iPhone report extension.
+- The physical-device SDK build is currently blocked by missing development
+  profiles for the app and extensions; installing profiles requires explicit
+  Apple account/provisioning access.
+
+## Follow-up: HealthKit sync contract and ExtensionKit packaging
+
+### Completed
+
+- Verified the HealthKit summary/workout outbox contract against the Prisma
+  schema and sync persistence implementation.
+- Verified review-context health aggregation and cross-device deduplication.
+- Added Swift 6 `@retroactive` annotations to the iPhone and macOS sync
+  adapters.
+- Removed duplicate Device Activity report metadata and embedded the report
+  extension in `iTu.app/Extensions` instead of `PlugIns`.
+
+### Verification
+
+- `swift test` passed: 46 tests.
+- API Prisma validation, typecheck, build, and full Jest passed: 83 suites,
+  406 tests.
+- iPhone simulator `build-for-testing` passed, with the report bundle at
+  `iTu.app/Extensions/iTuDeviceActivityReport.appex`.
+
+### Unfinished
+
+- The full iPhone simulator XCTest run reached test-session startup but stalled
+  in the local simulator test service and was interrupted.
+- Authenticated backend/AI flows and physical-device validation remain blocked
+  by the connected iPhone's developer disk image and missing provisioning
+  profiles.
+
+## Follow-up: macOS parity after shared-core extraction
+
+- Built the macOS app with the extracted `iTuCore` package using normal Apple
+  Development signing.
+- Focused `JournalParityTests`, `OfflineStoreTests`, and `SyncCoordinatorTests`
+  all passed.
+- The isolated `UsageTrackingTests` target passed all 26 cases.
+- The broader macOS result bundle recorded 330/331 passing in serial mode;
+  the one stale-account inverted expectation passed in isolation. Parallel
+  full-suite UsageTracking failures are test-harness interference, and no
+  production tracker change was made.
+- Updated `plan/ios-iphone-only.md` to mark the local macOS parity gate complete.
+- Remaining gaps are physical-iPhone validation and authenticated backend/AI
+  acceptance; no local implementation blocker was found in this phase.
+
+## Follow-up: iPhone cold-start actions and simulator acceptance
+
+- Added the missing Calendar link to the iPhone `More` workspace list.
+- Made Focus App Intents restore the cached account and offline snapshot before
+  mutating state when a Live Activity launches a cold app process.
+- Fixed daily and weekly review saves to persist under their generated journal
+  note identifiers.
+- Corrected the task mutation test to match intentional consecutive-update
+  outbox coalescing.
+- Focused iPhone simulator tests passed for all three fixes.
+- Full iPhone simulator XCTest suite passed: 54/54 tests.
+- Shared `iTuCore` package tests passed: 46 tests.
+- API Prisma validation, typecheck, build, and full Jest suite passed: 83
+  suites, 406 tests.
+- Focused macOS JournalParity, OfflineStore, and SyncCoordinator tests passed;
+  isolated UsageTracking passed all 26 tests.
+- `git diff --check` passed; the iPhone source/configuration scan found no iPad
+  navigation or device-family support.
+- The connected iPhone is paired and available, and all iPhone targets use
+  `TARGETED_DEVICE_FAMILY = 1`.
+- A normally signed device build reached the paired device but stopped with
+  `The developer disk image could not be mounted on this device` (exit 70).
+  The device is an iPhone 13 on iOS 26.3.1; the host is Xcode 26.3.
+- A generic physical-device build independently confirms that the app and all
+  three extensions need development provisioning profiles.
+- The local signing audit found no valid code-signing identities or mobile
+  provisioning profiles. Remaining gaps are resolving the device-image state,
+  provisioning the app/extensions through the Apple account, and running
+  authenticated backend/AI acceptance with an explicitly authorized account.
+
+## Follow-up: optional EventKit calendar overlay
+
+- Added `IOSEventKitCalendar` as an iPhone-only, read-only EventKit service.
+- iOS 17+ requests full event access; older supported iOS versions use the
+  legacy event-access request.
+- Added current and legacy calendar usage descriptions to `iTu-Info.plist` and
+  linked `EventKit.framework` in the iPhone target.
+- The Calendar screen now shows Apple Calendar events in a separate section
+  without changing the existing iTu task timeline or offline model.
+- Denied, restricted, and write-only access states are explicit; write-only
+  access never enables reads.
+- Full iPhone simulator XCTest suite passed: 55/55 tests.
+- iPhone build-for-testing passed after the EventKit integration.
+- `git diff --check` passed.
+
+### Unfinished
+
+- Calendar permission prompts and real event attribution remain physical-device
+  acceptance work alongside the existing signing and authenticated backend/AI
+  gates.
+
+## Follow-up: Screen Time Focus blocking
+
+- Added `IOSFocusBlockingService` using account-scoped, App Group-persisted
+  `FamilyActivitySelection` values.
+- Added the native Family Activity Picker to Settings and linked its selection
+  to the existing Screen Time authorization state.
+- Applied `ManagedSettingsStore` app/category/web-domain shields from the
+  existing `AppModel.apply` Focus state path. Shields only apply while Focus is
+  active and clear on pause, finish, account switch, and logout.
+- No background loop or extra server contract was introduced.
+- Fixed and covered the edge case where the first target is selected during an
+  already-active Focus session.
+- Full iPhone simulator XCTest suite passed: 57/57 tests.
+- iPhone build-for-testing and `git diff --check` passed.
+
+### Unfinished
+
+- Real Family Activity Picker selection and physical shield enforcement still
+  require the provisioned iPhone acceptance run.
+
+## Follow-up: iOS 18 Control Center Focus control
+
+- Added an iOS 18+ `ControlWidget` to the existing iTu widget extension.
+- The control invokes `StartFocusIntent`, reusing the same local-first Focus
+  mutation path as the app, widgets, and Live Activity actions.
+- Kept it conditionally available for earlier supported iOS versions.
+- iPhone build-for-testing passed.
+- Full iPhone simulator XCTest run passed on the available iPhone destination.
+- `git diff --check` passed.
+
+### Unfinished
+
+- Control Center registration and action execution remain physical-device
+  acceptance work alongside the existing signing and backend/AI gates.
+
+## Follow-up: opt-in HealthKit Gym workout write-back
+
+- Added optional `Save to Apple Health` to completed Gym workout history.
+- HealthKit authorization now requests workout sharing alongside existing read
+  access.
+- Exported workouts use a stable `com.itu.gymWorkoutID` metadata key, so
+  retries are idempotent and the importer excludes iTu-owned workouts.
+- Added `NSHealthUpdateUsageDescription` and updated permission copy.
+- iPhone build-for-testing passed.
+- Full iPhone simulator XCTest run passed on the available iPhone destination.
+- `git diff --check` passed.
+
+### Unfinished
+
+- Real HealthKit permission, save, duplicate retry, and Apple Health display
+  remain physical-device acceptance work.

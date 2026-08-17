@@ -57,4 +57,26 @@ describe('CalendarService', () => {
       expect.objectContaining({ id: 'external', priority: null }),
     ]));
   });
+
+  it('includes multi-day all-day events that started before the range but extend into it', async () => {
+    const multiDayEvent = {
+      id: 'multi-day-holiday',
+      title: 'Vacation',
+      startAt: new Date('2026-08-10T00:00:00.000Z'),
+      endAt: new Date('2026-08-15T00:00:00.000Z'),
+      allDay: true,
+      calendarId: 'calendar-1',
+      status: 'CONFIRMED',
+      calendar: { name: 'Personal', color: 'EMERALD' },
+    };
+    const service = new CalendarService(
+      { listTasks: jest.fn().mockResolvedValue({ data: [] }) } as any,
+      { listFocusSessions: jest.fn().mockResolvedValue([]) } as any,
+      { listVisibleEvents: jest.fn().mockResolvedValue([multiDayEvent]) } as any,
+    );
+
+    const result = await service.timeline('user-1', '2026-08-12T00:00:00.000Z', '2026-08-13T00:00:00.000Z');
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({ id: 'multi-day-holiday', kind: 'EXTERNAL_EVENT', allDay: true });
+  });
 });

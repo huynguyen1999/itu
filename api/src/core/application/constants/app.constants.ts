@@ -221,10 +221,13 @@ export const REST_ROUTES = {
   usageStatistics: 'statistics',
   usageSessions: 'sessions',
   usageSessionIngest: 'sessions/ingest',
+  usageScreenTimeEvents: 'screentime/events/batch',
 } as const;
 
 export const USAGE_CONSTANTS = {
   maxBatchSize: 5000,
+  maxScreenTimeBatchSize: 5000,
+  screenTimeToleranceSeconds: 60,
   maxActiveSeconds: 86_400,
   minDateRangeDays: 7,
   maxDateRangeDays: 365,

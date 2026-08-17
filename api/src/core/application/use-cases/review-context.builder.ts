@@ -1,11 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { REVIEW_DATA_SOURCE, type IReviewDataSource, type ReviewRangeInput } from '../ports/out/review-data-source.port';
-import type {
-  ReviewComparison,
-  ReviewContextV1,
-  ReviewEvidence,
-  ReviewPeriod,
-} from '@core/domain/review/review.types';
+import {
+  REVIEW_DATA_SOURCE,
+  type IReviewDataSource,
+  type ReviewRangeInput,
+} from '../ports/out/review-data-source.port';
+import type { ReviewComparison, ReviewContextV1, ReviewEvidence, ReviewPeriod } from '@core/domain/review/review.types';
 
 export const REVIEW_PROMPT_VERSION = 'review-insights-v1' as const;
 
@@ -74,7 +73,10 @@ export function compareMetric(current: number, previous: number): ReviewComparis
   };
 }
 
-function compareMetrics(current: Record<string, unknown>, previous: Record<string, unknown>): Record<string, ReviewComparison> {
+function compareMetrics(
+  current: Record<string, unknown>,
+  previous: Record<string, unknown>,
+): Record<string, ReviewComparison> {
   const pairs: Record<string, [string, string]> = {
     'tasks.completed': ['tasks', 'completed'],
     'focus.minutes': ['focus', 'minutes'],
@@ -85,12 +87,18 @@ function compareMetrics(current: Record<string, unknown>, previous: Record<strin
     'gym.sets': ['gym', 'sets'],
     'appUsage.activeSeconds': ['appUsage', 'activeSeconds'],
     'websiteUsage.activeSeconds': ['websiteUsage', 'activeSeconds'],
+    'health.steps': ['health', 'steps'],
+    'health.exerciseMinutes': ['health', 'exerciseMinutes'],
+    'health.workoutMinutes': ['health', 'workoutMinutes'],
   };
   return Object.fromEntries(
-    Object.entries(pairs).map(([id, [domain, metric]]) => [
-      id,
-      compareMetric(numberAt(current, domain, metric), numberAt(previous, domain, metric)),
-    ]),
+    Object.entries(pairs).flatMap(([id, [domain, metric]]) => {
+      const currentValue = numberAt(current, domain, metric);
+      const previousValue = numberAt(previous, domain, metric);
+      return domain === 'health' && (currentValue === null || previousValue === null)
+        ? []
+        : [[id, compareMetric(currentValue ?? 0, previousValue ?? 0)]];
+    }),
   );
 }
 
@@ -99,15 +107,35 @@ function buildEvidence(metrics: Record<string, unknown>, kind: 'DAILY' | 'WEEKLY
     ['tasks.completed', 'TASK', `${numberAt(metrics, 'tasks', 'completed')} tasks completed`],
     ['focus.total_minutes', 'FOCUS', `${numberAt(metrics, 'focus', 'minutes')} focused minutes`],
     ['learning.reviews', 'LEARNING', `${numberAt(metrics, 'learning', 'reviews')} reviews completed`],
-    ['habits.completion_rate', 'HABIT', `${Math.round(numberAt(metrics, 'habits', 'completionRate') * 100)}% habit completion`],
+    [
+      'habits.completion_rate',
+      'HABIT',
+      `${Math.round((numberAt(metrics, 'habits', 'completionRate') ?? 0) * 100)}% habit completion`,
+    ],
     ['gym.workouts', 'GYM', `${numberAt(metrics, 'gym', 'workouts')} workouts`],
     ['appUsage.active_seconds', 'APP', `${numberAt(metrics, 'appUsage', 'activeSeconds')} seconds of app activity`],
-    ['websiteUsage.active_seconds', 'WEBSITE', `${numberAt(metrics, 'websiteUsage', 'activeSeconds')} seconds of website activity`],
+    [
+      'websiteUsage.active_seconds',
+      'WEBSITE',
+      `${numberAt(metrics, 'websiteUsage', 'activeSeconds')} seconds of website activity`,
+    ],
+    ['health.steps', 'HEALTH', `${numberAt(metrics, 'health', 'steps')} steps`],
+    ['health.exercise_minutes', 'HEALTH', `${numberAt(metrics, 'health', 'exerciseMinutes')} exercise minutes`],
+    ['health.workout_minutes', 'HEALTH', `${numberAt(metrics, 'health', 'workoutMinutes')} HealthKit workout minutes`],
   ];
-  return labels.filter(([, , label]) => !label.startsWith('0 ')).map(([id, source, label]) => ({ id, source, label: kind === 'WEEKLY' ? `${label} this week` : label }));
+  return labels
+    .filter(
+      ([id, , label]) =>
+        !label.startsWith('0 ') &&
+        (id.startsWith('health.') ? numberAt(metrics, 'health', id.split('.')[1]) !== null : true),
+    )
+    .map(([id, source, label]) => ({ id, source, label: kind === 'WEEKLY' ? `${label} this week` : label }));
 }
 
-function buildComparisonEvidence(current: Record<string, unknown>, previous: Record<string, unknown>): ReviewEvidence[] {
+function buildComparisonEvidence(
+  current: Record<string, unknown>,
+  previous: Record<string, unknown>,
+): ReviewEvidence[] {
   return [
     ['comparison.tasks.completed', 'TASK', 'tasks', 'completed'],
     ['comparison.focus.total_minutes', 'FOCUS', 'focus', 'minutes'],
@@ -115,16 +143,21 @@ function buildComparisonEvidence(current: Record<string, unknown>, previous: Rec
     ['comparison.gym.workouts', 'GYM', 'gym', 'workouts'],
     ['comparison.appUsage.active_seconds', 'APP', 'appUsage', 'activeSeconds'],
     ['comparison.websiteUsage.active_seconds', 'WEBSITE', 'websiteUsage', 'activeSeconds'],
-  ].map(([id, source, domain, metric]) => ({
-    id,
-    source,
-    label: `${numberAt(current, domain, metric)} vs ${numberAt(previous, domain, metric)} last week`,
-  }));
+    ['comparison.health.steps', 'HEALTH', 'health', 'steps'],
+    ['comparison.health.exercise_minutes', 'HEALTH', 'health', 'exerciseMinutes'],
+    ['comparison.health.workout_minutes', 'HEALTH', 'health', 'workoutMinutes'],
+  ].flatMap(([id, source, domain, metric]) => {
+    const currentValue = numberAt(current, domain, metric);
+    const previousValue = numberAt(previous, domain, metric);
+    return domain === 'health' && (currentValue === null || previousValue === null)
+      ? []
+      : [{ id, source, label: `${currentValue ?? 0} vs ${previousValue ?? 0} last week` }];
+  });
 }
 
-function numberAt(source: Record<string, unknown>, domain: string, metric: string): number {
+function numberAt(source: Record<string, unknown>, domain: string, metric: string): number | null {
   const value = (source[domain] as Record<string, unknown> | undefined)?.[metric];
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return typeof value === 'number' && Number.isFinite(value) ? value : domain === 'health' ? null : 0;
 }
 
 function addDays(date: string, days: number): string {
@@ -144,8 +177,13 @@ function zonedMidnight(date: string, timezone: string): Date {
   for (let i = 0; i < 3; i += 1) {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
     }).formatToParts(new Date(guess));
     const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
     const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));

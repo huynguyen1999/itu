@@ -99,6 +99,14 @@ enum SyncDevicePlatform {
   MACOS
 }
 
+enum UsageSource {
+  MACOS_FOREGROUND
+  DEVICE_ACTIVITY
+  BROWSER
+  HEALTH_KIT
+  SCREEN_TIME_BIOME
+}
+
 enum TaskPriority {
   NONE
   LOW
@@ -355,6 +363,9 @@ model User {
   usageAppIdentities          UsageAppIdentity[]
   websiteUsageSummaries       WebsiteUsageSummary[]
   websiteActivitySessions     WebsiteActivitySession[]
+  usageImportEvents           UsageImportEvent[]
+  healthSummaries             HealthSummary[]
+  healthWorkouts              HealthWorkout[]
   browserExtensionCredential  BrowserExtensionCredential?
   calendarConnections         CalendarConnection[]
   externalCalendars           ExternalCalendar[]
@@ -470,6 +481,8 @@ model SyncDevice {
   user                   User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   usageSummaries         UsageSummary[]
   websiteUsageSummaries  WebsiteUsageSummary[]
+  healthSummaries        HealthSummary[]
+  healthWorkouts         HealthWorkout[]
 
   @@index([userId, platform])
   @@index([userId, lastSeenAt])
@@ -478,6 +491,7 @@ model SyncDevice {
 model UsageSummary {
   userId         String
   syncDeviceId   String
+  source         UsageSource @default(MACOS_FOREGROUND)
   localDate      DateTime   @db.Date
   hour           Int        @default(-1)
   bundleId       String
@@ -485,12 +499,14 @@ model UsageSummary {
   timezone       String
   activeSeconds  Int
   engagedSeconds Int?
+  pickups        Int?
+  notifications  Int?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   syncDevice     SyncDevice @relation(fields: [syncDeviceId], references: [id], onDelete: Cascade)
 
-  @@id([syncDeviceId, localDate, hour, bundleId])
+  @@id([syncDeviceId, source, localDate, hour, bundleId])
   @@index([userId, localDate])
   @@index([syncDeviceId, localDate])
 }
@@ -508,11 +524,35 @@ model UsageAppIdentity {
   @@id([userId, bundleId])
 }
 
+model UsageImportEvent {
+  id                String      @id @default(uuid())
+  userId            String
+  collectorDeviceId String
+  sourceDeviceId    String
+  sourceDeviceName  String?
+  source            UsageSource @default(SCREEN_TIME_BIOME)
+  eventId           String
+  bundleId          String
+  displayName       String
+  startedAt         DateTime
+  endedAt           DateTime
+  durationSeconds   Int
+  createdAt         DateTime    @default(now())
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source, eventId])
+  @@index([userId, startedAt])
+  @@index([userId, sourceDeviceId])
+}
+
 model WebsiteUsageSummary {
+  id                 String       @id @default(uuid())
   userId             String
   syncDeviceId       String
+  source             UsageSource  @default(BROWSER)
   localDate          DateTime   @db.Date
-  browserBundleId    String
+  hour               Int          @default(-1)
+  browserBundleId    String?
   browserDisplayName String
   hostname           String
   url                String?    @db.Text
@@ -524,10 +564,10 @@ model WebsiteUsageSummary {
   user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   syncDevice         SyncDevice @relation(fields: [syncDeviceId], references: [id], onDelete: Cascade)
 
-  @@id([syncDeviceId, localDate, browserBundleId, urlKey])
   @@index([userId, localDate])
   @@index([userId, localDate, hostname])
   @@index([syncDeviceId, localDate])
+  @@index([syncDeviceId, source, localDate, hour])
 }
 
 model WebsiteActivitySession {
@@ -555,6 +595,57 @@ model WebsiteActivitySession {
   @@index([userId, hostname, startedAt])
   @@index([userId, url, startedAt])
   @@index([userId, installationId, startedAt])
+}
+
+model HealthSummary {
+  userId                       String
+  syncDeviceId                 String
+  source                       UsageSource  @default(HEALTH_KIT)
+  localDate                    DateTime     @db.Date
+  steps                        Int
+  walkingRunningDistanceMeters Float
+  activeEnergyKcal             Float
+  exerciseMinutes              Int
+  standHours                   Float?
+  sleepMinutes                 Int?
+  sleepStart                   DateTime?
+  sleepEnd                     DateTime?
+  restingHeartRateBpm          Float?
+  hrvMilliseconds              Float?
+  workoutCount                 Int
+  workoutMinutes               Int
+  workoutEnergyKcal            Float
+  createdAt                    DateTime     @default(now())
+  updatedAt                    DateTime     @updatedAt
+  user                         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncDevice                   SyncDevice   @relation(fields: [syncDeviceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, source, syncDeviceId, localDate])
+  @@index([userId, localDate])
+  @@index([syncDeviceId, localDate])
+}
+
+model HealthWorkout {
+  id             String      @id @default(uuid())
+  userId         String
+  syncDeviceId   String
+  source         UsageSource  @default(HEALTH_KIT)
+  healthKitUUID  String
+  activityType   String
+  startedAt      DateTime
+  endedAt        DateTime
+  durationSeconds Int
+  energyKcal     Float?
+  sourceBundleId String?
+  deviceName     String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncDevice     SyncDevice  @relation(fields: [syncDeviceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source, syncDeviceId, healthKitUUID])
+  @@index([userId, startedAt])
+  @@index([syncDeviceId, startedAt])
 }
 
 model BrowserExtensionCredential {

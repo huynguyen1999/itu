@@ -1,5 +1,8 @@
 import Foundation
 import Observation
+import iTuDomain
+import iTuOffline
+import iTuNetworking
 
 enum AuthenticationState: Equatable, Sendable {
     case restoring
@@ -351,9 +354,12 @@ final class AppModel {
     var usageLoading = false
     var usageError: String?
     var websiteUsageError: String?
+    var screenTimeStatus = ScreenTimeImportStatus()
     @ObservationIgnored var usageServerStatistics: UsageStatistics?
     @ObservationIgnored var usageTracker: ForegroundUsageTracker?
     @ObservationIgnored var websiteUsageTracker: WebsiteUsageTracker?
+    @ObservationIgnored var biomeCoordinator: BiomeImportCoordinator?
+    @ObservationIgnored var screenTimeSyncTimer: Timer?
     @ObservationIgnored var usageUploadTask: Task<Void, Never>?
     @ObservationIgnored var usageUploadInFlight: Task<Bool, Never>?
     @ObservationIgnored var usageUploadGeneration = 0
@@ -405,7 +411,7 @@ final class AppModel {
         FocusCommandService.shared.register(timer: focusTimer, cycleEngine: focusCycleEngine, settingsStore: settingsStore)
         FocusURLRouter.shared.setHydrated(true, authenticated: cachedUser != nil)
         apiClient = APIClient()
-        offlineStore = OfflineStore(accountID: cachedUser?.id ?? "anonymous")
+        offlineStore = OfflineStore(accountID: cachedUser?.id ?? "anonymous", location: Self.offlineStoreLocation)
         syncCoordinator = SyncCoordinator(apiClient: apiClient, offlineStore: offlineStore)
         setupUsageTracking()
         settingsStore.onFocusSettingsChanged = { [weak self] settings in
@@ -478,7 +484,7 @@ final class AppModel {
             stopUsageTracking()
             invalidateSession()
             TaskUndoCoordinator.shared.clearHistory()
-            let store = OfflineStore(accountID: profile.id)
+            let store = OfflineStore(accountID: profile.id, location: Self.offlineStoreLocation)
             offlineStore = store
             syncCoordinator.attach(store: store)
             let switchGeneration = sessionGeneration
@@ -661,6 +667,16 @@ final class AppModel {
         focusPolicyEnforcer.update(
             session: focusTimer.activeSession,
             settings: settings ?? settingsStore.focusSettings
+        )
+    }
+}
+
+private extension AppModel {
+    static var offlineStoreLocation: OfflineStoreLocation {
+        OfflineStoreLocation(
+            rootURL: FileManager.default
+                .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("iTu", isDirectory: true)
         )
     }
 }

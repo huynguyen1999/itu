@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type {
   IUsageRepository,
+  UsageSource,
   UsageAppIdentityRecord,
   UsageAppIdentityWrite,
+  ScreenTimeEventWrite,
   UsageSummaryRecord,
   UsageSummaryWrite,
   WebsiteActivitySessionRecord,
@@ -11,7 +14,16 @@ import type {
   WebsiteUsageSummaryWrite,
 } from '@core/application/ports/out/repositories.port';
 import { DEFAULT_USAGE_PREFERENCES } from '@core/application/use-cases/preferences.service';
+import { splitIntervalIntoHours } from '@core/application/use-cases/usage-validation';
 import { PrismaService } from './prisma.service';
+
+const MAX_USAGE_TRANSACTION_ATTEMPTS = 3;
+
+function isRetryableUsageTransactionError(error: unknown): boolean {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined;
+  return code === 'P2002' || code === 'P2034';
+}
 
 @Injectable()
 export class PrismaUsageRepository implements IUsageRepository {
@@ -79,28 +91,198 @@ export class PrismaUsageRepository implements IUsageRepository {
   }
 
   async replaceBatch(userId: string, deviceId: string, summaries: UsageSummaryWrite[]) {
-    return this.prisma.$transaction(async (tx) => {
-      for (const summary of summaries) {
-        await tx.usageSummary.upsert({
-          where: {
-            syncDeviceId_localDate_hour_bundleId: {
-              syncDeviceId: deviceId,
-              localDate: summary.localDate,
-              hour: summary.hour,
-              bundleId: summary.bundleId,
-            },
+    for (let attempt = 0; attempt < MAX_USAGE_TRANSACTION_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            const windows = new Map<
+              string,
+              { source: UsageSource; localDate: Date; hour: number; bundleIds: Set<string> }
+            >();
+            for (const summary of summaries) {
+              const source = summary.source ?? 'MACOS_FOREGROUND';
+              const hour = summary.hour ?? -1;
+              const key = `${source}\u0000${summary.localDate.toISOString()}\u0000${hour}`;
+              const window = windows.get(key) ?? {
+                source,
+                localDate: summary.localDate,
+                hour,
+                bundleIds: new Set<string>(),
+              };
+              window.bundleIds.add(summary.bundleId);
+              windows.set(key, window);
+            }
+            for (const window of windows.values()) {
+              await tx.usageSummary.deleteMany({
+                where: {
+                  userId,
+                  syncDeviceId: deviceId,
+                  source: window.source,
+                  localDate: window.localDate,
+                  hour: window.hour,
+                  bundleId: { notIn: [...window.bundleIds] },
+                },
+              });
+            }
+            for (const summary of summaries) {
+              const source = summary.source ?? 'MACOS_FOREGROUND';
+              const hour = summary.hour ?? -1;
+              await tx.usageSummary.upsert({
+                where: {
+                  syncDeviceId_source_localDate_hour_bundleId: {
+                    syncDeviceId: deviceId,
+                    source,
+                    localDate: summary.localDate,
+                    hour,
+                    bundleId: summary.bundleId,
+                  },
+                },
+                create: { ...summary, source, hour, userId, syncDeviceId: deviceId },
+                update: {
+                  displayName: summary.displayName,
+                  timezone: summary.timezone,
+                  activeSeconds: summary.activeSeconds,
+                  engagedSeconds: summary.engagedSeconds,
+                  pickups: summary.pickups,
+                  notifications: summary.notifications,
+                },
+              });
+            }
+            return summaries.length;
           },
-          create: { ...summary, userId, syncDeviceId: deviceId },
-          update: {
-            displayName: summary.displayName,
-            timezone: summary.timezone,
-            activeSeconds: summary.activeSeconds,
-            engagedSeconds: summary.engagedSeconds,
-          },
-        });
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if (!isRetryableUsageTransactionError(error) || attempt === MAX_USAGE_TRANSACTION_ATTEMPTS - 1) throw error;
       }
-      return summaries.length;
-    });
+    }
+    throw new Error('Unable to replace usage summaries');
+  }
+
+  async ingestScreenTimeEvents(userId: string, collectorDeviceId: string, events: ScreenTimeEventWrite[]) {
+    if (events.length === 0) return { accepted: true, inserted: 0 };
+    for (let attempt = 0; attempt < MAX_USAGE_TRANSACTION_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            const created = await tx.usageImportEvent.createMany({
+              data: events.map((event) => ({
+                userId,
+                collectorDeviceId,
+                sourceDeviceId: event.sourceDeviceId,
+                sourceDeviceName: event.sourceDeviceName ?? null,
+                source: event.source,
+                eventId: event.eventId,
+                bundleId: event.bundleId,
+                displayName: event.displayName,
+                startedAt: event.startedAt,
+                endedAt: event.endedAt,
+                durationSeconds: event.durationSeconds,
+              })),
+              skipDuplicates: true,
+            });
+
+            // Ensure sync device exists for source devices
+            const uniqueSourceDevices = new Map<string, string | undefined>();
+            for (const event of events) {
+              if (!uniqueSourceDevices.has(event.sourceDeviceId)) {
+                uniqueSourceDevices.set(event.sourceDeviceId, event.sourceDeviceName ?? undefined);
+              }
+            }
+
+            for (const [sourceDeviceId] of uniqueSourceDevices) {
+              const existing = await tx.syncDevice.findFirst({
+                where: { id: sourceDeviceId, userId },
+              });
+              if (!existing) {
+                await tx.syncDevice.upsert({
+                  where: { id: sourceDeviceId },
+                  create: {
+                    id: sourceDeviceId,
+                    userId,
+                    platform: 'IOS',
+                    lastSeenAt: new Date(),
+                  },
+                  update: {
+                    lastSeenAt: new Date(),
+                  },
+                });
+              }
+            }
+
+            // Upsert app identities
+            const uniqueApps = new Map<string, string>();
+            for (const event of events) {
+              uniqueApps.set(event.bundleId, event.displayName);
+            }
+            for (const [bundleId, displayName] of uniqueApps) {
+              await tx.usageAppIdentity.upsert({
+                where: { userId_bundleId: { userId, bundleId } },
+                create: { userId, bundleId, displayName },
+                update: { displayName },
+              });
+            }
+
+            // Aggregate events into UsageSummary
+            for (const event of events) {
+              if (event.durationSeconds <= 0) continue;
+              const slices = splitIntervalIntoHours(event.startedAt, event.endedAt, event.durationSeconds);
+              for (const slice of slices) {
+                const existingSummary = await tx.usageSummary.findUnique({
+                  where: {
+                    syncDeviceId_source_localDate_hour_bundleId: {
+                      syncDeviceId: event.sourceDeviceId,
+                      source: event.source,
+                      localDate: slice.localDate,
+                      hour: slice.hour,
+                      bundleId: event.bundleId,
+                    },
+                  },
+                });
+
+                if (existingSummary) {
+                  await tx.usageSummary.update({
+                    where: {
+                      syncDeviceId_source_localDate_hour_bundleId: {
+                        syncDeviceId: event.sourceDeviceId,
+                        source: event.source,
+                        localDate: slice.localDate,
+                        hour: slice.hour,
+                        bundleId: event.bundleId,
+                      },
+                    },
+                    data: {
+                      activeSeconds: existingSummary.activeSeconds + slice.seconds,
+                      displayName: event.displayName,
+                    },
+                  });
+                } else {
+                  await tx.usageSummary.create({
+                    data: {
+                      userId,
+                      syncDeviceId: event.sourceDeviceId,
+                      source: event.source,
+                      localDate: slice.localDate,
+                      hour: slice.hour,
+                      bundleId: event.bundleId,
+                      displayName: event.displayName,
+                      timezone: 'UTC',
+                      activeSeconds: slice.seconds,
+                    },
+                  });
+                }
+              }
+            }
+
+            return { accepted: true, inserted: created.count };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if (!isRetryableUsageTransactionError(error) || attempt === MAX_USAGE_TRANSACTION_ATTEMPTS - 1) throw error;
+      }
+    }
+    throw new Error('Unable to ingest Screen Time events');
   }
 
   async findWebsiteSummaries(userId: string, from: Date, toExclusive: Date): Promise<WebsiteUsageSummaryRecord[]> {
@@ -152,35 +334,107 @@ export class PrismaUsageRepository implements IUsageRepository {
   }
 
   async replaceWebsiteBatch(userId: string, deviceId: string, summaries: WebsiteUsageSummaryWrite[]) {
-    return this.prisma.$transaction(async (tx) => {
-      for (const summary of summaries) {
-        await tx.websiteUsageSummary.upsert({
-          where: {
-            syncDeviceId_localDate_browserBundleId_urlKey: {
-              syncDeviceId: deviceId,
-              localDate: summary.localDate,
-              browserBundleId: summary.browserBundleId,
-              urlKey: summary.urlKey,
-            },
+    for (let attempt = 0; attempt < MAX_USAGE_TRANSACTION_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            const windows = new Map<
+              string,
+              {
+                source: UsageSource;
+                localDate: Date;
+                hour: number;
+                keys: Set<string>;
+              }
+            >();
+            for (const summary of summaries) {
+              const source = summary.source ?? 'BROWSER';
+              const hour = summary.hour ?? -1;
+              const key = `${source}\u0000${summary.localDate.toISOString()}\u0000${hour}`;
+              const window = windows.get(key) ?? {
+                source,
+                localDate: summary.localDate,
+                hour,
+                keys: new Set<string>(),
+              };
+              window.keys.add(`${summary.browserBundleId ?? ''}\u0000${summary.urlKey}`);
+              windows.set(key, window);
+            }
+            for (const window of windows.values()) {
+              const keep = [...window.keys].map((key) => {
+                const [browserBundleId, urlKey] = key.split('\u0000');
+                return window.source === 'DEVICE_ACTIVITY'
+                  ? { urlKey }
+                  : { browserBundleId: browserBundleId || null, urlKey };
+              });
+              await tx.websiteUsageSummary.deleteMany({
+                where: {
+                  userId,
+                  syncDeviceId: deviceId,
+                  source: window.source,
+                  localDate: window.localDate,
+                  hour: window.hour,
+                  NOT: keep,
+                },
+              });
+            }
+            for (const summary of summaries) {
+              const source = summary.source ?? 'BROWSER';
+              const hour = summary.hour ?? -1;
+              const browserBundleId = summary.browserBundleId ?? null;
+              const existing = await tx.websiteUsageSummary.findFirst({
+                where: {
+                  syncDeviceId: deviceId,
+                  source,
+                  localDate: summary.localDate,
+                  hour,
+                  urlKey: summary.urlKey,
+                  browserBundleId,
+                },
+              });
+              const data = {
+                source,
+                hour,
+                browserBundleId,
+                browserDisplayName: summary.browserDisplayName,
+                hostname: summary.hostname,
+                url: summary.url,
+                timezone: summary.timezone,
+                activeSeconds: summary.activeSeconds,
+              };
+              if (existing) {
+                await tx.websiteUsageSummary.update({
+                  where: { id: existing.id },
+                  data,
+                });
+              } else {
+                await tx.websiteUsageSummary.create({
+                  data: {
+                    ...data,
+                    userId,
+                    syncDeviceId: deviceId,
+                    localDate: summary.localDate,
+                    urlKey: summary.urlKey,
+                  },
+                });
+              }
+            }
+            return summaries.length;
           },
-          create: { ...summary, userId, syncDeviceId: deviceId },
-          update: {
-            browserDisplayName: summary.browserDisplayName,
-            hostname: summary.hostname,
-            url: summary.url,
-            timezone: summary.timezone,
-            activeSeconds: summary.activeSeconds,
-          },
-        });
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        // The partial unique indexes cannot be represented as a Prisma
+        // composite `upsert` target. A concurrent create may win between our
+        // lookup and create; retrying the whole transaction then observes and
+        // updates that row atomically instead of surfacing a duplicate error.
+        if (!isRetryableUsageTransactionError(error) || attempt === MAX_USAGE_TRANSACTION_ATTEMPTS - 1) throw error;
       }
-      return summaries.length;
-    });
+    }
+    throw new Error('Unable to replace website usage summaries');
   }
 
-  async ingestWebsiteActivitySessions(
-    userId: string,
-    sessions: WebsiteActivitySessionWrite[],
-  ): Promise<string[]> {
+  async ingestWebsiteActivitySessions(userId: string, sessions: WebsiteActivitySessionWrite[]): Promise<string[]> {
     if (sessions.length === 0) return [];
     await this.prisma.$transaction(async (tx) => {
       for (const session of sessions) {

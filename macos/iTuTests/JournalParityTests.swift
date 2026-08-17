@@ -1,4 +1,5 @@
 import XCTest
+import iTuNetworking
 @testable import iTu
 
 final class JournalParityTests: XCTestCase {

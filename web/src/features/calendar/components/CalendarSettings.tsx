@@ -55,8 +55,8 @@ export function CalendarSettings({
           <label key={kind} className="flex items-center gap-2 rounded-full border border-border/70 px-3 py-1.5 text-xs"><input type="checkbox" checked={visibleKinds.includes(kind)} onChange={() => onToggleKind(kind)} /> {label}</label>
         ))}
       </div>
-      <form className="mt-4 flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); if (url) { onConnect(url, name || undefined); setUrl(''); setName(''); } }}>
-        <input aria-label="ICS calendar URL" className="h-9 min-w-56 flex-1 rounded-[var(--itu-radius-s)] border bg-background px-3 text-sm outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10" type="url" required placeholder="https://…/calendar.ics" value={url} onChange={(event) => setUrl(event.target.value)} />
+      <form className="mt-4 flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); const trimmed = url.trim(); if (trimmed) { onConnect(trimmed, name.trim() || undefined); setUrl(''); setName(''); } }}>
+        <input aria-label="ICS calendar URL" className="h-9 min-w-56 flex-1 rounded-[var(--itu-radius-s)] border bg-background px-3 text-sm outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10" type="text" required placeholder="https://…/calendar.ics or webcal://…" value={url} onChange={(event) => setUrl(event.target.value)} />
         <input aria-label="Calendar name" className="h-9 min-w-40 flex-1 rounded-[var(--itu-radius-s)] border bg-background px-3 text-sm outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10" placeholder="Calendar name" value={name} onChange={(event) => setName(event.target.value)} />
         <Button type="submit" size="sm">Add subscription</Button>
       </form>

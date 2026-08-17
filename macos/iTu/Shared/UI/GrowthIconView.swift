@@ -1,6 +1,7 @@
 import AppKit
 import CryptoKit
 import SwiftUI
+import iTuNetworking
 
 struct GrowthIconDescriptor: Identifiable, Hashable, Sendable {
     let id: String

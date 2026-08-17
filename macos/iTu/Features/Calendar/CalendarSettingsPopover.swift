@@ -85,7 +85,7 @@ struct CalendarSettingsPopover: View {
 
                 // Add ICS Form
                 VStack(alignment: .leading, spacing: 6) {
-                    TextField("https://example.com/calendar.ics", text: $newIcsUrl)
+                    TextField("https://example.com/calendar.ics or webcal://…", text: $newIcsUrl)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 11))
                     HStack(spacing: 6) {

@@ -9,6 +9,8 @@ import { UsageWebsiteService } from './usage-website.service';
 import { nextDay, parseDate } from './usage-validation';
 import type {
   BrowserExtensionUsageBatchInput,
+  ScreenTimeEventInput,
+  ScreenTimeUsageBatchInput,
   UsageAppIconInput,
   UsageSummaryBatchInput,
   WebsiteActivitySessionBatchInput,
@@ -17,6 +19,8 @@ import type {
 
 export type {
   BrowserExtensionUsageBatchInput,
+  ScreenTimeEventInput,
+  ScreenTimeUsageBatchInput,
   UsageAppIconInput,
   UsageSummaryBatchInput,
   UsageSummaryInput,
@@ -43,6 +47,10 @@ export class UsageService extends UsageQueryService {
 
   replaceBatch(userId: string, input: UsageSummaryBatchInput) {
     return this.ingestion.replaceBatch(userId, input);
+  }
+
+  ingestScreenTimeEvents(userId: string, input: ScreenTimeUsageBatchInput) {
+    return this.ingestion.ingestScreenTimeEvents(userId, input);
   }
 
   replaceAppIcon(userId: string, input: UsageAppIconInput) {

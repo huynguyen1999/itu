@@ -8,6 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		A7F77D2130268A93004C47A8 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000091 /* KeyboardShortcuts */; };
+		A7F77D2130268A93004C47A9 /* iTuDomain in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000093 /* iTuDomain */; };
+		A7F77D2130268A93004C47AA /* iTuNetworking in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000094 /* iTuNetworking */; };
+		A7F77D2130268A93004C47AB /* iTuOffline in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000095 /* iTuOffline */; };
+		A7F77D2130268A93004C7AC /* iTuSync in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000096 /* iTuSync */; };
+		A7F77D2130268A93004C7AD /* iTuDesignCore in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000097 /* iTuDesignCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,6 +55,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				A7F77D2130268A93004C47A8 /* KeyboardShortcuts in Frameworks */,
+				A7F77D2130268A93004C47A9 /* iTuDomain in Frameworks */,
+				A7F77D2130268A93004C47AA /* iTuNetworking in Frameworks */,
+				A7F77D2130268A93004C47AB /* iTuOffline in Frameworks */,
+				A7F77D2130268A93004C7AC /* iTuSync in Frameworks */,
+				A7F77D2130268A93004C7AD /* iTuDesignCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -104,6 +114,11 @@
 			name = iTu;
 			packageProductDependencies = (
 				20A000000000000000000091 /* KeyboardShortcuts */,
+				20A000000000000000000093 /* iTuDomain */,
+				20A000000000000000000094 /* iTuNetworking */,
+				20A000000000000000000095 /* iTuOffline */,
+				20A000000000000000000096 /* iTuSync */,
+				20A000000000000000000097 /* iTuDesignCore */,
 			);
 			productName = iTu;
 			productReference = 20A000000000000000000030 /* iTu.app */;
@@ -185,6 +200,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				20A000000000000000000090 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				20A000000000000000000092 /* XCLocalSwiftPackageReference "../apple/Packages/iTuCore" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 20A000000000000000000003 /* Products */;
@@ -495,6 +511,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		20A000000000000000000092 /* XCLocalSwiftPackageReference "../apple/Packages/iTuCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../apple/Packages/iTuCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		20A000000000000000000090 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -511,6 +534,31 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 20A000000000000000000090 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
 			productName = KeyboardShortcuts;
+		};
+		20A000000000000000000093 /* iTuDomain */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 20A000000000000000000092 /* XCLocalSwiftPackageReference "../apple/Packages/iTuCore" */;
+			productName = iTuDomain;
+		};
+		20A000000000000000000094 /* iTuNetworking */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 20A000000000000000000092 /* XCLocalSwiftPackageReference "../apple/Packages/iTuCore" */;
+			productName = iTuNetworking;
+		};
+		20A000000000000000000095 /* iTuOffline */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 20A000000000000000000092 /* XCLocalSwiftPackageReference "../apple/Packages/iTuCore" */;
+			productName = iTuOffline;
+		};
+		20A000000000000000000096 /* iTuSync */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 20A000000000000000000092 /* XCLocalSwiftPackageReference "../apple/Packages/iTuCore" */;
+			productName = iTuSync;
+		};
+		20A000000000000000000097 /* iTuDesignCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 20A000000000000000000092 /* XCLocalSwiftPackageReference "../apple/Packages/iTuCore" */;
+			productName = iTuDesignCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

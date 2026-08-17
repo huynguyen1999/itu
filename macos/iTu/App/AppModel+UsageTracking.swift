@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import iTuDomain
 
 extension AppModel {
     func setupUsageTracking() {
@@ -76,6 +77,12 @@ extension AppModel {
         }
         self.websiteUsageTracker = webTracker
 
+        let coordinator = BiomeImportCoordinator(
+            apiClientProvider: { [weak self] in self?.apiClient },
+            macSyncDeviceIdProvider: { [weak self] in self?.syncCoordinator.syncDeviceId }
+        )
+        self.biomeCoordinator = coordinator
+
         settingsStore.onUsagePreferencesChanged = { [weak self] preferences in
             self?.applyUsagePreferences(preferences)
         }
@@ -104,6 +111,13 @@ extension AppModel {
         websiteUsageTracker?.setPaused(settingsStore.usagePreferences.paused)
 
         startDurabilityCheckpointTimer()
+        startScreenTimeSyncTimer()
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.refreshScreenTimeStatus()
+            await self.runScreenTimeImport()
+        }
 
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -347,9 +361,42 @@ extension AppModel {
         }
     }
 
+    func startScreenTimeSyncTimer() {
+        screenTimeSyncTimer?.invalidate()
+        screenTimeSyncTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.runScreenTimeImport()
+            }
+        }
+    }
+
+    func refreshScreenTimeStatus() async {
+        guard let coordinator = biomeCoordinator else { return }
+        self.screenTimeStatus = await coordinator.checkStatus()
+    }
+
+    @discardableResult
+    func runScreenTimeImport() async -> ScreenTimeImportStatus {
+        guard let coordinator = biomeCoordinator else { return screenTimeStatus }
+        let newStatus = await coordinator.runOnce()
+        self.screenTimeStatus = newStatus
+        return newStatus
+    }
+
+    @discardableResult
+    func reimportScreenTimeLast7Days() async -> ScreenTimeImportStatus {
+        guard let coordinator = biomeCoordinator else { return screenTimeStatus }
+        let newStatus = await coordinator.reimportLast7Days()
+        self.screenTimeStatus = newStatus
+        return newStatus
+    }
+
     func stopUsageTracking() {
         usageCheckpointTimer?.invalidate()
         usageCheckpointTimer = nil
+        screenTimeSyncTimer?.invalidate()
+        screenTimeSyncTimer = nil
         usageUploadTask?.cancel()
         usageUploadTask = nil
         usageUploadInFlight?.cancel()

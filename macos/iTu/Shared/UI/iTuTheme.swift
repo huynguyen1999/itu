@@ -1,44 +1,56 @@
 import SwiftUI
 import AppKit
+import iTuDesignCore
 
 enum iTuTheme {
-    static let canvas = Color(lightHex: 0xF5F7F6, darkHex: 0x071713)
-    static let surface = Color(lightHex: 0xFFFFFF, darkHex: 0x0A211D)
-    static let surfaceMuted = Color(lightHex: 0xFBFCFB, darkHex: 0x0D2A25)
-    static let ink = Color(lightHex: 0x142420, darkHex: 0xECF7F3)
-    static let inkDim = Color(lightHex: 0x5C6D68, darkHex: 0xA7BBB5)
-    static let inkFaint = Color(lightHex: 0x93A39D, darkHex: 0x6F8982)
-    static let border = Color(lightHex: 0xE4E9E6, darkHex: 0x1A3B34)
-    static let borderSoft = Color(lightHex: 0xEDF1EF, darkHex: 0x123029)
-    static let forest = Color(hex: 0x0B322C)
-    static let forestDeep = Color(hex: 0x08211D)
-    static let forestRaised = Color(hex: 0x15443C)
-    static let tealDeep = Color(hex: 0x0D3831)
-    static let teal = Color(lightHex: 0x167F71, darkHex: 0x40A6B5)
-    static let mint = Color(hex: 0x3FB6A4)
-    static let mintTint = Color(lightHex: 0xF1FAF7, darkHex: 0x102F28)
-    static let pageHeaderForeground = Color(lightHex: 0xEDF3F0, darkHex: 0xEDF3F0)
-    static let pageHeaderForegroundMuted = Color(lightHex: 0xC1D8D0, darkHex: 0xA7BBB5)
-    static let pageHeaderKicker = Color(lightHex: 0x72D3BE, darkHex: 0x72D3BE)
-    static let pageHeaderDivider = Color.white.opacity(0.14)
-    static let syncBlue = Color(hex: 0x4F8FCF)
-    static let amber = Color(hex: 0xE19A2E)
-    static let amberTint = Color(lightHex: 0xFBECD2, darkHex: 0x3B2B14)
-    static let coral = Color(hex: 0xE2725B)
-    static let coralTint = Color(lightHex: 0xFBE4DE, darkHex: 0x3D211D)
-    static let gold = Color(hex: 0xAD8A3D)
-    static let goldSoft = Color(hex: 0xF1E7CF)
+    static let canvas = Color(designToken: iTuDesignTokens.canvas)
+    static let surface = Color(designToken: iTuDesignTokens.surface)
+    static let surfaceMuted = Color(designToken: iTuDesignTokens.surfaceMuted)
+    static let ink = Color(designToken: iTuDesignTokens.ink)
+    static let inkDim = Color(designToken: iTuDesignTokens.inkDim)
+    static let inkFaint = Color(designToken: iTuDesignTokens.inkFaint)
+    static let border = Color(designToken: iTuDesignTokens.border)
+    static let borderSoft = Color(designToken: iTuDesignTokens.borderSoft)
+    static let forest = Color(designToken: iTuDesignTokens.forest)
+    static let forestDeep = Color(designToken: iTuDesignTokens.forestDeep)
+    static let forestRaised = Color(designToken: iTuDesignTokens.forestRaised)
+    static let tealDeep = Color(designToken: iTuDesignTokens.tealDeep)
+    static let teal = Color(designToken: iTuDesignTokens.teal)
+    static let mint = Color(designToken: iTuDesignTokens.mint)
+    static let mintTint = Color(designToken: iTuDesignTokens.mintTint)
+    static let pageHeaderForeground = Color(designToken: iTuDesignTokens.pageHeaderForeground)
+    static let pageHeaderForegroundMuted = Color(designToken: iTuDesignTokens.pageHeaderForegroundMuted)
+    static let pageHeaderKicker = Color(designToken: iTuDesignTokens.pageHeaderKicker)
+    static let pageHeaderDivider = Color(designToken: iTuDesignTokens.pageHeaderDivider)
+    static let syncBlue = Color(designToken: iTuDesignTokens.syncBlue)
+    static let amber = Color(designToken: iTuDesignTokens.amber)
+    static let amberTint = Color(designToken: iTuDesignTokens.amberTint)
+    static let coral = Color(designToken: iTuDesignTokens.coral)
+    static let coralTint = Color(designToken: iTuDesignTokens.coralTint)
+    static let gold = Color(designToken: iTuDesignTokens.gold)
+    static let goldSoft = Color(designToken: iTuDesignTokens.goldSoft)
 }
 
 extension Color {
-    init(lightHex: UInt32, darkHex: UInt32, opacity: Double = 1) {
+    init(designToken token: iTuColorToken) {
+        guard token.light != token.dark else {
+            self.init(
+                .sRGB,
+                red: Double(token.light.red) / 255,
+                green: Double(token.light.green) / 255,
+                blue: Double(token.light.blue) / 255,
+                opacity: token.light.alpha
+            )
+            return
+        }
+
         let dynamicColor = NSColor(name: nil) { appearance in
-            let hex = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? darkHex : lightHex
+            let rgba = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? token.dark : token.light
             return NSColor(
-                calibratedRed: CGFloat((hex >> 16) & 0xFF) / 255,
-                green: CGFloat((hex >> 8) & 0xFF) / 255,
-                blue: CGFloat(hex & 0xFF) / 255,
-                alpha: opacity
+                calibratedRed: CGFloat(rgba.red) / 255,
+                green: CGFloat(rgba.green) / 255,
+                blue: CGFloat(rgba.blue) / 255,
+                alpha: rgba.alpha
             )
         }
         self.init(nsColor: dynamicColor)

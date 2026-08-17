@@ -126,6 +126,11 @@ struct ProfileView: View {
                             .buttonStyle(iTuSecondaryButtonStyle(height: 34))
                         }
 
+                        Button("Sign Out") {
+                            Task { await model.logout() }
+                        }
+                        .buttonStyle(iTuSecondaryButtonStyle(height: 34))
+
                         Divider()
 
                         VStack(alignment: .leading, spacing: 8) {

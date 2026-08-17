@@ -1,4 +1,6 @@
 import Foundation
+import iTuNetworking
+import iTuSync
 
 /// Owns the authenticated app session's sync transport and outbox schedule.
 @MainActor
@@ -8,7 +10,7 @@ final class SyncCoordinator {
     private var offlineStore: OfflineStore?
     private let deviceId: String
     var syncDeviceId: String { deviceId }
-    let clientInstanceId = UUID().uuidString
+    let clientInstanceId: String
     private var periodicTask: Task<Void, Never>?
     private var debounceTask: Task<Void, Never>?
     private var retryTask: Task<Void, Never>?
@@ -19,9 +21,7 @@ final class SyncCoordinator {
     private var socketTask: URLSessionWebSocketTask?
     private var socketReceiveTask: Task<Void, Never>?
     private var syncAction: (@MainActor () async -> Void)?
-    private var isSyncing = false
-    private var syncingGeneration: Int?
-    private var followupRequested = false
+    private let syncCore: SyncCoordinatorCore
     private var registeredDevice = false
     private(set) var isActive = false
     private(set) var generation = 0
@@ -30,6 +30,8 @@ final class SyncCoordinator {
         self.apiClient = apiClient
         webSocketSession = APIClient.makeSession()
         self.offlineStore = offlineStore
+        let clientInstanceId = UUID().uuidString
+        self.clientInstanceId = clientInstanceId
         if let stored = UserDefaults.standard.string(forKey: "syncDeviceId") {
             deviceId = stored
         } else {
@@ -37,6 +39,12 @@ final class SyncCoordinator {
             UserDefaults.standard.set(generated, forKey: "syncDeviceId")
             deviceId = generated
         }
+        syncCore = SyncCoordinatorCore(
+            store: offlineStore,
+            transport: apiClient,
+            deviceId: deviceId,
+            clientInstanceId: clientInstanceId
+        )
     }
 
     func attach(store: OfflineStore) {
@@ -45,6 +53,7 @@ final class SyncCoordinator {
         generation &+= 1
         cancelTransport()
         offlineStore = store
+        syncCore.attach(store: store, generation: generation)
         registeredDevice = false
         if wasActive, let action { start(periodicAction: action) }
     }
@@ -97,13 +106,11 @@ final class SyncCoordinator {
 
     func stop() {
         generation &+= 1
+        syncCore.invalidate()
         cancelTransport()
         syncAction = nil
         isActive = false
         registeredDevice = false
-        followupRequested = false
-        isSyncing = false
-        syncingGeneration = nil
     }
 
     private func cancelTransport() {
@@ -112,9 +119,6 @@ final class SyncCoordinator {
         retryTask?.cancel(); retryTask = nil
         urgentFlushTask?.cancel(); urgentFlushTask = nil
         outboxTask?.cancel(); outboxTask = nil
-        isSyncing = false
-        syncingGeneration = nil
-        followupRequested = false
         registrationTask?.cancel(); registrationTask = nil
         registrationTaskID = nil
         socketReceiveTask?.cancel(); socketReceiveTask = nil
@@ -149,70 +153,29 @@ final class SyncCoordinator {
         AppPerformanceSignposts.recordSyncRun()
         let runGeneration = generation
         guard let offlineStore else { throw APIError(statusCode: 0, message: "Sync is not attached") }
-        if isSyncing {
-            guard syncingGeneration == runGeneration else {
-                let snapshot = await offlineStore.snapshot()
-                return SyncResult(snapshot: snapshot, outcomes: [], conflicts: snapshot.conflicts, cursor: snapshot.cursor)
-            }
-            followupRequested = true
-            let snapshot = await offlineStore.snapshot()
-            return SyncResult(snapshot: snapshot, outcomes: [], conflicts: snapshot.conflicts, cursor: snapshot.cursor)
-        }
-        isSyncing = true
-        syncingGeneration = runGeneration
-        defer {
-            if syncingGeneration == runGeneration {
-                isSyncing = false
-                syncingGeneration = nil
-                if followupRequested {
-                    followupRequested = false
-                    requestFlush(urgent: true)
-                }
-            }
-        }
-
         let before = await offlineStore.snapshot()
         guard runGeneration == generation else { return SyncResult(snapshot: before, outcomes: [], conflicts: before.conflicts, cursor: before.cursor) }
         scheduleEarliestRetry(for: before.mutations, generation: runGeneration)
-        let readyMutations = before.mutations.filter { mutation in
-            guard let nextRetryAt = mutation.nextRetryAt,
-                  let date = Self.parseDate(nextRetryAt) else { return true }
-            return date <= Date()
-        }
         do {
-            let response = try await apiClient.synchronize(SyncRequest(
-                deviceId: deviceId,
-                clientInstanceId: clientInstanceId,
-                cursor: before.cursor,
-                mutations: readyMutations.map(SyncMutationPayload.init)
-            ))
-            guard runGeneration == generation else { return SyncResult(snapshot: await offlineStore.snapshot(), outcomes: [], conflicts: [], cursor: before.cursor) }
-            let snapshot = try await offlineStore.applySync(response)
-            guard runGeneration == generation else {
-                return SyncResult(snapshot: await offlineStore.snapshot(), outcomes: [], conflicts: [], cursor: snapshot.cursor)
+            let outcome = try await syncCore.synchronize {
+                await ConnectivityMonitor.shared.state != .offline
             }
-            try? await apiClient.updateSyncDevice(deviceId: deviceId, cursor: response.cursor)
+            let result = outcome.result
             guard runGeneration == generation else {
-                return SyncResult(snapshot: await offlineStore.snapshot(), outcomes: [], conflicts: [], cursor: snapshot.cursor)
+                return SyncResult(snapshot: await offlineStore.snapshot(), outcomes: [], conflicts: [], cursor: result.cursor)
+            }
+            guard outcome.performed else { return result }
+            try? await apiClient.updateSyncDevice(deviceId: deviceId, cursor: result.cursor)
+            guard runGeneration == generation else {
+                return SyncResult(snapshot: await offlineStore.snapshot(), outcomes: [], conflicts: [], cursor: result.cursor)
             }
             if socketTask == nil { scheduleRegistration(generation: runGeneration) }
-            return SyncResult(
-                snapshot: snapshot,
-                outcomes: response.mutationOutcomes ?? [],
-                conflicts: response.conflicts,
-                cursor: response.cursor,
-                changes: response.changes
-            )
+            if syncCore.consumeFollowupRequest() { requestFlush(urgent: true) }
+            return result
         } catch {
-            let isOffline = ConnectivityMonitor.shared.state == .offline
-            let code = Self.syncErrorCode(error)
-            let apiError = error as? APIError
-            let retryable = apiError.map { $0.statusCode == 0 || $0.statusCode == 408 || $0.statusCode == 425 || $0.statusCode == 429 || $0.statusCode >= 500 } ?? true
-            if runGeneration == generation && !isOffline {
-                _ = try? await offlineStore.recordMutationFailures(
-                    readyMutations.map(\.id), code: code, retryAfter: apiError?.retryAfter, retryable: retryable
-                )
+            if runGeneration == generation {
                 scheduleEarliestRetry(for: await offlineStore.snapshot().mutations, generation: runGeneration)
+                if syncCore.consumeFollowupRequest() { requestFlush(urgent: true) }
             }
             throw error
         }
@@ -257,8 +220,9 @@ final class SyncCoordinator {
         guard isActive, generation == connectionGeneration, registeredDevice,
               socketTask == nil, let token = await apiClient.token() else { return }
         guard isActive, generation == connectionGeneration, registeredDevice, socketTask == nil else { return }
-        var components = URLComponents(url: APIConfiguration.baseURL, resolvingAgainstBaseURL: false)
-        components?.scheme = APIConfiguration.baseURL.scheme == "https" ? "wss" : "ws"
+        let baseURL = apiClient.baseURL
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.scheme = baseURL.scheme == "https" ? "wss" : "ws"
         components?.path = "/ws/sync"
         components?.queryItems = [
             URLQueryItem(name: "token", value: token),
@@ -319,12 +283,6 @@ final class SyncCoordinator {
         ISO8601DateFormatter().date(from: value)
     }
 
-    private static func syncErrorCode(_ error: Error) -> String {
-        if let apiError = error as? APIError {
-            return apiError.code ?? (apiError.statusCode > 0 ? "HTTP_\(apiError.statusCode)" : "SYNC_FAILED")
-        }
-        return "SYNC_FAILED"
-    }
 }
 
 private struct SyncInvalidationMessage: Decodable {

@@ -1,4 +1,7 @@
+import type { UsageSource } from '@core/application/ports/out/repositories.port';
+
 export interface UsageSummaryInput {
+  source?: UsageSource;
   localDate: string;
   hour?: number;
   bundleId: string;
@@ -6,6 +9,8 @@ export interface UsageSummaryInput {
   timezone: string;
   activeSeconds: number;
   engagedSeconds?: number;
+  pickups?: number;
+  notifications?: number;
 }
 
 export interface UsageSummaryBatchInput {
@@ -14,8 +19,10 @@ export interface UsageSummaryBatchInput {
 }
 
 export interface WebsiteUsageSummaryInput {
+  source?: UsageSource;
   localDate: string;
-  browserBundleId: string;
+  hour?: number;
+  browserBundleId?: string | null;
   browserDisplayName: string;
   hostname: string;
   url?: string;
@@ -58,4 +65,21 @@ export interface UsageAppIconInput {
   originalName: string;
   mimeType: string;
   buffer: Buffer;
+}
+
+export interface ScreenTimeEventInput {
+  eventId: string;
+  source?: UsageSource;
+  sourceDeviceId: string;
+  sourceDeviceName?: string;
+  bundleId: string;
+  displayName: string;
+  startedAt: string;
+  endedAt: string;
+  durationSeconds: number;
+}
+
+export interface ScreenTimeUsageBatchInput {
+  collectorDeviceId: string;
+  events: ScreenTimeEventInput[];
 }

@@ -24,8 +24,16 @@ export class PrismaCalendarRepository implements CalendarRepositoryPort {
 
   async listVisibleEvents(userId: string, from: Date, to: Date): Promise<CalendarEventRecord[]> {
     return this.prisma.externalCalendarEvent.findMany({
-      where: { userId, calendar: { visible: true }, startAt: { lt: to }, OR: [{ endAt: null }, { endAt: { gt: from } }] },
-      include: { calendar: { select: { name: true, color: true } } }, take: 500,
+      where: {
+        userId,
+        calendar: { visible: true },
+        OR: [
+          { startAt: { lt: to }, endAt: { gt: from } },
+          { endAt: null, startAt: { gte: from, lt: to } },
+        ],
+      },
+      include: { calendar: { select: { name: true, color: true } } },
+      take: 500,
     }) as Promise<CalendarEventRecord[]>;
   }
 

@@ -7,6 +7,15 @@ describe('PrismaCalendarRepository', () => {
     const from = new Date('2026-08-12T00:00:00.000Z');
     const to = new Date('2026-08-13T00:00:00.000Z');
     await repository.listVisibleEvents('user-1', from, to);
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 'user-1', calendar: { visible: true }, startAt: { lt: to }, OR: [{ endAt: null }, { endAt: { gt: from } }] } }));
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        userId: 'user-1',
+        calendar: { visible: true },
+        OR: [
+          { startAt: { lt: to }, endAt: { gt: from } },
+          { endAt: null, startAt: { gte: from, lt: to } },
+        ],
+      },
+    }));
   });
 });

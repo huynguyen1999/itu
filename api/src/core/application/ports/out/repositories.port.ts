@@ -199,6 +199,15 @@ export interface ISyncDeviceRepository {
   listNotificationTargets(userId: string, excludeDeviceId: string): Promise<SyncDeviceModel[]>;
 }
 
+export const USAGE_SOURCES = [
+  'MACOS_FOREGROUND',
+  'DEVICE_ACTIVITY',
+  'BROWSER',
+  'HEALTH_KIT',
+  'SCREEN_TIME_BIOME',
+] as const;
+export type UsageSource = (typeof USAGE_SOURCES)[number];
+
 export interface UsageSummaryRecord {
   localDate: Date;
   hour: number;
@@ -231,12 +240,15 @@ export interface UsageSummaryWrite {
   displayName: string;
   timezone: string;
   activeSeconds: number;
+  source?: UsageSource;
   engagedSeconds?: number | null;
+  pickups?: number | null;
+  notifications?: number | null;
 }
 
 export interface WebsiteUsageSummaryRecord {
   localDate: Date;
-  browserBundleId: string;
+  browserBundleId: string | null;
   browserDisplayName: string;
   hostname: string;
   url: string | null;
@@ -245,13 +257,15 @@ export interface WebsiteUsageSummaryRecord {
 
 export interface WebsiteUsageSummaryWrite {
   localDate: Date;
-  browserBundleId: string;
+  browserBundleId?: string | null;
   browserDisplayName: string;
   hostname: string;
   url: string | null;
   urlKey: string;
   timezone: string;
   activeSeconds: number;
+  source?: UsageSource;
+  hour?: number;
 }
 
 export interface WebsiteActivitySessionRecord {
@@ -288,6 +302,18 @@ export interface WebsiteActivitySessionWrite {
   timezone: string;
 }
 
+export interface ScreenTimeEventWrite {
+  eventId: string;
+  source: UsageSource;
+  sourceDeviceId: string;
+  sourceDeviceName?: string | null;
+  bundleId: string;
+  displayName: string;
+  startedAt: Date;
+  endedAt: Date;
+  durationSeconds: number;
+}
+
 export interface IUsageRepository {
   findDevice(userId: string, deviceId: string): Promise<{ platform: string } | null>;
   findSummaries(userId: string, from: Date, toExclusive: Date): Promise<UsageSummaryRecord[]>;
@@ -302,6 +328,11 @@ export interface IUsageRepository {
     excludedBundleIds: string[];
   }>;
   replaceBatch(userId: string, deviceId: string, summaries: UsageSummaryWrite[]): Promise<number>;
+  ingestScreenTimeEvents(
+    userId: string,
+    collectorDeviceId: string,
+    events: ScreenTimeEventWrite[],
+  ): Promise<{ accepted: boolean; inserted: number }>;
   delete(userId: string, from?: Date, toExclusive?: Date): Promise<number>;
   deleteExpired(now?: Date): Promise<number>;
   findWebsiteSummaries(userId: string, from: Date, toExclusive: Date): Promise<WebsiteUsageSummaryRecord[]>;

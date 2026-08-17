@@ -1,4 +1,6 @@
 import SwiftUI
+import iTuDomain
+import iTuNetworking
 import KeyboardShortcuts
 import ServiceManagement
 
@@ -595,6 +597,7 @@ private struct DesktopSettingsPanel: View {
             }
 
             UsageSettingsPanel()
+            ScreenTimeSettingsPanel()
         }
         .alert("Connection Settings", isPresented: Binding(
             get: { validationMessage != nil },
@@ -697,6 +700,202 @@ private struct UsageSettingsPanel: View {
         formatter.calendar = Calendar.current
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
+    }
+}
+
+private struct ScreenTimeSettingsPanel: View {
+    @Environment(AppModel.self) private var model
+    @State private var isSyncing = false
+    @State private var isReimporting = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        let status = model.screenTimeStatus
+        SettingsCardView(
+            iconName: "iphone.gen3",
+            title: "iPhone & iPad Screen Time",
+            description: "Automatically import synced application usage from iCloud Biome streams."
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                // FDA Status
+                HStack {
+                    Text("Full Disk Access")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(iTuTheme.ink)
+                    Spacer()
+                    if status.fullDiskAccessGranted {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(iTuTheme.teal)
+                            Text("Granted")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(iTuTheme.teal)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(iTuTheme.mintTint)
+                        .clipShape(Capsule())
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(iTuTheme.coral)
+                            Text("Permission Required")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(iTuTheme.coral)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(iTuTheme.coralTint)
+                        .clipShape(Capsule())
+                    }
+                }
+
+                if !status.fullDiskAccessGranted {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("iTu needs Full Disk Access to read synced iCloud Screen Time records from macOS Biome streams.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(iTuTheme.inkDim)
+
+                        Button("Open Privacy & Security Settings") {
+                            openFullDiskAccessSettings()
+                        }
+                        .buttonStyle(iTuSecondaryButtonStyle(height: 28))
+                    }
+                    .padding(10)
+                    .background(iTuTheme.surfaceMuted)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+
+                // Synced Devices
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Synced Devices")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(iTuTheme.ink)
+
+                    if status.syncedDevices.isEmpty {
+                        Text(status.fullDiskAccessGranted ? "No synced iPhone or iPad devices detected." : "Grant Full Disk Access to detect synced devices.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(iTuTheme.inkDim)
+                    } else {
+                        VStack(spacing: 6) {
+                            ForEach(status.syncedDevices) { device in
+                                HStack {
+                                    Image(systemName: device.model?.contains("iPad") == true ? "ipad" : "iphone")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(iTuTheme.teal)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(device.name ?? "iOS Device")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(iTuTheme.ink)
+                                        Text(device.model ?? device.platform ?? "Apple Device")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(iTuTheme.inkDim)
+                                    }
+                                    Spacer()
+                                    if let lastSync = device.lastSyncDate {
+                                        Text("Synced \(formattedRelativeDate(lastSync))")
+                                            .font(.system(size: 11, design: .monospaced))
+                                            .foregroundStyle(iTuTheme.inkDim)
+                                    }
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(iTuTheme.surfaceMuted)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            }
+                        }
+                    }
+                }
+
+                Divider()
+
+                // Status Stats
+                VStack(spacing: 6) {
+                    HStack {
+                        Text("Last scanned")
+                            .font(.system(size: 12))
+                            .foregroundStyle(iTuTheme.inkDim)
+                        Spacer()
+                        Text(status.lastScanAt.map { formattedTime($0) } ?? "Never")
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(iTuTheme.ink)
+                    }
+
+                    HStack {
+                        Text("Latest Screen Time record")
+                            .font(.system(size: 12))
+                            .foregroundStyle(iTuTheme.inkDim)
+                        Spacer()
+                        Text(status.lastRecordAt.map { formattedTime($0) } ?? "None")
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(iTuTheme.ink)
+                    }
+
+                    HStack {
+                        Text("Pending uploads")
+                            .font(.system(size: 12))
+                            .foregroundStyle(iTuTheme.inkDim)
+                        Spacer()
+                        Text("\(status.pendingUploadCount)")
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundStyle(status.pendingUploadCount > 0 ? iTuTheme.teal : iTuTheme.inkDim)
+                    }
+                }
+
+                if let error = status.lastError ?? errorMessage {
+                    Text(error)
+                        .font(.system(size: 12))
+                        .foregroundStyle(iTuTheme.coral)
+                }
+
+                // Actions
+                HStack(spacing: 10) {
+                    Button(isSyncing ? "Syncing…" : "Sync Now") {
+                        Task {
+                            isSyncing = true
+                            _ = await model.runScreenTimeImport()
+                            isSyncing = false
+                        }
+                    }
+                    .buttonStyle(iTuPrimaryButtonStyle(height: 30))
+                    .disabled(isSyncing || isReimporting || !status.fullDiskAccessGranted)
+
+                    Button(isReimporting ? "Re-importing…" : "Re-import last 7 days") {
+                        Task {
+                            isReimporting = true
+                            _ = await model.reimportScreenTimeLast7Days()
+                            isReimporting = false
+                        }
+                    }
+                    .buttonStyle(iTuSecondaryButtonStyle(height: 30))
+                    .disabled(isSyncing || isReimporting || !status.fullDiskAccessGranted)
+
+                    Spacer()
+                }
+            }
+        }
+        .task {
+            await model.refreshScreenTimeStatus()
+        }
+    }
+
+    private func openFullDiskAccessSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func formattedTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
+    private func formattedRelativeDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 

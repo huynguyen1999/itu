@@ -1,11 +1,30 @@
 import Foundation
+import iTuNetworking
+import iTuOffline
+import iTuSync
 
-extension APIClient {
+extension APIClient: @retroactive SyncTransport {
     // MARK: - Sync transport
 
-    func synchronize(_ requestBody: SyncRequest) async throws -> SyncResponse {
+    public func synchronize(_ requestBody: iTuOffline.SyncRequest) async throws -> iTuOffline.SyncResponse {
         try await request(path: "/sync", method: "POST", body: requestBody)
     }
+
+}
+
+extension APIError: @retroactive SyncTransportFailure {
+    public var syncFailureCode: String {
+        code ?? (statusCode > 0 ? "HTTP_\(statusCode)" : "SYNC_FAILED")
+    }
+
+    public var syncRetryAfter: TimeInterval? { retryAfter }
+
+    public var syncRetryable: Bool {
+        statusCode == 0 || statusCode == 408 || statusCode == 425 || statusCode == 429 || statusCode >= 500
+    }
+}
+
+extension APIClient {
 
     func registerSyncDevice(deviceId: String, cursor: String) async throws {
         let _: EmptyResponse = try await request(
@@ -13,7 +32,7 @@ extension APIClient {
             method: "POST",
             body: [
                 "deviceId": .string(deviceId),
-                "platform": .string("MACOS"),
+                "platform": .string(platform),
                 "lastKnownSyncCursor": .string(cursor)
             ] as [String: JSONValue]
         )

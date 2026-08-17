@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyTaskDefaults } from '@/shared/taskDefaults';
 
 const calendarFixture = vi.hoisted(() => ({
@@ -46,6 +46,15 @@ import { CalendarPage, groupCalendarItems } from './CalendarPage';
 import { formatSingleDate, formatSingleTime } from './timeline';
 
 describe('CalendarPage', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-12T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('keeps the week visible and exposes Arrange tasks as a reveal action', () => {
     const markup = renderToStaticMarkup(<CalendarPage />);
 

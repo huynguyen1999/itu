@@ -1,6 +1,7 @@
 import Foundation
 import Security
 import XCTest
+import iTuNetworking
 @testable import iTu
 
 final class APIClientTests: XCTestCase {

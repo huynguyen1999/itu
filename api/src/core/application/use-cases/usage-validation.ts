@@ -137,3 +137,44 @@ export function requireTimezone(value: unknown): string {
   }
   return value;
 }
+
+export interface HourlyUsageSlice {
+  localDate: Date;
+  hour: number;
+  seconds: number;
+}
+
+export function splitIntervalIntoHours(startedAt: Date, endedAt: Date, durationSeconds: number): HourlyUsageSlice[] {
+  if (durationSeconds <= 0 || startedAt >= endedAt) return [];
+  const spanMs = Math.max(1000, endedAt.getTime() - startedAt.getTime());
+  const slices: HourlyUsageSlice[] = [];
+
+  let cursor = new Date(startedAt.getTime());
+  let allocatedSeconds = 0;
+
+  while (cursor < endedAt) {
+    const nextHour = new Date(
+      Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate(), cursor.getUTCHours() + 1, 0, 0, 0),
+    );
+    const segmentEnd = endedAt < nextHour ? endedAt : nextHour;
+    const segmentMs = segmentEnd.getTime() - cursor.getTime();
+
+    const localDate = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate(), 0, 0, 0, 0));
+    const hour = cursor.getUTCHours();
+    const sliceSeconds = Math.max(0, Math.round((segmentMs / spanMs) * durationSeconds));
+
+    if (sliceSeconds > 0) {
+      slices.push({ localDate, hour, seconds: sliceSeconds });
+      allocatedSeconds += sliceSeconds;
+    }
+    cursor = segmentEnd;
+  }
+
+  const diff = durationSeconds - allocatedSeconds;
+  if (diff !== 0 && slices.length > 0) {
+    slices[slices.length - 1].seconds = Math.max(0, slices[slices.length - 1].seconds + diff);
+  }
+
+  return slices.filter((s) => s.seconds > 0);
+}
+

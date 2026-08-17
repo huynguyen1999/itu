@@ -221,4 +221,44 @@ describe('sync mutation transaction scope', () => {
       },
     });
   });
+
+  it('reports committed mutation IDs when a later mutation fails', async () => {
+    const mutations: SyncMutation[] = [
+      mutation,
+      {
+        ...mutation,
+        id: 'mutation-2',
+        kind: 'unsupported.kind',
+        entityId: 'task-2',
+        payload: {},
+      },
+    ];
+    const tx = {
+      syncMutation: {
+        findUnique: jest.fn(({ where }: { where: { id: string } }) => {
+          const existing = where.id === mutation.id ? mutation : undefined;
+          return Promise.resolve(
+            existing
+              ? {
+                  id: existing.id,
+                  userId: 'user-1',
+                  kind: existing.kind,
+                  entityId: existing.entityId,
+                  payload: existing.payload,
+                  result: null,
+                }
+              : null,
+          );
+        }),
+      },
+    };
+    const transaction = jest.fn(async (callback: (client: typeof tx) => Promise<void>) => callback(tx));
+    const repository = new PrismaSyncRepository({ $transaction: transaction } as never, {} as never);
+
+    await expect(repository.applyMutations('user-1', 'device-1', mutations)).rejects.toMatchObject({
+      code: 'INVALID_SYNC_MUTATION',
+      details: { acknowledgedMutationIds: ['mutation-1'] },
+    });
+    expect(transaction).toHaveBeenCalledTimes(2);
+  });
 });

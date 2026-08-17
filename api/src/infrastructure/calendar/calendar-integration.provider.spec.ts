@@ -80,4 +80,36 @@ describe('CalendarIntegrationProvider', () => {
     expect(eventUrls[1]).not.toContain('syncToken=');
     fetch.mockRestore();
   });
+
+  it('normalizes webcal and webcals protocols to http/https', () => {
+    const provider = new CalendarIntegrationProvider({} as any);
+    expect(provider.normalizeIcsUrl('webcal://example.com/calendar.ics')).toBe('http://example.com/calendar.ics');
+    expect(provider.normalizeIcsUrl('webcals://example.com/calendar.ics')).toBe('https://example.com/calendar.ics');
+  });
+
+  it('registers VTIMEZONE definitions when parsing ICS events with custom timezone IDs', () => {
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'BEGIN:VTIMEZONE',
+      'TZID:CustomZone',
+      'BEGIN:STANDARD',
+      'DTSTART:19700101T000000',
+      'TZOFFSETFROM:+0000',
+      'TZOFFSETTO:+0000',
+      'END:STANDARD',
+      'END:VTIMEZONE',
+      'BEGIN:VEVENT',
+      'UID:tz-event',
+      'DTSTART;TZID=CustomZone:20260812T100000',
+      'DTEND;TZID=CustomZone:20260812T110000',
+      'SUMMARY:Custom Zone Meeting',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    const events = parseIcsEvents(ics, new Date('2026-08-01T00:00:00Z'), new Date('2026-09-01T00:00:00Z'));
+    expect(events).toHaveLength(1);
+    expect(events[0].title).toBe('Custom Zone Meeting');
+  });
 });
