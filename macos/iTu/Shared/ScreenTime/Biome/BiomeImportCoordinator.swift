@@ -6,8 +6,8 @@ import iTuNetworking
 public actor BiomeImportCoordinator {
     private let source: ScreenTimeUsageSource
     private let stateStore: BiomeImportStateStore
-    private let apiClientProvider: (@Sendable () -> APIClient?)?
-    private let macSyncDeviceIdProvider: (@Sendable () -> String?)?
+    private let apiClientProvider: (@Sendable () async -> APIClient?)?
+    private let macSyncDeviceIdProvider: (@Sendable () async -> String?)?
 
     private var isImporting = false
     public private(set) var status = ScreenTimeImportStatus()
@@ -15,8 +15,8 @@ public actor BiomeImportCoordinator {
     public init(
         source: ScreenTimeUsageSource = BiomeScreenTimeSource(),
         stateStore: BiomeImportStateStore = BiomeImportStateStore(),
-        apiClientProvider: (@Sendable () -> APIClient?)? = nil,
-        macSyncDeviceIdProvider: (@Sendable () -> String?)? = nil
+        apiClientProvider: (@Sendable () async -> APIClient?)? = nil,
+        macSyncDeviceIdProvider: (@Sendable () async -> String?)? = nil
     ) {
         self.source = source
         self.stateStore = stateStore
@@ -123,15 +123,24 @@ public actor BiomeImportCoordinator {
         for device in devices {
             await stateStore.resetCursor(for: device.deviceIdentifier, lookbackDays: 7)
         }
+        await stateStore.clearOutbox()
         return await runOnce()
     }
 
+    /// Returns all local outbox intervals for offline aggregation and preview.
+    public func allOutboxIntervals() async -> [ImportedUsageInterval] {
+        await stateStore.allOutboxItems().map(\.asImportedUsageInterval)
+    }
+
     private func flushPendingOutbox() async {
-        guard let apiClient = apiClientProvider?(),
-              let macDeviceId = macSyncDeviceIdProvider?(),
+        guard let apiClient = await apiClientProvider?(),
+              let macDeviceId = await macSyncDeviceIdProvider?(),
               !macDeviceId.isEmpty else {
             return
         }
+
+        // Ensure this Mac collector device is registered on the backend
+        _ = try? await apiClient.registerSyncDevice(deviceId: macDeviceId, cursor: "")
 
         let pendingItems = await stateStore.pendingOutboxItems()
         guard !pendingItems.isEmpty else { return }
@@ -146,7 +155,9 @@ public actor BiomeImportCoordinator {
                 try await apiClient.uploadScreenTimeEvents(intervals, collectorDeviceId: macDeviceId)
                 await stateStore.markUploaded(eventIds: chunk.map(\.eventId))
             } catch {
-                // If upload fails, leave items in pending state for the next run
+                #if DEBUG
+                print("[BiomeImport] Upload failed for batch: \(error)")
+                #endif
                 break
             }
         }

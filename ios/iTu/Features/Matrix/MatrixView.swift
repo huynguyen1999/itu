@@ -1,135 +1,143 @@
 import SwiftUI
 import iTuDomain
+import iTuDesignCore
 
-struct Phase6MatrixView: View {
+public typealias MatrixView = Phase6MatrixView
+
+public struct Phase6MatrixView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.colorScheme) private var colorScheme
     @State private var searchText = ""
+
+    public init() {}
 
     private var projection: [IOSMatrixQuadrant: [ProductivityTask]] { model.matrixTasks(query: searchText) }
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                SyncBanner()
-                Text("Eisenhower Matrix").font(.title.bold())
-                Text("Classify Tasks by importance and urgency. Tap a Task to complete it or move it to another quadrant.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                if model.tasks.isEmpty {
-                    IOSContentUnavailableView("No Tasks", systemImage: "square.grid.2x2", description: "Create Tasks in Plan to see them here.")
-                } else {
-                    LazyVStack(spacing: 12) {
-                        ForEach(IOSMatrixQuadrant.allCases) { quadrant in
-                            Phase6MatrixQuadrant(
-                                quadrant: quadrant,
-                                tasks: projection[quadrant] ?? [],
-                                onComplete: { task in Task { await model.complete(task) } },
-                                onMove: { task, target in Task { await model.reassignTask(task, to: target) } }
-                            )
-                        }
+    public var body: some View {
+        IOSPage {
+            // Header card
+            IOSHeroCard {
+                VStack(alignment: .leading, spacing: IOSSpacing.compact) {
+                    HStack {
+                        Label("PRIORITIZATION", systemImage: "square.grid.2x2.fill")
+                            .font(IOSTypography.kicker)
+                            .tracking(1.2)
+                            .foregroundStyle(IOSColor.mint(colorScheme))
+                        Spacer()
+                    }
+
+                    Text("Eisenhower Matrix")
+                        .font(IOSTypography.largeTitle)
+                        .foregroundStyle(.white)
+
+                    Text("Classify tasks by importance and urgency to focus on what matters most.")
+                        .font(IOSTypography.subheadline)
+                        .foregroundStyle(.white.opacity(0.85))
+                }
+            }
+
+            // Sync issue banner
+            IOSSyncIssueBanner()
+
+            if model.tasks.isEmpty {
+                IOSEmptyState(
+                    icon: "square.grid.2x2",
+                    title: "No Tasks Found",
+                    description: "Create tasks in Plan to organize them in the Eisenhower matrix."
+                )
+            } else {
+                VStack(spacing: IOSSpacing.normal) {
+                    ForEach(IOSMatrixQuadrant.allCases) { quadrant in
+                        Phase6MatrixQuadrant(
+                            quadrant: quadrant,
+                            tasks: projection[quadrant] ?? [],
+                            onComplete: { task in Task { await model.complete(task) } },
+                            onMove: { task, target in Task { await model.reassignTask(task, to: target) } }
+                        )
                     }
                 }
             }
-            .padding()
         }
         .navigationTitle("Matrix")
+        .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search Tasks")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                IOSSyncStatusIndicator()
+            }
+        }
     }
 }
 
 private struct Phase6MatrixQuadrant: View {
+    @Environment(\.colorScheme) private var colorScheme
     let quadrant: IOSMatrixQuadrant
     let tasks: [ProductivityTask]
     let onComplete: (ProductivityTask) -> Void
     let onMove: (ProductivityTask, IOSMatrixQuadrant) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(quadrant.title).font(.headline)
-                    Text(quadrant.subtitle).font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text("\(tasks.count)")
-                    .font(.caption.bold())
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.thinMaterial, in: Capsule())
-            }
-            if tasks.isEmpty {
-                Text("No Tasks here").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 18)
-            } else {
-                ForEach(tasks) { task in
-                    Phase6MatrixTaskRow(task: task, quadrant: quadrant, onComplete: onComplete, onMove: onMove)
-                }
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(quadrantColor.opacity(0.45), lineWidth: 1)
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(quadrant.title), \(tasks.count) Tasks")
-    }
-
-    private var quadrantColor: Color {
-        switch quadrant {
-        case .q1: .red
-        case .q2: .blue
-        case .q3: .orange
-        case .q4: .secondary
-        }
-    }
-}
-
-private struct Phase6MatrixTaskRow: View {
-    let task: ProductivityTask
-    let quadrant: IOSMatrixQuadrant
-    let onComplete: (ProductivityTask) -> Void
-    let onMove: (ProductivityTask, IOSMatrixQuadrant) -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Button {
-                onComplete(task)
-            } label: {
-                Image(systemName: task.status == .completed ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(task.status == .completed ? .green : .secondary)
-                    .frame(width: 44, height: 44)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(task.status == .completed ? "Completed" : "Complete Task")
-            VStack(alignment: .leading, spacing: 3) {
-                Text(task.title)
-                    .strikethrough(task.status == .completed)
-                    .lineLimit(2)
-                if let dueAt = task.dueAt {
-                    Text("Due \(String(dueAt.prefix(10)))").font(.caption2).foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 4)
-            Menu {
-                ForEach(IOSMatrixQuadrant.allCases) { target in
-                    Button {
-                        onMove(task, target)
-                    } label: {
-                        Label(target.title, systemImage: target == quadrant ? "checkmark" : "arrow.right")
+        IOSCard {
+            VStack(alignment: .leading, spacing: IOSSpacing.compact) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(quadrant.title)
+                            .font(IOSTypography.headline)
+                            .foregroundStyle(IOSColor.ink(colorScheme))
+                        Text(quadrant.subtitle)
+                            .font(IOSTypography.caption)
+                            .foregroundStyle(IOSColor.inkDim(colorScheme))
                     }
-                    .disabled(target == quadrant)
+                    Spacer()
+                    Text("\(tasks.count)")
+                        .font(IOSTypography.captionBold)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(IOSColor.mintTint(colorScheme), in: Capsule())
+                        .foregroundStyle(IOSColor.teal(colorScheme))
                 }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
+
+                if tasks.isEmpty {
+                    Text("No tasks in this quadrant")
+                        .font(IOSTypography.caption)
+                        .foregroundStyle(IOSColor.inkFaint(colorScheme))
+                        .padding(.vertical, 4)
+                } else {
+                    VStack(spacing: IOSSpacing.tight) {
+                        ForEach(tasks) { task in
+                            HStack(spacing: IOSSpacing.compact) {
+                                Button {
+                                    onComplete(task)
+                                } label: {
+                                    Image(systemName: task.status == .completed ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(task.status == .completed ? IOSColor.teal(colorScheme) : IOSColor.inkFaint(colorScheme))
+                                }
+                                .buttonStyle(.plain)
+
+                                Text(task.title)
+                                    .font(IOSTypography.subheadline)
+                                    .foregroundStyle(IOSColor.ink(colorScheme))
+                                    .lineLimit(1)
+
+                                Spacer()
+
+                                Menu {
+                                    ForEach(IOSMatrixQuadrant.allCases.filter { $0 != quadrant }) { target in
+                                        Button("Move to \(target.title)") {
+                                            onMove(task, target)
+                                        }
+                                    }
+                                } label: {
+                                    Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(IOSColor.inkDim(colorScheme))
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                }
             }
-            .accessibilityLabel("Move Task")
         }
-        .padding(.vertical, 6)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(task.title), \(quadrant.title)")
     }
 }

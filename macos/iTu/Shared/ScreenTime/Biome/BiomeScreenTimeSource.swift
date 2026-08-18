@@ -14,7 +14,7 @@ public final class BiomeScreenTimeSource: ScreenTimeUsageSource, @unchecked Send
         since watermark: Date?
     ) async throws -> [ImportedUsageInterval] {
         let readResult = try BiomeAppInFocusReader.readEvents(
-            for: device.deviceIdentifier,
+            for: device,
             since: watermark
         )
         return BiomeUsageNormalizer.normalize(

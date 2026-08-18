@@ -81,10 +81,14 @@ extension StatisticsView {
         Button {
             refreshForCurrentRange(force: true)
         } label: {
-            Label("Refresh", systemImage: "arrow.clockwise")
+            if statisticsStore.isRefreshing {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Label("Refresh", systemImage: "arrow.clockwise")
+            }
         }
         .buttonStyle(iTuSecondaryButtonStyle(height: 34))
-        .disabled(model.statisticsLoading || model.usageLoading)
         .keyboardShortcut("r", modifiers: .command)
         .help("Refresh statistics for the selected time range")
     }
@@ -130,9 +134,9 @@ extension StatisticsView {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Foreground app activity")
+                    Text("Application activity")
                         .font(.system(size: 16, weight: .semibold))
-                    Text(timeRange == "Today" ? "Hourly foreground time, stacked by application." : "Daily foreground time, stacked by application.")
+                    Text(timeRange == "Today" ? "Hourly application time, stacked by application." : "Daily application time, stacked by application.")
                         .font(.system(size: 11))
                         .foregroundStyle(iTuTheme.inkDim)
                 }
@@ -151,7 +155,7 @@ extension StatisticsView {
                 }
             }
             if !model.settingsStore.usagePreferences.enabled {
-                Text("Enable foreground usage in Settings to see this report.")
+                Text("Enable application usage in Settings to see this report.")
                     .font(.system(size: 12))
                     .foregroundStyle(iTuTheme.inkDim)
             } else if let stats = model.usageStatistics, !stats.daily.isEmpty {
@@ -176,7 +180,7 @@ extension StatisticsView {
                     .font(.system(size: 12))
                     .foregroundStyle(iTuTheme.coral)
             } else {
-                Text("No foreground usage recorded in this period.")
+                Text("No application usage recorded in this period.")
                     .font(.system(size: 12))
                     .foregroundStyle(iTuTheme.inkDim)
                     .frame(maxWidth: .infinity, minHeight: 100)
@@ -226,7 +230,7 @@ extension StatisticsView {
             }
         }
         .frame(maxWidth: .infinity, minHeight: max(150, chartHeight + 50))
-        .accessibilityLabel(isHourly ? "Foreground usage by hour and application" : "Foreground usage by day and application")
+        .accessibilityLabel(isHourly ? "Application usage by hour" : "Application usage by day")
     }
 
     var websiteUsageSection: some View {
@@ -321,22 +325,223 @@ extension StatisticsView {
     }
 
     func usageAppList(_ stats: UsageStatistics) -> some View {
-        VStack(spacing: 8) {
-            ForEach(stats.topApps.prefix(displaySettings.topAppsCount)) { app in
-                HStack(spacing: 10) {
-                    UsageApplicationIcon(bundleID: app.bundleId, displayName: app.displayName, tint: usageColor(for: app.bundleId))
+        let allApps = stats.topApps
+        let query = appSearchQuery.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let filteredApps: [UsageTopApp] = query.isEmpty
+            ? allApps
+            : allApps.filter {
+                $0.displayName.lowercased().contains(query) || $0.bundleId.lowercased().contains(query)
+            }
+        let displayedApps = (isAppListExpanded || !query.isEmpty)
+            ? filteredApps
+            : Array(filteredApps.prefix(displaySettings.topAppsCount))
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Applications (\(allApps.count))")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(iTuTheme.inkDim)
+                Spacer()
+                if allApps.count > displaySettings.topAppsCount {
+                    Button {
+                        isAppListExpanded.toggle()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text(isAppListExpanded ? "Top \(displaySettings.topAppsCount)" : "All \(allApps.count)")
+                            Image(systemName: isAppListExpanded ? "chevron.up" : "chevron.down")
+                        }
+                        .font(.system(size: 11))
+                        .foregroundStyle(iTuTheme.teal)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            if isAppListExpanded || allApps.count > 8 {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 10))
+                        .foregroundStyle(iTuTheme.inkDim)
+                    TextField("Search apps…", text: $appSearchQuery)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(iTuTheme.surfaceMuted)
+                .cornerRadius(6)
+            }
+
+            ScrollView(.vertical, showsIndicators: isAppListExpanded) {
+                VStack(spacing: 2) {
+                    if displayedApps.isEmpty {
+                        Text("No matching applications.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(iTuTheme.inkDim)
+                            .padding(.vertical, 8)
+                    } else {
+                        ForEach(displayedApps) { app in
+                            Button {
+                                selectedAppDetail = app
+                            } label: {
+                                HStack(spacing: 10) {
+                                    UsageApplicationIcon(bundleID: app.bundleId, displayName: app.displayName, tint: usageColor(for: app.bundleId))
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(app.displayName)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .lineLimit(1)
+                                        if let engaged = app.engagedSeconds {
+                                            Text("Engaged \(formatDuration(engaged))")
+                                                .font(.system(size: 10))
+                                                .foregroundStyle(iTuTheme.inkDim)
+                                        }
+                                    }
+                                    Spacer()
+                                    VStack(alignment: .trailing, spacing: 2) {
+                                        Text(formatDuration(app.activeSeconds))
+                                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                            .foregroundStyle(iTuTheme.ink)
+                                        if stats.totalActiveSeconds > 0 {
+                                            Text("\(Int(round(Double(app.activeSeconds) / Double(stats.totalActiveSeconds) * 100)))%")
+                                                .font(.system(size: 9))
+                                                .foregroundStyle(iTuTheme.inkDim)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                                .background(selectedAppDetail?.bundleId == app.bundleId ? iTuTheme.surfaceMuted : Color.clear)
+                                .cornerRadius(6)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: isAppListExpanded ? 240 : nil)
+        }
+        .popover(item: $selectedAppDetail) { app in
+            appDetailPopover(app, stats: stats)
+        }
+    }
+
+    func appDetailPopover(_ app: UsageTopApp, stats: UsageStatistics) -> some View {
+        let percent = stats.totalActiveSeconds > 0
+            ? Int(round(Double(app.activeSeconds) / Double(stats.totalActiveSeconds) * 100))
+            : 0
+        let hourly = (stats.hourlyApps ?? []).filter { $0.bundleId == app.bundleId }
+        let daily = stats.dailyApps.filter { $0.bundleId == app.bundleId }
+        let showHourly = timeRange == "Today" && !hourly.isEmpty
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                UsageApplicationIcon(bundleID: app.bundleId, displayName: app.displayName, tint: usageColor(for: app.bundleId))
+                VStack(alignment: .leading, spacing: 2) {
                     Text(app.displayName)
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
-                    Spacer()
-                    Text(formatDuration(app.activeSeconds))
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 14, weight: .bold))
+                    Text(app.bundleId)
+                        .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(iTuTheme.inkDim)
                 }
-                .frame(minHeight: 36)
-                .accessibilityElement(children: .combine)
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Screen Time")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(iTuTheme.inkDim)
+                    Text(formatDuration(app.activeSeconds))
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(iTuTheme.surfaceMuted)
+                .cornerRadius(6)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Engaged Time")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(iTuTheme.inkDim)
+                    Text(app.engagedSeconds != nil ? formatDuration(app.engagedSeconds!) : "—")
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                        .foregroundStyle(iTuTheme.teal)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(iTuTheme.surfaceMuted)
+                .cornerRadius(6)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("% of Total")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(iTuTheme.inkDim)
+                    Text("\(percent)%")
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(iTuTheme.surfaceMuted)
+                .cornerRadius(6)
+            }
+
+            if showHourly {
+                Text("Hourly Activity")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(iTuTheme.inkDim)
+                Chart(0..<24, id: \.self) { hour in
+                    let seconds = hourly.first { $0.hour == hour }?.activeSeconds ?? 0
+                    BarMark(
+                        x: .value("Hour", String(format: "%02d", hour)),
+                        y: .value("Seconds", seconds)
+                    )
+                    .foregroundStyle(usageColor(for: app.bundleId))
+                    .cornerRadius(2)
+                }
+                .chartXAxis {
+                    AxisMarks(values: ["00", "06", "12", "18"]) { value in
+                        AxisValueLabel {
+                            if let h = value.as(String.self) {
+                                Text("\(h):00")
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .trailing) { value in
+                        AxisValueLabel {
+                            if let s = value.as(Int.self) { Text(axisDuration(s)) }
+                        }
+                    }
+                }
+                .frame(height: 110)
+            } else if !daily.isEmpty {
+                Text("Daily Activity")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(iTuTheme.inkDim)
+                ScrollView(.vertical) {
+                    VStack(spacing: 4) {
+                        ForEach(daily, id: \.localDate) { d in
+                            HStack {
+                                Text(d.localDate)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(iTuTheme.inkDim)
+                                Spacer()
+                                Text(formatDuration(d.activeSeconds))
+                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                        }
+                    }
+                }
+                .frame(maxHeight: 110)
             }
         }
+        .padding(16)
+        .frame(width: 320)
     }
 
     func usageChartItems(_ stats: UsageStatistics) -> [UsageChartItem] {

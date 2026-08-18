@@ -39,7 +39,7 @@ describe('UsageService', () => {
       { localDate: '2026-08-01', hour: 9, bundleId: 'a', displayName: 'A', activeSeconds: 10 },
       { localDate: '2026-08-01', hour: 10, bundleId: 'a', displayName: 'A', activeSeconds: 5 },
     ]);
-    expect(repo.findSummaries).toHaveBeenCalledWith('user-1', expect.any(Date), expect.any(Date));
+    expect(repo.findSummaries).toHaveBeenCalledWith('user-1', expect.any(Date), expect.any(Date), undefined);
   });
 
   it('rejects a device owned by another user', async () => {

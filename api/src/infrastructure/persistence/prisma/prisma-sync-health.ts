@@ -29,11 +29,32 @@ export class PrismaSyncHealth {
   ): Promise<null | undefined> {
     const deviceId = mutation.serverDeviceId;
     if (!deviceId) throw new InvalidSyncMutationException('HealthKit mutations require a registered sync device');
-    const device = await tx.syncDevice.findFirst({
+    let device = await tx.syncDevice.findFirst({
       where: { id: deviceId, userId, platform: SyncDevicePlatform.IOS },
       select: { id: true },
     });
-    if (!device) throw new InvalidSyncMutationException('HealthKit mutations require an iOS Sync Device');
+    if (!device) {
+      const existing = await tx.syncDevice.findFirst({ where: { id: deviceId }, select: { id: true, userId: true } });
+      if (!existing) {
+        device = await tx.syncDevice.create({
+          data: {
+            id: deviceId,
+            userId,
+            platform: SyncDevicePlatform.IOS,
+            lastSeenAt: new Date(),
+          },
+          select: { id: true },
+        });
+      } else if (existing.userId === userId) {
+        device = await tx.syncDevice.update({
+          where: { id: deviceId },
+          data: { platform: SyncDevicePlatform.IOS, lastSeenAt: new Date() },
+          select: { id: true },
+        });
+      } else {
+        throw new InvalidSyncMutationException('Sync device is registered to another user');
+      }
+    }
 
     switch (mutation.kind) {
       case 'healthsummary.upsert': {

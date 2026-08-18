@@ -29,6 +29,18 @@ extension AppModel {
             await restoreCredential()
             return
         }
+        do {
+            guard try await apiClient.hasRefreshToken() else {
+                authLifecycleLogger.debug("auth.refresh_token.missing")
+                await terminateSession(reason: "missing refresh credential")
+                return
+            }
+        } catch {
+            authLifecycleLogger.error("auth.keychain.read.failure")
+            await terminateSession(reason: "refresh credential unavailable")
+            errorMessage = error.localizedDescription
+            return
+        }
         authLifecycleLogger.debug("auth.cached_user.present")
         authenticationState = .authenticated
 
@@ -399,6 +411,12 @@ extension AppModel {
                         message: "Showing cached data for \(count) resource\(count == 1 ? "" : "s"); iTu will retry when it becomes active."
                     ))
                 }
+            } catch let error as APIError where error.isTerminalAuthFailure {
+                guard !Task.isCancelled,
+                      runGeneration == sessionGeneration,
+                      user?.id == userID,
+                      offlineStore === store else { return }
+                await handleTerminalAuthenticationFailure()
             } catch {
                 // Background hydration is deliberately silent; local state remains visible.
             }

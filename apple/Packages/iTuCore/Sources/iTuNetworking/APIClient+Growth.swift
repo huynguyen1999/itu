@@ -111,19 +111,25 @@ public extension APIClient {
         return page.data
     }
 
+    private func encodeQueryValue(_ value: String) -> String {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "+&=")
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+    }
+
     func fetchStudyCalendar(days: Int) async throws -> [StudyCalendarDayDTO] {
         try await request(path: "/dashboard/study-calendar?days=\(max(1, min(days, 365)))")
     }
 
     func fetchStudyCalendar(fromDate: String, toDate: String) async throws -> [StudyCalendarDayDTO] {
-        let from = fromDate.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? fromDate
-        let to = toDate.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? toDate
+        let from = encodeQueryValue(fromDate)
+        let to = encodeQueryValue(toDate)
         return try await request(path: "/dashboard/study-calendar?from=\(from)&to=\(to)")
     }
 
     func fetchGrowthStatistics(fromDate: String, toDate: String) async throws -> GrowthStatisticsDTO {
-        let from = fromDate.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? fromDate
-        let to = toDate.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? toDate
+        let from = encodeQueryValue(fromDate)
+        let to = encodeQueryValue(toDate)
         return try await request(path: "/growth/statistics?fromDate=\(from)&toDate=\(to)")
     }
 }

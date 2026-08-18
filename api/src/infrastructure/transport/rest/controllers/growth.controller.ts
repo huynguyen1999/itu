@@ -298,8 +298,8 @@ export class GrowthController {
       currency,
       skillId,
       kind,
-      fromDate: fromDate ? new Date(fromDate) : undefined,
-      toDate: toDate ? new Date(toDate) : undefined,
+      fromDate: fromDate ? parseStatisticsDate(fromDate, 'fromDate') : undefined,
+      toDate: toDate ? parseStatisticsDate(toDate, 'toDate') : undefined,
       ...query,
     });
   }
@@ -322,7 +322,8 @@ export class GrowthController {
 
 function parseStatisticsDate(value: string | undefined, field: string) {
   if (!value) throw new BadRequestException(`${field} is required`);
-  const date = new Date(value);
+  const normalized = value.includes(' ') && !value.includes('+') ? value.replace(/ (\d{2}:\d{2})$/, '+$1') : value;
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} must be a valid date`);
   return date;
 }

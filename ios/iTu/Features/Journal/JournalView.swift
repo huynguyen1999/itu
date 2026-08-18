@@ -1,9 +1,13 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import iTuDomain
+import iTuDesignCore
 
-struct Phase6JournalView: View {
+public typealias Phase6JournalView = JournalView
+
+public struct JournalView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.colorScheme) private var colorScheme
     @State private var searchText = ""
     @State private var showingNewNote = false
     @State private var showingDailyReview = false
@@ -12,6 +16,8 @@ struct Phase6JournalView: View {
     @State private var showingTemplates = false
     @State private var isLoading = false
     @State private var loadError: String?
+
+    public init() {}
 
     private var notes: [JournalNoteModel] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -23,7 +29,7 @@ struct Phase6JournalView: View {
             .sorted { $0.entryDate > $1.entryDate }
     }
 
-    var body: some View {
+    public var body: some View {
         List {
             if isLoading && model.journalNotes.isEmpty {
                 ProgressView("Loading Journal")
@@ -34,16 +40,17 @@ struct Phase6JournalView: View {
                         .font(.headline)
                     Text(loadError)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(IOSColor.inkDim(colorScheme))
                         .multilineTextAlignment(.center)
                     Button("Retry") { Task { await reload() } }
                         .buttonStyle(.borderedProminent)
+                        .tint(IOSColor.teal(colorScheme))
                 }
                 .frame(maxWidth: .infinity, minHeight: 180)
             } else if notes.isEmpty {
-                IOSContentUnavailableView(
-                    searchText.isEmpty ? "No Journal Entries" : "No matching entries",
-                    systemImage: "book.closed",
+                IOSEmptyState(
+                    icon: "book.closed",
+                    title: searchText.isEmpty ? "No Journal Entries" : "No matching entries",
                     description: searchText.isEmpty ? "Write your first reflection or note." : "Try a different search."
                 )
             } else {
@@ -64,13 +71,11 @@ struct Phase6JournalView: View {
             }
         }
         .navigationTitle("Journal")
+        .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search Journal")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button { Task { await reload() } } label: {
-                    if isLoading { ProgressView() } else { Label("Refresh", systemImage: "arrow.clockwise") }
-                }
-                .disabled(isLoading)
+                IOSSyncStatusIndicator()
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
@@ -82,7 +87,10 @@ struct Phase6JournalView: View {
                 } label: {
                     Label("Journal tools", systemImage: "ellipsis.circle")
                 }
-                Button { showingNewNote = true } label: { Label("New entry", systemImage: "square.and.pencil") }
+                Button { showingNewNote = true } label: {
+                    Image(systemName: "square.and.pencil")
+                        .foregroundStyle(IOSColor.teal(colorScheme))
+                }
             }
         }
         .task { await reload() }
@@ -215,6 +223,7 @@ private struct IOSJournalReviewEditorView: View {
             }
         }
         .navigationTitle(kind.title)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
         }
@@ -411,6 +420,7 @@ struct Phase6JournalEditorView: View {
     var body: some View {
         editorForm
             .navigationTitle(note == nil ? "New Journal Entry" : "Edit Journal Entry")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { requestDismiss() } }
                 ToolbarItemGroup(placement: .confirmationAction) {
@@ -596,6 +606,7 @@ private struct Phase6JournalReviewView: View {
             .padding()
         }
         .navigationTitle("Review")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     @ViewBuilder
@@ -658,6 +669,7 @@ private struct Phase6JournalRevisionsView: View {
                 }
             }
             .navigationTitle("Revisions")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
             .task { await reload() }
             .confirmationDialog(
@@ -724,6 +736,7 @@ private struct Phase6JournalTagsView: View {
                 }
             }
             .navigationTitle("Journal Tags")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
         }
     }
@@ -741,6 +754,7 @@ private struct Phase6JournalTemplatesView: View {
         NavigationStack {
             templatesForm
                 .navigationTitle("Journal Templates")
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
                 .confirmationDialog(
                     "Delete this Journal Template?",

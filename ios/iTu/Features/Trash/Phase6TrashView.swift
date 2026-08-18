@@ -120,6 +120,7 @@ struct Phase6TrashView: View {
             }
         }
         .navigationTitle("Trash")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Refresh") { Task { await model.refreshTrash() } }

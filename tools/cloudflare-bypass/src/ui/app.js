@@ -11,12 +11,13 @@
 
 function preRegistrarApp() {
   return {
-    currentMonday: dayjs().startOf('isoWeek').add(7, 'day').format('YYYY-MM-DD'),
-    weekMode: 'next',
+    currentMonday: dayjs().startOf('isoWeek').format('YYYY-MM-DD'),
+    weekMode: 'this',
     scheduleData: null,
     selectedCoursesMap: new Map(),
     toCancelCoursesMap: new Map(),
     activeFilter: 'all',
+    showOnlyEnrolled: false,
     searchQuery: '',
     auth: null,
     cacheStatus: null,
@@ -98,6 +99,12 @@ function preRegistrarApp() {
         if (!isNaN(parsed) && parsed >= 0) {
           this.autoSyncIntervalMs = parsed;
         }
+      }
+
+      // Load persisted enrolled-only filter preference
+      const savedShowOnlyEnrolled = localStorage.getItem('talkfirst_show_only_enrolled');
+      if (savedShowOnlyEnrolled !== null) {
+        this.showOnlyEnrolled = savedShowOnlyEnrolled === 'true';
       }
 
       await this.loadAuthStatus();
@@ -390,13 +397,16 @@ function preRegistrarApp() {
 
     getClassesForCell(dateStr, slotStart) {
       const slotPrefix = slotStart.slice(0, 5);
-      const all = this.scheduleData?.flexibleClasses || [];
+      const allFlex = this.scheduleData?.flexibleClasses || [];
+      const allFixed = this.scheduleData?.fixedClasses || [];
+      const all = [...allFlex, ...allFixed];
       const q = this.searchQuery.trim().toLowerCase();
 
       return all
         .filter((c) => c.date === dateStr && (c.startTime || '').slice(0, 5) === slotPrefix)
         .map((c) => this.decorateCourse(c))
         .filter((c) => {
+          if (this.showOnlyEnrolled && !c.hasEnrolled) return false;
           if (this.activeFilter !== 'all' && c.cat !== this.activeFilter) return false;
           if (q) {
             const target = `${c.lessonTitle} ${c.teacherName} ${c.room || ''}`.toLowerCase();
@@ -511,6 +521,16 @@ function preRegistrarApp() {
       this.weekMode = '';
       this.currentMonday = dayjs(this.currentMonday).add(deltaDays, 'day').format('YYYY-MM-DD');
       this.fetchSchedule(this.currentMonday);
+    },
+
+    toggleShowOnlyEnrolled() {
+      this.showOnlyEnrolled = !this.showOnlyEnrolled;
+      localStorage.setItem('talkfirst_show_only_enrolled', String(this.showOnlyEnrolled));
+      if (this.showOnlyEnrolled) {
+        this.showToast('📌 Showing enrolled courses only', 'info', 2000);
+      } else {
+        this.showToast('Showing all courses', 'info', 2000);
+      }
     },
 
     // ── Auto-Sync & Schedule Merging ──────────────────────────────────────────

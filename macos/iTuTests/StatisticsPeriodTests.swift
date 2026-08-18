@@ -55,4 +55,29 @@ final class StatisticsPeriodTests: XCTestCase {
         XCTAssertEqual(durations.last?.snapshot.focusMinutes, 9_125)
         XCTAssertLessThan(durations.map(\.elapsed).max() ?? .infinity, 50)
     }
+
+    @MainActor
+    func testStatisticsStoreDomainStateUpdates() {
+        let store = StatisticsStore()
+        let model = AppModel()
+        model.statisticsCalendar = [
+            StudyCalendarDayDTO(
+                date: "2026-08-18",
+                sessions: 2,
+                focusSessions: 1,
+                reviews: 5,
+                correct: 5,
+                completedTasks: 4,
+                focusedMinutes: 45,
+                cardsCreated: 2
+            )
+        ]
+
+        store.updateDomainStates(using: model)
+        XCTAssertEqual(store.state(for: .productivity), .ready)
+        XCTAssertEqual(store.state(for: .learning), .ready)
+        XCTAssertEqual(store.currentOverview.completedTasks, 4)
+        XCTAssertEqual(store.currentOverview.focusMinutes, 45)
+        XCTAssertEqual(store.currentOverview.reviews, 5)
+    }
 }

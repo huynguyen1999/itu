@@ -14,10 +14,25 @@ final class ForegroundUsageTracker {
     static let fixedExcludedBundleIDs: Set<String> = [
         "com.huynguyen.itu",
         Bundle.main.bundleIdentifier ?? "",
+        "loginwindow",
         "com.apple.loginwindow",
+        "com.apple.loginwindow.xpc",
+        "com.apple.LockScreen",
+        "com.apple.lockscreen",
+        "lockscreen",
         "com.apple.ScreenSaver.Engine",
+        "com.apple.screensaver",
         "com.apple.systemuiserver",
-        "com.apple.dock"
+        "com.apple.SystemUIServer",
+        "com.apple.dock",
+        "com.apple.WindowManager",
+        "com.apple.controlcenter",
+        "com.apple.ControlCenter",
+        "com.apple.notificationcenterui",
+        "com.apple.usernotifications.service",
+        "com.apple.Spotlight",
+        "com.apple.SecurityAgent",
+        "com.apple.CoreAuthUI"
     ]
 
     private let workspace: NSWorkspace
@@ -65,16 +80,29 @@ final class ForegroundUsageTracker {
     }
 
     func isBundleExcluded(_ bundleID: String) -> Bool {
-        Self.fixedExcludedBundleIDs.contains(bundleID) || userExcludedBundleIDs.contains(bundleID)
+        let trimmed = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return true }
+        let lower = trimmed.lowercased()
+        if Self.fixedExcludedBundleIDs.contains(trimmed) ||
+           Self.fixedExcludedBundleIDs.contains(lower) ||
+           userExcludedBundleIDs.contains(trimmed) ||
+           userExcludedBundleIDs.contains(lower) {
+            return true
+        }
+        if lower.contains("loginwindow") ||
+           lower.contains("lockscreen") ||
+           lower.contains("screensaver") {
+            return true
+        }
+        return false
     }
 
-    func start() {
+    func start(at date: Date = Date(), scheduleTimer: Bool = false) {
         guard !isRunning else { return }
         isRunning = true
         suspensionReasons.remove(.userPaused)
         installObservers()
 
-        let now = Date()
         let frontmost = workspace.frontmostApplication
         let savedBundle = defaults.string(forKey: "itu_usage_current_bundle")
         let rawBundle = frontmost?.bundleIdentifier ?? savedBundle
@@ -88,14 +116,16 @@ final class ForegroundUsageTracker {
             currentDisplayName = ""
         }
 
-        lastObservedAt = now
+        lastObservedAt = date
         isEngaged = true
-        tick(at: now)
+        tick(at: date)
         persistRuntimeState()
 
         idleTimer?.invalidate()
-        idleTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.evaluateIdleStateAndTick() }
+        if scheduleTimer {
+            idleTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.evaluateIdleStateAndTick() }
+            }
         }
     }
 
@@ -207,7 +237,7 @@ final class ForegroundUsageTracker {
             let nextDay = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? end
             let nextHour = calendar.dateInterval(of: .hour, for: cursor)?.end ?? nextDay
             let segmentEnd = min(end, min(nextDay, nextHour))
-            let segmentSeconds = Int(max(0, segmentEnd.timeIntervalSince(cursor).rounded(.down)))
+            let segmentSeconds = Int(max(0, segmentEnd.timeIntervalSince(cursor).rounded()))
             if segmentSeconds > 0 {
                 let dateStr = UsageDateFormatter.string(from: cursor, calendar: calendar)
                 let hourVal = calendar.component(.hour, from: cursor)

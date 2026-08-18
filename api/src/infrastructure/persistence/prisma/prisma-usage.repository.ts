@@ -14,7 +14,7 @@ import type {
   WebsiteUsageSummaryWrite,
 } from '@core/application/ports/out/repositories.port';
 import { DEFAULT_USAGE_PREFERENCES } from '@core/application/use-cases/preferences.service';
-import { splitIntervalIntoHours } from '@core/application/use-cases/usage-validation';
+import { isSystemExcludedBundleId, splitIntervalIntoHours } from '@core/application/use-cases/usage-validation';
 import { PrismaService } from './prisma.service';
 
 const MAX_USAGE_TRANSACTION_ATTEMPTS = 3;
@@ -33,9 +33,30 @@ export class PrismaUsageRepository implements IUsageRepository {
     return this.prisma.syncDevice.findFirst({ where: { id: deviceId, userId }, select: { platform: true } });
   }
 
-  async findSummaries(userId: string, from: Date, toExclusive: Date): Promise<UsageSummaryRecord[]> {
+  async findSummaries(userId: string, from: Date, toExclusive: Date, deviceId?: string): Promise<UsageSummaryRecord[]> {
     const rows = await this.prisma.usageSummary.findMany({
-      where: { userId, localDate: { gte: from, lt: toExclusive } },
+      where: {
+        userId,
+        ...(deviceId ? { syncDeviceId: deviceId } : {}),
+        localDate: { gte: from, lt: toExclusive },
+        bundleId: {
+          notIn: [
+            'loginwindow',
+            'com.apple.loginwindow',
+            'com.apple.loginwindow.xpc',
+            'com.apple.LockScreen',
+            'com.apple.lockscreen',
+            'lockscreen',
+            'control-center',
+            'com.apple.controlcenter',
+            'dock',
+            'com.apple.dock',
+            'com.apple.WindowManager',
+            'com.apple.ScreenSaver.Engine',
+            'com.apple.screensaver',
+          ],
+        },
+      },
       select: {
         localDate: true,
         hour: true,
@@ -160,13 +181,26 @@ export class PrismaUsageRepository implements IUsageRepository {
   }
 
   async ingestScreenTimeEvents(userId: string, collectorDeviceId: string, events: ScreenTimeEventWrite[]) {
-    if (events.length === 0) return { accepted: true, inserted: 0 };
+    const validEvents = events.filter((e) => !isSystemExcludedBundleId(e.bundleId));
+    if (validEvents.length === 0) return { accepted: true, inserted: 0 };
     for (let attempt = 0; attempt < MAX_USAGE_TRANSACTION_ATTEMPTS; attempt += 1) {
       try {
         return await this.prisma.$transaction(
           async (tx) => {
+            const incomingIds = validEvents.map((e) => e.eventId);
+            const alreadyExisting = await tx.usageImportEvent.findMany({
+              where: { eventId: { in: incomingIds } },
+              select: { eventId: true },
+            });
+            const existingIdSet = new Set(alreadyExisting.map((e) => e.eventId));
+            const newEvents = validEvents.filter((e) => !existingIdSet.has(e.eventId));
+
+            if (newEvents.length === 0) {
+              return { accepted: true, inserted: 0 };
+            }
+
             const created = await tx.usageImportEvent.createMany({
-              data: events.map((event) => ({
+              data: newEvents.map((event) => ({
                 userId,
                 collectorDeviceId,
                 sourceDeviceId: event.sourceDeviceId,
@@ -184,7 +218,7 @@ export class PrismaUsageRepository implements IUsageRepository {
 
             // Ensure sync device exists for source devices
             const uniqueSourceDevices = new Map<string, string | undefined>();
-            for (const event of events) {
+            for (const event of newEvents) {
               if (!uniqueSourceDevices.has(event.sourceDeviceId)) {
                 uniqueSourceDevices.set(event.sourceDeviceId, event.sourceDeviceName ?? undefined);
               }
@@ -212,7 +246,7 @@ export class PrismaUsageRepository implements IUsageRepository {
 
             // Upsert app identities
             const uniqueApps = new Map<string, string>();
-            for (const event of events) {
+            for (const event of newEvents) {
               uniqueApps.set(event.bundleId, event.displayName);
             }
             for (const [bundleId, displayName] of uniqueApps) {
@@ -223,8 +257,8 @@ export class PrismaUsageRepository implements IUsageRepository {
               });
             }
 
-            // Aggregate events into UsageSummary
-            for (const event of events) {
+            // Aggregate only newly inserted events into UsageSummary
+            for (const event of newEvents) {
               if (event.durationSeconds <= 0) continue;
               const slices = splitIntervalIntoHours(event.startedAt, event.endedAt, event.durationSeconds);
               for (const slice of slices) {
@@ -252,7 +286,7 @@ export class PrismaUsageRepository implements IUsageRepository {
                       },
                     },
                     data: {
-                      activeSeconds: existingSummary.activeSeconds + slice.seconds,
+                      activeSeconds: Math.min(3600, existingSummary.activeSeconds + slice.seconds),
                       displayName: event.displayName,
                     },
                   });
@@ -266,8 +300,8 @@ export class PrismaUsageRepository implements IUsageRepository {
                       hour: slice.hour,
                       bundleId: event.bundleId,
                       displayName: event.displayName,
-                      timezone: 'UTC',
-                      activeSeconds: slice.seconds,
+                      timezone: 'Asia/Ho_Chi_Minh',
+                      activeSeconds: Math.min(3600, slice.seconds),
                     },
                   });
                 }

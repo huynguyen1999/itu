@@ -40,11 +40,20 @@
       <span class="date-range" x-text="weekDateRangeLabel">Loading...</span>
     </div>
 
-    <button class="mobile-enrolled-btn" @click="showEnrolledModal()" title="View enrolled classes">
-      <span>📌</span>
-      <span class="enrolled-label">Enrolled</span>
-      <b class="enrolled-num" x-text="enrolledTotalCount">0</b>
-    </button>
+    <div class="mobile-topbar-actions">
+      <button class="mobile-enrolled-toggle-btn"
+              :class="{ 'active': showOnlyEnrolled }"
+              @click="toggleShowOnlyEnrolled()"
+              title="Toggle enrolled courses only"
+              aria-label="Toggle enrolled courses only">
+        <span>📌</span>
+        <span class="mobile-toggle-label">Only</span>
+        <span class="mobile-toggle-badge" x-text="enrolledTotalCount">0</span>
+      </button>
+      <button class="mobile-enrolled-btn" @click="showEnrolledModal()" title="View enrolled classes list">
+        <span class="enrolled-label">List</span>
+      </button>
+    </div>
 
     <div class="topbar-right">
       <!-- Redis Insight Style Refresh & Interval Selector Widget -->
@@ -109,6 +118,21 @@
         <button class="chip" :class="{ active: activeFilter === 'skills' }" @click="activeFilter = 'skills'" data-cat="skills"><span class="dot"></span>Skills</button>
       </div>
 
+      <!-- Enrolled Only Toggle -->
+      <button class="enrolled-toggle"
+              :class="{ 'active': showOnlyEnrolled }"
+              @click="toggleShowOnlyEnrolled()"
+              title="Toggle between all courses and enrolled courses only"
+              aria-label="Show only enrolled courses"
+              :aria-pressed="showOnlyEnrolled">
+        <span class="toggle-track">
+          <span class="toggle-thumb"></span>
+        </span>
+        <span class="toggle-icon">📌</span>
+        <span class="toggle-text">Enrolled only</span>
+        <span class="toggle-badge" x-text="enrolledTotalCount">0</span>
+      </button>
+
       <div class="file-badge">📄 <b>classes.json</b> · <span x-text="cacheSlotsCount">-- slots</span> · <span x-text="cacheSyncedTime">synced --</span></div>
 
       <div class="sync-badge"
@@ -140,6 +164,15 @@
 
     <!-- CALENDAR WRAPPER (Maximizes screen real estate on mobile) -->
     <div class="calendar-wrap">
+      <!-- Enrolled Empty State Banner -->
+      <template x-if="showOnlyEnrolled && enrolledTotalCount === 0">
+        <div class="enrolled-empty-banner">
+          <span>📌</span>
+          <span>No enrolled courses found for this week.</span>
+          <button class="btn-clear-filter" @click="toggleShowOnlyEnrolled()">Show all courses</button>
+        </div>
+      </template>
+
       <div class="schedule">
 
         <!-- Day Headers -->

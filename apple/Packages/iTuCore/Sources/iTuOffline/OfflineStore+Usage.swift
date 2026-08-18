@@ -24,10 +24,41 @@ public extension OfflineStore {
         return state
     }
 
-    /// Drops application usage rows written before engaged-time tracking existed.
+    /// Drops application usage rows written before engaged-time tracking existed or matching system-excluded bundles (e.g. loginwindow).
     /// Website summaries are compatible and intentionally left untouched.
     func cleanupLegacyUsage() throws -> OfflineSnapshot {
-        let remaining = state.usageSummaries.filter { $0.engagedSeconds != nil }
+        let remaining = state.usageSummaries.filter { summary in
+            let lower = summary.bundleId.lowercased()
+            if lower.contains("loginwindow") ||
+               lower.contains("lockscreen") ||
+               lower.contains("screensaver") ||
+               lower.contains("controlcenter") ||
+               lower.contains("control-center") ||
+               lower.contains("clockangel") ||
+               lower.contains("posterboard") ||
+               lower.contains("passbookuiservice") ||
+               lower.contains("authkituiservice") ||
+               lower.contains("authenticationservicesui") ||
+               lower.contains("ctnotifyuiservice") ||
+               lower.contains("localauthentication") ||
+               lower.contains("screenshotservices") ||
+               lower.contains("problemreporter") ||
+               lower.contains("springboard") ||
+               lower.hasPrefix("com.apple.control-center") ||
+               lower.hasPrefix("com.apple.controlcenter") ||
+               lower.hasPrefix("com.apple.windowmanager") ||
+               lower.hasPrefix("com.apple.systemuiserver") ||
+               lower.hasPrefix("com.apple.dock") ||
+               lower.hasPrefix("com.apple.notificationcenter") ||
+               lower.hasPrefix("com.apple.usernotificationcenter") ||
+               lower.hasPrefix("com.apple.springboard") {
+                return false
+            }
+            if summary.engagedSeconds == nil && summary.source == .macOSForeground {
+                return false
+            }
+            return true
+        }
         guard remaining.count != state.usageSummaries.count else { return state }
         state.usageSummaries = remaining
         let ids = Set(remaining.map(\.id))

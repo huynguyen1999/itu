@@ -4,6 +4,14 @@ import iTuDomain
 import iTuNetworking
 
 final class BiomeScreenTimeTests: XCTestCase {
+    func testBiomeReaderSelectsLocalAndRemoteStreams() {
+        let localDevice = ScreenTimeDevice(deviceIdentifier: "LOCAL", isMe: true)
+        let remoteDevice = ScreenTimeDevice(deviceIdentifier: "REMOTE")
+
+        XCTAssertTrue(BiomeAppInFocusReader.deviceStreamDirectory(for: localDevice).path.hasSuffix("/App.InFocus/local"))
+        XCTAssertTrue(BiomeAppInFocusReader.deviceStreamDirectory(for: remoteDevice).path.hasSuffix("/App.InFocus/remote/REMOTE"))
+    }
+
     // MARK: - Protobuf Decoder Tests
 
     func testProtobufDecoderVarintAndString() {
@@ -244,6 +252,135 @@ final class BiomeScreenTimeTests: XCTestCase {
         let status = await coordinator.checkStatus()
         XCTAssertEqual(status.pendingUploadCount, 0)
 
+        let outbox = await coordinator.allOutboxIntervals()
+        XCTAssertTrue(outbox.isEmpty)
+
         try? FileManager.default.removeItem(at: tempDir)
+    }
+
+    func testAsUsageSummariesSlicesCorrectly() {
+        let interval = ImportedUsageInterval(
+            eventId: "TEST-EID",
+            source: .screenTimeBiome,
+            sourceDeviceId: "DEVICE_1",
+            bundleId: "ph.telegra.Telegraph",
+            displayName: "Telegram",
+            startedAt: Date(timeIntervalSince1970: 1700000000), // fixed instant
+            endedAt: Date(timeIntervalSince1970: 1700001800),   // +1800s (30m)
+            durationSeconds: 1800
+        )
+
+        let summaries = interval.asUsageSummaries(timeZone: TimeZone(identifier: "UTC")!)
+        XCTAssertFalse(summaries.isEmpty)
+        let totalSeconds = summaries.reduce(0) { $0 + $1.activeSeconds }
+        XCTAssertEqual(totalSeconds, 1800)
+        XCTAssertEqual(summaries[0].bundleId, "ph.telegra.Telegraph")
+        XCTAssertEqual(summaries[0].displayName, "Telegram")
+        XCTAssertEqual(summaries[0].source, .screenTimeBiome)
+    }
+
+    func testParseTimestampSupportsBothEpochs() {
+        // Unix timestamp (seconds since 1970)
+        let unixTs: Double = 1787038600
+        let dateFromUnix = BiomeRecordDecoder.parseTimestamp(unixTs)
+        XCTAssertEqual(dateFromUnix.timeIntervalSince1970, unixTs, accuracy: 1.0)
+
+        // CFAbsoluteTime (seconds since 2001)
+        let cfTs: Double = 700000000
+        let dateFromCF = BiomeRecordDecoder.parseTimestamp(cfTs)
+        XCTAssertEqual(dateFromCF.timeIntervalSinceReferenceDate, cfTs, accuracy: 1.0)
+    }
+
+    func testPruneInvalidTimestamps() async {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = BiomeImportStateStore(storageDirectory: tempDir)
+
+        let validDate = Date()
+        let corruptedFutureDate = Date(timeIntervalSinceReferenceDate: 1787038600) // Year 2057
+
+        let validInterval = ImportedUsageInterval(
+            eventId: "EID_VALID",
+            source: .screenTimeBiome,
+            sourceDeviceId: "DEV1",
+            bundleId: "com.apple.safari",
+            displayName: "Safari",
+            startedAt: validDate,
+            endedAt: validDate.addingTimeInterval(60),
+            durationSeconds: 60
+        )
+        let corruptInterval = ImportedUsageInterval(
+            eventId: "EID_CORRUPT",
+            source: .screenTimeBiome,
+            sourceDeviceId: "DEV1",
+            bundleId: "com.apple.safari",
+            displayName: "Safari",
+            startedAt: corruptedFutureDate,
+            endedAt: corruptedFutureDate.addingTimeInterval(60),
+            durationSeconds: 60
+        )
+
+        _ = await store.saveIntervalsToOutbox([validInterval, corruptInterval])
+        let beforePrune = await store.pendingCount()
+        XCTAssertEqual(beforePrune, 2)
+
+        await store.pruneInvalidTimestamps()
+        let afterPrune = await store.pendingCount()
+        XCTAssertEqual(afterPrune, 1)
+
+        await store.clearOutbox()
+        let afterClear = await store.pendingCount()
+        XCTAssertEqual(afterClear, 0)
+
+        try? FileManager.default.removeItem(at: tempDir)
+    }
+
+    func testUsageNormalizerExcludesSystemProcessesAndClampsDuration() {
+        let device = ScreenTimeDevice(deviceIdentifier: "DEV_TEST")
+        let t0 = Date(timeIntervalSince1970: 1700000000)
+
+        let events = [
+            BiomeAppInFocusEvent(timestamp: t0, bundleId: "loginwindow", starting: true, type: 3),
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(10), bundleId: "com.apple.controlcenter", starting: true, type: 3),
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(20), bundleId: "com.apple.Safari", starting: true, type: 1),
+            // Unclosed Safari session lasting 14 hours (50400s)
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(50400), bundleId: "com.google.Chrome", starting: true, type: 1),
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(50500), bundleId: "com.google.Chrome", starting: false, type: 1)
+        ]
+
+        let intervals = BiomeUsageNormalizer.normalize(events: events, for: device)
+        // loginwindow and controlcenter should be ignored
+        XCTAssertEqual(intervals.count, 2)
+        XCTAssertEqual(intervals[0].bundleId, "com.apple.Safari")
+        // Clamped to maxSessionDuration (43,200s / 12 hours) instead of 50400s
+        XCTAssertEqual(intervals[0].durationSeconds, Int(BiomeUsageNormalizer.maxSessionDuration))
+
+        XCTAssertEqual(intervals[1].bundleId, "com.google.Chrome")
+        XCTAssertEqual(intervals[1].durationSeconds, 100)
+    }
+
+    func testUsageNormalizerClosesSessionOnLockScreenAndSpringboardBoundary() {
+        let device = ScreenTimeDevice(deviceIdentifier: "DEV_IPHONE")
+        let t0 = Date(timeIntervalSince1970: 1700000000)
+
+        let events = [
+            // User opens Tubee for 24 minutes (1440s)
+            BiomeAppInFocusEvent(timestamp: t0, bundleId: "com.tracup.Tubee", starting: true, type: 1),
+            // User locks iPhone after 24 minutes
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(1440), bundleId: "com.apple.springboard", starting: true, type: 3),
+            // Phone is locked in pocket for 5 hours (18000s). User unlocks and opens Safari.
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(18000), bundleId: "com.apple.mobilesafari", starting: true, type: 1),
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(18300), bundleId: "com.apple.mobilesafari", starting: false, type: 1)
+        ]
+
+        let intervals = BiomeUsageNormalizer.normalize(events: events, for: device)
+        XCTAssertEqual(intervals.count, 2)
+
+        // Tubee is closed at 24 minutes (1440s) instead of staying open for 5 hours
+        XCTAssertEqual(intervals[0].bundleId, "com.tracup.Tubee")
+        XCTAssertEqual(intervals[0].durationSeconds, 1440)
+
+        // Safari is 300s (5 minutes)
+        XCTAssertEqual(intervals[1].bundleId, "com.apple.mobilesafari")
+        XCTAssertEqual(intervals[1].durationSeconds, 300)
     }
 }

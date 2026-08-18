@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -7,11 +8,15 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { ChevronDown, ChevronUp, Search } from 'lucide-react';
 import type { UsageSummary } from '@/shared/api/types';
 import { AuthenticatedImage } from '@/shared/ui/AuthenticatedImage';
 import { Card, CardContent, CardHeader } from '@/shared/ui/card';
+import { Input } from '@/shared/ui/input';
+import { Button } from '@/shared/ui/button';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { ChartEmptyState, QueryError } from './StatisticsSectionStates';
+import { AppUsageDetailModal } from './AppUsageDetailModal';
 import { axisActiveDuration, engagementPercent, formatActiveDuration } from './statistics';
 
 export function UsageSection({
@@ -31,6 +36,10 @@ export function UsageSection({
   stack: Array<Record<string, string | number>>;
   topApps: UsageSummary['topApps'];
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedApp, setSelectedApp] = useState<UsageSummary['topApps'][number] | null>(null);
+
   const hasHourlyBuckets = stack.length === 24;
   const engagedPercent = engagementPercent(summary?.totalActiveSeconds ?? 0, summary?.totalEngagedSeconds);
   const hasEngagementData = engagedPercent !== null && summary?.totalEngagedSeconds != null;
@@ -50,6 +59,27 @@ export function UsageSection({
     coveragePercent === null
       ? 'Engagement coverage is unavailable.'
       : `Engagement was measured for ${coveragePercent}% of foreground activity.`;
+
+  const filteredApps = useMemo(() => {
+    if (!searchQuery.trim()) return topApps;
+    const q = searchQuery.toLowerCase().trim();
+    return topApps.filter(
+      (app) =>
+        app.displayName.toLowerCase().includes(q) ||
+        app.bundleId.toLowerCase().includes(q),
+    );
+  }, [topApps, searchQuery]);
+
+  const displayedApps = useMemo(() => {
+    if (isExpanded || searchQuery.trim()) return filteredApps;
+    return filteredApps.slice(0, 5);
+  }, [filteredApps, isExpanded, searchQuery]);
+
+  const selectedAppColor = useMemo(() => {
+    if (!selectedApp) return 'var(--itu-teal-600)';
+    const index = topApps.findIndex((a) => a.bundleId === selectedApp.bundleId);
+    return usageColors[(index >= 0 ? index : 0) % usageColors.length];
+  }, [selectedApp, topApps]);
 
   return (
     <section aria-labelledby="usage-heading" aria-busy={isLoading}>
@@ -129,7 +159,7 @@ export function UsageSection({
               {hasHourlyBuckets ? 'Hourly foreground time' : 'Daily foreground time'}, stacked by application.
             </p>
           </CardHeader>
-          <CardContent className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-stretch">
+          <CardContent className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-stretch">
             <div
               className="h-64 min-w-0"
               aria-label={`${hasHourlyBuckets ? 'Hourly' : 'Daily'} foreground time stacked by application`}
@@ -158,7 +188,7 @@ export function UsageSection({
                     itemSorter={(item) => -Number(item.value ?? 0)}
                     formatter={(value, name) => [formatActiveDuration(Number(value)), String(name)]}
                   />
-                  {topApps.map((app, index) => (
+                  {topApps.slice(0, 5).map((app, index) => (
                     <Bar
                       key={app.bundleId}
                       dataKey={`app${index}`}
@@ -184,42 +214,101 @@ export function UsageSection({
                 <ChartEmptyState message="No app ranking is available in this period." />
               ) : (
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Top Applications
-                  </p>
-                  {topApps.map((app, index) => (
-                    <div
-                      key={app.bundleId}
-                      className="flex items-center gap-3 rounded-[var(--itu-radius-s)] px-1.5 py-1.5 hover:bg-muted/30"
-                    >
-                      <AuthenticatedImage
-                        src={app.iconUrl ?? null}
-                        alt=""
-                        className="h-8 w-8 shrink-0 rounded-[var(--itu-radius-s)] object-cover shadow-sm"
-                        fallback={<AppUsageIcon name={app.displayName} color={usageColors[index % usageColors.length]} />}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{app.displayName}</p>
-                        {app.engagedSeconds != null && (
-                          <p className="text-[11px] text-muted-foreground">
-                            Engaged: {formatActiveDuration(app.engagedSeconds)}
-                          </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Applications ({topApps.length})
+                    </p>
+                    {topApps.length > 5 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => setIsExpanded((prev) => !prev)}
+                      >
+                        {isExpanded ? (
+                          <span className="flex items-center gap-1">
+                            Top 5 <ChevronUp className="h-3 w-3" />
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            All {topApps.length} <ChevronDown className="h-3 w-3" />
+                          </span>
                         )}
-                      </div>
-                      <div className="text-right">
-                        <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-foreground">
-                          {formatActiveDuration(app.activeSeconds)}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground uppercase">Screen</p>
-                      </div>
+                      </Button>
+                    )}
+                  </div>
+
+                  {(isExpanded || topApps.length > 8) && (
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Search apps…"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="h-8 pl-8 text-xs"
+                      />
                     </div>
-                  ))}
+                  )}
+
+                  <div className={`space-y-1 ${isExpanded || searchQuery ? 'max-h-72 overflow-y-auto pr-1' : ''}`}>
+                    {displayedApps.length === 0 ? (
+                      <p className="py-4 text-center text-xs text-muted-foreground">No matching applications.</p>
+                    ) : (
+                      displayedApps.map((app) => {
+                        const originalIndex = topApps.findIndex((a) => a.bundleId === app.bundleId);
+                        const appColor = usageColors[(originalIndex >= 0 ? originalIndex : 0) % usageColors.length];
+                        return (
+                          <button
+                            type="button"
+                            key={app.bundleId}
+                            onClick={() => setSelectedApp(app)}
+                            className="flex w-full items-center gap-3 rounded-[var(--itu-radius-s)] px-2 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            title="Click to view hourly and daily details"
+                          >
+                            <AuthenticatedImage
+                              src={app.iconUrl ?? null}
+                              alt=""
+                              className="h-8 w-8 shrink-0 rounded-[var(--itu-radius-s)] object-cover shadow-sm"
+                              fallback={<AppUsageIcon name={app.displayName} color={appColor} />}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-medium text-foreground">{app.displayName}</p>
+                              {app.engagedSeconds != null && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  Engaged: {formatActiveDuration(app.engagedSeconds)}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="shrink-0 font-mono text-xs font-semibold tabular-nums text-foreground">
+                                {formatActiveDuration(app.activeSeconds)}
+                              </p>
+                              <p className="text-[9px] text-muted-foreground uppercase">
+                                {summary.totalActiveSeconds > 0
+                                  ? `${Math.round((app.activeSeconds / summary.totalActiveSeconds) * 100)}%`
+                                  : 'Screen'}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
       )}
+
+      <AppUsageDetailModal
+        isOpen={Boolean(selectedApp)}
+        onClose={() => setSelectedApp(null)}
+        app={selectedApp}
+        summary={summary}
+        color={selectedAppColor}
+      />
     </section>
   );
 }

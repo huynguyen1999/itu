@@ -138,13 +138,28 @@ export function requireTimezone(value: unknown): string {
   return value;
 }
 
+export function localHourFor(date: Date, timezone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const hourPart = parts.find((p) => p.type === 'hour')?.value ?? '0';
+  return parseInt(hourPart, 10);
+}
+
 export interface HourlyUsageSlice {
   localDate: Date;
   hour: number;
   seconds: number;
 }
 
-export function splitIntervalIntoHours(startedAt: Date, endedAt: Date, durationSeconds: number): HourlyUsageSlice[] {
+export function splitIntervalIntoHours(
+  startedAt: Date,
+  endedAt: Date,
+  durationSeconds: number,
+  timezone = 'Asia/Ho_Chi_Minh',
+): HourlyUsageSlice[] {
   if (durationSeconds <= 0 || startedAt >= endedAt) return [];
   const spanMs = Math.max(1000, endedAt.getTime() - startedAt.getTime());
   const slices: HourlyUsageSlice[] = [];
@@ -153,14 +168,14 @@ export function splitIntervalIntoHours(startedAt: Date, endedAt: Date, durationS
   let allocatedSeconds = 0;
 
   while (cursor < endedAt) {
-    const nextHour = new Date(
-      Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate(), cursor.getUTCHours() + 1, 0, 0, 0),
-    );
+    const nextHourMs = (Math.floor(cursor.getTime() / 3_600_000) + 1) * 3_600_000;
+    const nextHour = new Date(nextHourMs);
     const segmentEnd = endedAt < nextHour ? endedAt : nextHour;
     const segmentMs = segmentEnd.getTime() - cursor.getTime();
 
-    const localDate = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate(), 0, 0, 0, 0));
-    const hour = cursor.getUTCHours();
+    const localDateStr = localDateFor(cursor, timezone);
+    const localDate = new Date(`${localDateStr}T00:00:00.000Z`);
+    const hour = localHourFor(cursor, timezone);
     const sliceSeconds = Math.max(0, Math.round((segmentMs / spanMs) * durationSeconds));
 
     if (sliceSeconds > 0) {
@@ -176,5 +191,92 @@ export function splitIntervalIntoHours(startedAt: Date, endedAt: Date, durationS
   }
 
   return slices.filter((s) => s.seconds > 0);
+}
+
+const SYSTEM_EXCLUDED_BUNDLE_SET = new Set([
+  'loginwindow',
+  'com.apple.loginwindow',
+  'com.apple.loginwindow.xpc',
+  'com.apple.lockscreen',
+  'com.apple.LockScreen',
+  'lockscreen',
+  'control-center',
+  'com.apple.control-center',
+  'com.apple.controlcenter',
+  'com.apple.ControlCenter',
+  'dock',
+  'com.apple.dock',
+  'com.apple.WindowManager',
+  'com.apple.notificationcenterui',
+  'com.apple.usernotifications.service',
+  'com.apple.Spotlight',
+  'com.apple.ScreenSaver.Engine',
+  'com.apple.screensaver',
+  'com.apple.systemuiserver',
+  'com.apple.SystemUIServer',
+  'com.apple.screencapture',
+  'com.apple.screencaptureui',
+  'com.apple.AirPlayUIAgent',
+  'com.apple.quicklook.ui.helper',
+  'com.apple.CoreAuthUI',
+  'com.apple.SecurityAgent',
+  'com.apple.universalaccessd',
+  'com.apple.PowerChime',
+  'com.apple.UserNotificationCenter',
+  'com.apple.TextInputMenuAgent',
+  'com.apple.TextInputSwitcher',
+  'com.apple.talagent',
+  'com.apple.coreservices.uiagent',
+  'com.apple.systempreferences.quicklook',
+  'com.apple.SoftwareUpdateNotificationManager',
+  'com.apple.ClockAngel',
+  'com.apple.PosterBoard',
+  'com.apple.PassbookUIService',
+  'com.apple.AuthKitUIService',
+  'com.apple.AuthenticationServicesUI',
+  'com.apple.CTNotifyUIService',
+  'com.apple.LocalAuthentication.UIAgent',
+  'com.apple.LocalAuthenticationUIService',
+  'com.apple.ScreenshotServicesService',
+  'com.apple.ProblemReporter',
+  'com.apple.springboard.home-screen-open-folder',
+  'com.apple.springboard.today-view',
+  'com.apple.springboard.widget-editing',
+]);
+
+export function isSystemExcludedBundleId(bundleId: string | null | undefined): boolean {
+  if (!bundleId) return true;
+  const trimmed = bundleId.trim();
+  if (!trimmed) return true;
+  const lower = trimmed.toLowerCase();
+  if (SYSTEM_EXCLUDED_BUNDLE_SET.has(trimmed) || SYSTEM_EXCLUDED_BUNDLE_SET.has(lower)) return true;
+  if (
+    lower.includes('loginwindow') ||
+    lower.includes('lockscreen') ||
+    lower.includes('screensaver') ||
+    lower.includes('controlcenter') ||
+    lower.includes('control-center') ||
+    lower.includes('clockangel') ||
+    lower.includes('posterboard') ||
+    lower.includes('passbookuiservice') ||
+    lower.includes('authkituiservice') ||
+    lower.includes('authenticationservicesui') ||
+    lower.includes('ctnotifyuiservice') ||
+    lower.includes('localauthentication') ||
+    lower.includes('screenshotservices') ||
+    lower.includes('problemreporter') ||
+    lower.includes('springboard') ||
+    lower.startsWith('com.apple.controlcenter') ||
+    lower.startsWith('com.apple.control-center') ||
+    lower.startsWith('com.apple.windowmanager') ||
+    lower.startsWith('com.apple.systemuiserver') ||
+    lower.startsWith('com.apple.dock') ||
+    lower.startsWith('com.apple.notificationcenter') ||
+    lower.startsWith('com.apple.usernotificationcenter') ||
+    lower.startsWith('com.apple.springboard')
+  ) {
+    return true;
+  }
+  return false;
 }
 

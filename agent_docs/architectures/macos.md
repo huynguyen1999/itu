@@ -20,7 +20,7 @@ macos/iTu/
     Models/                   Codable transport and view models
     Persistence/              OfflineStore snapshot and feature operations
     Sync/                     SyncCoordinator, hydration, ULIDs
-    Tracking/                 Foreground and compatibility website tracking
+    Tracking/                 Website and compatibility tracking
     UI/                       Theme and shared native controls
 macos/iTuTests/               Unit and interaction coverage
 macos/NativeHost/             Retained compatibility target
@@ -40,7 +40,7 @@ The Xcode project uses synchronized root groups, so source files placed under `i
   Workouts remain separate synchronized entities.
 - **Account and operations:** Statistics, notifications, profile, settings, sync conflicts, and recoverable Trash.
 
-Native-only integration surfaces include the menu-bar controller, notification plumbing, Focus policy enforcement, foreground-application tracking, Launch at Login, and the desktop Companion window. Feature directory presence documents a current surface, not guaranteed web parity; use the [native roadmap](../../macos/ROADMAP.md) for verified limitations.
+Native-only integration surfaces include the menu-bar controller, notification plumbing, Focus policy enforcement, Biome Screen Time import, Launch at Login, and the desktop Companion window. Feature directory presence documents a current surface, not guaranteed web parity; use the [native roadmap](../../macos/ROADMAP.md) for verified limitations.
 
 ## Application composition
 
@@ -125,21 +125,24 @@ revisions. Optional Gym exercise images are queued independently of `/sync`.
 
 ## Native usage tracking
 
-[`ForegroundUsageTracker.swift`](../../macos/iTu/Shared/Tracking/ForegroundUsageTracker.swift) observes the frontmost application, excludes inactive system states, and emits local app/day/hour summaries. [`OfflineStore+Usage.swift`](../../macos/iTu/Shared/Persistence/OfflineStore+Usage.swift) persists cumulative summaries; `AppModel` uploads them through authenticated usage endpoints tied to the registered macOS Sync Device.
+macOS imports application usage from Apple's Biome `App.InFocus` streams. [`BiomeDeviceDiscovery.swift`](../../macos/iTu/Shared/ScreenTime/Biome/BiomeDeviceDiscovery.swift) discovers this Mac's local stream and synced iPhone/iPad remote streams, [`BiomeAppInFocusReader.swift`](../../macos/iTu/Shared/ScreenTime/Biome/BiomeAppInFocusReader.swift) decodes their SEGB records, and `BiomeImportCoordinator` persists a durable outbox before uploading through the authenticated Screen Time endpoint. The macOS app does not monitor the foreground application itself.
 
 ```mermaid
 flowchart LR
-    Workspace["NSWorkspace notifications and timer"]
-    Tracker["ForegroundUsageTracker"]
-    Store[("Offline usage summaries")]
-    Model["AppModel upload"]
+    Local["Biome App.InFocus local stream"]
+    Remote["Biome App.InFocus remote streams"]
+    Reader["Biome reader and normalizer"]
+    Store[("Biome import outbox")]
+    Model["BiomeImportCoordinator"]
     API["Authenticated usage batch endpoint"]
     DB[("PostgreSQL")]
 
-    Workspace --> Tracker --> Store --> Model --> API --> DB
+    Local --> Reader
+    Remote --> Reader
+    Reader --> Store --> Model --> API --> DB
 ```
 
-Tracking is opt-in and controlled by server-backed preferences. Platform collection pauses around locked, sleeping, or inactive states according to the tracker implementation.
+Import is controlled by the existing server-backed usage preference. Website tracking remains a separate optional macOS feature.
 
 Statistics reads server Website Usage Summaries and combines them with pending
 local deltas before rendering the native usage views. `StatisticsStore` owns

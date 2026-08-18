@@ -105,6 +105,11 @@ export class UsageDateQueryDto {
   @IsString()
   @Length(10, 10)
   endDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 128)
+  deviceId?: string;
 }
 
 export class WebsiteUsageQueryDto extends UsageDateQueryDto {

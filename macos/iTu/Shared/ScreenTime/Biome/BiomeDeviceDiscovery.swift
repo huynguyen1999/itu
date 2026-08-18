@@ -2,10 +2,13 @@ import Foundation
 import SQLite3
 import iTuDomain
 
-/// Discovers connected remote Apple devices (iPhone/iPad) from macOS Biome sync metadata.
+/// Discovers Apple devices (this Mac and synced iPhone/iPad devices) from macOS Biome metadata.
 public enum BiomeDeviceDiscovery {
     private static var homeDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser
+        if let userHome = FileManager.default.homeDirectory(forUser: ProcessInfo.processInfo.userName) {
+            return userHome
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
     }
 
     public static var biomeRootURL: URL {
@@ -20,21 +23,38 @@ public enum BiomeDeviceDiscovery {
         biomeRootURL.appendingPathComponent("streams/restricted/App.InFocus/remote", isDirectory: true)
     }
 
+    public static var localStreamsURL: URL {
+        biomeRootURL.appendingPathComponent("streams/restricted/App.InFocus/local", isDirectory: true)
+    }
+
     /// Checks whether Full Disk Access is granted to read Biome system files.
     public static func hasFullDiskAccess() -> Bool {
+        let fileManager = FileManager.default
+
+        // 1. Check if sync database exists and is readable
         let dbPath = syncDatabaseURL.path
-        if FileManager.default.fileExists(atPath: dbPath) {
-            return FileManager.default.isReadableFile(atPath: dbPath)
+        if fileManager.fileExists(atPath: dbPath) {
+            return fileManager.isReadableFile(atPath: dbPath)
         }
+
+        // 2. Check if remote streams directory can be accessed and listed
         let streamsPath = remoteStreamsURL.path
-        if FileManager.default.fileExists(atPath: streamsPath) {
-            return FileManager.default.isReadableFile(atPath: streamsPath)
+        if fileManager.fileExists(atPath: streamsPath) {
+            return (try? fileManager.contentsOfDirectory(atPath: streamsPath)) != nil
         }
-        // If neither exists yet, check Biome root
+
+        // 3. Check if local streams directory can be accessed and listed
+        let localStreamsPath = localStreamsURL.path
+        if fileManager.fileExists(atPath: localStreamsPath) {
+            return (try? fileManager.contentsOfDirectory(atPath: localStreamsPath)) != nil
+        }
+
+        // 4. Check if Biome root directory can be accessed and listed
         let rootPath = biomeRootURL.path
-        if FileManager.default.fileExists(atPath: rootPath) {
-            return FileManager.default.isReadableFile(atPath: rootPath)
+        if fileManager.fileExists(atPath: rootPath) {
+            return (try? fileManager.contentsOfDirectory(atPath: rootPath)) != nil
         }
+
         return false
     }
 
@@ -71,10 +91,26 @@ public enum BiomeDeviceDiscovery {
             }
         }
 
-        // Only return remote devices (isMe == false)
+        // 3. Ensure local device ("This Mac") is included if local streams exist
+        let hasLocalMe = devicesByIdentifier.values.contains { $0.isMe }
+        if !hasLocalMe && (fileManager.fileExists(atPath: localStreamsURL.path) || fileManager.fileExists(atPath: biomeRootURL.path)) {
+            let localName = Host.current().localizedName ?? "This Mac"
+            let localId = "local-mac"
+            devicesByIdentifier[localId] = ScreenTimeDevice(
+                deviceIdentifier: localId,
+                name: localName,
+                model: "Mac",
+                platform: "macOS",
+                isMe: true,
+                lastSyncDate: Date()
+            )
+        }
+
         return devicesByIdentifier.values
-            .filter { !$0.isMe }
-            .sorted { ($0.name ?? $0.deviceIdentifier) < ($1.name ?? $1.deviceIdentifier) }
+            .sorted {
+                if $0.isMe != $1.isMe { return $0.isMe }
+                return ($0.name ?? $0.deviceIdentifier) < ($1.name ?? $1.deviceIdentifier)
+            }
     }
 
     private static func queryDevicesFromSyncDatabase() -> [ScreenTimeDevice] {
@@ -101,8 +137,13 @@ public enum BiomeDeviceDiscovery {
 
                 guard !idText.isEmpty else { continue }
 
-                let lastSyncDate: Date? = lastSyncVal > 0 ? Date(timeIntervalSinceReferenceDate: lastSyncVal) : nil
-                let platformName = platformInt == 2 ? "iOS" : (platformInt == 1 ? "macOS" : "Apple")
+                let lastSyncDate: Date? = lastSyncVal > 0 ? BiomeRecordDecoder.parseTimestamp(lastSyncVal) : nil
+                let platformName: String
+                if meInt != 0 {
+                    platformName = "macOS"
+                } else {
+                    platformName = platformInt == 2 ? "iOS" : "Apple"
+                }
 
                 devices.append(ScreenTimeDevice(
                     deviceIdentifier: idText,

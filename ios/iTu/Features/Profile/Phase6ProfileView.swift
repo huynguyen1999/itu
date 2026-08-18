@@ -108,6 +108,7 @@ struct Phase6ProfileView: View {
             }
         }
         .navigationTitle("Profile")
+        .navigationBarTitleDisplayMode(.inline)
         .task { hydrateFromUser() }
         .alert("Profile", isPresented: Binding(get: { statusMessage != nil }, set: { if !$0 { statusMessage = nil } })) {
             Button("OK", role: .cancel) { statusMessage = nil }

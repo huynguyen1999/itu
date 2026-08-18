@@ -67,6 +67,7 @@ struct Phase6ConflictsView: View {
             }
         }
         .navigationTitle("Conflicts")
+        .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
             action?.title ?? "Confirm sync action",
             isPresented: Binding(get: { action != nil }, set: { if !$0 { action = nil } }),

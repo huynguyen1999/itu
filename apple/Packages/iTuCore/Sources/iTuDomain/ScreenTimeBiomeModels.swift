@@ -207,3 +207,44 @@ public struct ScreenTimeImportStatus: Codable, Equatable, Sendable {
         self.lastError = lastError
     }
 }
+
+extension ImportedUsageInterval {
+    public func asUsageSummaries(timeZone: TimeZone = TimeZone(identifier: "Asia/Ho_Chi_Minh") ?? .current) -> [UsageSummary] {
+        guard durationSeconds > 0, startedAt < endedAt else { return [] }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let spanMs = max(1000, endedAt.timeIntervalSince(startedAt) * 1000)
+        var slices: [UsageSummary] = []
+        var cursor = startedAt
+        var allocatedSeconds = 0
+
+        while cursor < endedAt {
+            let nextHourInterval = calendar.dateInterval(of: .hour, for: cursor)?.end ?? cursor.addingTimeInterval(3600)
+            let segmentEnd = min(endedAt, nextHourInterval)
+            let segmentMs = segmentEnd.timeIntervalSince(cursor) * 1000
+            let dateKey = String(format: "%04d-%02d-%02d", calendar.component(.year, from: cursor), calendar.component(.month, from: cursor), calendar.component(.day, from: cursor))
+            let hour = calendar.component(.hour, from: cursor)
+            let sliceSeconds = max(0, Int(round((segmentMs / spanMs) * Double(durationSeconds))))
+
+            if sliceSeconds > 0 {
+                slices.append(UsageSummary(
+                    localDate: dateKey,
+                    hour: hour,
+                    bundleId: bundleId,
+                    displayName: displayName,
+                    timezone: timeZone.identifier,
+                    activeSeconds: sliceSeconds,
+                    source: .screenTimeBiome,
+                    deviceId: sourceDeviceId
+                ))
+                allocatedSeconds += sliceSeconds
+            }
+            cursor = segmentEnd
+        }
+        let diff = durationSeconds - allocatedSeconds
+        if diff != 0, !slices.isEmpty {
+            slices[slices.count - 1].activeSeconds = max(0, slices[slices.count - 1].activeSeconds + diff)
+        }
+        return slices.filter { $0.activeSeconds > 0 }
+    }
+}

@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { USAGE_CONSTANTS } from '@core/application/constants/app.constants';
 import { USAGE_SOURCES, type IUsageRepository, type ScreenTimeEventWrite } from '@core/application/ports/out/repositories.port';
-import { dateKey, parseDate, validTimezone } from './usage-validation';
+import { dateKey, isSystemExcludedBundleId, parseDate, validTimezone } from './usage-validation';
 import type { ScreenTimeUsageBatchInput, UsageSummaryBatchInput, UsageSummaryInput } from './usage.types';
 
 const MAX_BATCH_SIZE = USAGE_CONSTANTS.maxBatchSize;
@@ -34,6 +34,7 @@ export class UsageIngestionService {
       if (source === 'BROWSER' || source === 'HEALTH_KIT') {
         throw new BadRequestException('This source is not valid for app summaries');
       }
+      if (isSystemExcludedBundleId(summary.bundleId)) continue;
       const localDate = parseDate(summary.localDate, 'localDate');
       if (typeof summary.bundleId !== 'string' || !summary.bundleId || summary.bundleId.length > 255)
         throw new BadRequestException('bundleId is required and must be at most 255 characters');
@@ -107,6 +108,7 @@ export class UsageIngestionService {
     const seenEventIds = new Set<string>();
 
     for (const raw of input.events) {
+      if (isSystemExcludedBundleId(raw.bundleId)) continue;
       const source = raw.source ?? 'SCREEN_TIME_BIOME';
       if (source !== 'SCREEN_TIME_BIOME') {
         throw new BadRequestException('Screen Time events must use SCREEN_TIME_BIOME source');

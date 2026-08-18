@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-16T15:55:13.563Z",
+  "updatedAt": "2026-08-18T08:51:00.986Z",
   "weeks": {
     "2026-08-10": {
       "monday": "2026-08-10",
@@ -943,11 +943,38 @@
           "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
           "programClassName": "Skills Development",
           "maxClassesPerWeek": 100,
-          "enrolledClassesThisWeek": 7
+          "enrolledClassesThisWeek": 6
         }
       ],
       "canBooking": false,
       "flexibleClasses": [
+        {
+          "id": "01a00395-7a39-7b31-8868-3aad2263ffff",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-17",
+          "teacherName": "Jamie Jennings",
+          "teacherNickName": "Jamie",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Fancy - 1F",
+          "lesson": "What's the best mindset towards negotiation",
+          "currentStudents": 9,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "What's the best mindset towards negotiation",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1779547292469.pdf"
+          },
+          "subClassType": {
+            "name": "Communicative 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#0ea5e6"
+          }
+        },
         {
           "id": "01a00388-58bb-707c-aaab-29b65fd545ae",
           "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
@@ -967,39 +994,12 @@
           "lessonInfo": {
             "lesson": "Nail a negotiation 1",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772276805475.pdf"
+            "studentDocKey": "files/studentDoc/1786951088288.pdf"
           },
           "subClassType": {
             "name": "FreeTalk 2",
             "color": "#FFFFFF",
             "bgcolor": "#ff6464"
-          }
-        },
-        {
-          "id": "01a00395-7a39-7b31-8868-3aad2263ffff",
-          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
-          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
-          "date": "2026-08-17",
-          "teacherName": "Jamie Jennings",
-          "teacherNickName": "Jamie",
-          "startTime": "19:50:00",
-          "endTime": "21:20:00",
-          "room": "Fancy - 1F",
-          "lesson": "What's the best mindset towards negotiation",
-          "currentStudents": 11,
-          "maxStudents": 11,
-          "hasEnrolled": false,
-          "timeType": "STANDARD",
-          "mode": "Offline",
-          "lessonInfo": {
-            "lesson": "What's the best mindset towards negotiation",
-            "description": "",
-            "studentDocKey": "files/studentDoc/1779547292469.pdf"
-          },
-          "subClassType": {
-            "name": "Communicative 2",
-            "color": "#FFFFFF",
-            "bgcolor": "#0ea5e6"
           }
         },
         {
@@ -1013,7 +1013,7 @@
           "endTime": "19:45:00",
           "room": "Bean Bag - 1F",
           "lesson": "Nouns in sentences: Functions and Uses",
-          "currentStudents": 11,
+          "currentStudents": 10,
           "maxStudents": 11,
           "hasEnrolled": false,
           "timeType": "STANDARD",
@@ -1021,7 +1021,7 @@
           "lessonInfo": {
             "lesson": "Nouns in sentences: Functions and Uses",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772343503122.pdf"
+            "studentDocKey": "files/studentDoc/1786951202289.pdf"
           },
           "subClassType": {
             "name": "Grammar",
@@ -1040,8 +1040,8 @@
           "endTime": "19:45:00",
           "room": "Fancy - 1F",
           "lesson": "How to negotiate more effectively",
-          "currentStudents": 11,
-          "maxStudents": 11,
+          "currentStudents": 12,
+          "maxStudents": 12,
           "hasEnrolled": false,
           "timeType": "STANDARD",
           "mode": "Offline",
@@ -1067,9 +1067,9 @@
           "endTime": "10:20:00",
           "room": "Ground",
           "lesson": "Livestream Fail 🇻🇳",
-          "currentStudents": 14,
+          "currentStudents": 11,
           "maxStudents": 25,
-          "hasEnrolled": true,
+          "hasEnrolled": false,
           "timeType": "STANDARD",
           "mode": "Offline",
           "lessonInfo": {
@@ -1094,7 +1094,7 @@
           "endTime": "21:20:00",
           "room": "Ground",
           "lesson": "Leadership Skills: Beyond the Title",
-          "currentStudents": 15,
+          "currentStudents": 14,
           "maxStudents": 25,
           "hasEnrolled": true,
           "timeType": "STANDARD",
@@ -1129,7 +1129,7 @@
           "lessonInfo": {
             "lesson": "Round Table Discussion",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772276395272.pdf"
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
           },
           "subClassType": {
             "name": "FreeTalk 1",
@@ -1156,7 +1156,7 @@
           "lessonInfo": {
             "lesson": "Striking the Right Balance",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772277184727.pdf"
+            "studentDocKey": "files/studentDoc/1786951292004.pdf"
           },
           "subClassType": {
             "name": "Vocabulary",
@@ -1183,7 +1183,7 @@
           "lessonInfo": {
             "lesson": "Striking the Right Balance",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772277184727.pdf"
+            "studentDocKey": "files/studentDoc/1786951292004.pdf"
           },
           "subClassType": {
             "name": "Vocabulary",
@@ -1256,7 +1256,7 @@
           "endTime": "12:00:00",
           "room": "Ground",
           "lesson": "The Digital Nomad Kit",
-          "currentStudents": 13,
+          "currentStudents": 15,
           "maxStudents": 25,
           "hasEnrolled": true,
           "timeType": "STANDARD",
@@ -1291,7 +1291,7 @@
           "lessonInfo": {
             "lesson": "Striking the Right Balance",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772277184727.pdf"
+            "studentDocKey": "files/studentDoc/1786951292004.pdf"
           },
           "subClassType": {
             "name": "Vocabulary",
@@ -1318,7 +1318,7 @@
           "lessonInfo": {
             "lesson": "Round Table Discussion",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772276395272.pdf"
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
           },
           "subClassType": {
             "name": "FreeTalk 1",
@@ -1345,7 +1345,7 @@
           "lessonInfo": {
             "lesson": "Nouns in sentences: Functions and Uses",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772343503122.pdf"
+            "studentDocKey": "files/studentDoc/1786951202289.pdf"
           },
           "subClassType": {
             "name": "Grammar",
@@ -1364,7 +1364,7 @@
           "endTime": "19:45:00",
           "room": "Friend Zone - 1F",
           "lesson": "p pie, b buy, f fine, v vine, & w wine",
-          "currentStudents": 7,
+          "currentStudents": 8,
           "maxStudents": 11,
           "hasEnrolled": false,
           "timeType": "STANDARD",
@@ -1372,7 +1372,7 @@
           "lessonInfo": {
             "lesson": "p pie, b buy, f fine, v vine, & w wine",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772343815914.pdf"
+            "studentDocKey": "files/studentDoc/1786951238106.pdf"
           },
           "subClassType": {
             "name": "Pronunciation",
@@ -1391,7 +1391,7 @@
           "endTime": "21:20:00",
           "room": "Friend Zone - 1F",
           "lesson": "What's the best mindset towards negotiation",
-          "currentStudents": 9,
+          "currentStudents": 11,
           "maxStudents": 11,
           "hasEnrolled": true,
           "timeType": "STANDARD",
@@ -1418,7 +1418,7 @@
           "endTime": "10:20:00",
           "room": "Coffee - 1F",
           "lesson": "Round Table Discussion",
-          "currentStudents": 6,
+          "currentStudents": 7,
           "maxStudents": 11,
           "hasEnrolled": true,
           "timeType": "STANDARD",
@@ -1426,7 +1426,7 @@
           "lessonInfo": {
             "lesson": "Round Table Discussion",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772276395272.pdf"
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
           },
           "subClassType": {
             "name": "FreeTalk 1",
@@ -1453,7 +1453,7 @@
           "lessonInfo": {
             "lesson": "Round Table Discussion",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772276395272.pdf"
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
           },
           "subClassType": {
             "name": "FreeTalk 1",
@@ -1480,7 +1480,7 @@
           "lessonInfo": {
             "lesson": "Nail a negotiation 1",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772276805475.pdf"
+            "studentDocKey": "files/studentDoc/1786951088288.pdf"
           },
           "subClassType": {
             "name": "FreeTalk 2",
@@ -1499,7 +1499,7 @@
           "endTime": "12:00:00",
           "room": "Fancy - 1F",
           "lesson": "p pie, b buy, f fine, v vine, & w wine",
-          "currentStudents": 5,
+          "currentStudents": 6,
           "maxStudents": 11,
           "hasEnrolled": false,
           "timeType": "STANDARD",
@@ -1507,7 +1507,7 @@
           "lessonInfo": {
             "lesson": "p pie, b buy, f fine, v vine, & w wine",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772343815914.pdf"
+            "studentDocKey": "files/studentDoc/1786951238106.pdf"
           },
           "subClassType": {
             "name": "Pronunciation",
@@ -1553,7 +1553,7 @@
           "endTime": "12:00:00",
           "room": "Ground",
           "lesson": "Making arrangements",
-          "currentStudents": 10,
+          "currentStudents": 11,
           "maxStudents": 25,
           "hasEnrolled": true,
           "timeType": "STANDARD",
@@ -1588,7 +1588,7 @@
           "lessonInfo": {
             "lesson": "Striking the Right Balance",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772277184727.pdf"
+            "studentDocKey": "files/studentDoc/1786951292004.pdf"
           },
           "subClassType": {
             "name": "Vocabulary",
@@ -1615,7 +1615,7 @@
           "lessonInfo": {
             "lesson": "Round Table Discussion",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772276395272.pdf"
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
           },
           "subClassType": {
             "name": "FreeTalk 1",
@@ -1642,7 +1642,7 @@
           "lessonInfo": {
             "lesson": "Nail a negotiation 1",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772276805475.pdf"
+            "studentDocKey": "files/studentDoc/1786951088288.pdf"
           },
           "subClassType": {
             "name": "FreeTalk 2",
@@ -1688,7 +1688,7 @@
           "endTime": "12:00:00",
           "room": "Coffee - 1F",
           "lesson": "Round Table Discussion",
-          "currentStudents": 7,
+          "currentStudents": 9,
           "maxStudents": 11,
           "hasEnrolled": false,
           "timeType": "STANDARD",
@@ -1696,7 +1696,7 @@
           "lessonInfo": {
             "lesson": "Round Table Discussion",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772276395272.pdf"
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
           },
           "subClassType": {
             "name": "FreeTalk 1",
@@ -1723,7 +1723,7 @@
           "lessonInfo": {
             "lesson": "Nail a negotiation 1",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772276805475.pdf"
+            "studentDocKey": "files/studentDoc/1786951088288.pdf"
           },
           "subClassType": {
             "name": "FreeTalk 2",
@@ -1742,7 +1742,7 @@
           "endTime": "17:00:00",
           "room": "Ground",
           "lesson": "Nail a negotiation 1",
-          "currentStudents": 6,
+          "currentStudents": 7,
           "maxStudents": 11,
           "hasEnrolled": true,
           "timeType": "STANDARD",
@@ -1750,7 +1750,7 @@
           "lessonInfo": {
             "lesson": "Nail a negotiation 1",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772276805475.pdf"
+            "studentDocKey": "files/studentDoc/1786951088288.pdf"
           },
           "subClassType": {
             "name": "FreeTalk 2",
@@ -1769,7 +1769,7 @@
           "endTime": "15:00:00",
           "room": "Ground",
           "lesson": "Nouns in sentences: Functions and Uses",
-          "currentStudents": 6,
+          "currentStudents": 8,
           "maxStudents": 11,
           "hasEnrolled": false,
           "timeType": "STANDARD",
@@ -1777,7 +1777,7 @@
           "lessonInfo": {
             "lesson": "Nouns in sentences: Functions and Uses",
             "description": "",
-            "studentDocKey": "files/studentDoc/1772343503122.pdf"
+            "studentDocKey": "files/studentDoc/1786951202289.pdf"
           },
           "subClassType": {
             "name": "Grammar",
@@ -1796,7 +1796,7 @@
           "endTime": "10:20:00",
           "room": "Ground",
           "lesson": "Privacy/Security",
-          "currentStudents": 15,
+          "currentStudents": 17,
           "maxStudents": 25,
           "hasEnrolled": true,
           "timeType": "STANDARD",
@@ -1814,7 +1814,36 @@
         }
       ],
       "fixedClasses": [],
-      "fetchedAt": "2026-08-16T15:55:13.563Z"
+      "fetchedAt": "2026-08-18T08:51:00.986Z"
+    },
+    "2026-08-24": {
+      "monday": "2026-08-24",
+      "startDate": "2026-08-24T00:00:00.000Z",
+      "endDate": "2026-08-30T00:00:00.000Z",
+      "summary": [
+        {
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "programClassName": "Main - class",
+          "maxClassesPerWeek": 2,
+          "enrolledClassesThisWeek": 0
+        },
+        {
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "programClassName": "Free - Talk",
+          "maxClassesPerWeek": 2,
+          "enrolledClassesThisWeek": 0
+        },
+        {
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "programClassName": "Skills Development",
+          "maxClassesPerWeek": 100,
+          "enrolledClassesThisWeek": 0
+        }
+      ],
+      "canBooking": false,
+      "flexibleClasses": [],
+      "fixedClasses": [],
+      "fetchedAt": "2026-08-16T21:36:48.692Z"
     }
   },
   "allClasses": [
@@ -2710,6 +2739,33 @@
       }
     },
     {
+      "id": "01a00395-7a39-7b31-8868-3aad2263ffff",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-17",
+      "teacherName": "Jamie Jennings",
+      "teacherNickName": "Jamie",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Fancy - 1F",
+      "lesson": "What's the best mindset towards negotiation",
+      "currentStudents": 9,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "What's the best mindset towards negotiation",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1779547292469.pdf"
+      },
+      "subClassType": {
+        "name": "Communicative 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#0ea5e6"
+      }
+    },
+    {
       "id": "01a00388-58bb-707c-aaab-29b65fd545ae",
       "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
       "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
@@ -2728,39 +2784,12 @@
       "lessonInfo": {
         "lesson": "Nail a negotiation 1",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772276805475.pdf"
+        "studentDocKey": "files/studentDoc/1786951088288.pdf"
       },
       "subClassType": {
         "name": "FreeTalk 2",
         "color": "#FFFFFF",
         "bgcolor": "#ff6464"
-      }
-    },
-    {
-      "id": "01a00395-7a39-7b31-8868-3aad2263ffff",
-      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
-      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
-      "date": "2026-08-17",
-      "teacherName": "Jamie Jennings",
-      "teacherNickName": "Jamie",
-      "startTime": "19:50:00",
-      "endTime": "21:20:00",
-      "room": "Fancy - 1F",
-      "lesson": "What's the best mindset towards negotiation",
-      "currentStudents": 11,
-      "maxStudents": 11,
-      "hasEnrolled": false,
-      "timeType": "STANDARD",
-      "mode": "Offline",
-      "lessonInfo": {
-        "lesson": "What's the best mindset towards negotiation",
-        "description": "",
-        "studentDocKey": "files/studentDoc/1779547292469.pdf"
-      },
-      "subClassType": {
-        "name": "Communicative 2",
-        "color": "#FFFFFF",
-        "bgcolor": "#0ea5e6"
       }
     },
     {
@@ -2774,7 +2803,7 @@
       "endTime": "19:45:00",
       "room": "Bean Bag - 1F",
       "lesson": "Nouns in sentences: Functions and Uses",
-      "currentStudents": 11,
+      "currentStudents": 10,
       "maxStudents": 11,
       "hasEnrolled": false,
       "timeType": "STANDARD",
@@ -2782,7 +2811,7 @@
       "lessonInfo": {
         "lesson": "Nouns in sentences: Functions and Uses",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772343503122.pdf"
+        "studentDocKey": "files/studentDoc/1786951202289.pdf"
       },
       "subClassType": {
         "name": "Grammar",
@@ -2801,8 +2830,8 @@
       "endTime": "19:45:00",
       "room": "Fancy - 1F",
       "lesson": "How to negotiate more effectively",
-      "currentStudents": 11,
-      "maxStudents": 11,
+      "currentStudents": 12,
+      "maxStudents": 12,
       "hasEnrolled": false,
       "timeType": "STANDARD",
       "mode": "Offline",
@@ -2828,9 +2857,9 @@
       "endTime": "10:20:00",
       "room": "Ground",
       "lesson": "Livestream Fail 🇻🇳",
-      "currentStudents": 14,
+      "currentStudents": 11,
       "maxStudents": 25,
-      "hasEnrolled": true,
+      "hasEnrolled": false,
       "timeType": "STANDARD",
       "mode": "Offline",
       "lessonInfo": {
@@ -2855,7 +2884,7 @@
       "endTime": "21:20:00",
       "room": "Ground",
       "lesson": "Leadership Skills: Beyond the Title",
-      "currentStudents": 15,
+      "currentStudents": 14,
       "maxStudents": 25,
       "hasEnrolled": true,
       "timeType": "STANDARD",
@@ -2890,7 +2919,7 @@
       "lessonInfo": {
         "lesson": "Round Table Discussion",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772276395272.pdf"
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
       },
       "subClassType": {
         "name": "FreeTalk 1",
@@ -2917,7 +2946,7 @@
       "lessonInfo": {
         "lesson": "Striking the Right Balance",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772277184727.pdf"
+        "studentDocKey": "files/studentDoc/1786951292004.pdf"
       },
       "subClassType": {
         "name": "Vocabulary",
@@ -2944,7 +2973,7 @@
       "lessonInfo": {
         "lesson": "Striking the Right Balance",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772277184727.pdf"
+        "studentDocKey": "files/studentDoc/1786951292004.pdf"
       },
       "subClassType": {
         "name": "Vocabulary",
@@ -3017,7 +3046,7 @@
       "endTime": "12:00:00",
       "room": "Ground",
       "lesson": "The Digital Nomad Kit",
-      "currentStudents": 13,
+      "currentStudents": 15,
       "maxStudents": 25,
       "hasEnrolled": true,
       "timeType": "STANDARD",
@@ -3052,7 +3081,7 @@
       "lessonInfo": {
         "lesson": "Striking the Right Balance",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772277184727.pdf"
+        "studentDocKey": "files/studentDoc/1786951292004.pdf"
       },
       "subClassType": {
         "name": "Vocabulary",
@@ -3079,7 +3108,7 @@
       "lessonInfo": {
         "lesson": "Round Table Discussion",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772276395272.pdf"
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
       },
       "subClassType": {
         "name": "FreeTalk 1",
@@ -3106,7 +3135,7 @@
       "lessonInfo": {
         "lesson": "Nouns in sentences: Functions and Uses",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772343503122.pdf"
+        "studentDocKey": "files/studentDoc/1786951202289.pdf"
       },
       "subClassType": {
         "name": "Grammar",
@@ -3125,7 +3154,7 @@
       "endTime": "19:45:00",
       "room": "Friend Zone - 1F",
       "lesson": "p pie, b buy, f fine, v vine, & w wine",
-      "currentStudents": 7,
+      "currentStudents": 8,
       "maxStudents": 11,
       "hasEnrolled": false,
       "timeType": "STANDARD",
@@ -3133,7 +3162,7 @@
       "lessonInfo": {
         "lesson": "p pie, b buy, f fine, v vine, & w wine",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772343815914.pdf"
+        "studentDocKey": "files/studentDoc/1786951238106.pdf"
       },
       "subClassType": {
         "name": "Pronunciation",
@@ -3152,7 +3181,7 @@
       "endTime": "21:20:00",
       "room": "Friend Zone - 1F",
       "lesson": "What's the best mindset towards negotiation",
-      "currentStudents": 9,
+      "currentStudents": 11,
       "maxStudents": 11,
       "hasEnrolled": true,
       "timeType": "STANDARD",
@@ -3179,7 +3208,7 @@
       "endTime": "10:20:00",
       "room": "Coffee - 1F",
       "lesson": "Round Table Discussion",
-      "currentStudents": 6,
+      "currentStudents": 7,
       "maxStudents": 11,
       "hasEnrolled": true,
       "timeType": "STANDARD",
@@ -3187,7 +3216,7 @@
       "lessonInfo": {
         "lesson": "Round Table Discussion",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772276395272.pdf"
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
       },
       "subClassType": {
         "name": "FreeTalk 1",
@@ -3214,7 +3243,7 @@
       "lessonInfo": {
         "lesson": "Round Table Discussion",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772276395272.pdf"
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
       },
       "subClassType": {
         "name": "FreeTalk 1",
@@ -3241,7 +3270,7 @@
       "lessonInfo": {
         "lesson": "Nail a negotiation 1",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772276805475.pdf"
+        "studentDocKey": "files/studentDoc/1786951088288.pdf"
       },
       "subClassType": {
         "name": "FreeTalk 2",
@@ -3260,7 +3289,7 @@
       "endTime": "12:00:00",
       "room": "Fancy - 1F",
       "lesson": "p pie, b buy, f fine, v vine, & w wine",
-      "currentStudents": 5,
+      "currentStudents": 6,
       "maxStudents": 11,
       "hasEnrolled": false,
       "timeType": "STANDARD",
@@ -3268,7 +3297,7 @@
       "lessonInfo": {
         "lesson": "p pie, b buy, f fine, v vine, & w wine",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772343815914.pdf"
+        "studentDocKey": "files/studentDoc/1786951238106.pdf"
       },
       "subClassType": {
         "name": "Pronunciation",
@@ -3314,7 +3343,7 @@
       "endTime": "12:00:00",
       "room": "Ground",
       "lesson": "Making arrangements",
-      "currentStudents": 10,
+      "currentStudents": 11,
       "maxStudents": 25,
       "hasEnrolled": true,
       "timeType": "STANDARD",
@@ -3349,7 +3378,7 @@
       "lessonInfo": {
         "lesson": "Striking the Right Balance",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772277184727.pdf"
+        "studentDocKey": "files/studentDoc/1786951292004.pdf"
       },
       "subClassType": {
         "name": "Vocabulary",
@@ -3376,7 +3405,7 @@
       "lessonInfo": {
         "lesson": "Round Table Discussion",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772276395272.pdf"
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
       },
       "subClassType": {
         "name": "FreeTalk 1",
@@ -3403,7 +3432,7 @@
       "lessonInfo": {
         "lesson": "Nail a negotiation 1",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772276805475.pdf"
+        "studentDocKey": "files/studentDoc/1786951088288.pdf"
       },
       "subClassType": {
         "name": "FreeTalk 2",
@@ -3449,7 +3478,7 @@
       "endTime": "12:00:00",
       "room": "Coffee - 1F",
       "lesson": "Round Table Discussion",
-      "currentStudents": 7,
+      "currentStudents": 9,
       "maxStudents": 11,
       "hasEnrolled": false,
       "timeType": "STANDARD",
@@ -3457,7 +3486,7 @@
       "lessonInfo": {
         "lesson": "Round Table Discussion",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772276395272.pdf"
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
       },
       "subClassType": {
         "name": "FreeTalk 1",
@@ -3484,7 +3513,7 @@
       "lessonInfo": {
         "lesson": "Nail a negotiation 1",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772276805475.pdf"
+        "studentDocKey": "files/studentDoc/1786951088288.pdf"
       },
       "subClassType": {
         "name": "FreeTalk 2",
@@ -3503,7 +3532,7 @@
       "endTime": "17:00:00",
       "room": "Ground",
       "lesson": "Nail a negotiation 1",
-      "currentStudents": 6,
+      "currentStudents": 7,
       "maxStudents": 11,
       "hasEnrolled": true,
       "timeType": "STANDARD",
@@ -3511,7 +3540,7 @@
       "lessonInfo": {
         "lesson": "Nail a negotiation 1",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772276805475.pdf"
+        "studentDocKey": "files/studentDoc/1786951088288.pdf"
       },
       "subClassType": {
         "name": "FreeTalk 2",
@@ -3530,7 +3559,7 @@
       "endTime": "15:00:00",
       "room": "Ground",
       "lesson": "Nouns in sentences: Functions and Uses",
-      "currentStudents": 6,
+      "currentStudents": 8,
       "maxStudents": 11,
       "hasEnrolled": false,
       "timeType": "STANDARD",
@@ -3538,7 +3567,7 @@
       "lessonInfo": {
         "lesson": "Nouns in sentences: Functions and Uses",
         "description": "",
-        "studentDocKey": "files/studentDoc/1772343503122.pdf"
+        "studentDocKey": "files/studentDoc/1786951202289.pdf"
       },
       "subClassType": {
         "name": "Grammar",
@@ -3557,7 +3586,7 @@
       "endTime": "10:20:00",
       "room": "Ground",
       "lesson": "Privacy/Security",
-      "currentStudents": 15,
+      "currentStudents": 17,
       "maxStudents": 25,
       "hasEnrolled": true,
       "timeType": "STANDARD",

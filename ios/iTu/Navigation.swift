@@ -1,7 +1,7 @@
 import Foundation
 import iTuDomain
 
-enum IOSDestination: String, CaseIterable, Identifiable, Hashable {
+public enum IOSDestination: String, CaseIterable, Identifiable, Hashable {
     case home
     case plan
     case focus
@@ -22,8 +22,8 @@ enum IOSDestination: String, CaseIterable, Identifiable, Hashable {
     case profile
     case settings
 
-    var id: String { rawValue }
-    var title: String {
+    public var id: String { rawValue }
+    public var title: String {
         switch self {
         case .home: "Home"
         case .plan: "Plan"
@@ -46,23 +46,23 @@ enum IOSDestination: String, CaseIterable, Identifiable, Hashable {
         case .settings: "Settings"
         }
     }
-    var systemImage: String {
+    public var systemImage: String {
         switch self {
-        case .home: "house.fill"
+        case .home: "house"
         case .plan: "checklist"
         case .focus: "timer"
         case .calendar: "calendar"
-        case .habits: "repeat.circle"
+        case .habits: "repeat"
         case .more: "ellipsis.circle"
         case .learn: "graduationcap"
-        case .gym: "figure.strengthtraining.traditional"
-        case .budget: "wallet.pass"
-        case .growth: "chart.line.uptrend.xyaxis"
-        case .journal: "note.text"
+        case .gym: "dumbbell"
+        case .budget: "creditcard"
+        case .growth: "sparkles"
+        case .journal: "book.closed"
         case .matrix: "square.grid.2x2"
-        case .statistics: "chart.bar.xaxis"
-        case .health: "heart.text.square"
-        case .notifications: "bell.badge"
+        case .statistics: "chart.bar"
+        case .health: "heart"
+        case .notifications: "bell"
         case .conflicts: "arrow.triangle.2.circlepath"
         case .trash: "trash"
         case .profile: "person.crop.circle"

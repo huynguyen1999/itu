@@ -25,6 +25,30 @@ final class AccountHydratorTests: XCTestCase {
         XCTAssertTrue(result.failedResources.contains("tasks"))
     }
 
+    func testHydrationPropagatesTerminalAuthenticationFailures() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("iTu-hydrator-auth-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = OfflineStore(accountID: "hydrator-auth", baseURL: root)
+        _ = try await store.load()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [TerminalAuthURLProtocol.self]
+        let client = APIClient(
+            baseURL: URL(string: "https://example.test")!,
+            session: URLSession(configuration: configuration),
+            credentialStore: EmptyCredentialStore()
+        )
+
+        do {
+            _ = try await AccountHydrator(apiClient: client, offlineStore: store).hydrate()
+            XCTFail("Expected hydration to propagate terminal authentication failure")
+        } catch let error as APIError {
+            XCTAssertEqual(error.code, "REFRESH_CREDENTIAL_MISSING")
+            XCTAssertTrue(error.isTerminalAuthFailure)
+        }
+    }
+
     func testSupersededHydrationStopsBeforeApplyingSnapshot() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("iTu-hydrator-\(UUID().uuidString)", isDirectory: true)
@@ -76,6 +100,25 @@ private final class HydrationURLProtocol: URLProtocol {
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data("{}".utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+private final class TerminalAuthURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 401,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data("{\"code\":\"INVALID_CREDENTIALS\"}".utf8))
         client?.urlProtocolDidFinishLoading(self)
     }
 

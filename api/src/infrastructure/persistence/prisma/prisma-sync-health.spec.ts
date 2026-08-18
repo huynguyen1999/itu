@@ -43,11 +43,17 @@ function createTransaction() {
     .mockImplementation(async ({ create }: { create: Record<string, unknown> }) => ({ id: 'row-1', ...create }));
   const healthWorkoutFindFirst = jest.fn();
   const healthWorkoutDelete = jest.fn().mockResolvedValue(undefined);
+  const syncDeviceFindFirst = jest.fn().mockResolvedValue({ id: 'ios-1', userId: 'user-1' });
+  const syncDeviceCreate = jest.fn().mockResolvedValue({ id: 'ios-1' });
+  const syncDeviceUpdate = jest.fn().mockResolvedValue({ id: 'ios-1' });
   return {
-    syncDevice: { findFirst: jest.fn().mockResolvedValue({ id: 'ios-1' }) },
+    syncDevice: { findFirst: syncDeviceFindFirst, create: syncDeviceCreate, update: syncDeviceUpdate },
     healthSummary: { upsert: healthSummaryUpsert },
     healthWorkout: { upsert: healthWorkoutUpsert, findFirst: healthWorkoutFindFirst, delete: healthWorkoutDelete },
     syncChange: { create: syncChangeCreate },
+    syncDeviceFindFirst,
+    syncDeviceCreate,
+    syncDeviceUpdate,
     healthSummaryUpsert,
     healthWorkoutUpsert,
     healthWorkoutFindFirst,
@@ -217,13 +223,35 @@ describe('PrismaSyncHealth', () => {
       ),
     ).rejects.toBeInstanceOf(InvalidSyncMutationException);
 
+    // If device is not registered, auto-provisions it
     tx.syncDevice.findFirst.mockResolvedValue(null);
+    await expect(
+      handler.applyMutation(
+        tx as never,
+        'user-1',
+        {
+          id: 'mutation-8',
+          kind: 'healthsummary.upsert',
+          entityId: 'date',
+          payload: summaryPayload,
+          occurredAt: '2026-08-10T07:00:00.000Z',
+          serverDeviceId: 'ios-1',
+        },
+        {},
+      ),
+    ).resolves.toBeNull();
+    expect(tx.syncDevice.create).toHaveBeenCalled();
+
+    // If device is registered to another user, rejects
+    tx.syncDevice.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'ios-1', userId: 'user-other' });
     await expect(
       handler.applyMutation(
         tx as never,
         'user-2',
         {
-          id: 'mutation-8',
+          id: 'mutation-9',
           kind: 'healthsummary.upsert',
           entityId: 'date',
           payload: summaryPayload,
@@ -298,6 +326,46 @@ describe('PrismaSyncHealth', () => {
           data: expect.objectContaining({ source: 'HEALTH_KIT', healthKitUUID: 'workout-1' }),
         }),
       ]),
+    );
+  });
+
+  it('normalizes empty strings in optional fields to null without throwing', async () => {
+    const tx = createTransaction();
+    const handler = new PrismaSyncHealth();
+
+    await expect(
+      handler.applyMutation(
+        tx as never,
+        'user-1',
+        {
+          id: 'mutation-empty-fields',
+          kind: 'healthworkout.upsert',
+          entityId: 'workout-empty',
+          payload: {
+            source: 'HEALTH_KIT',
+            healthKitUUID: 'workout-uuid-empty',
+            activityType: 'RUNNING',
+            startedAt: '2026-08-10T06:00:00.000Z',
+            endedAt: '2026-08-10T06:30:00.000Z',
+            durationSeconds: 1800,
+            energyKcal: null,
+            sourceBundleId: '   ',
+            deviceName: '',
+          },
+          occurredAt: '2026-08-10T07:00:00.000Z',
+          serverDeviceId: 'ios-1',
+        },
+        {},
+      ),
+    ).resolves.toBeNull();
+
+    expect(tx.healthWorkoutUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          sourceBundleId: null,
+          deviceName: null,
+        }),
+      }),
     );
   });
 });

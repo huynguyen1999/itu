@@ -632,11 +632,11 @@ private struct UsageSettingsPanel: View {
         @Bindable var settingsStore = model.settingsStore
         SettingsCardView(
             iconName: "chart.bar.xaxis",
-            title: "Foreground Usage",
-            description: "Optionally record time spent in the frontmost app. Tracking is off until you enable it."
+            title: "Usage Tracking",
+            description: "Import application usage from Apple Screen Time via Biome. Website tracking remains optional."
         ) {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle("Track foreground application usage", isOn: $settingsStore.usagePreferences.enabled)
+                Toggle("Track application usage", isOn: $settingsStore.usagePreferences.enabled)
                     .font(.system(size: 13, weight: .medium))
                 if settingsStore.usagePreferences.enabled {
                     Toggle("Track Website Usage in Microsoft Edge", isOn: $settingsStore.usagePreferences.websiteTrackingEnabled)
@@ -713,8 +713,8 @@ private struct ScreenTimeSettingsPanel: View {
         let status = model.screenTimeStatus
         SettingsCardView(
             iconName: "iphone.gen3",
-            title: "iPhone & iPad Screen Time",
-            description: "Automatically import synced application usage from iCloud Biome streams."
+            title: "Screen Time & Biome",
+            description: "Import application usage from this Mac and synced iPhone/iPad Biome streams."
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 // FDA Status
@@ -752,7 +752,7 @@ private struct ScreenTimeSettingsPanel: View {
 
                 if !status.fullDiskAccessGranted {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("iTu needs Full Disk Access to read synced iCloud Screen Time records from macOS Biome streams.")
+                        Text("iTu needs Full Disk Access to read local and synced Screen Time records from macOS Biome streams.")
                             .font(.system(size: 12))
                             .foregroundStyle(iTuTheme.inkDim)
 
@@ -768,23 +768,23 @@ private struct ScreenTimeSettingsPanel: View {
 
                 // Synced Devices
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Synced Devices")
+                    Text("Apple Devices")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(iTuTheme.ink)
 
                     if status.syncedDevices.isEmpty {
-                        Text(status.fullDiskAccessGranted ? "No synced iPhone or iPad devices detected." : "Grant Full Disk Access to detect synced devices.")
+                        Text(status.fullDiskAccessGranted ? "No local or synced Apple devices detected." : "Grant Full Disk Access to detect Apple devices.")
                             .font(.system(size: 12))
                             .foregroundStyle(iTuTheme.inkDim)
                     } else {
                         VStack(spacing: 6) {
                             ForEach(status.syncedDevices) { device in
                                 HStack {
-                                    Image(systemName: device.model?.contains("iPad") == true ? "ipad" : "iphone")
+                                    Image(systemName: device.isMe ? "macbook" : (device.model?.contains("iPad") == true ? "ipad" : "iphone"))
                                         .font(.system(size: 13))
                                         .foregroundStyle(iTuTheme.teal)
                                     VStack(alignment: .leading, spacing: 1) {
-                                        Text(device.name ?? "iOS Device")
+                                        Text(device.isMe ? "This Mac" : (device.name ?? "iOS Device"))
                                             .font(.system(size: 13, weight: .medium))
                                             .foregroundStyle(iTuTheme.ink)
                                         Text(device.model ?? device.platform ?? "Apple Device")

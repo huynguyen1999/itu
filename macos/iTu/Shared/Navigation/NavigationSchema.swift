@@ -15,9 +15,9 @@ enum NavigationSchema {
     static let primaryGroups: [NavigationGroup] = [
         NavigationGroup(id: "productivity", title: "Productivity", entries: [
             NavigationEntry(id: "home", title: "Home", systemImage: "house", destination: .home),
-            NavigationEntry(id: "plan", title: "Plan", systemImage: "checkmark.square", destination: .inbox),
+            NavigationEntry(id: "plan", title: "Plan", systemImage: "checklist", destination: .inbox),
             NavigationEntry(id: "matrix", title: "Matrix", systemImage: "square.grid.2x2", destination: .matrix),
-            NavigationEntry(id: "focus", title: "Focus", systemImage: "scope", destination: .focus),
+            NavigationEntry(id: "focus", title: "Focus", systemImage: "timer", destination: .focus),
             NavigationEntry(id: "calendar", title: "Calendar", systemImage: "calendar", destination: .calendar)
         ]),
         NavigationGroup(id: "tracking", title: "Tracking", entries: [
@@ -28,7 +28,7 @@ enum NavigationSchema {
         ]),
         NavigationGroup(id: "knowledge", title: "Knowledge", entries: [
             NavigationEntry(id: "journal", title: "Journal", systemImage: "book.closed", destination: .journal),
-            NavigationEntry(id: "learn", title: "Learn", systemImage: "book.closed", destination: .learn),
+            NavigationEntry(id: "learn", title: "Learn", systemImage: "graduationcap", destination: .learn),
             NavigationEntry(id: "growth", title: "Growth", systemImage: "sparkles", destination: .growth)
         ]),
         NavigationGroup(id: "system", title: "System", entries: [

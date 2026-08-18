@@ -97,7 +97,8 @@ export function StatisticsPage() {
       ),
     [usage.data, range, statsDisplaySettings.grouping, statsDisplaySettings.showZeroValueSeries],
   );
-  const topUsageApps = useMemo(() => selectTopUsageApps(usage.data), [usage.data]);
+  const topUsageApps = useMemo(() => selectTopUsageApps(usage.data, 5), [usage.data]);
+  const allUsageApps = useMemo(() => usage.data?.topApps ?? [], [usage.data]);
   const usageStack = useMemo(
     () => buildUsageStackData(usage.data, range, topUsageApps),
     [usage.data, range, topUsageApps],
@@ -370,7 +371,7 @@ export function StatisticsPage() {
             summary={usage.data}
             trend={usageTrend}
             stack={usageStack}
-            topApps={topUsageApps}
+            topApps={allUsageApps}
           />
           <WebsiteUsageSection
             isLoading={websiteUsage.isLoading}

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { IReviewDataSource, ReviewPeriodData } from '@core/application/ports/out/review-data-source.port';
 import type { ReviewPeriod } from '@core/domain/review/review.types';
+import { isSystemExcludedBundleId } from '@core/application/use-cases/usage-validation';
 import { PrismaService } from './prisma.service';
 
 const DAY_MS = 86_400_000;
@@ -485,6 +486,7 @@ function usageCounters(rows: UsageRow[]): UsageCounters {
 function distinctUsageRows(rows: UsageRow[]): UsageRow[] {
   const distinct = new Map<string, UsageRow>();
   for (const row of rows) {
+    if (isSystemExcludedBundleId(row.bundleId)) continue;
     distinct.set(
       `${row.source}\u0000${row.syncDeviceId}\u0000${dateKey(row.localDate)}\u0000${row.hour}\u0000${row.bundleId}`,
       row,

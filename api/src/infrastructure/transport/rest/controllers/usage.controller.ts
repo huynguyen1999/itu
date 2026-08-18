@@ -53,7 +53,7 @@ export class UsageController {
   @ApiOperation({ operationId: 'getUsageSummaries' })
   @Get()
   get(@Req() req: AuthenticatedRequest, @Query() query: UsageDateQueryDto) {
-    return this.usage.getSummaries(req.user.sub, query.from ?? query.startDate, query.to ?? query.endDate);
+    return this.usage.getSummaries(req.user.sub, query.from ?? query.startDate, query.to ?? query.endDate, query.deviceId);
   }
 
   @ApiOperation({ operationId: 'replaceUsageSummaries' })

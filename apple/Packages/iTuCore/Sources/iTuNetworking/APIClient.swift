@@ -36,6 +36,7 @@ public struct APIError: LocalizedError, Sendable {
         "REFRESH_TOKEN_EXPIRED",
         "REFRESH_TOKEN_REVOKED",
         "REFRESH_TOKEN_INVALID",
+        "REFRESH_CREDENTIAL_MISSING",
         "ACCOUNT_DISABLED",
         "ACCOUNT_DELETED"
     ]
@@ -321,7 +322,11 @@ public actor APIClient {
         }
         logger.debug("auth.refresh.started")
         guard let storedRefresh = try credentialStore.load(.refreshToken) else {
-            throw APIError(statusCode: 401, message: "No refresh credential is available", code: nil)
+            throw APIError(
+                statusCode: 401,
+                message: "No refresh credential is available",
+                code: "REFRESH_CREDENTIAL_MISSING"
+            )
         }
         let body: [String: JSONValue] = ["refreshToken": .string(storedRefresh)]
         let task = Task<AuthSession, Error> {

@@ -25,6 +25,7 @@ struct HealthDashboardView: View {
             }
         }
         .navigationTitle("Health")
+        .navigationBarTitleDisplayMode(.inline)
         .task { model.refreshHealthAuthorization() }
         .refreshable { model.refreshHealth() }
     }

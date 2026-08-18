@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import iTuDomain
 
@@ -7,49 +6,6 @@ extension AppModel {
         let accountID = user?.id ?? "anonymous"
         let trackingGeneration = sessionGeneration
         let trackingStore = offlineStore
-        let sessionStore = UsageSessionStore(accountID: accountID)
-        self.usageSessionStore = sessionStore
-
-        let tracker = ForegroundUsageTracker()
-        tracker.setIdleThreshold(TimeInterval(settingsStore.usagePreferences.idleThresholdSeconds))
-        tracker.setExcludedBundleIDs(settingsStore.usagePreferences.excludedBundleIds)
-
-        tracker.onSummaryChanged = { [weak self] summary in
-            guard let self else { return }
-            guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
-            Task { @MainActor in
-                guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
-                do {
-                    let latestDate = await trackingStore.usageSummaries().map(\.localDate).max()
-                    guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
-                    let snapshot = try await trackingStore.upsertUsage(summary)
-                    guard self.sessionGeneration == trackingGeneration, self.user?.id == accountID else { return }
-                    self.applyUsageSnapshot(snapshot)
-                    if let statistics = self.usageStatistics {
-                        self.usageStatistics = statistics.adding([summary])
-                    }
-                    if self.usageIsLocalOnly { self.usageError = nil }
-                    if let latestDate, summary.localDate > latestDate {
-                        self.usageUploadTask?.cancel()
-                        self.usageUploadTask = nil
-                        await self.uploadUsage()
-                    } else {
-                        self.scheduleUsageUpload()
-                    }
-                } catch {
-                    self.usageError = error.localizedDescription
-                }
-            }
-        }
-
-        tracker.onSegmentCreated = { [weak self] segment in
-            guard self != nil else { return }
-            Task {
-                try? await sessionStore.appendSegments([segment])
-            }
-        }
-
-        self.usageTracker = tracker
 
         let webTracker = WebsiteUsageTracker()
         webTracker.onSummaryChanged = { [weak self] summary in
@@ -79,7 +35,9 @@ extension AppModel {
 
         let coordinator = BiomeImportCoordinator(
             apiClientProvider: { [weak self] in self?.apiClient },
-            macSyncDeviceIdProvider: { [weak self] in self?.syncCoordinator.syncDeviceId }
+            macSyncDeviceIdProvider: { [weak self] in
+                await self?.syncCoordinator.syncDeviceId ?? UserDefaults.standard.string(forKey: "syncDeviceId")
+            }
         )
         self.biomeCoordinator = coordinator
 
@@ -90,23 +48,6 @@ extension AppModel {
 
     func startUsageTracking() {
         guard user != nil else { return }
-        if usageWakeObserver == nil {
-            usageWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-                forName: NSWorkspace.didWakeNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                guard let self else { return }
-                Task { @MainActor in
-                    await Task.yield()
-                    _ = await self.uploadUsage()
-                }
-            }
-        }
-        usageTracker?.setIdleThreshold(TimeInterval(settingsStore.usagePreferences.idleThresholdSeconds))
-        usageTracker?.setExcludedBundleIDs(settingsStore.usagePreferences.excludedBundleIds)
-        usageTracker?.setEnabled(settingsStore.usagePreferences.enabled)
-        usageTracker?.setPaused(settingsStore.usagePreferences.paused)
         websiteUsageTracker?.setEnabled(settingsStore.usagePreferences.enabled && settingsStore.usagePreferences.websiteTrackingEnabled)
         websiteUsageTracker?.setPaused(settingsStore.usagePreferences.paused)
 
@@ -133,18 +74,11 @@ extension AppModel {
             if let snapshot = try? await self.offlineStore.pruneUsage(keeping: self.settingsStore.usagePreferences.retentionDays) {
                 self.applyUsageSnapshot(snapshot)
             }
-            if let store = self.usageSessionStore {
-                _ = try? await store.pruneSessions(keeping: self.settingsStore.usagePreferences.retentionDays)
-            }
         }
     }
 
     func applyUsagePreferences(_ preferences: UsagePreferences, sync: Bool = true) {
         let websiteWasRunning = websiteUsageTracker?.isRunning == true
-        usageTracker?.setIdleThreshold(TimeInterval(preferences.idleThresholdSeconds))
-        usageTracker?.setExcludedBundleIDs(preferences.excludedBundleIds)
-        usageTracker?.setEnabled(preferences.enabled)
-        usageTracker?.setPaused(preferences.paused)
         websiteUsageTracker?.setEnabled(preferences.enabled && preferences.websiteTrackingEnabled)
         websiteUsageTracker?.setPaused(preferences.paused)
 
@@ -170,9 +104,6 @@ extension AppModel {
             if let snapshot = try? await self.offlineStore.pruneUsage(keeping: preferences.retentionDays) {
                 self.applyUsageSnapshot(snapshot)
             }
-            if let store = self.usageSessionStore {
-                _ = try? await store.pruneSessions(keeping: preferences.retentionDays)
-            }
         }
 
         if preferences.enabled {
@@ -196,7 +127,6 @@ extension AppModel {
         usageCheckpointTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                self.usageTracker?.tick()
                 self.websiteUsageTracker?.tick()
             }
         }
@@ -274,7 +204,14 @@ extension AppModel {
     private func uploadUsageAppIcons(store: OfflineStore, accountID: String, runGeneration: Int) async -> Bool {
         guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
         let summaries = await store.usageSummaries()
-        let observed = Dictionary(summaries.map { ($0.bundleId, $0.displayName) }, uniquingKeysWith: { first, _ in first })
+        var observed = Dictionary(summaries.map { ($0.bundleId, $0.displayName) }, uniquingKeysWith: { first, _ in first })
+        if let outboxItems = await biomeCoordinator?.allOutboxIntervals() {
+            for item in outboxItems {
+                if observed[item.bundleId] == nil && !BiomeUsageNormalizer.isSystemExcluded(bundleId: item.bundleId) {
+                    observed[item.bundleId] = item.displayName
+                }
+            }
+        }
         guard !observed.isEmpty else { return true }
         guard !Task.isCancelled, runGeneration == sessionGeneration, user?.id == accountID else { return false }
         guard let identities = try? await apiClient.fetchUsageAppIdentities() else { return false }
@@ -284,6 +221,7 @@ extension AppModel {
         var succeeded = true
 
         for (bundleID, displayName) in observed {
+            guard !BiomeUsageNormalizer.isSystemExcluded(bundleId: bundleID) else { continue }
             guard let imageData = UsageAppIconRenderer.pngData(forBundleID: bundleID) else { continue }
             let hash = UsageAppIconRenderer.sha256Hex(imageData)
             guard UsageAppIconUploadDecision.shouldUpload(
@@ -314,21 +252,54 @@ extension AppModel {
         defer { usageLoading = false }
         usageUploadTask?.cancel()
         usageUploadTask = nil
+        if let biomeCoordinator {
+            self.screenTimeStatus = await biomeCoordinator.runOnce()
+        }
         await uploadUsage()
         let local = await offlineStore.usageSummaries(from: from, to: to)
+            .filter { !BiomeUsageNormalizer.isSystemExcluded(bundleId: $0.bundleId) }
         let localWeb = await offlineStore.websiteUsageSummaries(from: from, to: to)
         do {
             let server = try await apiClient.fetchUsage(from: from, to: to)
-            let pending = await offlineStore.pendingUsageDeltas(from: from, to: to)
+            let pending = (await offlineStore.pendingUsageDeltas(from: from, to: to))
+                .filter { !BiomeUsageNormalizer.isSystemExcluded(bundleId: $0.bundleId) }
             usageServerStatistics = server
             usageIsLocalOnly = false
-            usageStatistics = server.adding(pending)
+            var combined = server.adding(pending)
+            if let outboxItems = await biomeCoordinator?.allOutboxIntervals() {
+                var pendingBiomeSummaries: [UsageSummary] = []
+                for item in outboxItems {
+                    guard !BiomeUsageNormalizer.isSystemExcluded(bundleId: item.bundleId) else { continue }
+                    for summary in item.asUsageSummaries() {
+                        guard !BiomeUsageNormalizer.isSystemExcluded(bundleId: summary.bundleId) else { continue }
+                        if let from, summary.localDate < from { continue }
+                        if let to, summary.localDate > to { continue }
+                        pendingBiomeSummaries.append(summary)
+                    }
+                }
+                if !pendingBiomeSummaries.isEmpty {
+                    combined = combined.adding(pendingBiomeSummaries)
+                }
+            }
+            usageStatistics = combined
             usageError = nil
         } catch {
             usageServerStatistics = nil
             usageIsLocalOnly = true
-            usageStatistics = .aggregating(local)
-            usageError = local.isEmpty ? error.localizedDescription : nil
+            var combined = local
+            if let outboxItems = await biomeCoordinator?.allOutboxIntervals() {
+                for item in outboxItems {
+                    guard !BiomeUsageNormalizer.isSystemExcluded(bundleId: item.bundleId) else { continue }
+                    for summary in item.asUsageSummaries() {
+                        guard !BiomeUsageNormalizer.isSystemExcluded(bundleId: summary.bundleId) else { continue }
+                        if let from, summary.localDate < from { continue }
+                        if let to, summary.localDate > to { continue }
+                        combined.append(summary)
+                    }
+                }
+            }
+            usageStatistics = .aggregating(combined)
+            usageError = combined.isEmpty ? error.localizedDescription : nil
         }
         do {
             let serverWeb = try await apiClient.fetchWebsiteUsageStatistics(from: from, to: to)
@@ -341,19 +312,11 @@ extension AppModel {
         }
     }
 
-    func fetchLocalTimelineSegments(from fromDate: String? = nil, to toDate: String? = nil) async -> [UsageTimelineSegment] {
-        guard let store = usageSessionStore else { return [] }
-        return (try? await store.segments(from: fromDate, to: toDate)) ?? []
-    }
-
     func deleteUsage(from: String? = nil, to: String? = nil) async {
         do {
             try await apiClient.deleteUsage(from: from, to: to)
             try await apiClient.deleteWebsiteUsage(from: from, to: to)
             applyUsageSnapshot(try await offlineStore.deleteUsage(from: from, to: to))
-            if let store = usageSessionStore {
-                _ = try? await store.deleteSessions(from: from, to: to, all: from == nil && to == nil)
-            }
             usageStatistics = nil
             websiteUsageStatistics = nil
         } catch {
@@ -381,6 +344,7 @@ extension AppModel {
         guard let coordinator = biomeCoordinator else { return screenTimeStatus }
         let newStatus = await coordinator.runOnce()
         self.screenTimeStatus = newStatus
+        await refreshUsage()
         return newStatus
     }
 
@@ -389,6 +353,7 @@ extension AppModel {
         guard let coordinator = biomeCoordinator else { return screenTimeStatus }
         let newStatus = await coordinator.reimportLast7Days()
         self.screenTimeStatus = newStatus
+        await refreshUsage()
         return newStatus
     }
 
@@ -402,16 +367,10 @@ extension AppModel {
         usageUploadInFlight?.cancel()
         usageUploadInFlight = nil
         usageUploadGeneration &+= 1
-        usageTracker?.stop()
         websiteUsageTracker?.stop()
-        if let usageWakeObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(usageWakeObserver)
-            self.usageWakeObserver = nil
-        }
     }
 
     func flushUsageForLifecycle() async {
-        usageTracker?.stop()
         websiteUsageTracker?.stop()
         await Task.yield()
         _ = await uploadUsage()

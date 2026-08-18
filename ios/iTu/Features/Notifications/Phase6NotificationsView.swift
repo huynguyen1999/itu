@@ -39,6 +39,7 @@ struct Phase6NotificationsView: View {
             }
         }
         .navigationTitle(unreadCount == 0 ? "Notifications" : "Notifications (\(unreadCount))")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Mark all read") { Task { await model.markAllNotificationsRead() } }

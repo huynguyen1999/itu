@@ -75,9 +75,9 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .budget: "creditcard"
         case .gym: "dumbbell"
         case .growth: "sparkles"
-        case .learn: "book.closed"
+        case .learn: "graduationcap"
         case .trash: "trash"
-        case .conflicts: "exclamationmark.triangle"
+        case .conflicts: "arrow.triangle.2.circlepath"
         case .notifications: "bell"
         case .profile: "person.crop.circle"
         case .settings: "gearshape"
@@ -187,7 +187,7 @@ enum RefreshDomain: Hashable {
     case focus
     case calendar(String)
     case statistics
-    case statisticsOverview
+    case statisticsOverview(String)
     case usage
     case budget
     case gym
@@ -201,7 +201,7 @@ enum RefreshDomain: Hashable {
         case .focus: "focus"
         case .calendar(let range): "calendar:\(range)"
         case .statistics: "statistics"
-        case .statisticsOverview: "statistics-overview"
+        case .statisticsOverview(let range): "statistics-overview:\(range)"
         case .usage: "usage"
         case .budget: "budget"
         case .gym: "gym"
@@ -356,16 +356,13 @@ final class AppModel {
     var websiteUsageError: String?
     var screenTimeStatus = ScreenTimeImportStatus()
     @ObservationIgnored var usageServerStatistics: UsageStatistics?
-    @ObservationIgnored var usageTracker: ForegroundUsageTracker?
     @ObservationIgnored var websiteUsageTracker: WebsiteUsageTracker?
     @ObservationIgnored var biomeCoordinator: BiomeImportCoordinator?
     @ObservationIgnored var screenTimeSyncTimer: Timer?
     @ObservationIgnored var usageUploadTask: Task<Void, Never>?
     @ObservationIgnored var usageUploadInFlight: Task<Bool, Never>?
     @ObservationIgnored var usageUploadGeneration = 0
-    @ObservationIgnored var usageSessionStore: UsageSessionStore?
     @ObservationIgnored var usageCheckpointTimer: Timer?
-    @ObservationIgnored var usageWakeObserver: NSObjectProtocol?
     @ObservationIgnored let refreshCoordinator = FeatureRefreshCoordinator()
 
     func enqueueNotice(_ notice: AppNotice) {

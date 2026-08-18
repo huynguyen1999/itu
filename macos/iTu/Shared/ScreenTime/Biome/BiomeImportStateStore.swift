@@ -41,6 +41,7 @@ public actor BiomeImportStateStore {
         if let data = try? Data(contentsOf: outboxFileURL),
            let decoded = try? JSONDecoder().decode([String: ScreenTimeOutboxItem].self, from: data) {
             self.outbox = decoded
+            pruneInvalidTimestamps()
         }
     }
 
@@ -111,6 +112,11 @@ public actor BiomeImportStateStore {
             .sorted { $0.startedAt < $1.startedAt }
     }
 
+    public func allOutboxItems() -> [ScreenTimeOutboxItem] {
+        ensureLoaded()
+        return outbox.values.sorted { $0.startedAt < $1.startedAt }
+    }
+
     public func markUploaded(eventIds: [String]) {
         ensureLoaded()
         var changed = false
@@ -134,6 +140,27 @@ public actor BiomeImportStateStore {
     public func totalImportedCount() -> Int {
         ensureLoaded()
         return outbox.count
+    }
+
+    public func clearOutbox() {
+        ensureLoaded()
+        outbox.removeAll()
+        persistOutbox()
+    }
+
+    public func pruneInvalidTimestamps() {
+        let maxValidFuture = Date().addingTimeInterval(86400 * 2)
+        let minValidPast = Date(timeIntervalSince1970: 1577836800) // 2020-01-01
+        let initialCount = outbox.count
+        outbox = outbox.filter { _, item in
+            if BiomeUsageNormalizer.isSystemExcluded(bundleId: item.bundleId) {
+                return false
+            }
+            return item.startedAt >= minValidPast && item.startedAt <= maxValidFuture
+        }
+        if outbox.count != initialCount {
+            persistOutbox()
+        }
     }
 
     public func pruneUploaded(olderThanDays: Int = 30) {

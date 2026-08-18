@@ -36,6 +36,25 @@ final class APIClientTests: XCTestCase {
         resetAuthTestState()
     }
 
+    func testMissingRefreshCredentialIsTerminal() async {
+        try? SessionCache.clearSession()
+        StubURLProtocol.requests = []
+        let client = makeTestClient(credentialStore: InMemoryCredentialStore(values: [:]))
+        defer { resetAuthTestState() }
+
+        do {
+            _ = try await client.restoreSession()
+            XCTFail("Expected missing refresh credential to terminate the session")
+        } catch let error as APIError {
+            XCTAssertEqual(error.code, "REFRESH_CREDENTIAL_MISSING")
+            XCTAssertTrue(error.isTerminalAuthFailure)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertTrue(StubURLProtocol.requests.isEmpty)
+    }
+
     func testAuthSessionDecodesRefreshToken() throws {
         let data = Data(
             """

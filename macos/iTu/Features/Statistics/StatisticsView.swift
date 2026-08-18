@@ -66,6 +66,9 @@ struct StatisticsView: View {
     @State var showingSettings = false
     @State var statisticsStore = StatisticsStore()
     @State var showingUsageDetail = false
+    @State var isAppListExpanded = false
+    @State var appSearchQuery = ""
+    @State var selectedAppDetail: UsageTopApp? = nil
     @SceneStorage("statistics.websitePrivacyFilter") private var websitePrivacyFilterRaw = WebsiteActivityPrivacyFilter.all.rawValue
 
     var customFromDate: Date {
@@ -443,9 +446,6 @@ struct UsageApplicationIcon: View {
 struct StatisticsSettingsPopover: View {
     @Environment(AppModel.self) private var model
     @State private var loginItemError: String?
-    @State private var excludedBundleIDsDraft = ""
-    @State private var excludedBundleIDsEditing = false
-    @State private var excludedBundleIDsError: String?
 
     var body: some View {
         let settings = model.settingsStore
@@ -563,51 +563,16 @@ struct StatisticsSettingsPopover: View {
                     set: { settings.usagePreferences.websiteTrackingEnabled = $0 }
                 ))
                 .disabled(!settings.usagePreferences.enabled)
-                Toggle("Pause tracking (this device)", isOn: Binding(
+                Toggle("Pause website tracking", isOn: Binding(
                     get: { settings.usagePreferences.paused },
                     set: { settings.usagePreferences.paused = $0 }
                 ))
-                FeatureSettingsRow(label: "Idle threshold") {
-                    Stepper(value: Binding(
-                        get: { settings.usagePreferences.idleThresholdSeconds },
-                        set: { settings.usagePreferences.idleThresholdSeconds = min(1800, max(60, $0)) }
-                    ), in: 60...1800, step: 30) {
-                        Text("\(settings.usagePreferences.idleThresholdSeconds)s")
-                            .font(.system(size: 11, design: .monospaced))
-                    }
-                    .accessibilityLabel("Idle threshold")
-                }
                 FeatureSettingsRow(label: "Retention") {
                     Stepper(value: Binding(
                         get: { settings.usagePreferences.retentionDays },
                         set: { settings.usagePreferences.retentionDays = min(365, max(7, $0)) }
                     ), in: 7...365, step: 7) { Text("\(settings.usagePreferences.retentionDays)d") }
                     .accessibilityLabel("Retention days")
-                }
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Excluded bundle IDs")
-                        .font(.system(size: 12))
-                    TextField("com.example.App, …", text: Binding(
-                        get: { excludedBundleIDsDraft },
-                        set: {
-                            excludedBundleIDsDraft = $0
-                            excludedBundleIDsEditing = true
-                            excludedBundleIDsError = parseExcludedBundleIDs().error
-                        }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    HStack {
-                        if let excludedBundleIDsError {
-                            Text(excludedBundleIDsError)
-                                .font(.system(size: 11))
-                                .foregroundStyle(iTuTheme.coral)
-                        }
-                        Spacer()
-                        Button("Apply") { applyExcludedBundleIDs(settings.usagePreferences) }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                            .disabled(!canApplyExcludedBundleIDs(settings.usagePreferences))
-                    }
                 }
                 Toggle("Launch at Login (this device)", isOn: Binding(
                     get: { settings.usagePreferences.launchAtLogin },
@@ -628,49 +593,5 @@ struct StatisticsSettingsPopover: View {
                 }
             }
         }
-        .onAppear { syncExcludedBundleIDs(settings.usagePreferences) }
-        .onChange(of: settings.usagePreferences.excludedBundleIds) { _, _ in
-            if !excludedBundleIDsEditing { syncExcludedBundleIDs(settings.usagePreferences) }
-        }
-    }
-
-    private func syncExcludedBundleIDs(_ preferences: UsagePreferences) {
-        excludedBundleIDsDraft = preferences.excludedBundleIds.joined(separator: ", ")
-        excludedBundleIDsEditing = false
-        excludedBundleIDsError = nil
-    }
-
-    private func normalizedExcludedBundleIDs() -> [String]? {
-        let result = parseExcludedBundleIDs()
-        excludedBundleIDsError = result.error
-        return result.ids
-    }
-
-    private func parseExcludedBundleIDs() -> (ids: [String]?, error: String?) {
-        let ids = excludedBundleIDsDraft
-            .split(separator: ",", omittingEmptySubsequences: true)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        var seen = Set<String>()
-        let unique = ids.filter { seen.insert($0).inserted }
-        guard unique.count <= 100 else {
-            return (nil, "Use at most 100 bundle IDs.")
-        }
-        guard unique.allSatisfy({ $0.count <= 255 }) else {
-            return (nil, "Each bundle ID must be 255 characters or fewer.")
-        }
-        return (unique, nil)
-    }
-
-    private func canApplyExcludedBundleIDs(_ preferences: UsagePreferences) -> Bool {
-        guard let ids = parseExcludedBundleIDs().ids else { return false }
-        return excludedBundleIDsEditing && ids != preferences.excludedBundleIds
-    }
-
-    private func applyExcludedBundleIDs(_ preferences: UsagePreferences) {
-        guard let ids = normalizedExcludedBundleIDs() else { return }
-        model.settingsStore.usagePreferences.excludedBundleIds = ids
-        excludedBundleIDsDraft = ids.joined(separator: ", ")
-        excludedBundleIDsEditing = false
     }
 }

@@ -518,4 +518,28 @@ describe('statistics helpers', () => {
       visibleDomains: ['productivity', 'gym'],
     });
   });
+
+  it('correctly ranks top usage apps and respects limit parameter', () => {
+    const summary = {
+      totalActiveSeconds: 7200,
+      topApps: [
+        { bundleId: 'com.apple.Safari', displayName: 'Safari', activeSeconds: 3600 },
+        { bundleId: 'com.microsoft.edgemac', displayName: 'Microsoft Edge', activeSeconds: 1800 },
+        { bundleId: 'com.google.Chrome', displayName: 'Google Chrome', activeSeconds: 1200 },
+        { bundleId: 'com.apple.dt.Xcode', displayName: 'Xcode', activeSeconds: 400 },
+        { bundleId: 'com.googlecode.iterm2', displayName: 'iTerm', activeSeconds: 150 },
+        { bundleId: 'com.spotify.client', displayName: 'Spotify', activeSeconds: 50 },
+      ],
+      daily: [],
+    };
+
+    const top5 = selectTopUsageApps(summary, 5);
+    expect(top5.length).toBe(5);
+    expect(top5[0].bundleId).toBe('com.apple.Safari');
+    expect(top5[4].bundleId).toBe('com.googlecode.iterm2');
+
+    const top3 = selectTopUsageApps(summary, 3);
+    expect(top3.length).toBe(3);
+    expect(top3.map((a) => a.displayName)).toEqual(['Safari', 'Microsoft Edge', 'Google Chrome']);
+  });
 });

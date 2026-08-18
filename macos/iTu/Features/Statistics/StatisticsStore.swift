@@ -41,6 +41,19 @@ final class StatisticsStore {
         domainStates[domain.rawValue] ?? .idle
     }
 
+    func updateDomainStates(using model: AppModel) {
+        currentOverview = StatisticsOverviewSnapshot(days: model.statisticsCalendar)
+        comparisonOverview = StatisticsOverviewSnapshot(days: model.statisticsComparisonCalendar)
+
+        domainStates[StatisticsDomain.productivity.rawValue] = model.statisticsCalendarError ? .unavailable : .ready
+        domainStates[StatisticsDomain.learning.rawValue] = model.statisticsCalendarError ? .unavailable : .ready
+        domainStates[StatisticsDomain.growth.rawValue] = model.growthStatisticsError ? .unavailable : .ready
+        domainStates[StatisticsDomain.digital.rawValue] = model.usageStatistics == nil && model.usageError != nil ? .unavailable : .ready
+        domainStates[StatisticsDomain.habits.rawValue] = currentHabits == nil ? .unavailable : .ready
+        domainStates[StatisticsDomain.gym.rawValue] = currentGym == nil ? .unavailable : .ready
+        domainStates[StatisticsDomain.budget.rawValue] = currentBudget == nil ? .unavailable : .ready
+    }
+
     func refresh(using model: AppModel, period: StatisticsPeriod, force: Bool) {
         self.period = period
         isRefreshing = true
@@ -48,7 +61,8 @@ final class StatisticsStore {
 
         Task { @MainActor [weak self, weak model] in
             guard let self, let model else { return }
-            await model.refreshCoordinator.run(.statisticsOverview, force: force) {
+            let periodKey = "\(period.from)_\(period.to)"
+            await model.refreshCoordinator.run(.statisticsOverview(periodKey), force: force) {
                 async let core: Void = model.refreshStatistics(period: period)
                 async let usage: Void = model.refreshUsage(from: period.usageFrom, to: period.usageTo)
                 async let habits = try? await model.apiClient.fetchHabitCalendar(from: period.from, to: period.to)
@@ -65,17 +79,8 @@ final class StatisticsStore {
                 self.comparisonGym = await comparisonGym
                 self.currentBudget = await budget
                 self.comparisonBudget = await comparisonBudget
-                self.currentOverview = StatisticsOverviewSnapshot(days: model.statisticsCalendar)
-                self.comparisonOverview = StatisticsOverviewSnapshot(days: model.statisticsComparisonCalendar)
-
-                self.domainStates[StatisticsDomain.productivity.rawValue] = model.statisticsCalendarError ? .unavailable : .ready
-                self.domainStates[StatisticsDomain.learning.rawValue] = model.statisticsCalendarError ? .unavailable : .ready
-                self.domainStates[StatisticsDomain.growth.rawValue] = model.growthStatisticsError ? .unavailable : .ready
-                self.domainStates[StatisticsDomain.digital.rawValue] = model.usageStatistics == nil && model.usageError != nil ? .unavailable : .ready
-                self.domainStates[StatisticsDomain.habits.rawValue] = self.currentHabits == nil ? .unavailable : .ready
-                self.domainStates[StatisticsDomain.gym.rawValue] = self.currentGym == nil ? .unavailable : .ready
-                self.domainStates[StatisticsDomain.budget.rawValue] = self.currentBudget == nil ? .unavailable : .ready
             }
+            self.updateDomainStates(using: model)
             self.isRefreshing = false
         }
     }

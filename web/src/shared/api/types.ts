@@ -217,6 +217,8 @@ export interface EngagementCoverage {
 }
 
 export interface UsageSummary {
+  from?: string;
+  to?: string;
   totalActiveSeconds: number;
   totalEngagedSeconds?: number;
   engagementCoverage?: EngagementCoverage;

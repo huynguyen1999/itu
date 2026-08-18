@@ -134,6 +134,7 @@ struct Phase6SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
         /*
         .familyActivityPicker(isPresented: $showFocusPicker, selection: $focusSelection)
         .onChange(of: focusSelection) { selection in

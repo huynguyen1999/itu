@@ -50,6 +50,7 @@ export class PrismaSyncDeviceRepository implements ISyncDeviceRepository {
         lastSeenAt: new Date(),
       },
       update: {
+        userId,
         platform: data.platform,
         pushToken: data.pushToken ?? null,
         lastKnownSyncCursor: data.lastKnownSyncCursor ?? null,

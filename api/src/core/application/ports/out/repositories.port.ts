@@ -316,7 +316,7 @@ export interface ScreenTimeEventWrite {
 
 export interface IUsageRepository {
   findDevice(userId: string, deviceId: string): Promise<{ platform: string } | null>;
-  findSummaries(userId: string, from: Date, toExclusive: Date): Promise<UsageSummaryRecord[]>;
+  findSummaries(userId: string, from: Date, toExclusive: Date, deviceId?: string): Promise<UsageSummaryRecord[]>;
   listAppIdentities(userId: string): Promise<UsageAppIdentityRecord[]>;
   findAppIdentity(userId: string, bundleId: string): Promise<UsageAppIdentityRecord | null>;
   upsertAppIdentity(userId: string, data: UsageAppIdentityWrite): Promise<UsageAppIdentityRecord>;

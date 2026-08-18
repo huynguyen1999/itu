@@ -1,13 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 import type { IUsageRepository } from '@core/application/ports/out/repositories.port';
 import { DEFAULT_USAGE_PREFERENCES } from './preferences.service';
-import { dateKey, nextDay, parseDate } from './usage-validation';
+import { dateKey, isSystemExcludedBundleId, nextDay, parseDate } from './usage-validation';
 
 /** Read-only usage reporting use cases. */
 export class UsageQueryService {
   constructor(protected readonly usage: IUsageRepository) {}
 
-  async getSummaries(userId: string, from?: string, to?: string) {
+  async getSummaries(userId: string, from?: string, to?: string, deviceId?: string) {
     const today = new Date();
     const defaultTo = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
     const retentionDays = from || to ? DEFAULT_USAGE_PREFERENCES.retentionDays : (await this.usage.getTrackingPreferences(userId)).retentionDays;
@@ -17,7 +17,7 @@ export class UsageQueryService {
     if (start > end) throw new BadRequestException('from must not be after to');
     if ((end.getTime() - start.getTime()) / 86_400_000 + 1 > 365) throw new BadRequestException('Usage date range cannot exceed 365 days');
 
-    const rows = await this.usage.findSummaries(userId, start, nextDay(end));
+    const rows = await this.usage.findSummaries(userId, start, nextDay(end), deviceId);
     const daily = new Map<string, { activeSeconds: number; engagedSeconds: number; hasEngaged: boolean }>();
     const dailyApps = new Map<string, { localDate: string; bundleId: string; displayName: string; activeSeconds: number; engagedSeconds: number; hasEngaged: boolean }>();
     const apps = new Map<string, { bundleId: string; displayName: string; activeSeconds: number; engagedSeconds: number; hasEngaged: boolean; iconHash?: string | null; iconStorageKey?: string | null }>();
@@ -26,6 +26,7 @@ export class UsageQueryService {
     let totalEngagedSeconds = 0;
     let observedActiveSeconds = 0;
     for (const row of rows) {
+      if (isSystemExcludedBundleId(row.bundleId)) continue;
       const day = dateKey(row.localDate);
       const hasEngaged = row.engagedSeconds !== null && row.engagedSeconds !== undefined;
       const engaged = row.engagedSeconds ?? 0;
@@ -62,7 +63,7 @@ export class UsageQueryService {
       totalActiveSeconds,
       totalEngagedSeconds: hasAnyObserved ? totalEngagedSeconds : undefined,
       engagementCoverage: { observedActiveSeconds, totalActiveSeconds, complete: totalActiveSeconds > 0 && observedActiveSeconds === totalActiveSeconds },
-      topApps: [...apps.values()].sort((a, b) => b.activeSeconds - a.activeSeconds).slice(0, 10).map((a) => ({ bundleId: a.bundleId, displayName: a.displayName, activeSeconds: a.activeSeconds, ...(a.hasEngaged ? { engagedSeconds: a.engagedSeconds } : {}), ...this.iconResponse(a.iconHash, a.iconStorageKey) })),
+      topApps: [...apps.values()].sort((a, b) => b.activeSeconds - a.activeSeconds).map((a) => ({ bundleId: a.bundleId, displayName: a.displayName, activeSeconds: a.activeSeconds, ...(a.hasEngaged ? { engagedSeconds: a.engagedSeconds } : {}), ...this.iconResponse(a.iconHash, a.iconStorageKey) })),
       daily: [...daily.entries()].map(([localDate, val]) => ({ localDate, activeSeconds: val.activeSeconds, engagedSeconds: val.hasEngaged ? val.engagedSeconds : undefined })),
       dailyApps: [...dailyApps.values()].map((a) => ({ localDate: a.localDate, bundleId: a.bundleId, displayName: a.displayName, activeSeconds: a.activeSeconds, engagedSeconds: a.hasEngaged ? a.engagedSeconds : undefined })),
       hourlyApps: [...hourlyApps.values()].map((a) => ({ localDate: a.localDate, hour: a.hour, bundleId: a.bundleId, displayName: a.displayName, activeSeconds: a.activeSeconds, engagedSeconds: a.hasEngaged ? a.engagedSeconds : undefined })),

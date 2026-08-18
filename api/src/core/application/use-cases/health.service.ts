@@ -96,6 +96,7 @@ export class HealthKitSyncService {
   private optionalInstant(payload: HealthPayload, key: string): Date | null {
     const value = payload[key];
     if (value === undefined || value === null) return null;
+    if (typeof value === 'string' && value.trim().length === 0) return null;
     return this.requiredInstant(payload, key);
   }
 
@@ -110,6 +111,7 @@ export class HealthKitSyncService {
   private optionalInteger(payload: HealthPayload, key: string): number | null {
     const value = payload[key];
     if (value === undefined || value === null) return null;
+    if (typeof value === 'string' && value.trim().length === 0) return null;
     return this.requiredInteger(payload, key);
   }
 
@@ -124,6 +126,7 @@ export class HealthKitSyncService {
   private optionalNumber(payload: HealthPayload, key: string): number | null {
     const value = payload[key];
     if (value === undefined || value === null) return null;
+    if (typeof value === 'string' && value.trim().length === 0) return null;
     return this.requiredNumber(payload, key);
   }
 
@@ -134,6 +137,7 @@ export class HealthKitSyncService {
   private optionalString(payload: HealthPayload, key: string, maxLength: number): string | null {
     const value = payload[key];
     if (value === undefined || value === null) return null;
+    if (typeof value === 'string' && value.trim().length === 0) return null;
     return this.boundedString(value, key, maxLength);
   }
 

@@ -51,6 +51,20 @@ public enum BiomeRecordDecoder {
     private static let trailerRecordSize = 16
     private static let entryHeaderSize = 8
 
+    /// Safely parses a timestamp supporting Unix epoch (seconds/milliseconds) and Apple CFAbsoluteTime.
+    public static func parseTimestamp(_ ts: Double) -> Date {
+        if ts > 1_000_000_000_000 {
+            // Milliseconds since 1970
+            return Date(timeIntervalSince1970: ts / 1000.0)
+        } else if ts > 1_000_000_000 {
+            // Seconds since 1970 (Unix epoch)
+            return Date(timeIntervalSince1970: ts)
+        } else {
+            // CFAbsoluteTime (seconds since 2001-01-01)
+            return Date(timeIntervalSinceReferenceDate: ts)
+        }
+    }
+
     /// Decodes all valid App.InFocus events from a SEGB binary data blob.
     public static func decodeAppInFocusEvents(from data: Data) throws -> [BiomeAppInFocusEvent] {
         let totalSize = data.count
@@ -139,7 +153,7 @@ public enum BiomeRecordDecoder {
             // Tag 1 (string): transitionReason
             // Tag 2 (varint): mode/type (1 = app, 3 = system)
             // Tag 3 (varint): starting (1 = start, 0 = end)
-            // Tag 4 (double): absoluteTimestamp (CFAbsoluteTime)
+            // Tag 4 (double): absoluteTimestamp (CFAbsoluteTime or Unix timestamp)
             // Tag 6 (string): bundleId
             // Tag 9 (string): version
             // Tag 10 (string): build
@@ -178,9 +192,8 @@ public enum BiomeRecordDecoder {
                 continue
             }
 
-            // CFAbsoluteTime is seconds relative to 2001-01-01 00:00:00 UTC
-            let cfTimestamp = absoluteTimestamp ?? trailer.timestamp
-            let eventDate = Date(timeIntervalSinceReferenceDate: cfTimestamp)
+            let rawTimestamp = absoluteTimestamp ?? trailer.timestamp
+            let eventDate = parseTimestamp(rawTimestamp)
 
             events.append(BiomeAppInFocusEvent(
                 timestamp: eventDate,

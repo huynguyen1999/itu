@@ -566,6 +566,142 @@ input {
 .chip.active[data-cat="skills"] { border-color: var(--skills-line); box-shadow: inset 0 0 0 1px var(--skills-line); }
 .chip.active[data-cat="all"] { border-color: #4C7CFF; box-shadow: inset 0 0 0 1px #4C7CFF; }
 
+/* ── Enrolled Only Toggle ────────────────────────────────────────────────── */
+.enrolled-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 5px 12px 5px 8px;
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.enrolled-toggle:hover {
+  background: var(--surface);
+  border-color: var(--text-faint);
+  color: var(--text);
+}
+
+.enrolled-toggle.active {
+  background: var(--main-soft);
+  border-color: var(--main-line);
+  color: var(--text);
+  box-shadow: 0 0 12px -2px rgba(251, 169, 49, 0.25);
+}
+
+.enrolled-toggle .toggle-track {
+  width: 26px;
+  height: 15px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  position: relative;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.enrolled-toggle:hover .toggle-track {
+  border-color: var(--text-dim);
+}
+
+.enrolled-toggle .toggle-thumb {
+  position: absolute;
+  top: 1.5px;
+  left: 1.5px;
+  width: 10px;
+  height: 10px;
+  background: var(--text-dim);
+  border-radius: 50%;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.enrolled-toggle.active .toggle-track {
+  background: var(--main);
+  border-color: var(--main);
+}
+
+.enrolled-toggle.active .toggle-thumb {
+  transform: translateX(11px);
+  background: #0A0E17;
+}
+
+.enrolled-toggle .toggle-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.enrolled-toggle .toggle-text {
+  letter-spacing: 0.1px;
+}
+
+.enrolled-toggle .toggle-badge {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-dim);
+  transition: all 0.2s ease;
+}
+
+.enrolled-toggle.active .toggle-badge {
+  background: var(--main);
+  color: #0A0E17;
+  font-weight: 800;
+}
+
+/* ── Enrolled Empty Banner ───────────────────────────────────────────────── */
+.enrolled-empty-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 18px;
+  margin-top: 14px;
+  background: rgba(251, 169, 49, 0.08);
+  border: 1px dashed rgba(251, 169, 49, 0.35);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: 12.5px;
+  animation: tf-fade-in 0.2s ease;
+}
+
+.enrolled-empty-banner span:first-child {
+  font-size: 15px;
+}
+
+.btn-clear-filter {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--main);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-clear-filter:hover {
+  background: var(--main);
+  color: #0A0E17;
+  border-color: var(--main);
+}
+
+@keyframes tf-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .search-box {
   display: flex;
   align-items: center;
@@ -1563,6 +1699,14 @@ input {
 }
 
 /* ── Mobile Elements (Hidden on Desktop) ────────────────────────────────── */
+.mobile-topbar-actions {
+  display: none;
+}
+
+.mobile-enrolled-toggle-btn {
+  display: none;
+}
+
 .mobile-enrolled-btn {
   display: none;
 }
@@ -1669,16 +1813,61 @@ input {
     font-size: 13px !important;
   }
 
-  .mobile-enrolled-btn {
+  .mobile-topbar-actions {
     display: flex !important;
     align-items: center !important;
     gap: 6px !important;
-    background: var(--main-soft) !important;
-    border: 1px solid rgba(251, 169, 49, 0.4) !important;
-    color: var(--main) !important;
-    padding: 6px 12px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .mobile-enrolled-toggle-btn {
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    background: var(--panel) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-dim) !important;
+    padding: 6px 10px !important;
     border-radius: var(--radius-pill) !important;
-    font-size: 12px !important;
+    font-size: 11.5px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .mobile-enrolled-toggle-btn.active {
+    background: var(--main-soft) !important;
+    border-color: var(--main-line) !important;
+    color: var(--text) !important;
+    box-shadow: 0 0 10px -2px rgba(251, 169, 49, 0.3) !important;
+  }
+
+  .mobile-enrolled-toggle-btn .mobile-toggle-badge {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: var(--text-dim) !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    padding: 1px 5px !important;
+    border-radius: var(--radius-pill) !important;
+    font-family: var(--font-mono) !important;
+  }
+
+  .mobile-enrolled-toggle-btn.active .mobile-toggle-badge {
+    background: var(--main) !important;
+    color: #0A0E17 !important;
+  }
+
+  .mobile-enrolled-btn {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-dim) !important;
+    padding: 6px 10px !important;
+    border-radius: var(--radius-pill) !important;
+    font-size: 11.5px !important;
     font-weight: 600 !important;
     cursor: pointer !important;
     white-space: nowrap !important;
@@ -1686,18 +1875,10 @@ input {
     transition: filter 0.15s ease !important;
   }
 
+  .mobile-enrolled-btn:hover,
   .mobile-enrolled-btn:active {
     filter: brightness(1.2) !important;
-  }
-
-  .mobile-enrolled-btn .enrolled-num {
-    background: var(--main) !important;
-    color: #0A0E17 !important;
-    font-size: 10.5px !important;
-    font-weight: 800 !important;
-    padding: 1px 6px !important;
-    border-radius: var(--radius-pill) !important;
-    font-family: var(--font-mono) !important;
+    color: var(--text) !important;
   }
 
   /* Main Area: 100% Middle Viewport for Calendar Grid */

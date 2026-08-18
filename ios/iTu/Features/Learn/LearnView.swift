@@ -1,8 +1,12 @@
 import SwiftUI
 import iTuDomain
+import iTuDesignCore
 
-struct Phase6LearnView: View {
+public typealias Phase6LearnView = LearnView
+
+public struct LearnView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.colorScheme) private var colorScheme
     @State private var searchText = ""
     @State private var showingNewDeck = false
     @State private var newDeckTitle = ""
@@ -13,7 +17,9 @@ struct Phase6LearnView: View {
     @State private var isLoading = false
     @State private var loadError: String?
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         NavigationStack {
             List {
                 Section {
@@ -26,16 +32,17 @@ struct Phase6LearnView: View {
                                 .font(.headline)
                             Text(loadError)
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(IOSColor.inkDim(colorScheme))
                                 .multilineTextAlignment(.center)
                             Button("Retry") { Task { await reload() } }
                                 .buttonStyle(.borderedProminent)
+                                .tint(IOSColor.teal(colorScheme))
                         }
                         .frame(maxWidth: .infinity, minHeight: 180)
                     } else if filteredDecks.isEmpty {
-                        IOSContentUnavailableView(
-                            searchText.isEmpty ? "No flashcard decks" : "No matching decks",
-                            systemImage: "rectangle.stack",
+                        IOSEmptyState(
+                            icon: "rectangle.stack",
+                            title: searchText.isEmpty ? "No flashcard decks" : "No matching decks",
                             description: searchText.isEmpty ? "Create a deck to start learning." : "Try a different search."
                         )
                     } else {
@@ -47,11 +54,11 @@ struct Phase6LearnView: View {
                                     Text(deck.title).font(.headline)
                                     Text("\(deck.cardCount) cards · \(deck.dueCount) due")
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(IOSColor.inkDim(colorScheme))
                                     if model.pendingMutations.contains(where: { $0.entityId == deck.id }) {
                                         Label("Pending sync", systemImage: "clock.arrow.circlepath")
                                             .font(.caption2)
-                                            .foregroundStyle(.orange)
+                                            .foregroundStyle(IOSColor.amber(colorScheme))
                                     }
                                 }
                             }
@@ -65,17 +72,16 @@ struct Phase6LearnView: View {
                 }
             }
             .navigationTitle("Learn")
+            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search decks")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { Task { await reload() } } label: {
-                        if isLoading { ProgressView() } else { Label("Refresh", systemImage: "arrow.clockwise") }
-                    }
-                    .disabled(isLoading)
+                ToolbarItem(placement: .navigationBarLeading) {
+                    IOSSyncStatusIndicator()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showingNewDeck = true } label: {
-                        Label("New deck", systemImage: "plus")
+                        Image(systemName: "plus")
+                            .foregroundStyle(IOSColor.teal(colorScheme))
                     }
                 }
             }
@@ -93,6 +99,7 @@ struct Phase6LearnView: View {
                     }
                 }
                 .navigationTitle("New Deck")
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { showingNewDeck = false }
@@ -226,6 +233,7 @@ private struct Phase6DeckDetailView: View {
             }
         }
         .navigationTitle(deck.title)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { showingNewCard = true } label: { Label("New card", systemImage: "plus") }
@@ -315,6 +323,7 @@ private struct Phase6CardEditorView: View {
                 Section("Answer") { TextEditor(text: $back).frame(minHeight: 120) }
             }
             .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { requestDismiss() }
@@ -451,6 +460,7 @@ private struct Phase6StudySessionView: View {
                 }
             }
             .navigationTitle(deck.title)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.disabled(isSubmittingReview) }
                 ToolbarItem(placement: .topBarTrailing) {

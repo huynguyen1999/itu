@@ -100,6 +100,7 @@ struct Phase6StatisticsView: View {
             }
         }
         .navigationTitle("Statistics")
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             model.refreshHealthAuthorization()
             await refresh()

@@ -8,24 +8,22 @@ public struct BiomeStreamReadResult: Sendable {
     public let unreadableFilesCount: Int
 }
 
-/// Reads App.InFocus SEGB files for a specific remote device.
+/// Reads App.InFocus SEGB files for a device from the local or remote Biome stream.
 public enum BiomeAppInFocusReader {
-    private static var homeDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-    }
-
-    public static func deviceStreamDirectory(for deviceIdentifier: String) -> URL {
-        homeDirectory
-            .appendingPathComponent("Library/Biome/streams/restricted/App.InFocus/remote", isDirectory: true)
-            .appendingPathComponent(deviceIdentifier, isDirectory: true)
+    public static func deviceStreamDirectory(for device: ScreenTimeDevice) -> URL {
+        if device.isMe {
+            return BiomeDeviceDiscovery.localStreamsURL
+        }
+        return BiomeDeviceDiscovery.remoteStreamsURL
+            .appendingPathComponent(device.deviceIdentifier, isDirectory: true)
     }
 
     /// Reads all App.InFocus events for a device occurring since the watermark date.
     public static func readEvents(
-        for deviceIdentifier: String,
+        for device: ScreenTimeDevice,
         since watermark: Date? = nil
     ) throws -> BiomeStreamReadResult {
-        let streamDir = deviceStreamDirectory(for: deviceIdentifier)
+        let streamDir = deviceStreamDirectory(for: device)
         let fileManager = FileManager.default
 
         guard fileManager.fileExists(atPath: streamDir.path) else {
