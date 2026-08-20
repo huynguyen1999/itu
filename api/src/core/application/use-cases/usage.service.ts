@@ -1,7 +1,6 @@
-import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
-import { TOKENS } from '@core/application/constants/tokens';
-import type { IUsageRepository } from '@core/application/ports/out/repositories.port';
+import type { BrowserExtensionCredentialKind, IUsageRepository } from '@core/application/ports/out/repositories.port';
 import type { IMediaStorage } from '@core/application/ports/out/services.port';
+import { InvalidRequestException } from '@core/domain/exceptions';
 import { UsageIdentityService } from './usage-identity.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageQueryService } from './usage-query.service';
@@ -29,15 +28,14 @@ export type {
   WebsiteUsageSummaryInput,
 } from './usage.types';
 
-@Injectable()
 export class UsageService extends UsageQueryService {
   private readonly ingestion: UsageIngestionService;
   private readonly website: UsageWebsiteService;
   private readonly identity: UsageIdentityService;
 
   constructor(
-    @Inject(TOKENS.USAGE_REPOSITORY) usage: IUsageRepository,
-    @Optional() @Inject(TOKENS.MEDIA_STORAGE) media?: IMediaStorage,
+    usage: IUsageRepository,
+    media?: IMediaStorage,
   ) {
     super(usage);
     this.ingestion = new UsageIngestionService(usage);
@@ -77,8 +75,8 @@ export class UsageService extends UsageQueryService {
     return this.website.replaceBatch(userId, input);
   }
 
-  generateBrowserExtensionDsn(userId: string) {
-    return this.website.generateDsn(userId);
+  generateBrowserExtensionDsn(userId: string, kind: BrowserExtensionCredentialKind = 'DEFAULT_BROWSER') {
+    return this.website.generateDsn(userId, kind);
   }
 
   authenticateBrowserExtensionDsn(dsnKey: string) {
@@ -93,13 +91,17 @@ export class UsageService extends UsageQueryService {
     return this.website.delete(userId, from, to, all);
   }
 
+  deleteScreenTimeEvents(userId: string, sourceDeviceId?: string) {
+    return this.usage.deleteScreenTimeEvents(userId, sourceDeviceId);
+  }
+
   async delete(userId: string, from?: string, to?: string, all = false) {
     if (all || (!from && !to)) return { deletedCount: await this.usage.delete(userId) };
     const start = parseDate(from ?? to!, 'from');
     const end = parseDate(to ?? from!, 'to');
-    if (start > end) throw new BadRequestException('from must not be after to');
+    if (start > end) throw new InvalidRequestException('from must not be after to');
     if ((end.getTime() - start.getTime()) / 86_400_000 + 1 > 365) {
-      throw new BadRequestException('Usage date range cannot exceed 365 days');
+      throw new InvalidRequestException('Usage date range cannot exceed 365 days');
     }
     return { deletedCount: await this.usage.delete(userId, start, nextDay(end)) };
   }

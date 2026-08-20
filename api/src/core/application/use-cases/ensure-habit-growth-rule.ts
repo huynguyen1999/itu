@@ -1,9 +1,10 @@
-import { GrowthOnboardingState, GrowthSourceType } from '@prisma/client';
+import { GrowthOnboardingState, GrowthSourceType } from '@core/domain/enums';
 import { createUlid } from '@core/application/ulid';
+import type { ApplicationTransactionPort } from '@core/application/ports/out/application-transaction.port';
 import { ensureStarterSkills } from './ensure-starter-skills';
 import { REWARD_PRESETS } from './growth-reward-presets';
 
-type Tx = Record<string, any>;
+type Tx = ApplicationTransactionPort;
 
 export async function ensureHabitGrowthRule(tx: Tx, userId: string, habitId: string): Promise<void> {
   const existing = await tx.growthEarningRule.findUnique({

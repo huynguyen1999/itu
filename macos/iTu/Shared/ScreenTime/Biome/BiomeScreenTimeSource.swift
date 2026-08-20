@@ -9,17 +9,29 @@ public final class BiomeScreenTimeSource: ScreenTimeUsageSource, @unchecked Send
         try BiomeDeviceDiscovery.discoverDevices()
     }
 
-    public func intervals(
-        for device: ScreenTimeDevice,
-        since watermark: Date?
-    ) async throws -> [ImportedUsageInterval] {
+    public func scanDevice(
+        _ device: ScreenTimeDevice,
+        since watermark: Date?,
+        initialState: BiomeForegroundState? = nil
+    ) async throws -> DeviceScanResult {
         let readResult = try BiomeAppInFocusReader.readEvents(
             for: device,
             since: watermark
         )
-        return BiomeUsageNormalizer.normalize(
+        let (intervals, nextState, stats) = BiomeUsageNormalizer.normalize(
             events: readResult.events,
-            for: device
+            for: device,
+            initialState: initialState
+        )
+        let latestRecordDate = readResult.events.map(\.timestamp).max() ?? intervals.map(\.endedAt).max()
+
+        return DeviceScanResult(
+            intervals: intervals,
+            nextState: nextState,
+            latestRecordDate: latestRecordDate,
+            stats: stats,
+            scannedFilesCount: readResult.scannedFilesCount,
+            decodedFilesCount: readResult.decodedFilesCount
         )
     }
 }

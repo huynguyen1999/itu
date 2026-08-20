@@ -19,7 +19,9 @@ struct iTuApp: App {
                 )
                 .frame(minWidth: 980, minHeight: 640)
                 .task {
+                    async let appUpdateCheck: Void = model.checkAppUpdateIfNeeded()
                     await model.bootstrap()
+                    await appUpdateCheck
                 }
                 .preferredColorScheme(preferredColorScheme)
                 .onOpenURL { url in
@@ -96,4 +98,3 @@ private struct StatusItemInstaller: ViewModifier {
         }
     }
 }
-

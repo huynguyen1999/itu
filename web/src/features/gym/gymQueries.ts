@@ -139,15 +139,6 @@ export interface GymOverview {
   recentWorkouts: GymWorkout[];
 }
 
-export interface GymExerciseStats {
-  heaviestWeight: number | null;
-  bestVolumeSet?: number | null;
-  estimated1RM: number | null;
-  totalSets: number;
-  lastPerformedAt?: string | null;
-  recentSets?: GymWorkoutSet[];
-}
-
 export interface GymProgressPoint {
   date: string;
   workoutId: string;
@@ -176,24 +167,6 @@ export interface GymExerciseProgress {
   recentSets: GymWorkoutSet[];
 }
 
-export interface GymAnalytics {
-  range: '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM';
-  totalWorkouts: number;
-  totalWorkingSets: number;
-  totalVolumeKg: number;
-  totalTrainingMinutes: number;
-  totalPRs: number;
-  muscleDistribution: Record<string, number>;
-  weeklyTrend: Array<{
-    weekLabel: string;
-    startDate: string;
-    workouts: number;
-    sets: number;
-    volumeKg: number;
-    trainingMinutes: number;
-  }>;
-}
-
 export function useGymOverview() {
   return useQuery<GymOverview>({
     queryKey: ['gym', 'overview'],
@@ -201,25 +174,10 @@ export function useGymOverview() {
   });
 }
 
-export function useGymAnalytics(range: '1M' | '3M' | '6M' | '1Y' | 'ALL' = '3M') {
-  return useQuery<GymAnalytics>({
-    queryKey: ['gym', 'analytics', range],
-    queryFn: () => api.getGymAnalytics(range),
-  });
-}
-
 export function useGymExercises(options?: { search?: string; muscle?: string; equipment?: string; favoriteOnly?: boolean }) {
   return useQuery<GymExercise[]>({
     queryKey: ['gym', 'exercises', options],
     queryFn: () => api.getGymExercises(options),
-  });
-}
-
-export function useGymExerciseStats(id: string) {
-  return useQuery<GymExerciseStats>({
-    queryKey: ['gym', 'exercise-stats', id],
-    queryFn: () => api.getGymExerciseStats(id),
-    enabled: Boolean(id),
   });
 }
 
@@ -235,14 +193,6 @@ export function useGymRoutines() {
   return useQuery<GymRoutine[]>({
     queryKey: ['gym', 'routines'],
     queryFn: () => api.getGymRoutines(),
-  });
-}
-
-export function useGymRoutine(id: string) {
-  return useQuery<GymRoutine>({
-    queryKey: ['gym', 'routine', id],
-    queryFn: () => api.getGymRoutineById(id),
-    enabled: Boolean(id),
   });
 }
 

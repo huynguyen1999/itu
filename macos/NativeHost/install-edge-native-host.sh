@@ -6,8 +6,12 @@ script_root="$(cd "$(dirname "$0")/.." && pwd)"
 if [[ $# -ge 2 ]]; then
     host_binary="$2"
 else
-    host_binary="$script_root/../build/DerivedData/Build/Products/Debug/BrowserActivityHost"
-    [[ -x "$host_binary" ]] || host_binary="$script_root/build/Debug/BrowserActivityHost"
+    installed_app="${ITU_APP_BUNDLE_PATH:-/Applications/iTu.app}"
+    host_binary="$installed_app/Contents/Helpers/BrowserActivityHost"
+    if [[ ! -x "$host_binary" ]]; then
+        host_binary="$script_root/build/DerivedData/Build/Products/Debug/BrowserActivityHost"
+        [[ -x "$host_binary" ]] || host_binary="$script_root/build/Debug/BrowserActivityHost"
+    fi
 fi
 manifest_dir="${EDGE_NATIVE_MESSAGING_HOST_DIR:-$HOME/Library/Application Support/Microsoft Edge/NativeMessagingHosts}"
 

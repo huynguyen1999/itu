@@ -3,8 +3,21 @@ import iTuDomain
 
 /// Normalizes and stitches raw start/stop Biome focus events into discrete usage intervals.
 public enum BiomeUsageNormalizer {
-    /// Maximum duration tolerance for an unclosed focus session (12 hours).
-    public static let maxSessionDuration: TimeInterval = 43_200
+    /// Maximum duration tolerance for an unclosed focus session (4 hours).
+    public static let maxSessionDuration: TimeInterval = 14400
+
+    /// Maximum duration for transient sessions launched from lockscreen (e.g. camera, widgets) (2 minutes).
+    public static let maxLockscreenSessionDuration: TimeInterval = 120
+
+    /// Maximum duration when a session is closed by a sleep/screen lock boundary after an unclosed gap (3 minutes).
+    public static let maxSleepBoundarySessionDuration: TimeInterval = 180
+
+    public static let transientOverlayBundleIDs: Set<String> = [
+        "cc.ffitch.shottr",
+        "com.google.antigravity",
+        "com.apple.ScreenshotServicesService",
+        "com.apple.screencaptureui"
+    ]
 
     public static let systemExcludedBundleIDs: Set<String> = [
         "loginwindow",
@@ -12,6 +25,10 @@ public enum BiomeUsageNormalizer {
         "com.apple.loginwindow.xpc",
         "com.apple.LockScreen",
         "com.apple.lockscreen",
+        "com.apple.SleepLockScreen",
+        "com.apple.sleeplockscreen",
+        "com.apple.CoverSheet",
+        "com.apple.coversheet",
         "lockscreen",
         "control-center",
         "com.apple.controlcenter",
@@ -42,6 +59,9 @@ public enum BiomeUsageNormalizer {
         "com.apple.systempreferences.quicklook",
         "com.apple.SoftwareUpdateNotificationManager",
         "com.apple.ClockAngel",
+        "com.apple.clockangel",
+        "com.apple.InCallService",
+        "com.apple.incallservice",
         "com.apple.PosterBoard",
         "com.apple.PassbookUIService",
         "com.apple.AuthKitUIService",
@@ -54,7 +74,9 @@ public enum BiomeUsageNormalizer {
         "com.apple.control-center",
         "com.apple.springboard.home-screen-open-folder",
         "com.apple.springboard.today-view",
-        "com.apple.springboard.widget-editing"
+        "com.apple.springboard.widget-editing",
+        "com.apple.springboard.spotlight",
+        "cc.ffitch.shottr"
     ]
 
     public static func isSystemExcluded(bundleId: String) -> Bool {
@@ -67,6 +89,8 @@ public enum BiomeUsageNormalizer {
         if lower.contains("loginwindow") ||
            lower.contains("lockscreen") ||
            lower.contains("screensaver") ||
+           lower.contains("screen_saver") ||
+           lower.contains("coversheet") ||
            lower.contains("controlcenter") ||
            lower.contains("control-center") ||
            lower.contains("clockangel") ||
@@ -104,75 +128,180 @@ public enum BiomeUsageNormalizer {
         return false
     }
 
+    public static func isSleepOrLockBoundary(bundleId: String) -> Bool {
+        let lower = bundleId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return lower.contains("sleeplockscreen") ||
+               lower.contains("screensaver") ||
+               lower.contains("screen_saver") ||
+               lower.contains("lockscreen") ||
+               lower.contains("loginwindow") ||
+               lower.contains("coversheet")
+    }
+
+    public static func isLockscreenTransition(reason: String?) -> Bool {
+        guard let reason else { return false }
+        return reason.contains("_SBDashBoardHostedAppEntityViewController") ||
+               reason.lowercased().contains("lockscreen") ||
+               reason.lowercased().contains("coversheet")
+    }
+
+    /// Deduplicates and orders raw Biome focus events deterministically.
+    public static func canonicalizeAndDeduplicate(
+        events: [BiomeAppInFocusEvent],
+        deviceId: String
+    ) -> (events: [BiomeAppInFocusEvent], droppedCount: Int) {
+        guard !events.isEmpty else { return ([], 0) }
+
+        // Sort: timestamp ascending. For identical timestamps:
+        // 1. Ending events (starting == false) before starting events (starting == true)
+        // 2. System boundary events before normal app start events
+        let sorted = events.sorted { a, b in
+            if a.timestamp != b.timestamp {
+                return a.timestamp < b.timestamp
+            }
+            if a.starting != b.starting {
+                return !a.starting && b.starting
+            }
+            let aBoundary = isSystemBoundary(bundleId: a.bundleId, type: a.type)
+            let bBoundary = isSystemBoundary(bundleId: b.bundleId, type: b.type)
+            if aBoundary != bBoundary {
+                return aBoundary && !bBoundary
+            }
+            return a.bundleId < b.bundleId
+        }
+
+        var deduplicated: [BiomeAppInFocusEvent] = []
+        deduplicated.reserveCapacity(sorted.count)
+        var seenFingerprints = Set<String>()
+        var droppedCount = 0
+
+        for event in sorted {
+            let epochMs = Int64(event.timestamp.timeIntervalSince1970 * 1000)
+            let fingerprint = "\(deviceId)|\(event.bundleId)|\(epochMs)|\(event.starting)|\(event.type)|\(event.transitionReason ?? "")"
+            if seenFingerprints.contains(fingerprint) {
+                droppedCount += 1
+                continue
+            }
+            seenFingerprints.insert(fingerprint)
+            deduplicated.append(event)
+        }
+
+        return (deduplicated, droppedCount)
+    }
+
+    /// Normalizes and stitches raw start/stop Biome focus events into discrete usage intervals,
+    /// carrying open foreground state across scans rather than fabricating arbitrary closing times.
+    public static func normalize(
+        events: [BiomeAppInFocusEvent],
+        for device: ScreenTimeDevice,
+        initialState: BiomeForegroundState? = nil
+    ) -> (intervals: [ImportedUsageInterval], nextState: BiomeForegroundState?, stats: NormalizationStats) {
+        let (canonicalEvents, dedupeDropped) = canonicalizeAndDeduplicate(
+            events: events,
+            deviceId: device.deviceIdentifier
+        )
+
+        var stats = NormalizationStats(
+            rawEventCount: events.count,
+            duplicatesDroppedCount: dedupeDropped
+        )
+
+        var intervals: [ImportedUsageInterval] = []
+
+        var currentBundle: String? = initialState?.bundleId
+        var startTs: Date? = initialState?.startedAt
+        var currentFingerprint: String? = initialState?.sourceEventFingerprint
+        var isLockscreenLaunched = false
+
+        for event in canonicalEvents {
+            let bundle = event.bundleId.trimmingCharacters(in: .whitespacesAndNewlines)
+            if bundle.isEmpty { continue }
+
+            let ts = event.timestamp
+            let inForeground = event.starting
+
+            // Ignore duplicate "gain focus" on same bundle
+            if inForeground && currentBundle == bundle {
+                stats.duplicatesDroppedCount += 1
+                continue
+            }
+
+            // Start new interval if none currently active
+            if inForeground && currentBundle == nil {
+                currentBundle = bundle
+                startTs = ts
+                isLockscreenLaunched = isLockscreenTransition(reason: event.transitionReason)
+                let epochMs = Int64(ts.timeIntervalSince1970 * 1000)
+                currentFingerprint = "\(device.deviceIdentifier)|\(bundle)|\(epochMs)"
+                continue
+            }
+
+            let sameBundleLoss = (bundle == currentBundle && !inForeground)
+            let switchGain = (bundle != currentBundle && inForeground)
+            let isSleepBoundaryLoss = (!inForeground && bundle != currentBundle && isSleepOrLockBoundary(bundleId: bundle))
+
+            if (sameBundleLoss || switchGain || isSleepBoundaryLoss), let cur = currentBundle, let st = startTs, ts > st {
+                let rawDuration = Int(ts.timeIntervalSince(st))
+                if rawDuration >= 1 && !isSystemExcluded(bundleId: cur) {
+                    let isSleepBoundary = isSleepOrLockBoundary(bundleId: bundle)
+                    let maxCap: TimeInterval = isLockscreenLaunched
+                        ? maxLockscreenSessionDuration
+                        : (isSleepBoundary && TimeInterval(rawDuration) > maxSleepBoundarySessionDuration
+                            ? maxSleepBoundarySessionDuration
+                            : maxSessionDuration)
+                    let duration = min(rawDuration, Int(maxCap))
+                    let effectiveEnd = min(ts, st.addingTimeInterval(maxCap))
+
+                    intervals.append(createInterval(
+                        device: device,
+                        bundleId: cur,
+                        startedAt: st,
+                        endedAt: effectiveEnd,
+                        duration: duration
+                    ))
+                }
+            }
+
+            if !sameBundleLoss && !switchGain && !isSleepBoundaryLoss && !inForeground {
+                stats.strayEventsCount += 1
+            }
+
+            // Update state
+            if sameBundleLoss || isSleepBoundaryLoss {
+                currentBundle = nil
+                startTs = nil
+                currentFingerprint = nil
+                isLockscreenLaunched = false
+            } else if switchGain {
+                currentBundle = bundle
+                startTs = ts
+                isLockscreenLaunched = isLockscreenTransition(reason: event.transitionReason)
+                let epochMs = Int64(ts.timeIntervalSince1970 * 1000)
+                currentFingerprint = "\(device.deviceIdentifier)|\(bundle)|\(epochMs)"
+            }
+        }
+
+        let nextState: BiomeForegroundState? = {
+            guard let cur = currentBundle, let st = startTs, let fp = currentFingerprint else {
+                return nil
+            }
+            return BiomeForegroundState(
+                bundleId: cur,
+                startedAt: st,
+                sourceEventFingerprint: fp
+            )
+        }()
+
+        stats.intervalsProducedCount = intervals.count
+        return (intervals, nextState, stats)
+    }
+
+    /// Convenience overload for stateless normalization.
     public static func normalize(
         events: [BiomeAppInFocusEvent],
         for device: ScreenTimeDevice
     ) -> [ImportedUsageInterval] {
-        let sortedEvents = events.sorted { $0.timestamp < $1.timestamp }
-        var intervals: [ImportedUsageInterval] = []
-
-        struct ActiveSession {
-            let bundleId: String
-            let startedAt: Date
-            let type: Int
-        }
-
-        var active: ActiveSession?
-
-        for event in sortedEvents {
-            let isBoundary = isSystemBoundary(bundleId: event.bundleId, type: event.type)
-
-            if event.starting {
-                if let current = active {
-                    // Auto-close preceding app session if another event starts
-                    if current.bundleId != event.bundleId || event.timestamp.timeIntervalSince(current.startedAt) > 5 {
-                        let rawEnd = event.timestamp
-                        let clampedEnd = min(rawEnd, current.startedAt.addingTimeInterval(maxSessionDuration))
-                        let duration = Int(clampedEnd.timeIntervalSince(current.startedAt))
-
-                        if duration >= 1 && !isSystemBoundary(bundleId: current.bundleId, type: current.type) {
-                            let interval = createInterval(
-                                device: device,
-                                bundleId: current.bundleId,
-                                startedAt: current.startedAt,
-                                endedAt: clampedEnd,
-                                duration: duration
-                            )
-                            intervals.append(interval)
-                        }
-                    }
-                }
-
-                if isBoundary {
-                    // Device locked, returned to home screen, screensaver or system UI opened
-                    active = nil
-                } else {
-                    // Regular user application in focus
-                    active = ActiveSession(bundleId: event.bundleId, startedAt: event.timestamp, type: event.type)
-                }
-            } else {
-                // Ending event
-                if let current = active, current.bundleId == event.bundleId {
-                    let rawEnd = event.timestamp
-                    let clampedEnd = min(rawEnd, current.startedAt.addingTimeInterval(maxSessionDuration))
-                    let duration = Int(clampedEnd.timeIntervalSince(current.startedAt))
-
-                    if duration >= 1 && !isSystemBoundary(bundleId: current.bundleId, type: current.type) {
-                        let interval = createInterval(
-                            device: device,
-                            bundleId: current.bundleId,
-                            startedAt: current.startedAt,
-                            endedAt: clampedEnd,
-                            duration: duration
-                        )
-                        intervals.append(interval)
-                    }
-                    active = nil
-                }
-            }
-        }
-
-        return intervals
+        normalize(events: events, for: device, initialState: nil).intervals
     }
 
     private static func createInterval(
@@ -182,11 +311,14 @@ public enum BiomeUsageNormalizer {
         endedAt: Date,
         duration: Int
     ) -> ImportedUsageInterval {
+        let clampedDuration = max(1, duration)
+        let effectiveEnd = endedAt >= startedAt ? endedAt : startedAt.addingTimeInterval(TimeInterval(clampedDuration))
         let eventId = ImportedUsageInterval.deterministicEventID(
             sourceDeviceId: device.deviceIdentifier,
             bundleId: bundleId,
             startedAt: startedAt,
-            endedAt: endedAt
+            endedAt: effectiveEnd,
+            version: 2
         )
         let displayName = resolveDisplayName(for: bundleId)
 
@@ -198,8 +330,8 @@ public enum BiomeUsageNormalizer {
             bundleId: bundleId,
             displayName: displayName,
             startedAt: startedAt,
-            endedAt: endedAt,
-            durationSeconds: duration,
+            endedAt: effectiveEnd,
+            durationSeconds: clampedDuration,
             observedAt: Date()
         )
     }
@@ -242,7 +374,7 @@ public enum BiomeUsageNormalizer {
         case "com.apple.MobileAddressBook": return "Contacts"
         case "com.microsoft.edgemac", "com.microsoft.Edge": return "Microsoft Edge"
         case "com.google.Chrome", "com.google.chrome.ios": return "Google Chrome"
-        case "com.apple.Safari", "com.apple.mobilesafari": return "Safari"
+        case "com.apple.Safari": return "Safari"
         case "com.microsoft.VSCode": return "VS Code"
         case "com.mitchellh.ghostty": return "Ghostty"
         case "com.github.wez.wezterm": return "WezTerm"

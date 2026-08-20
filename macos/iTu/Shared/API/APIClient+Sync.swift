@@ -19,6 +19,16 @@ extension APIError: @retroactive SyncTransportFailure {
 
     public var syncRetryAfter: TimeInterval? { retryAfter }
 
+    public var syncRecoverableMutationIDs: [String] {
+        guard details?["reason"]?.stringValue == "MUTATION_ID_REUSED",
+              let mutationID = details?["mutationId"]?.stringValue else { return [] }
+        return [mutationID]
+    }
+
+    public var syncAcknowledgedMutationIDs: [String] {
+        details?["acknowledgedMutationIds"]?.arrayValue?.compactMap(\.stringValue) ?? []
+    }
+
     public var syncRetryable: Bool {
         statusCode == 0 || statusCode == 408 || statusCode == 425 || statusCode == 429 || statusCode >= 500
     }

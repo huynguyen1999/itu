@@ -5,8 +5,9 @@ import {
   GrowthProgressKind,
   GrowthSourceType,
   GrowthScalingMode,
-} from '@prisma/client';
+} from '@core/domain/enums';
 import { createUlid } from '@core/application/ulid';
+import type { ApplicationTransactionPort } from '@core/application/ports/out/application-transaction.port';
 import { growthLevelProgress } from './growth-rules';
 import {
   allocateSkillBudget,
@@ -18,7 +19,7 @@ import {
 } from './growth-award-calculations';
 export type { AwardScalingContext } from './growth-award-calculations';
 
-type Tx = Record<string, any>;
+type Tx = ApplicationTransactionPort;
 type AttributeMappingWithAttribute = {
   id: string;
   skillId: string;

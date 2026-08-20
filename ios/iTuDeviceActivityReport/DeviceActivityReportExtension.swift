@@ -35,7 +35,6 @@ struct IOSDeviceActivityReport: @preconcurrency DeviceActivityReportScene {
     func makeConfiguration(representing data: DeviceActivityResults<DeviceActivityData>) async -> DeviceActivityReportSnapshot {
         var windows: Set<DeviceActivityUsageWindow> = []
         var applications: [String: DeviceActivityReportApplication] = [:]
-        var websites: [String: DeviceActivityReportWebsite] = [:]
         let calendar = iTuCalendarSupport.calendar()
 
         for await activityData in data {
@@ -62,17 +61,6 @@ struct IOSDeviceActivityReport: @preconcurrency DeviceActivityReportScene {
                             notifications: (existing?.notifications ?? 0) + max(0, application.numberOfNotifications)
                         )
                     }
-
-                    for await webDomain in category.webDomains {
-                        guard let hostname = webDomain.webDomain.domain, !hostname.isEmpty else { continue }
-                        let key = "\(window.localDate)|\(window.hour)|\(hostname)"
-                        let existing = websites[key]
-                        websites[key] = DeviceActivityReportWebsite(
-                            window: window,
-                            hostname: hostname,
-                            activeSeconds: (existing?.activeSeconds ?? 0) + max(0, Int(webDomain.totalActivityDuration.rounded()))
-                        )
-                    }
                 }
             }
         }
@@ -80,8 +68,7 @@ struct IOSDeviceActivityReport: @preconcurrency DeviceActivityReportScene {
         let snapshot = DeviceActivityReportSnapshot(
             capturedAt: ISO8601DateFormatter().string(from: Date()),
             windows: windows.sorted { $0.localDate == $1.localDate ? $0.hour < $1.hour : $0.localDate < $1.localDate },
-            applications: applications.values.sorted { $0.bundleId == $1.bundleId ? $0.window.hour < $1.window.hour : $0.bundleId < $1.bundleId },
-            websites: websites.values.sorted { $0.hostname == $1.hostname ? $0.window.hour < $1.window.hour : $0.hostname < $1.hostname }
+            applications: applications.values.sorted { $0.bundleId == $1.bundleId ? $0.window.hour < $1.window.hour : $0.bundleId < $1.bundleId }
         )
         if let fileURL = IOSDeviceActivityReportBridge.fileURL() {
             try? DeviceActivityReportSnapshotStore(fileURL: fileURL).save(snapshot)

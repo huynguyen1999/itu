@@ -1,5 +1,3 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { TOKENS } from '@core/application/constants/tokens';
 import type {
   DashboardSummary,
   DeckStats,
@@ -11,16 +9,15 @@ import type {
   IReviewStateRepository,
   IStudySessionRepository,
 } from '@core/application/ports/out/repositories.port';
-import { EntityNotFoundException } from '@core/domain/exceptions';
+import { EntityNotFoundException, InvalidRequestException } from '@core/domain/exceptions';
 import { hcmcDateOnly } from '@core/application/utils/calendar';
 import { parseDate } from './usage-validation';
 
-@Injectable()
 export class DashboardService implements IDashboardUseCase {
   constructor(
-    @Inject(TOKENS.DECK_REPOSITORY) private readonly decks: IDeckRepository,
-    @Inject(TOKENS.REVIEW_STATE_REPOSITORY) private readonly reviewStates: IReviewStateRepository,
-    @Inject(TOKENS.STUDY_SESSION_REPOSITORY) private readonly sessions: IStudySessionRepository,
+    private readonly decks: IDeckRepository,
+    private readonly reviewStates: IReviewStateRepository,
+    private readonly sessions: IStudySessionRepository,
   ) {}
 
   async summary(userId: string): Promise<DashboardSummary> {
@@ -65,10 +62,10 @@ export class DashboardService implements IDashboardUseCase {
   async studyCalendarRange(userId: string, fromValue: string, toValue: string): Promise<StudyCalendarDay[]> {
     const from = parseHcmcDate(fromValue, 'from');
     const to = parseHcmcDate(toValue, 'to');
-    if (from > to) throw new BadRequestException('from must not be after to');
+    if (from > to) throw new InvalidRequestException('from must not be after to');
     const toExclusive = new Date(to.getTime() + 86_400_000);
     if ((toExclusive.getTime() - from.getTime()) / 86_400_000 > 365) {
-      throw new BadRequestException('Statistics date range cannot exceed 365 days');
+      throw new InvalidRequestException('Statistics date range cannot exceed 365 days');
     }
     return this.sessions.studyCalendar(userId, from, toExclusive);
   }

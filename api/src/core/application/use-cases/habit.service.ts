@@ -1,23 +1,13 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
-import { TOKENS } from '@core/application/constants/tokens';
 import type { IProductivityRepository, ISyncDeviceRepository } from '@core/application/ports/out/repositories.port';
 import type { IQueueJobHandler, ISyncInvalidationNotifier } from '@core/application/ports/out/services.port';
 import { EntityNotFoundException } from '@core/domain/exceptions';
-import { HabitOccurrenceStatus } from '@prisma/client';
+import { HabitOccurrenceStatus } from '@core/domain/enums';
 
-@Injectable()
 export class HabitService {
   constructor(
-    @Inject(TOKENS.PRODUCTIVITY_REPOSITORY)
     private readonly repo: IProductivityRepository,
-    @Optional()
-    @Inject(TOKENS.SYNC_INVALIDATION_NOTIFIER)
     private readonly invalidationNotifier?: ISyncInvalidationNotifier,
-    @Optional()
-    @Inject(TOKENS.SYNC_DEVICE_REPOSITORY)
     private readonly devices?: ISyncDeviceRepository,
-    @Optional()
-    @Inject(TOKENS.QUEUE_JOB_HANDLER)
     private readonly queue?: IQueueJobHandler,
   ) {}
 

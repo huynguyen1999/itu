@@ -133,7 +133,8 @@ export function HabitsPage() {
   const progressHabit = useMutation({
     mutationFn: ({ habitId, localDate, value }: { habitId: string; localDate: string; value: number }) =>
       api.progressHabit(habitId, { localDate, value, idempotencyKey: eventKey(`progress:${habitId}:${localDate}`) }),
-    onMutate: ({ habitId, localDate, value }) => {
+    onMutate: async ({ habitId, localDate, value }) => {
+      await queryClient.cancelQueries({ queryKey: ['habit-calendar', fromDate, toDate] });
       const habit = habits.data?.find((item) => item.id === habitId);
       const previous = queryClient.getQueryData<HabitCalendarResponse>(['habit-calendar', fromDate, toDate]);
       if (habit) queryClient.setQueryData(['habit-calendar', fromDate, toDate], updateHabitCalendarOptimistically(previous, habit, localDate, value));
@@ -145,7 +146,8 @@ export function HabitsPage() {
   const checkInExisting = useMutation({
     mutationFn: ({ occurrenceId, habitId, localDate, value }: { occurrenceId: string; habitId: string; localDate: string; value: number }) =>
       api.checkInHabit(occurrenceId, { value, idempotencyKey: eventKey(`progress:${occurrenceId}`) }),
-    onMutate: ({ habitId, localDate, value }) => {
+    onMutate: async ({ habitId, localDate, value }) => {
+      await queryClient.cancelQueries({ queryKey: ['habit-calendar', fromDate, toDate] });
       const habit = habits.data?.find((item) => item.id === habitId);
       const previous = queryClient.getQueryData<HabitCalendarResponse>(['habit-calendar', fromDate, toDate]);
       if (habit) queryClient.setQueryData(['habit-calendar', fromDate, toDate], updateHabitCalendarOptimistically(previous, habit, localDate, value));
@@ -157,7 +159,8 @@ export function HabitsPage() {
   const undoExisting = useMutation({
     mutationFn: ({ occurrenceId, habitId, localDate }: { occurrenceId: string; habitId: string; localDate: string }) =>
       api.habitOccurrenceAction(occurrenceId, 'undo', eventKey(`undo:${occurrenceId}`)),
-    onMutate: ({ habitId, localDate }) => {
+    onMutate: async ({ habitId, localDate }) => {
+      await queryClient.cancelQueries({ queryKey: ['habit-calendar', fromDate, toDate] });
       const habit = habits.data?.find((item) => item.id === habitId);
       const previous = queryClient.getQueryData<HabitCalendarResponse>(['habit-calendar', fromDate, toDate]);
       if (habit) queryClient.setQueryData(['habit-calendar', fromDate, toDate], updateHabitCalendarOptimistically(previous, habit, localDate, 0, 'UNDO'));
@@ -169,7 +172,8 @@ export function HabitsPage() {
   const habitDateAction = useMutation({
     mutationFn: ({ habitId, localDate }: { habitId: string; localDate: string }) =>
       api.habitDateAction(habitId, { localDate, action: 'UNDO', idempotencyKey: eventKey(`undo:${habitId}:${localDate}`) }),
-    onMutate: ({ habitId, localDate }) => {
+    onMutate: async ({ habitId, localDate }) => {
+      await queryClient.cancelQueries({ queryKey: ['habit-calendar', fromDate, toDate] });
       const habit = habits.data?.find((item) => item.id === habitId);
       const previous = queryClient.getQueryData<HabitCalendarResponse>(['habit-calendar', fromDate, toDate]);
       if (habit) queryClient.setQueryData(['habit-calendar', fromDate, toDate], updateHabitCalendarOptimistically(previous, habit, localDate, 0, 'UNDO'));
@@ -178,6 +182,7 @@ export function HabitsPage() {
     onError: (_error, _variables, context) => queryClient.setQueryData(['habit-calendar', fromDate, toDate], context?.previous),
     onSettled: refresh,
   });
+
 
   // Group active habits by their assigned habit group. Anytime contains ungrouped habits.
   const groupedHabits = useMemo(() => {

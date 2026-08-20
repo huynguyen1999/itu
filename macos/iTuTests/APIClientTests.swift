@@ -1,10 +1,26 @@
 import Foundation
 import Security
 import XCTest
+import iTuDomain
 import iTuNetworking
 @testable import iTu
 
 final class APIClientTests: XCTestCase {
+    func testSyncErrorMetadataPreservesMutationRecoveryAndAcknowledgements() {
+        let error = APIError(
+            statusCode: 409,
+            message: "mutation id reused",
+            details: [
+                "reason": .string("MUTATION_ID_REUSED"),
+                "mutationId": .string("mutation-1"),
+                "acknowledgedMutationIds": .array([.string("mutation-0"), .string("mutation-1")])
+            ]
+        )
+
+        XCTAssertEqual(error.syncRecoverableMutationIDs, ["mutation-1"])
+        XCTAssertEqual(error.syncAcknowledgedMutationIDs, ["mutation-0", "mutation-1"])
+    }
+
     func testCredentialStoreDistinguishesMissingFromFailure() throws {
         let store = InMemoryCredentialStore(values: [:])
         XCTAssertNil(try store.load(.refreshToken))

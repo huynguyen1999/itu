@@ -1,6 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
 import {
-  GYM_REPOSITORY_PORT,
   CreateExerciseDto,
   UpdateExerciseDto,
   CreateRoutineDto,
@@ -20,10 +18,8 @@ import {
   WorkoutStatus,
 } from '../../domain/gym/gym.domain';
 
-@Injectable()
 export class GymService {
   constructor(
-    @Inject(GYM_REPOSITORY_PORT)
     private readonly gymRepo: IGymRepositoryPort,
   ) {}
 

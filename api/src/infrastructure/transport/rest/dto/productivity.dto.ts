@@ -28,7 +28,7 @@ import {
   CommitmentPolicyLevel,
   TaskPriority,
   TaskStatus,
-} from '@prisma/client';
+} from '@core/domain/enums';
 
 import { PartialType } from '@nestjs/swagger';
 

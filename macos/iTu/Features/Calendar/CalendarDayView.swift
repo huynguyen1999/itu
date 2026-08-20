@@ -187,7 +187,22 @@ struct CalendarDayView: View {
                     .frame(height: totalGridHeight)
                 }
                 .onAppear {
-                    let targetHour = isToday ? max(0, Calendar.current.component(.hour, from: Date()) - 1) : 8
+                    let now = Date()
+                    let targetHour: Int
+                    if isToday {
+                        let cal = Calendar.current
+                        let futureItems = timedItems.filter { ($0.end ?? $0.start) > now || $0.start >= now }.sorted { $0.start < $1.start }
+                        if let nearest = futureItems.first {
+                            targetHour = max(0, cal.component(.hour, from: nearest.start) - 1)
+                        } else {
+                            targetHour = max(0, cal.component(.hour, from: now) - 1)
+                        }
+                    } else if !timedItems.isEmpty {
+                        let earliest = timedItems.sorted { $0.start < $1.start }.first!
+                        targetHour = max(0, Calendar.current.component(.hour, from: earliest.start) - 1)
+                    } else {
+                        targetHour = 8
+                    }
                     proxy.scrollTo(targetHour, anchor: .top)
                 }
             }

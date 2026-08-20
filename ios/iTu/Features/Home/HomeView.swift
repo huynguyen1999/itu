@@ -36,6 +36,9 @@ public struct HomeView: View {
         }
         .navigationTitle("Home")
         .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            await model.reconcileForeground()
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 IOSSyncStatusIndicator()

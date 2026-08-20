@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PrismaBudgetMappers } from './prisma-budget-mappers';
 import { PaymentMethod as PrismaPaymentMethod, Prisma, RecurringFrequency as PrismaRecurringFrequency } from '@prisma/client';
 import { DomainException, EntityNotFoundException } from '@core/domain/exceptions';
 import { hcmcCurrentPeriod } from '@core/application/utils/calendar';
@@ -28,78 +29,23 @@ import type {
 import { PrismaService } from './prisma.service';
 import { createUlid } from './ulid';
 import { recordSyncChange } from './prisma-sync-mutation.shared';
-
-export const BUDGET_CATEGORY_CATALOG = [
-  { name: 'Food', icon: 'food', color: 'EMERALD' },
-  { name: 'Transport', icon: 'transport', color: 'BLUE' },
-  { name: 'Shopping', icon: 'shopping', color: 'VIOLET' },
-  { name: 'Bills', icon: 'bills', color: 'AMBER' },
-  { name: 'Health', icon: 'health', color: 'ROSE' },
-  { name: 'Education', icon: 'education', color: 'INDIGO' },
-  { name: 'Entertainment', icon: 'entertainment', color: 'TEAL' },
-  { name: 'Fitness', icon: 'fitness', color: 'EMERALD' },
-  { name: 'Travel', icon: 'travel', color: 'SLATE' },
-  { name: 'Other', icon: 'other', color: 'SLATE' },
-] as const;
-
-const CATEGORY_ICONS = new Set<string>(BUDGET_CATEGORY_CATALOG.map((item) => item.icon));
-const CATEGORY_COLORS = new Set(['EMERALD', 'BLUE', 'VIOLET', 'AMBER', 'ROSE', 'INDIGO', 'TEAL', 'SLATE']);
-const PAYMENT_METHODS = new Set<string>(Object.values(PrismaPaymentMethod));
-
-const asMoney = (value: Prisma.Decimal | string | number | null | undefined) => value == null ? null : new Prisma.Decimal(value).toFixed(2);
-const asDateOnly = (value: Date) => new Date(`${value.toISOString().slice(0, 10)}T00:00:00.000Z`);
-const dateOnlyMonthBounds = (period: string) => {
-  const [year, month] = period.split('-').map(Number);
-  const next = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, '0')}`;
-  return { start: new Date(`${period}-01T00:00:00.000Z`), end: new Date(`${next}-01T00:00:00.000Z`) };
-};
-const periodPattern = /^(\d{4})-(\d{2})$/;
-
-export function assertBudgetPeriod(period: string): void {
-  const match = periodPattern.exec(period);
-  const month = match ? Number(match[2]) : 0;
-  if (!match || month < 1 || month > 12) throw new DomainException('Budget period must be a valid YYYY-MM value', 'INVALID_BUDGET_PERIOD', 400);
-}
-
-const previousPeriod = (period: string) => {
-  const [year, month] = period.split('-').map(Number);
-  return month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`;
-};
-
-function validateVisuals(icon?: string | null, color?: string | null): void {
-  if (icon != null && !CATEGORY_ICONS.has(icon)) throw new DomainException('Unsupported expense category icon', 'INVALID_CATEGORY', 400);
-  if (color != null && !CATEGORY_COLORS.has(color.toUpperCase())) throw new DomainException('Unsupported expense category color', 'INVALID_CATEGORY', 400);
-}
-
-function validatePaymentMethod(value: string | undefined): PaymentMethod {
-  const normalized = value ?? PrismaPaymentMethod.CASH;
-  if (!PAYMENT_METHODS.has(normalized)) throw new DomainException('Unsupported payment method', 'INVALID_PAYMENT_METHOD', 400);
-  return normalized as PaymentMethod;
-}
+import {
+  BUDGET_CATEGORY_CATALOG,
+  asDateOnly,
+  asMoney,
+  assertBudgetPeriod,
+  dateOnlyMonthBounds,
+  previousPeriod,
+  validatePaymentMethod,
+  validateVisuals,
+} from './prisma-budget.shared';
 
 @Injectable()
-export class PrismaBudgetRepository implements IBudgetRepositoryPort {
-  constructor(private readonly prisma: PrismaService) {}
-
-  private mapCategory(value: any): ExpenseCategoryDomain {
-    return { id: value.id, userId: value.userId, name: value.name, icon: value.icon, color: value.color, sortOrder: value.sortOrder, archivedAt: value.archivedAt, createdAt: value.createdAt, updatedAt: value.updatedAt, version: value.version ?? 1 };
+export class PrismaBudgetRepository extends PrismaBudgetMappers implements IBudgetRepositoryPort {
+  constructor(private readonly prisma: PrismaService) {
+    super();
   }
 
-  private mapExpense(value: any): ExpenseDomain {
-    return { id: value.id, userId: value.userId, amount: asMoney(value.amount)!, category: value.category?.name ?? 'Other', categoryId: value.categoryId, merchant: value.merchant, paymentMethod: value.paymentMethod, expenseDate: value.expenseDate, note: value.note, recurringExpenseId: value.recurringExpenseId, recurringOccurrenceDate: value.recurringOccurrenceDate, version: value.version ?? 1, createdAt: value.createdAt, updatedAt: value.updatedAt, deletedAt: value.deletedAt, deletedByDeviceId: value.deletedByDeviceId };
-  }
-
-  private mapRecurring(value: any): RecurringExpenseDomain {
-    return { id: value.id, userId: value.userId, name: value.name, category: value.category?.name ?? 'Other', categoryId: value.categoryId, amount: asMoney(value.amount)!, merchant: value.merchant, paymentMethod: value.paymentMethod, note: value.note, frequency: value.frequency, startDate: value.startDate, nextDueDate: value.nextDueDate, isActive: value.isActive, archivedAt: value.archivedAt, createdAt: value.createdAt, updatedAt: value.updatedAt, version: value.version ?? 1 };
-  }
-
-  private mapLimit(value: any): CategoryBudgetLimitDomain {
-    return { id: value.id, monthlyBudgetId: value.monthlyBudgetId, categoryId: value.categoryId, limit: asMoney(value.limit)!, createdAt: value.createdAt, updatedAt: value.updatedAt, version: value.version ?? 1, category: value.category ? this.mapCategory(value.category) : undefined };
-  }
-
-  private mapMonthlyBudget(value: any): MonthlyBudgetDomain {
-    return { id: value.id, userId: value.userId, period: value.period, overallLimit: asMoney(value.overallLimit), createdAt: value.createdAt, updatedAt: value.updatedAt, version: value.version ?? 1, categoryLimits: (value.categoryLimits ?? []).map((limit: any) => this.mapLimit(limit)) };
-  }
 
   private async category(userId: string, id: string, tx = this.prisma) {
     const category = await tx.expenseCategory.findFirst({ where: { id, userId } });
@@ -363,3 +309,5 @@ export class PrismaBudgetRepository implements IBudgetRepositoryPort {
     };
   }
 }
+
+export { BUDGET_CATEGORY_CATALOG } from './prisma-budget.shared';

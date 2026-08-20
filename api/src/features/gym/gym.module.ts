@@ -11,7 +11,11 @@ import { AuthModule } from '../auth/auth.module';
   imports: [AuthModule, PersistenceModule, MediaModule],
   controllers: [GymController],
   providers: [
-    GymService,
+    {
+      provide: GymService,
+      useFactory: (gymRepo) => new GymService(gymRepo),
+      inject: [GYM_REPOSITORY_PORT],
+    },
     {
       provide: GYM_REPOSITORY_PORT,
       useClass: PrismaGymRepository,

@@ -12,12 +12,12 @@ func habitQuickIncrement(_ habit: HabitModel) -> Double {
 struct HabitsView: View {
     @Environment(AppModel.self) private var model
 
-    @State private var filterCategory: String = "All"
     @State private var collapsedGroups: Set<String> = []
     @State private var weekOffset = 0
     @State private var quickLogRequest: HabitQuickLogRequest?
     @State private var showingDateJump = false
     @State private var dateJumpTarget = Date()
+    @State private var showingSettings = false
 
     private var activeHabits: [HabitModel] {
         model.habits.filter { $0.archivedAt == nil }
@@ -42,14 +42,9 @@ struct HabitsView: View {
         }
     }
 
-    private var visibleWeekRange: (from: String, to: String)? {
-        guard let first = weekDays.first, let last = weekDays.last else { return nil }
-        return (first.date, last.date)
-    }
-
     private var visibleWeekRangeKey: String {
-        guard let range = visibleWeekRange else { return "empty" }
-        return "\(range.from):\(range.to)"
+        guard let first = weekDays.first, let last = weekDays.last else { return "empty" }
+        return "\(first.date):\(last.date)"
     }
 
     private var habitOccurrenceIndex: [String: HabitOccurrenceModel] {
@@ -62,15 +57,23 @@ struct HabitsView: View {
         model.habitCalendarByHabitAndDay
     }
 
+    private var habitGroups: [(String, [HabitModel])] {
+        let grouped = Dictionary(grouping: activeHabits) { habit in
+            model.habitTimeBlocks.first(where: { $0.id == habit.timeBlockId })?.name ?? "Anytime"
+        }
+        let orderedNames = model.habitTimeBlocks
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .map(\.name) + ["Anytime"]
+        return orderedNames.compactMap { name in
+            guard let habits = grouped[name], !habits.isEmpty else { return nil }
+            return (name, habits)
+        }
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Stats Overview
-                overviewMetrics
-
-                // Category Filter Pills
-                filterRow
-
+            VStack(alignment: .leading, spacing: 20) {
+                // Week calendar header panel
                 weekCalendarHeader
 
                 if model.habitOccurrencesLoading {
@@ -92,8 +95,8 @@ struct HabitsView: View {
                             .lineLimit(2)
                         Spacer()
                         Button("Retry") {
-                            guard let range = visibleWeekRange else { return }
-                            Task { await model.refreshHabitOccurrences(from: range.from, to: range.to, force: true) }
+                            guard let first = weekDays.first, let last = weekDays.last else { return }
+                            Task { await model.refreshHabitOccurrences(from: first.date, to: last.date, force: true) }
                         }
                         .buttonStyle(iTuGhostButtonStyle())
                     }
@@ -101,26 +104,33 @@ struct HabitsView: View {
                     .iTuPanel(radius: 10)
                 }
 
-                // Habit Cards Grid
+                // Categorized Habit Sections
                 if habitGroups.isEmpty {
-                    LazyVStack(spacing: 12) {
-                        Image(systemName: "repeat")
+                    VStack(spacing: 12) {
+                        Image(systemName: "face.smiling")
                             .font(.system(size: 36))
                             .foregroundStyle(iTuTheme.inkDim)
-                        Text("No Habits Found")
+                        Text("No active habits")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(iTuTheme.ink)
-                        Text("Create your first habit to start tracking consistent daily routines.")
+                        Text("Create your first habit to build consistency and track daily streaks.")
                             .font(.system(size: 13))
                             .foregroundStyle(iTuTheme.inkDim)
+                        Button {
+                            model.presentedOverlay = .habitCreate
+                        } label: {
+                            Label("Create habit", systemImage: "plus")
+                        }
+                        .buttonStyle(iTuPrimaryButtonStyle(height: 32))
+                        .padding(.top, 4)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 40)
+                    .padding(.vertical, 48)
                     .iTuPanel(radius: 14)
                 } else {
-                    VStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 20) {
                         ForEach(habitGroups, id: \.0) { group in
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 10) {
                                 Button {
                                     if collapsedGroups.contains(group.0) {
                                         collapsedGroups.remove(group.0)
@@ -128,65 +138,70 @@ struct HabitsView: View {
                                         collapsedGroups.insert(group.0)
                                     }
                                 } label: {
-                                    HStack(spacing: 8) {
+                                    HStack(spacing: 6) {
                                         Image(systemName: collapsedGroups.contains(group.0) ? "chevron.right" : "chevron.down")
                                             .font(.system(size: 11, weight: .bold))
+                                            .foregroundStyle(iTuTheme.inkDim)
                                         Text(group.0)
-                                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundStyle(iTuTheme.ink)
                                         Text("\(group.1.count)")
-                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                            .font(.system(size: 12, weight: .medium))
                                             .foregroundStyle(iTuTheme.inkDim)
                                         Spacer()
                                     }
-                                    .foregroundStyle(iTuTheme.ink)
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                                 .pointingHandCursor()
 
                                 if !collapsedGroups.contains(group.0) {
-                                    ForEach(group.1) { habit in
-                                        HabitCardRow(
-                                            habit: habit,
-                                            weekDays: weekDays,
-                                            occurrencesByDate: Dictionary(uniqueKeysWithValues: weekDays.compactMap { day in
-                                                guard let occurrence = habitOccurrenceIndex[AppModel.habitOccurrenceKey(habitId: habit.id, day: day.date)] else { return nil }
-                                                return (day.date, occurrence)
-                                            }),
-                                            projectedStatesByDate: Dictionary(uniqueKeysWithValues: weekDays.compactMap { day in
-                                                guard let state = habitCalendarIndex[AppModel.habitOccurrenceKey(habitId: habit.id, day: day.date)] else { return nil }
-                                                return (day.date, state)
-                                            } + habitCalendarIndex.values.compactMap { state in
-                                                guard state.habitId == habit.id,
-                                                      let periodStart = state.periodStart,
-                                                      let periodEnd = state.periodEnd,
-                                                      let firstDate = weekDays.first?.date,
-                                                      let lastDate = weekDays.last?.date,
-                                                      periodEnd >= firstDate,
-                                                      periodStart <= lastDate,
-                                                      !weekDays.contains(where: { $0.date == state.localDate }) else { return nil }
-                                                return (state.localDate, state)
-                                            }),
-                                            todayOccurrence: habitOccurrenceIndex[AppModel.habitOccurrenceKey(habitId: habit.id, day: iTuCalendarSupport.dayString())],
-                                            todayState: model.habitDayState(habitId: habit.id, day: iTuCalendarSupport.dayString()),
-                                            onCheckIn: { occurrence in
-                                                Task { await model.checkInHabitOccurrence(occurrence, value: habitQuickIncrement(habit)) }
-                                            },
-                                            onAction: { occurrence, action in
-                                                Task { await model.habitOccurrenceAction(occurrence, action: action) }
-                                            },
-                                            isLoadingOccurrences: model.habitOccurrencesLoading,
-                                            occurrencesFailed: model.habitOccurrencesErrorMessage != nil,
-                                            onCheckInDate: { date in
-                                                Task { await model.checkInHabitDate(habitId: habit.id, date: date, value: habitQuickIncrement(habit)) }
-                                            },
-                                            onActionDate: { date, action in
-                                                Task { await model.habitOccurrenceAction(habitId: habit.id, date: date, action: action) }
-                                            },
-                                            onEdit: { model.presentedOverlay = .habitEdit(habit) },
-                                            onOpenDetails: { model.presentedOverlay = .habitDetail(habit) },
-                                            onArchive: { Task { await model.archiveHabit(habit) } }
-                                        )
+                                    VStack(spacing: 8) {
+                                        ForEach(group.1) { habit in
+                                            HabitCardRow(
+                                                habit: habit,
+                                                weekDays: weekDays,
+                                                occurrencesByDate: Dictionary(uniqueKeysWithValues: weekDays.compactMap { day in
+                                                    guard let occurrence = habitOccurrenceIndex[AppModel.habitOccurrenceKey(habitId: habit.id, day: day.date)] else { return nil }
+                                                    return (day.date, occurrence)
+                                                }),
+                                                projectedStatesByDate: Dictionary(uniqueKeysWithValues: weekDays.compactMap { day in
+                                                    guard let state = habitCalendarIndex[AppModel.habitOccurrenceKey(habitId: habit.id, day: day.date)] else { return nil }
+                                                    return (day.date, state)
+                                                } + habitCalendarIndex.values.compactMap { state in
+                                                    guard state.habitId == habit.id,
+                                                          let periodStart = state.periodStart,
+                                                          let periodEnd = state.periodEnd,
+                                                          let firstDate = weekDays.first?.date,
+                                                          let lastDate = weekDays.last?.date,
+                                                          periodEnd >= firstDate,
+                                                          periodStart <= lastDate,
+                                                          !weekDays.contains(where: { $0.date == state.localDate }) else { return nil }
+                                                    return (state.localDate, state)
+                                                }),
+                                                todayOccurrence: habitOccurrenceIndex[AppModel.habitOccurrenceKey(habitId: habit.id, day: iTuCalendarSupport.dayString())],
+                                                todayState: model.habitDayState(habitId: habit.id, day: iTuCalendarSupport.dayString()),
+                                                growthRule: model.growthEarningRules[habit.id],
+                                                archivedSkillIDs: model.archivedSkillIDs,
+                                                onCheckIn: { occurrence in
+                                                    Task { await model.checkInHabitOccurrence(occurrence, value: habitQuickIncrement(habit)) }
+                                                },
+                                                onAction: { occurrence, action in
+                                                    Task { await model.habitOccurrenceAction(occurrence, action: action) }
+                                                },
+                                                isLoadingOccurrences: model.habitOccurrencesLoading,
+                                                occurrencesFailed: model.habitOccurrencesErrorMessage != nil,
+                                                onCheckInDate: { date in
+                                                    Task { await model.checkInHabitDate(habitId: habit.id, date: date, value: habitQuickIncrement(habit)) }
+                                                },
+                                                onActionDate: { date, action in
+                                                    Task { await model.habitOccurrenceAction(habitId: habit.id, date: date, action: action) }
+                                                },
+                                                onEdit: { model.presentedOverlay = .habitEdit(habit) },
+                                                onOpenDetails: { model.presentedOverlay = .habitDetail(habit) },
+                                                onArchive: { Task { await model.archiveHabit(habit) } }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -195,69 +210,139 @@ struct HabitsView: View {
                 }
             }
             .padding(24)
-            .frame(maxWidth: 980)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .iTuPinnedHeader { headerBar }
         .background(
             LinearGradient(
-                colors: [iTuTheme.canvas, iTuTheme.mintTint.opacity(0.2)],
+                colors: [iTuTheme.canvas, iTuTheme.mintTint.opacity(0.15)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         )
         .task(id: visibleWeekRangeKey) {
-            guard let range = visibleWeekRange else { return }
-            await model.refreshHabitOccurrences(from: range.from, to: range.to)
+            guard let first = weekDays.first, let last = weekDays.last else { return }
+            await model.refreshHabitOccurrences(from: first.date, to: last.date)
         }
         .onAppear { consumePendingQuickLog() }
         .onChange(of: model.pendingHabitQuickLog?.id) { _, _ in consumePendingQuickLog() }
-        .sheet(item: $quickLogRequest) { request in
-            if let habit = model.habits.first(where: { $0.id == request.habitId }) {
-                HabitQuickLogView(
-                    habit: habit,
-                    localDate: request.localDate,
-                    state: model.habitDayState(habitId: request.habitId, day: request.localDate)
-                )
-                .frame(width: 360, height: 330)
-                .padding(16)
-            }
-        }
     }
 
     private var headerBar: some View {
         iTuPageHeader(
-            kicker: "TRACKING",
+            kicker: "ROUTINES & TRACKING",
             title: "Habits",
-            description: "Build consistent daily routines and track your streaks.",
             actions: {
-                Button {
-                    let allCollapsed = !habitGroups.isEmpty && habitGroups.allSatisfy { collapsedGroups.contains($0.0) }
-                    collapsedGroups = allCollapsed ? [] : Set(habitGroups.map(\.0))
-                } label: {
-                    Image(systemName: "square.grid.2x2")
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(width: 30, height: 30)
+                HStack(spacing: 8) {
+                    Button {
+                        weekOffset -= 1
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                            Text("Previous")
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(iTuGhostButtonStyle(height: 30))
+                    .pointingHandCursor()
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 12))
+                        Text("\(weekDays.first?.date ?? "") – \(weekDays.last?.date ?? "")")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundStyle(iTuTheme.inkDim)
+                    .padding(.horizontal, 4)
+
+                    Button {
+                        showingDateJump = true
+                    } label: {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(iTuHeaderGhostButtonStyle(height: 28))
+                    .pointingHandCursor()
+                    .help("Jump to date")
+                    .popover(isPresented: $showingDateJump) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            DatePicker("Jump to date", selection: $dateJumpTarget, displayedComponents: .date)
+                            Button("Show week") { jumpToDate() }
+                                .buttonStyle(iTuPrimaryButtonStyle(height: 30))
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                        .padding(14)
+                    }
+
+                    Button("Today") {
+                        weekOffset = 0
+                    }
+                    .buttonStyle(iTuGhostButtonStyle(height: 30))
+                    .font(.system(size: 12, weight: .medium))
+                    .pointingHandCursor()
+
+                    Button {
+                        weekOffset += 1
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("Next")
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(iTuGhostButtonStyle(height: 30))
+                    .pointingHandCursor()
+
+                    Button {
+                        let allCollapsed = !habitGroups.isEmpty && habitGroups.allSatisfy { collapsedGroups.contains($0.0) }
+                        collapsedGroups = allCollapsed ? [] : Set(habitGroups.map(\.0))
+                    } label: {
+                        Image(systemName: "square.grid.2x2")
+                            .font(.system(size: 13, weight: .semibold))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(iTuHeaderGhostButtonStyle(height: 28))
+                    .pointingHandCursor()
+                    .help("Collapse or expand habit groups")
+
+                    Button {
+                        model.presentedOverlay = .habitCreate
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .semibold))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(iTuHeaderGhostButtonStyle(height: 28))
+                    .pointingHandCursor()
+                    .help("Create habit")
+
+                    Button {
+                        model.presentedOverlay = .habitGroups
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 13, weight: .semibold))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(iTuHeaderGhostButtonStyle(height: 28))
+                    .pointingHandCursor()
+                    .help("Manage habit groups")
+
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 13, weight: .semibold))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(iTuHeaderGhostButtonStyle(height: 28))
+                    .pointingHandCursor()
+                    .help("Habit settings")
+                    .popover(isPresented: $showingSettings) {
+                        HabitsSettingsPopover()
+                            .environment(model)
+                    }
                 }
-                .buttonStyle(iTuHeaderGhostButtonStyle(height: 30))
-                .pointingHandCursor()
-                .help("Collapse or expand habit groups")
-                Button {
-                    model.presentedOverlay = .habitGroups
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(width: 30, height: 30)
-                }
-                .buttonStyle(iTuHeaderGhostButtonStyle(height: 30))
-                .pointingHandCursor()
-                .help("Manage habit groups")
-                Button {
-                    model.presentedOverlay = .habitCreate
-                } label: {
-                    Label("New Habit", systemImage: "plus")
-                }
-                .buttonStyle(iTuPrimaryButtonStyle(height: 38))
             }
         )
     }
@@ -277,142 +362,32 @@ struct HabitsView: View {
         showingDateJump = false
     }
 
-    private var overviewMetrics: some View {
-        HStack(spacing: 16) {
-            MetricTile(
-                title: "Active Habits",
-                value: "\(activeHabits.count)",
-                icon: "repeat",
-                color: iTuTheme.teal
-            )
-            MetricTile(
-                title: "Completed Today",
-                value: "\(activeHabits.filter(\.isCompletedToday).count)/\(activeHabits.count)",
-                icon: "checkmark.circle.fill",
-                color: iTuTheme.mint
-            )
-            MetricTile(
-                title: "Longest Streak",
-                value: bestStreakSummary,
-                icon: "flame.fill",
-                color: iTuTheme.amber
-            )
-        }
-    }
-
-    private var bestStreakSummary: String {
-        let dayBest = activeHabits
-            .filter { $0.scheduleType.uppercased() != "TIMES_PER_PERIOD" }
-            .map(\.bestStreak)
-            .max() ?? 0
-        let periodBest = activeHabits
-            .filter { $0.scheduleType.uppercased() == "TIMES_PER_PERIOD" }
-            .map(\.bestStreak)
-            .max() ?? 0
-        switch (dayBest > 0, periodBest > 0) {
-        case (true, true): return "\(dayBest)d · \(periodBest)p"
-        case (true, false): return "\(dayBest)d"
-        case (false, true): return "\(periodBest)p"
-        default: return "0"
-        }
-    }
-
-    private var filterRow: some View {
-        HStack(spacing: 8) {
-            ForEach(["All", "Daily", "Weekly"], id: \.self) { cat in
-                Button {
-                    filterCategory = cat
-                } label: {
-                    Text(cat)
-                        .font(.system(size: 13, weight: filterCategory == cat ? .semibold : .medium))
-                        .foregroundStyle(filterCategory == cat ? iTuTheme.teal : iTuTheme.inkDim)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(filterCategory == cat ? iTuTheme.mintTint : Color.clear)
-                        .clipShape(Capsule())
-                        .overlay {
-                            Capsule()
-                                .stroke(filterCategory == cat ? iTuTheme.teal.opacity(0.3) : iTuTheme.border, lineWidth: 1)
-                        }
-                }
-                .buttonStyle(.plain)
-                .pointingHandCursor()
-            }
-        }
-    }
-
     private var weekCalendarHeader: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Button { weekOffset -= 1 } label: { Image(systemName: "chevron.left") }
-                    .buttonStyle(iTuHeaderGhostButtonStyle(height: 28))
-                Text("\(weekDays.first?.date ?? "") – \(weekDays.last?.date ?? "")")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(iTuTheme.ink)
-                Button { weekOffset += 1 } label: { Image(systemName: "chevron.right") }
-                    .buttonStyle(iTuHeaderGhostButtonStyle(height: 28))
-                Button { showingDateJump = true } label: { Image(systemName: "calendar") }
-                    .buttonStyle(iTuHeaderGhostButtonStyle(height: 28))
-                    .help("Jump to date")
-                    .popover(isPresented: $showingDateJump) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            DatePicker("Jump to date", selection: $dateJumpTarget, displayedComponents: .date)
-                            Button("Show week") { jumpToDate() }
-                                .buttonStyle(iTuPrimaryButtonStyle(height: 30))
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                        .padding(14)
-                    }
-                if weekOffset != 0 {
-                    Button("Today") { weekOffset = 0 }
-                        .buttonStyle(iTuGhostButtonStyle(height: 28))
-                }
-                Spacer()
-            }
-            HStack(spacing: 0) {
-                Color.clear.frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 16) {
+            Color.clear
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 12) {
                 ForEach(weekDays) { day in
-                    VStack(spacing: 3) {
+                    VStack(spacing: 4) {
                         Text(day.label)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(day.isToday ? iTuTheme.teal : iTuTheme.inkDim)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(day.isToday ? Color(hex: 0x3B82F6) : iTuTheme.inkDim)
                         Text("\(day.number)")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(day.isToday ? iTuTheme.teal : iTuTheme.ink)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(day.isToday ? Color(hex: 0x3B82F6) : iTuTheme.ink)
                         Circle()
-                            .stroke(day.isToday ? iTuTheme.teal : iTuTheme.border, lineWidth: 1)
-                            .frame(width: 16, height: 16)
+                            .stroke(day.isToday ? Color(hex: 0x3B82F6) : iTuTheme.border.opacity(0.8), lineWidth: 1.5)
+                            .background(Circle().fill(day.isToday ? Color(hex: 0x3B82F6).opacity(0.12) : Color.clear))
+                            .frame(width: 14, height: 14)
                     }
-                    .frame(width: 40)
+                    .frame(width: 32)
                 }
             }
         }
-        .padding(14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .iTuPanel(radius: 12)
-    }
-
-    private var filteredHabits: [HabitModel] {
-        switch filterCategory {
-        case "Daily":
-            return activeHabits.filter { $0.frequency == .daily }
-        case "Weekly":
-            return activeHabits.filter { $0.frequency == .weekly }
-        default:
-            return activeHabits
-        }
-    }
-
-    private var habitGroups: [(String, [HabitModel])] {
-        let grouped = Dictionary(grouping: filteredHabits) { habit in
-            model.habitTimeBlocks.first(where: { $0.id == habit.timeBlockId })?.name ?? "Anytime"
-        }
-        let orderedNames = model.habitTimeBlocks
-            .sorted { $0.sortOrder < $1.sortOrder }
-            .map(\.name) + ["Anytime"]
-        return orderedNames.compactMap { name in
-            guard let habits = grouped[name], !habits.isEmpty else { return nil }
-            return (name, habits)
-        }
     }
 
     private func consumePendingQuickLog() {
@@ -420,7 +395,6 @@ struct HabitsView: View {
         model.pendingHabitQuickLog = nil
         quickLogRequest = request
     }
-
 }
 
 private struct HabitDay: Identifiable {
@@ -432,36 +406,6 @@ private struct HabitDay: Identifiable {
     var id: String { date }
 }
 
-private struct MetricTile: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(color)
-                .frame(width: 42, height: 42)
-                .background(color.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(iTuTheme.inkDim)
-                Text(value)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(iTuTheme.ink)
-            }
-            Spacer()
-        }
-        .padding(14)
-        .iTuPanel(radius: 12)
-    }
-}
-
 private struct HabitCardRow: View {
     let habit: HabitModel
     let weekDays: [HabitDay]
@@ -469,6 +413,8 @@ private struct HabitCardRow: View {
     let projectedStatesByDate: [String: HabitDayStateModel]
     let todayOccurrence: HabitOccurrenceModel?
     let todayState: HabitDayStateModel?
+    let growthRule: GrowthEarningRuleDTO?
+    let archivedSkillIDs: Set<String>
     let onCheckIn: (HabitOccurrenceModel) -> Void
     let onAction: (HabitOccurrenceModel, String) -> Void
     let isLoadingOccurrences: Bool
@@ -485,13 +431,13 @@ private struct HabitCardRow: View {
     var body: some View {
         HStack(spacing: 16) {
             habitInfoButton
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
             dayCirclesRow
-            editButton
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .iTuHoverCard()
-        .iTuPanel(radius: 14)
+        .iTuPanel(radius: 12)
         .contextMenu {
             rowContextMenu
         }
@@ -500,35 +446,26 @@ private struct HabitCardRow: View {
     private var habitInfoButton: some View {
         Button(action: onOpenDetails) {
             HStack(spacing: 12) {
-                Text(String(habit.icon.prefix(2)).uppercased())
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(iTuTheme.teal)
-                    .frame(width: 36, height: 36)
-                    .background(iTuTheme.mintTint)
-                    .clipShape(Circle())
+                HabitIconBadgeView(icon: habit.icon, color: habit.color)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(habit.name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(iTuTheme.ink)
+                        .lineLimit(1)
+
                     HStack(spacing: 8) {
-                        Text(habit.name)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(iTuTheme.ink)
-
-                        Text(habit.frequency.rawValue.capitalized)
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(iTuTheme.inkDim)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(iTuTheme.borderSoft)
-                            .clipShape(Capsule())
+                        streakBadges
+                        if habit.targetType.uppercased() != "BOOLEAN" && habit.scheduleType.uppercased() != "TIMES_PER_PERIOD" {
+                            let displayVal = habit.stats?.averageValue != nil && (habit.stats?.averageValue ?? 0) > 0
+                                ? String(format: "%.1f", habit.stats!.averageValue)
+                                : String(format: habit.targetValue.rounded() == habit.targetValue ? "%.0f" : "%.1f", habit.targetValue)
+                            Text("\(displayVal) \(habit.unit ?? "")")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(iTuTheme.inkDim)
+                        }
+                        HabitGrowthChipsView(rule: growthRule, archivedSkillIDs: archivedSkillIDs)
                     }
-
-                    if let desc = habit.description, !desc.isEmpty {
-                        Text(desc)
-                            .font(.system(size: 12))
-                            .foregroundStyle(iTuTheme.inkDim)
-                    }
-
-                    streakBadges
                 }
             }
         }
@@ -539,24 +476,25 @@ private struct HabitCardRow: View {
     @ViewBuilder
     private var streakBadges: some View {
         let streakUnit = habit.scheduleType.uppercased() == "TIMES_PER_PERIOD"
-            ? (habit.period?.lowercased() ?? "period")
-            : "day"
-        HStack(spacing: 12) {
-            HStack(spacing: 4) {
+            ? (habit.period?.lowercased() ?? "Period")
+            : "Day"
+        HStack(spacing: 8) {
+            HStack(spacing: 3) {
                 Image(systemName: "bolt.fill")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .bold))
                 Text(habit.bestStreak > 0 ? "\(habit.bestStreak) \(streakUnit)s" : "0 \(streakUnit)")
             }
-            .foregroundStyle(iTuTheme.syncBlue)
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .foregroundStyle(Color(hex: 0x3B82F6))
 
-            HStack(spacing: 4) {
+            HStack(spacing: 3) {
                 Image(systemName: "flame.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                Text(habit.currentStreak > 0 ? "\(habit.currentStreak) \(streakUnit)s" : "0 \(streakUnit)")
+                    .font(.system(size: 10, weight: .bold))
+                Text(habit.currentStreak > 0 ? "\(habit.currentStreak) \(streakUnit)\(habit.currentStreak == 1 ? "" : "s")" : "0 \(streakUnit)")
             }
-            .foregroundStyle(iTuTheme.amber)
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .foregroundStyle(Color(hex: 0xF59E0B))
         }
-        .font(.system(size: 12, weight: .medium))
     }
 
     @ViewBuilder
@@ -572,13 +510,13 @@ private struct HabitCardRow: View {
                     HStack(spacing: 4) {
                         ForEach(0..<min(target, 7), id: \.self) { index in
                             Circle()
-                                .fill(index < completed ? iTuTheme.mint : iTuTheme.surfaceMuted)
+                                .fill(index < completed ? Color(hex: 0x10B981) : Color.clear)
                                 .frame(width: 12, height: 12)
-                                .overlay { Circle().stroke(iTuTheme.border, lineWidth: 1) }
+                                .overlay { Circle().stroke(index < completed ? Color(hex: 0x10B981) : iTuTheme.border, lineWidth: 1.5) }
                         }
                     }
                     Text("\(completed) / \(target) this \((habit.period ?? "WEEK").lowercased())")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(iTuTheme.inkDim)
                 }
             }
@@ -595,10 +533,8 @@ private struct HabitCardRow: View {
                     )
                 }
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(habit.name), \(completed) of \(target) this \((habit.period ?? "WEEK").lowercased())")
         } else {
-            HStack(spacing: 8) {
+            HStack(spacing: 12) {
                 ForEach(weekDays, id: \.date) { day in
                     let occurrence = occurrencesByDate[day.date]
                     HabitQuickActionView(
@@ -616,20 +552,10 @@ private struct HabitCardRow: View {
                         onCheckInDate: { onCheckInDate(day.date) },
                         onActionDate: { action in onActionDate(day.date, action) }
                     )
+                    .frame(width: 32)
                 }
             }
         }
-    }
-
-    private var editButton: some View {
-        Button(action: onEdit) {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(iTuTheme.inkFaint)
-                .frame(width: 28, height: 28)
-        }
-        .buttonStyle(.plain)
-        .pointingHandCursor()
     }
 
     @ViewBuilder
@@ -660,6 +586,209 @@ private struct HabitCardRow: View {
     }
 }
 
+struct HabitIconBadgeView: View {
+    let icon: String
+    let color: String
+
+    private var iconColor: Color {
+        switch color.uppercased() {
+        case "EMERALD", "MINT": return Color(hex: 0x10B981)
+        case "TEAL": return Color(hex: 0x14B8A6)
+        case "BLUE": return Color(hex: 0x3B82F6)
+        case "INDIGO": return Color(hex: 0x6366F1)
+        case "VIOLET": return Color(hex: 0x8B5CF6)
+        case "ROSE", "CORAL": return Color(hex: 0xF43F5E)
+        case "AMBER": return Color(hex: 0xF59E0B)
+        case "SLATE": return Color(hex: 0x64748B)
+        default: return Color(hex: 0x10B981)
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch color.uppercased() {
+        case "EMERALD", "MINT": return Color(hex: 0x064E3B).opacity(0.4)
+        case "TEAL": return Color(hex: 0x134E4A).opacity(0.4)
+        case "BLUE": return Color(hex: 0x1E3A8A).opacity(0.4)
+        case "INDIGO": return Color(hex: 0x312E81).opacity(0.4)
+        case "VIOLET": return Color(hex: 0x4C1D95).opacity(0.4)
+        case "ROSE", "CORAL": return Color(hex: 0x881337).opacity(0.4)
+        case "AMBER": return Color(hex: 0x78350F).opacity(0.4)
+        case "SLATE": return Color(hex: 0x334155).opacity(0.4)
+        default: return Color(hex: 0x064E3B).opacity(0.4)
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(backgroundColor)
+            Circle()
+                .stroke(iconColor.opacity(0.3), lineWidth: 1)
+
+            if isEmoji(icon) {
+                Text(icon)
+                    .font(.system(size: 16))
+            } else if !icon.isEmpty {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(iconColor)
+            } else {
+                Text("✅")
+                    .font(.system(size: 16))
+            }
+        }
+        .frame(width: 36, height: 36)
+    }
+
+    private func isEmoji(_ text: String) -> Bool {
+        guard let first = text.first else { return false }
+        return first.unicodeScalars.contains { scalar in
+            scalar.properties.isEmoji && (scalar.value > 0x238C || scalar.properties.isEmojiPresentation)
+        }
+    }
+}
+
+struct HabitGrowthChipsView: View {
+    let rule: GrowthEarningRuleDTO?
+    var archivedSkillIDs: Set<String> = []
+
+    private var accountXp: Int { rule?.accountXp ?? 0 }
+    private var coinReward: Int { rule?.coinReward ?? 0 }
+    private var itemAwards: [GrowthEarningRuleItemDTO] { rule?.itemAwards.filter { $0.quantity > 0 } ?? [] }
+
+    private var xpGroups: [(amount: Int, awards: [GrowthEarningRuleSkillAwardDTO])] {
+        guard let rule else { return [] }
+        let selected = GrowthRewardMath.selectedAwards(rule.skillAwards, archivedSkillIDs: archivedSkillIDs)
+        let allocations = GrowthRewardMath.split(
+            accountXp: rule.accountXp,
+            awards: selected,
+            archivedSkillIDs: archivedSkillIDs
+        )
+        return Dictionary(grouping: zip(selected, allocations).filter { $0.1 > 0 }, by: { $0.1 })
+            .map { (amount: $0.key, awards: $0.value.map { $0.0 }) }
+            .sorted { $0.amount > $1.amount }
+    }
+
+    private var totalChipCount: Int {
+        (accountXp > 0 ? 1 : 0) + xpGroups.count + (coinReward > 0 ? 1 : 0) + itemAwards.count
+    }
+
+    var body: some View {
+        if totalChipCount > 0 {
+            HStack(spacing: 6) {
+                if accountXp > 0 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("+\(accountXp) XP")
+                    }
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color(hex: 0x34D399))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color(hex: 0x064E3B).opacity(0.5))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color(hex: 0x10B981).opacity(0.3), lineWidth: 1))
+                }
+
+                ForEach(Array(xpGroups.prefix(2).enumerated()), id: \.offset) { _, group in
+                    HStack(spacing: 4) {
+                        if let firstAward = group.awards.first {
+                            skillIconView(award: firstAward)
+                        }
+                        Text("+\(group.amount)")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundStyle(skillTextColor(group.awards.first?.skill?.color))
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(skillBgColor(group.awards.first?.skill?.color))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(skillBorderColor(group.awards.first?.skill?.color), lineWidth: 1))
+                }
+
+                if coinReward > 0 {
+                    HStack(spacing: 3) {
+                        Text("🪙")
+                            .font(.system(size: 9))
+                        Text("+\(coinReward)")
+                    }
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color(hex: 0xFBBF24))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color(hex: 0x78350F).opacity(0.4))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color(hex: 0xF59E0B).opacity(0.3), lineWidth: 1))
+                }
+
+                ForEach(itemAwards.prefix(1), id: \.itemId) { award in
+                    HStack(spacing: 3) {
+                        GrowthIconView(icon: award.item?.icon ?? "gift", size: 10, color: iTuTheme.teal)
+                        Text("x\(award.quantity)")
+                    }
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(iTuTheme.inkDim)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(iTuTheme.surfaceMuted)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(iTuTheme.border, lineWidth: 1))
+                }
+
+                if totalChipCount > 3 {
+                    Text("+\(totalChipCount - 3)")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(iTuTheme.inkDim)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(iTuTheme.surfaceMuted)
+                        .clipShape(Capsule())
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func skillIconView(award: GrowthEarningRuleSkillAwardDTO) -> some View {
+        let iconName = award.skill?.icon ?? "shield"
+        GrowthIconView(icon: iconName, size: 11, color: skillTextColor(award.skill?.color))
+    }
+
+    private func skillTextColor(_ color: String?) -> Color {
+        switch color?.uppercased() {
+        case "ROSE", "CORAL": return Color(hex: 0xFB7185)
+        case "TEAL", "MINT", "EMERALD": return Color(hex: 0x34D399)
+        case "VIOLET", "PURPLE", "INDIGO": return Color(hex: 0xC084FC)
+        case "BLUE": return Color(hex: 0x60A5FA)
+        case "AMBER": return Color(hex: 0xFBBF24)
+        default: return Color(hex: 0x34D399)
+        }
+    }
+
+    private func skillBgColor(_ color: String?) -> Color {
+        switch color?.uppercased() {
+        case "ROSE", "CORAL": return Color(hex: 0x881337).opacity(0.4)
+        case "TEAL", "MINT", "EMERALD": return Color(hex: 0x064E3B).opacity(0.4)
+        case "VIOLET", "PURPLE", "INDIGO": return Color(hex: 0x4C1D95).opacity(0.4)
+        case "BLUE": return Color(hex: 0x1E3A8A).opacity(0.4)
+        case "AMBER": return Color(hex: 0x78350F).opacity(0.4)
+        default: return Color(hex: 0x064E3B).opacity(0.4)
+        }
+    }
+
+    private func skillBorderColor(_ color: String?) -> Color {
+        switch color?.uppercased() {
+        case "ROSE", "CORAL": return Color(hex: 0xF43F5E).opacity(0.3)
+        case "TEAL", "MINT", "EMERALD": return Color(hex: 0x10B981).opacity(0.3)
+        case "VIOLET", "PURPLE", "INDIGO": return Color(hex: 0x8B5CF6).opacity(0.3)
+        case "BLUE": return Color(hex: 0x3B82F6).opacity(0.3)
+        case "AMBER": return Color(hex: 0xF59E0B).opacity(0.3)
+        default: return Color(hex: 0x10B981).opacity(0.3)
+        }
+    }
+}
+
 struct HabitQuickActionView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -683,16 +812,20 @@ struct HabitQuickActionView: View {
 
     var body: some View {
         Button {
-            if let habit, habit.targetType.uppercased() != "BOOLEAN" {
-                showingQuickLog = true
-            } else if let occurrence {
-                if occurrence.status == .completed {
+            let isCompleted = occurrence?.status == .completed
+                || projectedState?.status == .completed
+            let isTerminal = occurrence?.status == .skipped || occurrence?.status == .failed
+                || projectedState?.status == .skipped || projectedState?.status == .failed
+            if isCompleted || isTerminal {
+                if let occurrence {
                     onAction(occurrence, "undo")
                 } else {
-                    onCheckIn(occurrence)
+                    onActionDate?("UNDO")
                 }
-            } else if let projectedState, projectedState.status == .completed || projectedState.status == .skipped || projectedState.status == .failed {
-                onActionDate?("UNDO")
+            } else if let habit, habit.targetType.uppercased() != "BOOLEAN" {
+                showingQuickLog = true
+            } else if let occurrence {
+                onCheckIn(occurrence)
             } else if let projectedState, projectedState.status == .rest || projectedState.status == .notScheduled {
                 return
             } else if let onCheckInDate {
@@ -700,41 +833,74 @@ struct HabitQuickActionView: View {
             }
         } label: {
             ZStack {
-                Circle()
-                    .fill(isHovered ? iTuTheme.mintTint : Color.clear)
-                Circle()
-                    .stroke(isHovered ? iTuTheme.teal : Color.clear, lineWidth: 1.5)
+                let isCompleted = occurrence?.status == .completed || projectedState?.status == .completed
+                let isFailed = occurrence?.status == .failed || projectedState?.status == .failed || projectedState?.status == .missed
+                let isSkipped = occurrence?.status == .skipped || projectedState?.status == .skipped
+                let isPartial = projectedState?.status == .partial
+                let isDisabled = occurrence == nil && (projectedState?.status == .rest || projectedState?.status == .notScheduled)
 
-                if occurrence?.status == .completed || projectedState?.status == .completed {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(iTuTheme.mint)
-                } else if occurrence?.status == .failed || projectedState?.status == .failed || projectedState?.status == .missed {
+                if isCompleted {
+                    Circle()
+                        .fill(Color(hex: 0x10B981))
+                        .frame(width: 24, height: 24)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundStyle(.white)
+                } else if isFailed {
+                    Circle()
+                        .fill(Color(hex: 0xEF4444).opacity(0.18))
+                        .frame(width: 24, height: 24)
+                    Circle()
+                        .stroke(Color(hex: 0xEF4444).opacity(0.4), lineWidth: 1)
+                        .frame(width: 24, height: 24)
                     Image(systemName: "xmark")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(iTuTheme.coral)
-                } else if occurrence?.status == .skipped || projectedState?.status == .skipped {
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Color(hex: 0xF87171))
+                } else if isPartial {
+                    Circle()
+                        .fill(Color(hex: 0xF59E0B).opacity(0.2))
+                        .frame(width: 24, height: 24)
+                    Circle()
+                        .stroke(Color(hex: 0xF59E0B).opacity(0.5), lineWidth: 1)
+                        .frame(width: 24, height: 24)
+                    Circle()
+                        .fill(Color(hex: 0xF59E0B))
+                        .frame(width: 6, height: 6)
+                } else if isSkipped {
+                    Circle()
+                        .fill(iTuTheme.surfaceMuted)
+                        .frame(width: 24, height: 24)
+                    Circle()
+                        .stroke(iTuTheme.border, lineWidth: 1)
+                        .frame(width: 24, height: 24)
                     Image(systemName: "forward.fill")
                         .font(.system(size: 7, weight: .bold))
                         .foregroundStyle(iTuTheme.inkDim)
-                } else if occurrence == nil && projectedState == nil && isLoading {
+                } else if isLoading && occurrence == nil && projectedState == nil {
                     ProgressView().controlSize(.mini)
-                } else if occurrence == nil && projectedState == nil && didFailLoading {
+                } else if didFailLoading && occurrence == nil && projectedState == nil {
                     Image(systemName: "exclamationmark")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundStyle(iTuTheme.coral)
-                } else if occurrence == nil && (projectedState == nil || projectedState?.status == .pending || projectedState?.status == .partial) || occurrence?.status == .pending {
+                } else if isDisabled {
                     Circle()
-                        .stroke(iTuTheme.inkFaint.opacity(0.7), lineWidth: 1.5)
-                        .frame(width: 22, height: 22)
+                        .stroke(iTuTheme.border.opacity(0.2), lineWidth: 1)
+                        .frame(width: 24, height: 24)
+                } else {
+                    Circle()
+                        .fill(isHovered ? iTuTheme.mintTint : Color.clear)
+                        .frame(width: 24, height: 24)
+                    Circle()
+                        .stroke(isHovered ? iTuTheme.teal : iTuTheme.borderSoft.opacity(0.8), lineWidth: 1.5)
+                        .frame(width: 24, height: 24)
                 }
             }
-            .frame(width: 30, height: 30)
+            .frame(width: 32, height: 32)
         }
         .buttonStyle(.plain)
-        .frame(width: 30, height: 30)
+        .frame(width: 32, height: 32)
         .contentShape(Rectangle())
-        .scaleEffect(reduceMotion ? 1 : (isHovered ? 1.06 : 1))
+        .scaleEffect(reduceMotion ? 1 : (isHovered ? 1.08 : 1))
         .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isHovered)
         .onHover { isHovered = $0 }
         .pointingHandCursor()
@@ -748,7 +914,7 @@ struct HabitQuickActionView: View {
                 .environment(model)
             }
         }
-        .disabled(occurrence == nil && (projectedState?.status == .rest || projectedState?.status == .notScheduled || projectedState == nil && onCheckInDate == nil))
+        .disabled(occurrence == nil && (projectedState?.status == .rest || projectedState?.status == .notScheduled || (projectedState == nil && onCheckInDate == nil)))
         .accessibilityLabel("\(habitName), \(dayLabel) \(dayNumber)")
         .accessibilityValue(accessibilityProgress)
         .accessibilityAddTraits(occurrence?.status == .completed ? .isSelected : [])

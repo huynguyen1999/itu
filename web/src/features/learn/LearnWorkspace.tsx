@@ -1,6 +1,7 @@
 import { History, LibraryBig, PlayCircle } from 'lucide-react';
-import { CSSProperties, PointerEvent as ReactPointerEvent, useEffect, useState } from 'react';
+import { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { useStoredNumber } from '@/shared/hooks/useStoredNumber';
 
 const navigation = [
   { to: '/learn/decks', label: 'Decks & cards', icon: LibraryBig, end: false },
@@ -60,13 +61,4 @@ export function LearnWorkspace() {
       </section>
     </div>
   );
-}
-
-function useStoredNumber(key: string, fallback: number) {
-  const [value, setValue] = useState(() => {
-    const stored = Number(window.localStorage.getItem(key));
-    return Number.isFinite(stored) && stored > 0 ? stored : fallback;
-  });
-  useEffect(() => window.localStorage.setItem(key, String(value)), [key, value]);
-  return [value, setValue] as const;
 }

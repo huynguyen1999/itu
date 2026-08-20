@@ -8,6 +8,7 @@ describe('JournalService', () => {
   let mockTagRepo: any;
   let mockAttachmentRepo: any;
   let mockWeeklyReviewQuery: any;
+  let mockReviewAutomation: any;
 
   beforeEach(() => {
     mockJournalRepo = {
@@ -47,6 +48,10 @@ describe('JournalService', () => {
         xpEarned: 300,
       }),
     };
+    mockReviewAutomation = {
+      ensureDailyReview: jest.fn(),
+      ensureWeeklyReview: jest.fn(),
+    };
 
     service = new JournalService(
       mockJournalRepo,
@@ -55,6 +60,7 @@ describe('JournalService', () => {
       mockAttachmentRepo,
       mockWeeklyReviewQuery,
       { build: jest.fn() } as any,
+      mockReviewAutomation,
     );
   });
 
@@ -80,5 +86,13 @@ describe('JournalService', () => {
       workouts: { sessions: 2 },
       growth: { xpEarned: 300 },
     });
+  });
+
+  it('checks for an automatic review before listing each review kind', async () => {
+    await service.listEntries('user1', { kind: JournalEntryKind.DAILY_REVIEW });
+    await service.listEntries('user1', { kind: JournalEntryKind.WEEKLY_REVIEW });
+
+    expect(mockReviewAutomation.ensureDailyReview).toHaveBeenCalledWith('user1');
+    expect(mockReviewAutomation.ensureWeeklyReview).toHaveBeenCalledWith('user1');
   });
 });

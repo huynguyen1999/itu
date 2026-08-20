@@ -1,4 +1,4 @@
-import { GrowthRewardPreset, GrowthSourceType, GrowthScalingMode } from '@prisma/client';
+import { GrowthRewardPreset, GrowthSourceType, GrowthScalingMode } from '@core/domain/enums';
 
 export interface PresetRuleDefinition {
   coinReward: number;

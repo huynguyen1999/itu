@@ -20,7 +20,7 @@ import {
   GrowthRewardPreset,
   GrowthScalingMode,
   GrowthSourceType,
-} from '@prisma/client';
+} from '@core/domain/enums';
 
 export class CreateGrowthSkillDto {
   @IsString() @MaxLength(80) name!: string;

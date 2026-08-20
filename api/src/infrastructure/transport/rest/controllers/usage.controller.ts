@@ -19,7 +19,9 @@ import type { AuthenticatedRequest } from '../types/authenticated-request';
 import type { BrowserExtensionRequest } from '../types/browser-extension-request';
 import {
   BrowserExtensionUsageBatchDto,
+  GenerateBrowserExtensionDsnDto,
   ScreenTimeUsageBatchDto,
+  ScreenTimeQueryDto,
   UsageDateQueryDto,
   UsageSummaryBatchDto,
   WebsiteActivitySessionBatchDto,
@@ -41,6 +43,24 @@ export class ScreenTimeUsageController {
   @Post('events/batch')
   ingest(@Req() req: AuthenticatedRequest, @Body() body: ScreenTimeUsageBatchDto) {
     return this.usage.ingestScreenTimeEvents(req.user.sub, body);
+  }
+
+  @ApiOperation({ operationId: 'getScreenTimeStatistics' })
+  @Get('statistics')
+  getStatistics(@Req() req: AuthenticatedRequest, @Query() query: ScreenTimeQueryDto) {
+    return this.usage.getScreenTimeStatistics(
+      req.user.sub,
+      query.from ?? query.startDate,
+      query.to ?? query.endDate,
+      query.deviceId,
+      query.timezone,
+    );
+  }
+
+  @ApiOperation({ operationId: 'deleteScreenTimeEvents' })
+  @Delete('events')
+  deleteEvents(@Req() req: AuthenticatedRequest, @Query() query: UsageDateQueryDto) {
+    return this.usage.deleteScreenTimeEvents(req.user.sub, query.deviceId);
   }
 }
 
@@ -147,8 +167,8 @@ export class BrowserExtensionUsageController {
   @ApiOperation({ operationId: 'generateBrowserExtensionDsn' })
   @UseGuards(AuthGuard)
   @Post(REST_ROUTES.usageDsn)
-  generateDsn(@Req() req: AuthenticatedRequest) {
-    return this.usage.generateBrowserExtensionDsn(req.user.sub);
+  generateDsn(@Req() req: AuthenticatedRequest, @Body() body?: GenerateBrowserExtensionDsnDto) {
+    return this.usage.generateBrowserExtensionDsn(req.user.sub, body?.kind);
   }
 
   @ApiOperation({ operationId: 'ingestBrowserExtensionUsage' })

@@ -1,5 +1,3 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { TOKENS } from '@core/application/constants/tokens';
 import type {
   ICardUseCase,
   AttachImageCommand,
@@ -21,13 +19,12 @@ import { CursorPage, CursorPageOptions } from '@core/application/ports/paginatio
 
 const MAX_IMAGES_PER_CARD = 8;
 
-@Injectable()
 export class CardService implements ICardUseCase {
   constructor(
-    @Inject(TOKENS.DECK_REPOSITORY) private readonly decks: IDeckRepository,
-    @Inject(TOKENS.CARD_REPOSITORY) private readonly cards: ICardRepository,
-    @Inject(TOKENS.REVIEW_STATE_REPOSITORY) private readonly reviewStates: IReviewStateRepository,
-    @Inject(TOKENS.MEDIA_STORAGE) private readonly media: IMediaStorage,
+    private readonly decks: IDeckRepository,
+    private readonly cards: ICardRepository,
+    private readonly reviewStates: IReviewStateRepository,
+    private readonly media: IMediaStorage,
   ) {}
 
   async list(userId: string, deckId: string, options?: CursorPageOptions): Promise<CursorPage<CardModel>> {

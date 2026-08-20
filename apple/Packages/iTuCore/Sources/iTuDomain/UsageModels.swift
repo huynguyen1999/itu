@@ -717,12 +717,25 @@ public struct WebsiteUsageStatistics: Codable, Equatable, Sendable {
                 )
             }
         }
-        let hostnameItems = hostnames.map { WebsiteUsageHostnameTotal(hostname: $0.key, activeSeconds: $0.value) }
-            .sorted { $0.activeSeconds == $1.activeSeconds ? $0.hostname < $1.hostname : $0.activeSeconds > $1.activeSeconds }
-        let dailyItems = daily.map { WebsiteUsageDailyTotal(localDate: $0.key, activeSeconds: $0.value) }
-            .sorted { $0.localDate < $1.localDate }
-        let browserItems = browsers.map { WebsiteUsageBrowserTotal(browserBundleId: $0.key, browserDisplayName: $0.value.name, activeSeconds: $0.value.seconds) }
-            .sorted { $0.activeSeconds == $1.activeSeconds ? $0.browserDisplayName < $1.browserDisplayName : $0.activeSeconds > $1.activeSeconds }
+        let hostnameItems: [WebsiteUsageHostnameTotal] = hostnames.map {
+            WebsiteUsageHostnameTotal(hostname: $0.key, activeSeconds: $0.value)
+        }.sorted { a, b in
+            if a.activeSeconds == b.activeSeconds {
+                return a.hostname < b.hostname
+            }
+            return a.activeSeconds > b.activeSeconds
+        }
+        let dailyItems: [WebsiteUsageDailyTotal] = daily.map {
+            WebsiteUsageDailyTotal(localDate: $0.key, activeSeconds: $0.value)
+        }.sorted { $0.localDate < $1.localDate }
+        let browserItems: [WebsiteUsageBrowserTotal] = browsers.map { entry in
+            WebsiteUsageBrowserTotal(browserBundleId: entry.key, browserDisplayName: entry.value.name, activeSeconds: entry.value.seconds)
+        }.sorted { a, b in
+            if a.activeSeconds == b.activeSeconds {
+                return a.browserDisplayName < b.browserDisplayName
+            }
+            return a.activeSeconds > b.activeSeconds
+        }
         return WebsiteUsageStatistics(
             totalActiveSeconds: totalActive,
             hostnames: hostnameItems,
@@ -749,12 +762,25 @@ public struct WebsiteUsageStatistics: Codable, Equatable, Sendable {
                 (existing?.seconds ?? 0) + item.activeSeconds
             )
         }
-        let hostnameItems = hosts.map { WebsiteUsageHostnameTotal(hostname: $0.key, activeSeconds: $0.value) }
-            .sorted { $0.activeSeconds == $1.activeSeconds ? $0.hostname < $1.hostname : $0.activeSeconds > $1.activeSeconds }
-        let dailyItems = days.map { WebsiteUsageDailyTotal(localDate: $0.key, activeSeconds: $0.value) }
-            .sorted { $0.localDate < $1.localDate }
-        let browserItems = brows.map { WebsiteUsageBrowserTotal(browserBundleId: $0.key, browserDisplayName: $0.value.name, activeSeconds: $0.value.seconds) }
-            .sorted { $0.activeSeconds == $1.activeSeconds ? $0.browserDisplayName < $1.browserDisplayName : $0.activeSeconds > $1.activeSeconds }
+        let hostnameItems: [WebsiteUsageHostnameTotal] = hosts.map {
+            WebsiteUsageHostnameTotal(hostname: $0.key, activeSeconds: $0.value)
+        }.sorted { a, b in
+            if a.activeSeconds == b.activeSeconds {
+                return a.hostname < b.hostname
+            }
+            return a.activeSeconds > b.activeSeconds
+        }
+        let dailyItems: [WebsiteUsageDailyTotal] = days.map {
+            WebsiteUsageDailyTotal(localDate: $0.key, activeSeconds: $0.value)
+        }.sorted { $0.localDate < $1.localDate }
+        let browserItems: [WebsiteUsageBrowserTotal] = brows.map { entry in
+            WebsiteUsageBrowserTotal(browserBundleId: entry.key, browserDisplayName: entry.value.name, activeSeconds: entry.value.seconds)
+        }.sorted { a, b in
+            if a.activeSeconds == b.activeSeconds {
+                return a.browserDisplayName < b.browserDisplayName
+            }
+            return a.activeSeconds > b.activeSeconds
+        }
         return WebsiteUsageStatistics(
             totalActiveSeconds: totalActiveSeconds + added.totalActiveSeconds,
             hostnames: hostnameItems,

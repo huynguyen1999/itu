@@ -1,28 +1,16 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
-import { TOKENS } from '@core/application/constants/tokens';
 import type { IProductivityRepository, ISyncDeviceRepository } from '@core/application/ports/out/repositories.port';
 import type { IQueueJobHandler, IMediaStorage, ISyncInvalidationNotifier } from '@core/application/ports/out/services.port';
 import { DomainException, EntityNotFoundException } from '@core/domain/exceptions';
 import { FocusSessionStatus } from '@core/application/constants/productivity.constants';
-import { FocusPhase } from '@prisma/client';
+import { FocusPhase } from '@core/domain/enums';
 import { BUILTIN_FOCUS_SOUNDS } from '@core/application/constants/focus-sound.constants';
 
-@Injectable()
 export class FocusService {
   constructor(
-    @Inject(TOKENS.PRODUCTIVITY_REPOSITORY)
     private readonly repo: IProductivityRepository,
-    @Optional()
-    @Inject(TOKENS.SYNC_INVALIDATION_NOTIFIER)
     private readonly invalidationNotifier?: ISyncInvalidationNotifier,
-    @Optional()
-    @Inject(TOKENS.SYNC_DEVICE_REPOSITORY)
     private readonly devices?: ISyncDeviceRepository,
-    @Optional()
-    @Inject(TOKENS.QUEUE_JOB_HANDLER)
     private readonly queue?: IQueueJobHandler,
-    @Optional()
-    @Inject(TOKENS.MEDIA_STORAGE)
     private readonly media?: IMediaStorage,
   ) {}
 

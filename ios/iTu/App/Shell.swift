@@ -13,7 +13,11 @@ public struct RootView: View {
 
     public var body: some View {
         Group {
-            if model.isRestoring {
+            if model.appUpdateRequiresUpdate, let policy = model.appUpdatePolicy {
+                IOSRequiredAppUpdateView(policy: policy) {
+                    model.openAppUpdateURL()
+                }
+            } else if model.isRestoring {
                 VStack(spacing: IOSSpacing.compact) {
                     Image(systemName: "leaf.fill")
                         .font(.title2)
@@ -26,6 +30,16 @@ public struct RootView: View {
                 IOSRootView()
             } else {
                 LoginView()
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: IOSSpacing.tight) {
+            if let policy = model.appUpdateOptionalPolicy {
+                IOSOptionalAppUpdateBanner(
+                    policy: policy,
+                    onUpdate: { model.openAppUpdateURL() },
+                    onDismiss: { model.dismissOptionalAppUpdate() }
+                )
+                .padding(.horizontal, IOSSpacing.compact)
             }
         }
         .tint(IOSColor.teal(colorScheme))

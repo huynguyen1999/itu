@@ -1,0 +1,30 @@
+[
+  {
+    "id": "01a0049e-bc45-76e0-a421-4120dddb12d8",
+    "lesson": "The Space Conflict",
+    "date": "2026-08-21",
+    "startTime": "18:15:00",
+    "teacher": "Jamie",
+    "room": "Ground",
+    "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+    "subClassType": {
+      "name": "The Office Improv",
+      "color": "#FFFFFF",
+      "bgcolor": "#ef7947"
+    }
+  },
+  {
+    "id": "01a00388-58bd-7388-b6ec-f4625d504c71",
+    "lesson": "Nail a negotiation 1",
+    "date": "2026-08-22",
+    "startTime": "15:30:00",
+    "teacher": "Hưng",
+    "room": "Ground",
+    "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+    "subClassType": {
+      "name": "FreeTalk 2",
+      "color": "#FFFFFF",
+      "bgcolor": "#ff6464"
+    }
+  }
+]

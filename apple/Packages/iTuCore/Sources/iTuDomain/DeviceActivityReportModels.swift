@@ -35,34 +35,19 @@ public struct DeviceActivityReportApplication: Codable, Equatable, Sendable {
     }
 }
 
-public struct DeviceActivityReportWebsite: Codable, Equatable, Sendable {
-    public let window: DeviceActivityUsageWindow
-    public let hostname: String
-    public let activeSeconds: Int
-
-    public init(window: DeviceActivityUsageWindow, hostname: String, activeSeconds: Int) {
-        self.window = window
-        self.hostname = hostname
-        self.activeSeconds = activeSeconds
-    }
-}
-
 public struct DeviceActivityReportSnapshot: Codable, Equatable, Sendable {
     public let capturedAt: String
     public let windows: [DeviceActivityUsageWindow]
     public let applications: [DeviceActivityReportApplication]
-    public let websites: [DeviceActivityReportWebsite]
 
     public init(
         capturedAt: String,
         windows: [DeviceActivityUsageWindow],
-        applications: [DeviceActivityReportApplication],
-        websites: [DeviceActivityReportWebsite]
+        applications: [DeviceActivityReportApplication]
     ) {
         self.capturedAt = capturedAt
         self.windows = windows
         self.applications = applications
-        self.websites = websites
     }
 }
 

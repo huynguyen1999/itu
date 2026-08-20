@@ -190,7 +190,7 @@ public extension APIClient {
                     "endedAt": .string(isoFormatter.string(from: event.endedAt)),
                     "durationSeconds": .number(Double(event.durationSeconds))
                 ]
-                if let sourceDeviceName = event.sourceDeviceName {
+                if let sourceDeviceName = event.sourceDeviceName?.trimmingCharacters(in: .whitespacesAndNewlines), !sourceDeviceName.isEmpty {
                     payload["sourceDeviceName"] = .string(sourceDeviceName)
                 }
                 return .object(payload)
@@ -201,6 +201,30 @@ public extension APIClient {
             method: "POST",
             body: body
         )
+    }
+
+    func fetchScreenTimeStatistics(
+        from: String? = nil,
+        to: String? = nil,
+        deviceId: String? = nil,
+        timezone: String? = nil
+    ) async throws -> ScreenTimeStatistics {
+        var path = "/usage/screentime/statistics"
+        var query: [String] = []
+        if let from { query.append("from=\(from)") }
+        if let to { query.append("to=\(to)") }
+        if let deviceId, deviceId != "all" { query.append("deviceId=\(escapedPath(deviceId))") }
+        if let timezone { query.append("timezone=\(escapedPath(timezone))") }
+        if !query.isEmpty { path += "?\(query.joined(separator: "&"))" }
+        return try await request(path: path)
+    }
+
+    func deleteScreenTimeEvents(deviceId: String? = nil) async throws {
+        var path = "/usage/screentime/events"
+        if let deviceId, deviceId != "all" {
+            path += "?deviceId=\(escapedPath(deviceId))"
+        }
+        let _: EmptyResponse = try await request(path: path, method: "DELETE")
     }
 }
 

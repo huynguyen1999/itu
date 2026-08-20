@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post,
 import { ApiOperation } from '@nestjs/swagger';
 import { MEDIA_CONSTANTS, MEDIA_ERRORS, REST_ROUTES } from '@core/application/constants/app.constants';
 import { TaskService } from '@core/application/use-cases/task.service';
-import { TaskStatus } from '@prisma/client';
+import { TaskStatus } from '@core/domain/enums';
 import { HabitService } from '@core/application/use-cases/habit.service';
 import { FocusService } from '@core/application/use-cases/focus.service';
 import { AuthGuard } from '../guards/auth.guard';

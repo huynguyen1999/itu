@@ -126,27 +126,34 @@ public enum BiomeRecordDecoder {
             ))
         }
 
+        // Sort trailers by endOffsetRel32 matching ccl_segb specification
+        trailers.sort { $0.endOffsetRel32 < $1.endOffsetRel32 }
+
         var events: [BiomeAppInFocusEvent] = []
-        var prevEndRel = 0
+        var currentStreamPos = headerSize
 
         for trailer in trailers {
-            let entryStart = headerSize + prevEndRel
             let entryEnd = headerSize + trailer.endOffsetRel32
-            prevEndRel = trailer.endOffsetRel32
+            let remainder = trailer.endOffsetRel32 % 4
+            let nextPos = entryEnd + (remainder != 0 ? (4 - remainder) : 0)
 
-            // State 1 = Written / Active entry
+            defer {
+                currentStreamPos = nextPos
+            }
+
+            // State 4 is an empty record; state 1 is written/active entry
             guard trailer.state == 1 else {
                 continue
             }
 
-            guard entryStart >= headerSize,
+            guard currentStreamPos >= headerSize,
                   entryEnd <= totalSize - trailerTotalSize,
-                  entryEnd >= entryStart + entryHeaderSize else {
+                  entryEnd >= currentStreamPos + entryHeaderSize else {
                 continue
             }
 
             // Skip 8-byte entry header (CRC32 + Info)
-            let payloadData = data.subdata(in: (entryStart + entryHeaderSize)..<entryEnd)
+            let payloadData = data.subdata(in: (currentStreamPos + entryHeaderSize)..<entryEnd)
             let fields = BiomeProtobufDecoder.decodeFields(from: payloadData)
 
             // Extract App.InFocus protobuf fields:

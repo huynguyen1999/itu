@@ -358,9 +358,35 @@ describe('UsageService', () => {
       'user-1',
       expect.any(String),
       expect.not.stringContaining(dsnKey),
+      'DEFAULT_BROWSER',
     );
     await expect(service.authenticateBrowserExtensionDsn(dsnKey)).resolves.toEqual({ userId: 'user-1' });
     expect(repo.findBrowserExtensionCredential).toHaveBeenCalledWith(expect.stringMatching(/^[a-f0-9]{64}$/));
+  });
+
+  it('rotates Safari and default browser DSNs independently', async () => {
+    const hashes = new Map<string, string>();
+    repo.replaceBrowserExtensionCredential.mockImplementation(
+      async (userId: string, _id: string, keyHash: string, kind: string) => {
+        hashes.set(kind, keyHash);
+        repo.findBrowserExtensionCredential.mockImplementation(async (candidate: string) =>
+          [...hashes.values()].includes(candidate) ? { userId } : null,
+        );
+      },
+    );
+    const service = new UsageService(repo);
+    const chromium = await service.generateBrowserExtensionDsn('user-1');
+    const oldSafari = await service.generateBrowserExtensionDsn('user-1', 'SAFARI_IOS');
+    const newSafari = await service.generateBrowserExtensionDsn('user-1', 'SAFARI_IOS');
+
+    await expect(service.authenticateBrowserExtensionDsn(chromium.dsnKey)).resolves.toEqual({ userId: 'user-1' });
+    await expect(service.authenticateBrowserExtensionDsn(oldSafari.dsnKey)).resolves.toBeNull();
+    await expect(service.authenticateBrowserExtensionDsn(newSafari.dsnKey)).resolves.toEqual({ userId: 'user-1' });
+
+    const newChromium = await service.generateBrowserExtensionDsn('user-1');
+    await expect(service.authenticateBrowserExtensionDsn(chromium.dsnKey)).resolves.toBeNull();
+    await expect(service.authenticateBrowserExtensionDsn(newChromium.dsnKey)).resolves.toEqual({ userId: 'user-1' });
+    await expect(service.authenticateBrowserExtensionDsn(newSafari.dsnKey)).resolves.toEqual({ userId: 'user-1' });
   });
 
   it('ingests extension summaries under its installation device', async () => {

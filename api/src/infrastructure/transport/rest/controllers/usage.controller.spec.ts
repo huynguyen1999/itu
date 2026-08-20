@@ -41,6 +41,18 @@ describe('UsageAppController', () => {
 });
 
 describe('BrowserExtensionUsageController', () => {
+  it('requests the Safari credential kind without changing the DSN route', async () => {
+    const usage = { generateBrowserExtensionDsn: jest.fn().mockResolvedValue({ dsnKey: 'safari-dsn' }) } as any;
+
+    await expect(
+      new BrowserExtensionUsageController(usage).generateDsn(
+        { user: { sub: 'user-1' } } as any,
+        { kind: 'SAFARI_IOS' },
+      ),
+    ).resolves.toEqual({ dsnKey: 'safari-dsn' });
+    expect(usage.generateBrowserExtensionDsn).toHaveBeenCalledWith('user-1', 'SAFARI_IOS');
+  });
+
   it('passes DSN-owned user identity to session ingestion', async () => {
     const usage = { ingestWebsiteActivitySessions: jest.fn().mockResolvedValue({ accepted: ['s-1'], rejected: [] }) } as any;
     const body = { installationId: 'install-1', sessions: [] } as any;

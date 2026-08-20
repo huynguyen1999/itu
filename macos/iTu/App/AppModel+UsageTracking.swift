@@ -266,7 +266,7 @@ extension AppModel {
             usageServerStatistics = server
             usageIsLocalOnly = false
             var combined = server.adding(pending)
-            if let outboxItems = await biomeCoordinator?.allOutboxIntervals() {
+            if let outboxItems = await biomeCoordinator?.pendingOutboxIntervals() {
                 var pendingBiomeSummaries: [UsageSummary] = []
                 for item in outboxItems {
                     guard !BiomeUsageNormalizer.isSystemExcluded(bundleId: item.bundleId) else { continue }
@@ -310,6 +310,24 @@ extension AppModel {
             websiteUsageStatistics = .aggregating(localWeb)
             websiteUsageError = error.localizedDescription
         }
+
+        // Fetch Screen Time Statistics with current device scope
+        do {
+            let tz = TimeZone.current.identifier
+            let deviceScopeId = screenTimeDeviceScope.id
+            let stStats = try await apiClient.fetchScreenTimeStatistics(
+                from: from,
+                to: to,
+                deviceId: deviceScopeId == "all" ? nil : deviceScopeId,
+                timezone: tz
+            )
+            self.screenTimeStatistics = stStats
+            self.usageStatistics = stStats.asUsageStatistics
+        } catch {
+            #if DEBUG
+            print("[AppModel] ScreenTime statistics fetch failed: \(error)")
+            #endif
+        }
     }
 
     func deleteUsage(from: String? = nil, to: String? = nil) async {
@@ -319,6 +337,7 @@ extension AppModel {
             applyUsageSnapshot(try await offlineStore.deleteUsage(from: from, to: to))
             usageStatistics = nil
             websiteUsageStatistics = nil
+            screenTimeStatistics = nil
         } catch {
             usageError = error.localizedDescription
         }
@@ -344,7 +363,18 @@ extension AppModel {
         guard let coordinator = biomeCoordinator else { return screenTimeStatus }
         let newStatus = await coordinator.runOnce()
         self.screenTimeStatus = newStatus
-        await refreshUsage()
+        let today = StatisticsPeriod.dateKey(Date())
+        await refreshUsage(from: today, to: today)
+        return newStatus
+    }
+
+    @discardableResult
+    func rebuildAllScreenTimeBiomeHistory() async -> ScreenTimeImportStatus {
+        guard let coordinator = biomeCoordinator else { return screenTimeStatus }
+        let newStatus = await coordinator.rebuildAllBiomeHistory()
+        self.screenTimeStatus = newStatus
+        let today = StatisticsPeriod.dateKey(Date())
+        await refreshUsage(from: today, to: today)
         return newStatus
     }
 
@@ -353,7 +383,8 @@ extension AppModel {
         guard let coordinator = biomeCoordinator else { return screenTimeStatus }
         let newStatus = await coordinator.reimportLast7Days()
         self.screenTimeStatus = newStatus
-        await refreshUsage()
+        let today = StatisticsPeriod.dateKey(Date())
+        await refreshUsage(from: today, to: today)
         return newStatus
     }
 

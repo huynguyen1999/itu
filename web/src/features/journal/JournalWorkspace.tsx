@@ -1,5 +1,6 @@
-import { CSSProperties, PointerEvent as ReactPointerEvent, useEffect, useState } from 'react';
+import { CSSProperties, PointerEvent as ReactPointerEvent, useEffect } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { useStoredNumber } from '@/shared/hooks/useStoredNumber';
 import { JournalSidebar } from './JournalSidebar';
 import { JournalDashboard } from './JournalDashboard';
 import { JournalEntryPage } from './JournalEntryPage';
@@ -73,13 +74,4 @@ function DailyNoteRoute() {
   }, [isLoading, navigate, notes, today]);
 
   return <div className="flex min-h-64 items-center justify-center text-sm text-muted-foreground" role="status">Opening today’s note…</div>;
-}
-
-function useStoredNumber(key: string, fallback: number) {
-  const [value, setValue] = useState(() => {
-    const stored = Number(window.localStorage.getItem(key));
-    return Number.isFinite(stored) && stored > 0 ? stored : fallback;
-  });
-  useEffect(() => window.localStorage.setItem(key, String(value)), [key, value]);
-  return [value, setValue] as const;
 }

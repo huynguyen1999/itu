@@ -136,33 +136,26 @@ final class OfflineStoreTests: XCTestCase {
         XCTAssertEqual(separated.filter { $0.bundleId == "app.a" }.count, 2)
     }
 
-    func testDeviceActivityWebsiteReplacementKeepsAdjacentHours() async throws {
+    func testLoadRemovesLegacyDeviceActivityWebsitesButKeepsBrowserRows() async throws {
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = OfflineStore(accountID: "account", location: OfflineStoreLocation(rootURL: root))
+        let location = OfflineStoreLocation(rootURL: root)
+        let store = OfflineStore(accountID: "account", location: location)
         _ = try await store.load()
+        _ = try await store.upsertWebsiteUsage(WebsiteUsageSummary(
+            localDate: "2026-08-17", hour: 9, browserDisplayName: "DeviceActivity", hostname: "screen.example",
+            timezone: "Asia/Ho_Chi_Minh", activeSeconds: 20, source: .deviceActivity, deviceId: "ios-device"
+        ))
+        _ = try await store.upsertWebsiteUsage(WebsiteUsageSummary(
+            localDate: "2026-08-17", hour: 9, browserBundleId: "com.apple.mobilesafari", browserDisplayName: "Safari",
+            hostname: "browser.example", timezone: "Asia/Ho_Chi_Minh", activeSeconds: 30, source: .browser,
+            deviceId: "safari-installation"
+        ))
 
-        let hourNine = WebsiteUsageSummary(
-            localDate: "2026-08-17", hour: 9, browserDisplayName: "DeviceActivity", hostname: "example.com",
-            url: "https://example.com/a", timezone: "Asia/Ho_Chi_Minh", activeSeconds: 20
-        )
-        let hourTen = WebsiteUsageSummary(
-            localDate: "2026-08-17", hour: 10, browserDisplayName: "DeviceActivity", hostname: "example.com",
-            url: "https://example.com/b", timezone: "Asia/Ho_Chi_Minh", activeSeconds: 30
-        )
-        _ = try await store.replaceDeviceActivityWebsiteUsage([hourNine, hourTen], deviceId: "ios-device")
-        _ = try await store.replaceDeviceActivityWebsiteUsage([
-            WebsiteUsageSummary(
-                localDate: "2026-08-17", hour: 9, browserDisplayName: "DeviceActivity", hostname: "example.com",
-                url: "https://example.com/a", timezone: "Asia/Ho_Chi_Minh", activeSeconds: 45
-            )
-        ], deviceId: "ios-device")
-
-        let websites = await store.websiteUsageSummaries()
-        XCTAssertEqual(websites.count, 2)
-        XCTAssertEqual(websites.first(where: { $0.hour == 9 })?.activeSeconds, 45)
-        XCTAssertEqual(websites.first(where: { $0.hour == 10 })?.activeSeconds, 30)
-        XCTAssertTrue(websites.allSatisfy { $0.source == .deviceActivity && $0.browserBundleId == nil })
+        let reloaded = OfflineStore(accountID: "account", location: location)
+        _ = try await reloaded.load()
+        let websites = await reloaded.websiteUsageSummaries()
+        XCTAssertEqual(websites.map(\.hostname), ["browser.example"])
     }
 
     private func temporaryDirectory() throws -> URL {

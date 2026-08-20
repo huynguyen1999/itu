@@ -631,5 +631,32 @@ public extension OfflineStore {
         return state
     }
 
+    @discardableResult
+    func resolveConflicts(_ conflicts: [SyncConflict], keepLocal: Bool) throws -> OfflineSnapshot {
+        for conflict in conflicts {
+            if keepLocal {
+                try keepConflict(conflict)
+            } else {
+                try discardConflict(conflict.mutationId)
+            }
+        }
+        return state
+    }
 
+    @discardableResult
+    func discardMutations(_ mutationIds: [String]) throws -> OfflineSnapshot {
+        let ids = Set(mutationIds)
+        state.mutations.removeAll { ids.contains($0.id) }
+        state.conflicts.removeAll { ids.contains($0.mutationId) }
+        try persist()
+        return state
+    }
+
+    @discardableResult
+    func retryMutations(_ mutationIds: [String], keepLocal: Bool = false) throws -> OfflineSnapshot {
+        for id in mutationIds {
+            try retryMutation(id, keepLocal: keepLocal)
+        }
+        return state
+    }
 }

@@ -1,5 +1,3 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { TOKENS } from '@core/application/constants/tokens';
 import {
   DomainException,
   EntityNotFoundException,
@@ -23,22 +21,31 @@ import type {
   IUserRepository,
 } from '@core/application/ports/out/repositories.port';
 import type { IAccessRepository } from '@core/application/ports/out/access-repository.port';
+import type { GoogleOAuthPort } from '@core/application/ports/out/google-oauth.port';
 import type { IPasswordHasher, IQueueJobHandler, ITokenService } from '@core/application/ports/out/services.port';
 import { AUTH_CONSTANTS, AUTH_ERROR_CODES, DELETION_CONSTANTS } from '@core/application/constants/app.constants';
 
 const OAUTH_HANDOFF_TTL_MS = 2 * 60 * 1000;
 
-@Injectable()
 export class AuthService implements IAuthUseCase {
   constructor(
-    @Inject(TOKENS.USER_REPOSITORY) private readonly users: IUserRepository,
-    @Inject(TOKENS.PASSWORD_HASHER) private readonly hasher: IPasswordHasher,
-    @Inject(TOKENS.TOKEN_SERVICE) private readonly tokens: ITokenService,
-    @Inject(TOKENS.QUEUE_JOB_HANDLER) private readonly queue: IQueueJobHandler,
-    @Inject(TOKENS.REFRESH_SESSION_REPOSITORY) private readonly refreshSessions: IRefreshSessionRepository,
-    @Inject(TOKENS.OAUTH_HANDOFF_REPOSITORY) private readonly oauthHandoffs: IOAuthHandoffRepository,
-    @Inject(TOKENS.ACCESS_REPOSITORY) private readonly access: IAccessRepository,
+    private readonly users: IUserRepository,
+    private readonly hasher: IPasswordHasher,
+    private readonly tokens: ITokenService,
+    private readonly queue: IQueueJobHandler,
+    private readonly refreshSessions: IRefreshSessionRepository,
+    private readonly oauthHandoffs: IOAuthHandoffRepository,
+    private readonly access: IAccessRepository,
+    private readonly googleOAuth: GoogleOAuthPort,
   ) {}
+
+  googleAuthorizationUrl(): string {
+    return this.googleOAuth.authorizationUrl();
+  }
+
+  async loginWithGoogleCode(code: string): Promise<GoogleAuthResult> {
+    return this.loginWithGoogle(await this.googleOAuth.fetchProfile(code));
+  }
 
   async register(command: RegisterCommand): Promise<AuthResult> {
     const email = command.email?.trim().toLowerCase();

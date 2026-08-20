@@ -56,6 +56,16 @@ public actor OfflineStore {
         
         // Migrate legacy "habit.checkin" mutations to "habitoccurrence.*"
         var migrated = false
+        let deviceActivityWebsiteIDs = Set(
+            state.websiteUsageSummaries.filter { $0.source == .deviceActivity }.map(\.id)
+        )
+        if !deviceActivityWebsiteIDs.isEmpty {
+            state.websiteUsageSummaries.removeAll { deviceActivityWebsiteIDs.contains($0.id) }
+            state.websiteUsageUploadWatermarks = state.websiteUsageUploadWatermarks.filter {
+                !deviceActivityWebsiteIDs.contains($0.key)
+            }
+            migrated = true
+        }
         for i in 0..<state.mutations.count {
             let mutation = state.mutations[i]
             if mutation.kind == "habit.checkin" {

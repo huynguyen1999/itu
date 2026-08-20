@@ -1,12 +1,13 @@
-import { GrowthOnboardingState, GrowthProgressKind } from '@prisma/client';
+import { GrowthOnboardingState, GrowthProgressKind } from '@core/domain/enums';
 import { createUlid } from '@core/application/ulid';
+import type { ApplicationTransactionPort } from '@core/application/ports/out/application-transaction.port';
 import {
   STARTER_SKILLS,
   STARTER_SKILL_KEYS,
   STARTER_ATTRIBUTE_MAPPING_ROUTES,
 } from './growth-starter-skills';
 
-type Tx = Record<string, any>;
+type Tx = ApplicationTransactionPort;
 
 export async function ensureStarterSkills(
   tx: Tx,

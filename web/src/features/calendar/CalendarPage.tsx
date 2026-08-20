@@ -8,7 +8,7 @@ import { CalendarTimeline, groupCalendarItems, ReadonlyDetails } from './compone
 import { CalendarToolbar } from './components/CalendarToolbar';
 import { useCalendarData } from './hooks/useCalendarData';
 import { useCalendarTaskInteractions } from './hooks/useCalendarTaskInteractions';
-import { dayTimelineScrollTop, formatRangeLabel, shiftAnchor, weekTimelineScrollLeft } from './timeline';
+import { dayTimelineScrollTop, formatRangeLabel, isSameLocalDay, shiftAnchor, weekTimelineScrollLeft } from './timeline';
 
 export function CalendarPage() {
   const {
@@ -36,14 +36,20 @@ export function CalendarPage() {
       const track = trackRef.current;
       if (!track) return;
       const { items: visibleItems, days: visibleDays } = positioningData.current;
+      const timedTrack = track.querySelector<HTMLElement>('[data-calendar-timed-track]');
+      const trackOffset = timedTrack
+        ? timedTrack.getBoundingClientRect().top - track.getBoundingClientRect().top + track.scrollTop
+        : 0;
+      const now = new Date();
+
       if (zoom === 'DAY') {
-        const timedTrack = track.querySelector<HTMLElement>('[data-calendar-timed-track]');
-        const trackOffset = timedTrack
-          ? timedTrack.getBoundingClientRect().top - track.getBoundingClientRect().top + track.scrollTop
-          : 0;
-        track.scrollTop = Math.max(0, trackOffset + dayTimelineScrollTop(visibleItems));
-      } else {
-        track.scrollLeft = weekTimelineScrollLeft(visibleItems, visibleDays);
+        const day = visibleDays[0] ?? anchor;
+        track.scrollTop = Math.max(0, trackOffset + dayTimelineScrollTop(visibleItems, day, now));
+      } else if (zoom === 'WEEK') {
+        const todayInWeek = visibleDays.find((d) => isSameLocalDay(d, now));
+        const targetDay = todayInWeek ?? visibleDays[0] ?? anchor;
+        track.scrollTop = Math.max(0, trackOffset + dayTimelineScrollTop(visibleItems, targetDay, now));
+        track.scrollLeft = weekTimelineScrollLeft(visibleItems, visibleDays, now);
       }
     });
     return () => window.cancelAnimationFrame(frame);

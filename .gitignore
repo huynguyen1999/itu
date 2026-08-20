@@ -31,12 +31,17 @@ coverage/
 .roo
 plans/
 
-# Cloudflare bypass tool
+# Cloudflare bypass / Talkfirst tool
 tools/cloudflare-bypass/.cf-storage.json
 tools/cloudflare-bypass/.cf-profile/
 tools/cloudflare-bypass/.tokens.json
 tools/cloudflare-bypass/last-registration-report.json
 tools/cloudflare-bypass/page-dump.html
 tools/cloudflare-bypass/node_modules/
+tools/talkfirst-register/.tokens.json
+tools/talkfirst-register/.cf-storage.json
+tools/talkfirst-register/.cf-profile/
+tools/talkfirst-register/last-registration-report.json
+tools/talkfirst-register/node_modules/
 
 apple/Packages/iTuCore/.build

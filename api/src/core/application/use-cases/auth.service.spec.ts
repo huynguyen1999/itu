@@ -6,6 +6,7 @@ import type {
   IUserRepository,
 } from '@core/application/ports/out/repositories.port';
 import type { IAccessRepository } from '@core/application/ports/out/access-repository.port';
+import type { GoogleOAuthPort } from '@core/application/ports/out/google-oauth.port';
 import type { IPasswordHasher, IQueueJobHandler, ITokenService } from '@core/application/ports/out/services.port';
 import { InvalidCredentialsException, TermsNotAcceptedException } from '@core/domain/exceptions';
 import type { UserModel } from '@core/domain/models';
@@ -19,6 +20,7 @@ describe('AuthService', () => {
   let refreshSessionsMock: jest.Mocked<IRefreshSessionRepository>;
   let oauthHandoffsMock: jest.Mocked<IOAuthHandoffRepository>;
   let accessMock: jest.Mocked<IAccessRepository>;
+  let googleOAuthMock: jest.Mocked<GoogleOAuthPort>;
 
   beforeEach(() => {
     usersMock = {
@@ -73,6 +75,10 @@ describe('AuthService', () => {
       getUserAccess: jest.fn().mockResolvedValue({ roles: [], permissions: [] }),
       assignDefaultRoles: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<IAccessRepository>;
+    googleOAuthMock = {
+      authorizationUrl: jest.fn().mockReturnValue('https://accounts.google.com/o/oauth2/v2/auth'),
+      fetchProfile: jest.fn(),
+    };
 
     service = new AuthService(
       usersMock,
@@ -82,7 +88,24 @@ describe('AuthService', () => {
       refreshSessionsMock,
       oauthHandoffsMock,
       accessMock,
+      googleOAuthMock,
     );
+  });
+
+  it('delegates the authorization-code exchange through the Google OAuth port', async () => {
+    googleOAuthMock.fetchProfile.mockResolvedValue({
+      email: 'new@example.com',
+      displayName: 'New User',
+      providerUserId: 'google-123',
+    });
+    usersMock.findByEmail.mockResolvedValue(null);
+    tokensMock.signRegisterToken.mockResolvedValue('mock-register-token');
+
+    await expect(service.loginWithGoogleCode('authorization-code')).resolves.toEqual({
+      type: 'register',
+      registerToken: 'mock-register-token',
+    });
+    expect(googleOAuthMock.fetchProfile).toHaveBeenCalledWith('authorization-code');
   });
 
   describe('loginWithGoogle', () => {

@@ -65,6 +65,29 @@ bash scripts/code-health.sh
 
 The thresholds in `.swiftlint.yml` are warnings first. Periphery retains public declarations and SwiftUI previews so its report can be reviewed before any deletion.
 
+## Releases
+
+The macOS archive contains the signed `BrowserActivityHost` at
+`iTu.app/Contents/Helpers/BrowserActivityHost`. Install the Edge native host
+manifest with the installed app path so upgrades do not depend on DerivedData:
+
+```sh
+ITU_APP_BUNDLE_PATH=/Applications/iTu.app \
+  ./NativeHost/install-edge-native-host.sh EDGE_EXTENSION_ID
+```
+
+The manual [`Apple Release` workflow](../.github/workflows/apple-release.yml)
+builds, signs, verifies the selected Apple artifact, and notarizes macOS
+archives. Publishing
+requires these repository variables: `MACOS_RELEASE_BASE_URL`,
+`MACOS_RELEASE_UPLOAD_URL`, `MACOS_APPCAST_URL`, `MACOS_APPCAST_UPLOAD_URL`,
+`IOS_RELEASE_UPLOAD_URL`, `IOS_ARTIFACT_URL`, `IOS_UPDATE_URL`,
+`APP_VERSION_POLICY_UPLOAD_URL`, and the Sparkle public Ed25519 key as
+`SPARKLE_PUBLIC_ED_KEY`. It requires the signing, notarization,
+Sparkle-key, upload-token, and iOS export-options secrets referenced by the
+workflow. It updates the backend policy only after the artifact and appcast
+uploads pass.
+
 
 
 See [ROADMAP.md](./ROADMAP.md) for the remaining feature-parity and system-integration work.

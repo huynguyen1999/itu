@@ -1,9 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { Inject } from '@nestjs/common';
-import {
-  PREFERENCES_REPOSITORY,
-} from '@core/application/ports/out/preferences-repository.port';
 import type { IPreferencesRepository } from '@core/application/ports/out/preferences-repository.port';
+import { InvalidRequestException } from '@core/domain/exceptions';
 
 export interface TaskPreferences {
   defaultDate: 'NONE' | 'TODAY' | 'TOMORROW';
@@ -202,25 +198,24 @@ export const DEFAULT_CALENDAR_PREFERENCES: CalendarPreferences = {
 export function validateCalendarPreferences(input: Partial<CalendarPreferences>): CalendarPreferences {
   const updated = { ...DEFAULT_CALENDAR_PREFERENCES, ...input };
   const kinds: CalendarTimelineKind[] = ['TASK_DURATION', 'TASK_DUE', 'FOCUS_SESSION', 'EXTERNAL_EVENT'];
-  if (!['DAY', 'WEEK', 'MONTH'].includes(updated.zoom)) throw new BadRequestException('zoom must be DAY, WEEK, or MONTH');
+  if (!['DAY', 'WEEK', 'MONTH'].includes(updated.zoom)) throw new InvalidRequestException('zoom must be DAY, WEEK, or MONTH');
   if (!Array.isArray(updated.visibleKinds) || updated.visibleKinds.some((kind) => !kinds.includes(kind))) {
-    throw new BadRequestException('visibleKinds must contain supported calendar timeline kinds');
+    throw new InvalidRequestException('visibleKinds must contain supported calendar timeline kinds');
   }
   if (new Set(updated.visibleKinds).size !== updated.visibleKinds.length) {
-    throw new BadRequestException('visibleKinds must not contain duplicates');
+    throw new InvalidRequestException('visibleKinds must not contain duplicates');
   }
-  if (typeof updated.showCompleted !== 'boolean') throw new BadRequestException('showCompleted must be a boolean');
-  if (!['SYSTEM', 'SUNDAY', 'MONDAY'].includes(updated.weekStart)) throw new BadRequestException('weekStart must be SYSTEM, SUNDAY, or MONDAY');
+  if (typeof updated.showCompleted !== 'boolean') throw new InvalidRequestException('showCompleted must be a boolean');
+  if (!['SYSTEM', 'SUNDAY', 'MONDAY'].includes(updated.weekStart)) throw new InvalidRequestException('weekStart must be SYSTEM, SUNDAY, or MONDAY');
   if (!Array.isArray(updated.collapsedGroupIds) || updated.collapsedGroupIds.length > 100 || updated.collapsedGroupIds.some((id) => typeof id !== 'string' || id.trim().length === 0 || id.trim().length > 255)) {
-    throw new BadRequestException('collapsedGroupIds must contain at most 100 non-empty strings');
+    throw new InvalidRequestException('collapsedGroupIds must contain at most 100 non-empty strings');
   }
   updated.collapsedGroupIds = Array.from(new Set(updated.collapsedGroupIds.map((id) => id.trim())));
   return updated;
 }
 
-@Injectable()
 export class PreferencesService {
-  constructor(@Inject(PREFERENCES_REPOSITORY) private readonly preferencesRepository: IPreferencesRepository) {}
+  constructor(private readonly preferencesRepository: IPreferencesRepository) {}
 
   async getPreferences(userId: string): Promise<AllUserPreferences> {
     const record = await this.preferencesRepository.findByUserId(userId);
@@ -249,7 +244,7 @@ export class PreferencesService {
     const updated = { ...current.tasks, ...patch };
     const [hours, minutes] = updated.defaultDueTime.split(':').map(Number);
     if (!/^\d{2}:\d{2}$/.test(updated.defaultDueTime) || hours > 23 || minutes > 59) {
-      throw new BadRequestException('defaultDueTime must be a valid HH:MM time');
+      throw new InvalidRequestException('defaultDueTime must be a valid HH:MM time');
     }
     await this.preferencesRepository.upsert(userId, { taskPreferences: updated });
     return updated;
@@ -321,24 +316,24 @@ export class PreferencesService {
   async updateUsagePreferences(userId: string, patch: Partial<UsagePreferences>): Promise<UsagePreferences> {
     const current = await this.getPreferences(userId);
     const updated = { ...current.usage, ...patch };
-    if (typeof updated.trackingEnabled !== 'boolean') throw new BadRequestException('trackingEnabled must be a boolean');
-    if (typeof updated.websiteTrackingEnabled !== 'boolean') throw new BadRequestException('websiteTrackingEnabled must be a boolean');
+    if (typeof updated.trackingEnabled !== 'boolean') throw new InvalidRequestException('trackingEnabled must be a boolean');
+    if (typeof updated.websiteTrackingEnabled !== 'boolean') throw new InvalidRequestException('websiteTrackingEnabled must be a boolean');
     if (!Number.isInteger(updated.retentionDays) || updated.retentionDays < 7 || updated.retentionDays > 365) {
-      throw new BadRequestException('retentionDays must be an integer between 7 and 365');
+      throw new InvalidRequestException('retentionDays must be an integer between 7 and 365');
     }
     if (
       !Number.isInteger(updated.idleThresholdSeconds) ||
       updated.idleThresholdSeconds < 60 ||
       updated.idleThresholdSeconds > 1800
     ) {
-      throw new BadRequestException('idleThresholdSeconds must be an integer between 60 and 1800');
+      throw new InvalidRequestException('idleThresholdSeconds must be an integer between 60 and 1800');
     }
     if (
       !Array.isArray(updated.excludedBundleIds) ||
       updated.excludedBundleIds.length > MAX_EXCLUDED_BUNDLE_IDS ||
       updated.excludedBundleIds.some((id) => typeof id !== 'string')
     ) {
-      throw new BadRequestException(`excludedBundleIds must be an array of at most ${MAX_EXCLUDED_BUNDLE_IDS} strings`);
+      throw new InvalidRequestException(`excludedBundleIds must be an array of at most ${MAX_EXCLUDED_BUNDLE_IDS} strings`);
     }
     if (
       updated.excludedBundleIds.some((id) => {
@@ -346,7 +341,7 @@ export class PreferencesService {
         return normalized.length === 0 || normalized.length > MAX_EXCLUDED_BUNDLE_ID_LENGTH;
       })
     ) {
-      throw new BadRequestException(
+      throw new InvalidRequestException(
         `excludedBundleIds entries must be between 1 and ${MAX_EXCLUDED_BUNDLE_ID_LENGTH} characters`,
       );
     }

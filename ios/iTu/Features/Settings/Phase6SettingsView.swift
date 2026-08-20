@@ -26,7 +26,9 @@ struct Phase6SettingsView: View {
     @State private var usage = UsagePreferences()
     @State private var savedUsage = UsagePreferences()
     @State private var isSavingUsage = false
+    @State private var isConfiguringSafari = false
     @State private var showFocusPicker = false
+    @State private var showingReleaseNotes = false
     @State private var focusSelection: IOSFocusActivitySelection
 
     init(model: AppModel) {
@@ -103,6 +105,36 @@ struct Phase6SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Safari Browser Activity") {
+                LabeledContent("Status", value: model.safariExtensionStatus)
+                Toggle(
+                    "Track Private Browsing",
+                    isOn: Binding(
+                        get: { model.safariExtensionConfiguration.privateTrackingEnabled },
+                        set: { model.setSafariPrivateTrackingEnabled($0) }
+                    )
+                )
+                .disabled(!model.isAuthenticated)
+                Text("Private Browsing is not collected unless you turn this on. Website sessions upload directly from Safari to iTu; the iPhone app only supplies configuration.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button(model.safariExtensionConfiguration.dsnKey.isEmpty ? "Configure Safari access" : "Rotate Safari access") {
+                    isConfiguringSafari = true
+                    Task {
+                        _ = await model.ensureSafariExtensionCredential(rotate: true)
+                        isConfiguringSafari = false
+                    }
+                }
+                .disabled(!model.isAuthenticated || !model.isOnline || isConfiguringSafari)
+                Text("After installing iTu from Xcode: open Settings → Apps → Safari → Extensions, enable iTu Browser Activity, allow website access, then return here.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Link("Open iTu settings", destination: URL(string: UIApplication.openSettingsURLString)!)
+                Text("Collected: URL, hostname, page title, and active duration. Not collected: page contents, form input, DOM, or passwords.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Permissions") {
                 LabeledContent("HealthKit", value: model.healthAuthorizationState.title)
                 if model.healthAuthorizationState.canRequest {
@@ -132,6 +164,26 @@ struct Phase6SettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+
+            Section("About") {
+                LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown")
+                LabeledContent("Update status", value: appUpdateStatusTitle)
+                if let lastCheckedAt = model.appUpdateLastCheckedAt {
+                    LabeledContent("Last checked", value: lastCheckedAt.formatted(date: .abbreviated, time: .shortened))
+                }
+                Button("Check for Updates") {
+                    Task { await model.checkAppUpdateManually() }
+                }
+                .disabled(isCheckingAppUpdate)
+                if model.appUpdatePolicy?.release != nil {
+                    Button("View Release Notes") { showingReleaseNotes = true }
+                }
+                if case .failed = model.appUpdateState {
+                    Text("Unable to check for updates. The app will continue using cached update information.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
@@ -156,6 +208,11 @@ struct Phase6SettingsView: View {
             Text(endpointMessage ?? "")
         }
         .preference(key: IOSNavigationDirtyPreferenceKey.self, value: isDirty ? [.settings] : [])
+        .sheet(isPresented: $showingReleaseNotes) {
+            if let policy = model.appUpdatePolicy {
+                IOSAppReleaseNotesView(policy: policy)
+            }
+        }
     }
 
     private func saveEndpoint() {
@@ -168,6 +225,7 @@ struct Phase6SettingsView: View {
             endpoint = APIConfiguration.baseURL.absoluteString
             savedEndpoint = endpoint
             endpointMessage = "API endpoint saved."
+            model.refreshSafariExtensionConfiguration()
         } catch {
             endpointMessage = error.localizedDescription
         }
@@ -182,6 +240,22 @@ struct Phase6SettingsView: View {
                 usage = savedUsage
             }
             isSavingUsage = false
+        }
+    }
+
+    private var isCheckingAppUpdate: Bool {
+        if case .checking = model.appUpdateState { return true }
+        return false
+    }
+
+    private var appUpdateStatusTitle: String {
+        switch model.appUpdateState {
+        case .idle: "Not checked"
+        case .checking: "Checking…"
+        case .current: "You're up to date"
+        case .optional: "Update available"
+        case .required: "Update required"
+        case .failed: "Unable to check"
         }
     }
 

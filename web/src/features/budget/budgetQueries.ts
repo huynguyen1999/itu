@@ -22,10 +22,6 @@ export function useBudgetExpenses(filters?: Parameters<typeof api.getBudgetExpen
   });
 }
 
-export function useMonthlyBudget(period: string) {
-  return useQuery({ queryKey: ['budget', 'month', period], queryFn: () => api.getMonthlyBudget(period) });
-}
-
 export function useBudgetReport(period: string) {
   return useQuery({ queryKey: ['budget', 'report', period], queryFn: () => api.getBudgetReport(period) });
 }

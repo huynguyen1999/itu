@@ -130,23 +130,97 @@ extension StatisticsView {
         }
     }
 
+    var headlineScreenTimeSeconds: Int {
+        if let st = model.screenTimeStatistics {
+            return st.screenTimeSeconds
+        }
+        return model.usageStatistics?.totalActiveSeconds ?? 0
+    }
+
+    var deviceScopePicker: some View {
+        Menu {
+            Button {
+                model.screenTimeDeviceScope = .all
+                Task { await model.refreshUsage(from: usageFromKey, to: usageToKey) }
+            } label: {
+                HStack {
+                    Text("All Devices")
+                    if model.screenTimeDeviceScope == .all {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+            if !model.screenTimeStatus.syncedDevices.isEmpty {
+                Divider()
+                ForEach(model.screenTimeStatus.syncedDevices, id: \.deviceIdentifier) { device in
+                    Button {
+                        model.screenTimeDeviceScope = .device(id: device.deviceIdentifier, name: device.displayName)
+                        Task { await model.refreshUsage(from: usageFromKey, to: usageToKey) }
+                    } label: {
+                        HStack {
+                            Text(device.displayName)
+                            if model.screenTimeDeviceScope.id == device.deviceIdentifier {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: model.screenTimeDeviceScope == .all ? "laptopcomputer.and.iphone" : "macbook.and.iphone")
+                    .font(.system(size: 11))
+                Text(model.screenTimeDeviceScope.displayName)
+                    .font(.system(size: 12, weight: .medium))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9))
+                    .foregroundStyle(iTuTheme.inkDim)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(iTuTheme.surfaceMuted)
+            .cornerRadius(6)
+        }
+        .menuStyle(.borderlessButton)
+    }
+
+    var screenTimeDiagnosticsButton: some View {
+        Button {
+            showingDiagnostics = true
+        } label: {
+            Image(systemName: "waveform.path.ecg")
+                .font(.system(size: 12))
+                .foregroundStyle(iTuTheme.inkDim)
+        }
+        .buttonStyle(.plain)
+        .help("Screen Time Diagnostics & Parity Calibrator")
+        .popover(isPresented: $showingDiagnostics, arrowEdge: .bottom) {
+            ScreenTimeDiagnosticsPopover()
+                .environment(model)
+        }
+    }
+
     var usageSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Application activity")
-                        .font(.system(size: 16, weight: .semibold))
-                    Text(timeRange == "Today" ? "Hourly application time, stacked by application." : "Daily application time, stacked by application.")
+                    HStack(spacing: 8) {
+                        Text("Screen Time")
+                            .font(.system(size: 16, weight: .semibold))
+                        deviceScopePicker
+                        screenTimeDiagnosticsButton
+                    }
+                    Text(timeRange == "Today" ? "Hourly Screen Time timeline and application breakdown." : "Daily Screen Time timeline and application breakdown.")
                         .font(.system(size: 11))
                         .foregroundStyle(iTuTheme.inkDim)
                 }
                 Spacer()
-                if let stats = model.usageStatistics {
+                if model.usageStatistics != nil || model.screenTimeStatistics != nil {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(formatDuration(stats.totalActiveSeconds))
+                        Text(formatDuration(headlineScreenTimeSeconds))
                             .font(.system(size: 16, weight: .bold, design: .monospaced))
                             .foregroundStyle(iTuTheme.teal)
-                        if displaySettings.showEngagement, let engaged = stats.totalEngagedSeconds {
+                        if displaySettings.showEngagement, let engaged = model.usageStatistics?.totalEngagedSeconds {
                             Text("Engaged \(formatDuration(engaged))")
                                 .font(.system(size: 10, design: .monospaced))
                                 .foregroundStyle(iTuTheme.inkDim)
@@ -548,21 +622,12 @@ extension StatisticsView {
         let visibleBundleIDs = Set(stats.topApps.prefix(displaySettings.topAppsCount).map(\.bundleId))
         if timeRange == "Today" {
             let hourly = stats.hourlyApps ?? []
-            let hourlyByBundle = Dictionary(grouping: hourly, by: \.bundleId)
-                .mapValues { $0.reduce(0) { $0 + $1.activeSeconds } }
-            let dailyByBundle = Dictionary(grouping: stats.dailyApps, by: \.bundleId)
-                .mapValues { $0.reduce(0) { $0 + $1.activeSeconds } }
-            let hourlyTotal = hourly.reduce(0) { $0 + $1.activeSeconds }
-            let legacyTotal = max(0, stats.daily.reduce(0) { $0 + $1.activeSeconds } - hourlyTotal)
-            let fallbackHour = Calendar.current.component(.hour, from: Date())
             var items: [UsageChartItem] = []
             for hour in 0..<24 {
                 let label = String(format: "%02d", hour)
                 var shown = 0
                 for app in stats.topApps.prefix(displaySettings.topAppsCount) {
-                    let legacySeconds = max(0, (dailyByBundle[app.bundleId] ?? 0) - (hourlyByBundle[app.bundleId] ?? 0))
-                    let seconds = (hourly.first { $0.hour == hour && $0.bundleId == app.bundleId }?.activeSeconds ?? 0)
-                        + (hour == fallbackHour ? legacySeconds : 0)
+                    let seconds = hourly.first { $0.hour == hour && $0.bundleId == app.bundleId }?.activeSeconds ?? 0
                     shown += seconds
                     items.append(UsageChartItem(
                         localDate: label,
@@ -571,7 +636,7 @@ extension StatisticsView {
                         activeSeconds: seconds
                     ))
                 }
-                let total = hourly.filter { $0.hour == hour }.reduce(hour == fallbackHour ? legacyTotal : 0) { $0 + $1.activeSeconds }
+                let total = hourly.filter { $0.hour == hour }.reduce(0) { $0 + $1.activeSeconds }
                 items.append(UsageChartItem(
                     localDate: label,
                     bundleId: "other",
@@ -631,4 +696,154 @@ extension StatisticsView {
             .sorted { $0.label < $1.label }
     }
 
+}
+
+struct ScreenTimeDiagnosticsPopover: View {
+    @Environment(AppModel.self) var model
+    @State private var appleReportedMinutes: String = ""
+    @State private var comparisonResult: String?
+    @State private var isRebuilding = false
+    @State private var showConfirmRebuild = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("Screen Time Diagnostics", systemImage: "waveform.path.ecg")
+                    .font(.system(size: 14, weight: .bold))
+                Spacer()
+                Text("V\(model.screenTimeStatus.normalizationVersion)")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(iTuTheme.teal.opacity(0.15))
+                    .foregroundStyle(iTuTheme.teal)
+                    .cornerRadius(4)
+            }
+
+            VStack(spacing: 7) {
+                diagnosticRow(
+                    label: "Full Disk Access",
+                    value: model.screenTimeStatus.fullDiskAccessGranted ? "Granted" : "Missing",
+                    color: model.screenTimeStatus.fullDiskAccessGranted ? iTuTheme.mint : iTuTheme.coral
+                )
+                diagnosticRow(
+                    label: "Synced Devices",
+                    value: "\(model.screenTimeStatus.syncedDevices.count) discovered"
+                )
+                diagnosticRow(
+                    label: "Deduplicated Events",
+                    value: "\(model.screenTimeStatus.duplicatesDroppedCount) dropped"
+                )
+                diagnosticRow(
+                    label: "Stray Boundaries",
+                    value: "\(model.screenTimeStatus.strayEventsCount) cleaned"
+                )
+                diagnosticRow(
+                    label: "Pending Uploads",
+                    value: "\(model.screenTimeStatus.pendingUploadCount)"
+                )
+                if !model.screenTimeStatus.openForegroundApps.isEmpty {
+                    diagnosticRow(
+                        label: "Open Foreground",
+                        value: model.screenTimeStatus.openForegroundApps.joined(separator: ", ")
+                    )
+                }
+                if let lastScan = model.screenTimeStatus.lastScanAt {
+                    diagnosticRow(
+                        label: "Last Scan",
+                        value: lastScan.formatted(.dateTime.hour().minute().second())
+                    )
+                }
+                if let lastRecord = model.screenTimeStatus.lastRecordAt {
+                    diagnosticRow(
+                        label: "Stream Watermark",
+                        value: lastRecord.formatted(.dateTime.month().day().hour().minute())
+                    )
+                }
+            }
+            .padding(10)
+            .background(iTuTheme.surface)
+            .cornerRadius(8)
+
+            // Apple Parity Calibrator
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Apple Parity Calibrator")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(iTuTheme.inkDim)
+
+                HStack(spacing: 8) {
+                    TextField("Apple mins today", text: $appleReportedMinutes)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 130)
+
+                    Button("Compare") {
+                        if let mins = Int(appleReportedMinutes) {
+                            let ituMins = (model.screenTimeStatistics?.screenTimeSeconds ?? model.usageStatistics?.totalActiveSeconds ?? 0) / 60
+                            let diff = ituMins - mins
+                            let pct = mins > 0 ? Double(diff) / Double(mins) * 100 : 0
+                            comparisonResult = "iTu: \(ituMins)m vs Apple: \(mins)m (diff: \(diff >= 0 ? "+" : "")\(diff)m, \(String(format: "%.1f", pct))%)"
+                        }
+                    }
+                    .buttonStyle(iTuSecondaryButtonStyle(height: 26))
+                }
+
+                if let comparisonResult {
+                    Text(comparisonResult)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(iTuTheme.teal)
+                }
+            }
+
+            Divider()
+
+            // Actions
+            HStack(spacing: 8) {
+                Button("Scan Now") {
+                    Task { await model.runScreenTimeImport() }
+                }
+                .buttonStyle(iTuSecondaryButtonStyle(height: 28))
+
+                Button("Re-import 7D") {
+                    Task { await model.reimportScreenTimeLast7Days() }
+                }
+                .buttonStyle(iTuSecondaryButtonStyle(height: 28))
+
+                Button("Rebuild All") {
+                    showConfirmRebuild = true
+                }
+                .buttonStyle(iTuSecondaryButtonStyle(height: 28))
+                .foregroundStyle(iTuTheme.coral)
+            }
+        }
+        .padding(16)
+        .frame(width: 360)
+        .confirmationDialog(
+            "Rebuild Screen Time History?",
+            isPresented: $showConfirmRebuild,
+            titleVisibility: .visible
+        ) {
+            Button("Rebuild All History (Wipe & Rescan)", role: .destructive) {
+                Task {
+                    isRebuilding = true
+                    await model.rebuildAllScreenTimeBiomeHistory()
+                    isRebuilding = false
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will wipe previous local outbox intervals, reset cursors to the beginning of retained Biome history, and perform a full deterministic scan.")
+        }
+    }
+
+    private func diagnosticRow(label: String, value: String, color: Color = iTuTheme.ink) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(iTuTheme.inkDim)
+            Spacer()
+            Text(value)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(color)
+        }
+    }
 }

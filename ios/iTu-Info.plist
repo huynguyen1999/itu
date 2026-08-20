@@ -58,6 +58,8 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>iTu connects to your development backend on the local network to sync your data.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>iTu reads your calendar events to show them alongside your iTu plan for the day. iTu does not create or modify calendar events.</string>
 	<key>NSCalendarsUsageDescription</key>

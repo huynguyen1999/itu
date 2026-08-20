@@ -66,13 +66,22 @@ public actor BiomeImportStateStore {
         persistCursors()
     }
 
-    public func resetCursor(for deviceId: String, lookbackDays: Int = 7) {
+    public func resetCursor(for deviceId: String, lookbackDays: Int? = nil) {
         ensureLoaded()
-        let resetDate = Calendar.current.date(byAdding: .day, value: -lookbackDays, to: Date())
         var current = cursors[deviceId] ?? ScreenTimeImportCursor(sourceDeviceId: deviceId)
-        current.lastRecordAt = resetDate
+        if let lookbackDays {
+            current.lastRecordAt = Calendar.current.date(byAdding: .day, value: -lookbackDays, to: Date())
+        } else {
+            current.lastRecordAt = nil
+        }
         current.lastImportAt = nil
         current.lastError = nil
+        current.openForegroundState = nil
+        current.normalizationVersion = 2
+        current.lastRebuildAt = Date()
+        current.duplicatesDroppedCount = 0
+        current.strayEventsCount = 0
+        current.stitchedIntervalCount = 0
         cursors[deviceId] = current
         persistCursors()
     }
@@ -112,9 +121,17 @@ public actor BiomeImportStateStore {
             .sorted { $0.startedAt < $1.startedAt }
     }
 
+    public func pendingOutboxIntervals() -> [ImportedUsageInterval] {
+        pendingOutboxItems().map(\.asImportedUsageInterval)
+    }
+
     public func allOutboxItems() -> [ScreenTimeOutboxItem] {
         ensureLoaded()
         return outbox.values.sorted { $0.startedAt < $1.startedAt }
+    }
+
+    public func allOutboxIntervals() -> [ImportedUsageInterval] {
+        allOutboxItems().map(\.asImportedUsageInterval)
     }
 
     public func markUploaded(eventIds: [String]) {

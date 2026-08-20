@@ -1,5 +1,3 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
-import { TOKENS } from '@core/application/constants/tokens';
 import type {
   IStudyUseCase,
   CompleteSessionCommand,
@@ -21,14 +19,13 @@ import { StudySessionHistoryData } from '@core/application/ports/out/repository-
 import { SessionReviewItem } from '@core/application/ports/out/service-types.port';
 import { SrsSchedulerService } from './srs-scheduler.service';
 
-@Injectable()
 export class StudyService implements IStudyUseCase {
   constructor(
-    @Inject(TOKENS.REVIEW_STATE_REPOSITORY) private readonly reviewStates: IReviewStateRepository,
-    @Inject(TOKENS.STUDY_SESSION_REPOSITORY) private readonly sessions: IStudySessionRepository,
-    @Inject(TOKENS.CARD_REPOSITORY) private readonly cards: ICardRepository,
+    private readonly reviewStates: IReviewStateRepository,
+    private readonly sessions: IStudySessionRepository,
+    private readonly cards: ICardRepository,
     private readonly scheduler: SrsSchedulerService,
-    @Optional() @Inject(TOKENS.AI_FEEDBACK_REPOSITORY) private readonly feedback?: IAiFeedbackRepository,
+    private readonly feedback?: IAiFeedbackRepository,
   ) {}
 
   due(userId: string, deckId?: string): Promise<DueReviewItem[]> {

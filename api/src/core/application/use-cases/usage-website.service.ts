@@ -1,8 +1,9 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { USAGE_CONSTANTS } from '@core/application/constants/app.constants';
 import { USAGE_SOURCES } from '@core/application/ports/out/repositories.port';
+import { ForbiddenResourceException, InvalidRequestException } from '@core/domain/exceptions';
 import type {
+  BrowserExtensionCredentialKind,
   IUsageRepository,
   UsageSource,
   WebsiteActivitySessionWrite,
@@ -87,18 +88,18 @@ export class UsageWebsiteService {
 
   async ingestActivitySessions(userId: string, input: WebsiteActivitySessionBatchInput) {
     if (!input || typeof input.installationId !== 'string' || !Array.isArray(input.sessions)) {
-      throw new BadRequestException('installationId and sessions are required');
+      throw new InvalidRequestException('installationId and sessions are required');
     }
     if (input.installationId.length === 0 || input.installationId.length > 128) {
-      throw new BadRequestException('installationId must be at most 128 characters');
+      throw new InvalidRequestException('installationId must be at most 128 characters');
     }
     if (input.sessions.length > MAX_BATCH_SIZE) {
-      throw new BadRequestException(`sessions must contain at most ${MAX_BATCH_SIZE} entries`);
+      throw new InvalidRequestException(`sessions must contain at most ${MAX_BATCH_SIZE} entries`);
     }
     try {
       await this.usage.ensureBrowserExtensionDevice(userId, input.installationId);
     } catch {
-      throw new ForbiddenException('Website installation does not belong to this user');
+      throw new ForbiddenResourceException('Website installation does not belong to this user');
     }
     const preferences = await this.usage.getTrackingPreferences(userId);
     if (!preferences.trackingEnabled || !preferences.websiteTrackingEnabled) {
@@ -155,7 +156,7 @@ export class UsageWebsiteService {
   async getStatistics(userId: string, from?: string, to?: string) {
     const preferences = await this.usage.getTrackingPreferences(userId);
     if (!preferences.trackingEnabled || !preferences.websiteTrackingEnabled) {
-      throw new ForbiddenException('Website tracking authorization is required');
+      throw new ForbiddenResourceException('Website tracking authorization is required');
     }
     const { start, end } = this.websiteDateRange(preferences.retentionDays, from, to);
     const candidates = await this.usage.findWebsiteActivitySessions(
@@ -246,7 +247,7 @@ export class UsageWebsiteService {
   async getUrls(userId: string, hostname: string, from?: string, to?: string, limit = 100, offset = 0) {
     const preferences = await this.usage.getTrackingPreferences(userId);
     if (!preferences.trackingEnabled || !preferences.websiteTrackingEnabled) {
-      throw new ForbiddenException('Website tracking authorization is required');
+      throw new ForbiddenResourceException('Website tracking authorization is required');
     }
     const normalizedHost = normalizeHostname(hostname);
     const today = new Date();
@@ -267,31 +268,31 @@ export class UsageWebsiteService {
 
   async replaceBatch(userId: string, input: WebsiteUsageSummaryBatchInput) {
     if (!input.deviceId || !Array.isArray(input.summaries) || input.summaries.length > MAX_BATCH_SIZE) {
-      throw new BadRequestException(`summaries must contain at most ${MAX_BATCH_SIZE} entries`);
+      throw new InvalidRequestException(`summaries must contain at most ${MAX_BATCH_SIZE} entries`);
     }
     const device = await this.usage.findDevice(userId, input.deviceId);
-    if (!device) throw new ForbiddenException('Sync device does not belong to this user');
+    if (!device) throw new ForbiddenResourceException('Sync device does not belong to this user');
     if (input.summaries.length === 0 && device.platform !== 'MACOS') {
-      throw new BadRequestException('Website usage summaries require a macOS Sync Device');
+      throw new InvalidRequestException('Website usage summaries require a macOS Sync Device');
     }
     for (const rawSummary of input.summaries) {
       const source = rawSummary.source ?? 'BROWSER';
       if (!USAGE_SOURCES.includes(source) || source === 'MACOS_FOREGROUND' || source === 'HEALTH_KIT') {
-        throw new BadRequestException('source is invalid for website summaries');
+        throw new InvalidRequestException('source is invalid for website summaries');
       }
       if (source === 'DEVICE_ACTIVITY' && device.platform !== 'IOS') {
-        throw new BadRequestException('DeviceActivity website usage requires an iOS Sync Device');
+        throw new InvalidRequestException('DeviceActivity website usage requires an iOS Sync Device');
       }
       if (source === 'BROWSER' && device.platform !== 'MACOS') {
-        throw new BadRequestException('Browser website usage requires a macOS Sync Device');
+        throw new InvalidRequestException('Browser website usage requires a macOS Sync Device');
       }
     }
     return this.writeBatch(userId, input.deviceId, input.summaries);
   }
 
-  async generateDsn(userId: string) {
+  async generateDsn(userId: string, kind: BrowserExtensionCredentialKind = 'DEFAULT_BROWSER') {
     const dsnKey = `itu_dsn_${randomBytes(32).toString('base64url')}`;
-    await this.usage.replaceBrowserExtensionCredential(userId, randomUUID(), this.hashDsn(dsnKey));
+    await this.usage.replaceBrowserExtensionCredential(userId, randomUUID(), this.hashDsn(dsnKey), kind);
     return { dsnKey };
   }
 
@@ -302,7 +303,7 @@ export class UsageWebsiteService {
 
   async ingestBrowserExtension(userId: string, input: BrowserExtensionUsageBatchInput) {
     if (!input || !Array.isArray(input.summaries) || input.summaries.length > MAX_BATCH_SIZE) {
-      throw new BadRequestException(`summaries must contain at most ${MAX_BATCH_SIZE} entries`);
+      throw new InvalidRequestException(`summaries must contain at most ${MAX_BATCH_SIZE} entries`);
     }
     const deviceId = await this.usage.ensureBrowserExtensionDevice(userId, input.installationId);
     return this.writeBatch(userId, deviceId, input.summaries, 'BROWSER');
@@ -329,15 +330,15 @@ export class UsageWebsiteService {
     for (const rawSummary of summaries) {
       const summary = rawSummary;
       if (sourceOverride && summary.source !== undefined && summary.source !== sourceOverride) {
-        throw new BadRequestException('source is invalid for this website ingestion route');
+        throw new InvalidRequestException('source is invalid for this website ingestion route');
       }
       const source = sourceOverride ?? summary.source ?? 'BROWSER';
       if (!USAGE_SOURCES.includes(source) || source === 'MACOS_FOREGROUND' || source === 'HEALTH_KIT') {
-        throw new BadRequestException('source is invalid for website summaries');
+        throw new InvalidRequestException('source is invalid for website summaries');
       }
       const localDate = parseDate(summary.localDate, 'localDate');
       if (source === 'DEVICE_ACTIVITY' && summary.browserBundleId !== undefined && summary.browserBundleId !== null) {
-        throw new BadRequestException('browserBundleId must be omitted for DeviceActivity summaries');
+        throw new InvalidRequestException('browserBundleId must be omitted for DeviceActivity summaries');
       }
       const browserBundleId =
         source === 'DEVICE_ACTIVITY' ? null : requireText(summary.browserBundleId, 'browserBundleId');
@@ -352,14 +353,14 @@ export class UsageWebsiteService {
       const timezone = requireTimezone(summary.timezone);
       const hour = summary.hour ?? -1;
       if (!Number.isInteger(hour) || hour < -1 || hour > 23) {
-        throw new BadRequestException('hour must be an integer between -1 and 23');
+        throw new InvalidRequestException('hour must be an integer between -1 and 23');
       }
       if (
         !Number.isInteger(summary.activeSeconds) ||
         summary.activeSeconds < 0 ||
         summary.activeSeconds > MAX_ACTIVE_SECONDS
       ) {
-        throw new BadRequestException('activeSeconds must be an integer between 0 and 86400');
+        throw new InvalidRequestException('activeSeconds must be an integer between 0 and 86400');
       }
       const urlKey = url ? createHash('sha256').update(url).digest('hex') : `legacy:${hostname}`;
       unique.set(`${source}\u0000${dateKey(localDate)}\u0000${hour}\u0000${browserBundleId ?? ''}\u0000${urlKey}`, {

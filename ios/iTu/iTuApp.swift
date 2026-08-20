@@ -20,7 +20,9 @@ struct iTuApp: App {
                     IOSHealthBackgroundRefreshCoordinator.shared.setHandler { [model] in
                         await model.refreshHealthAndWait()
                     }
+                    async let appUpdateCheck: Void = model.checkAppUpdateIfNeeded()
                     await model.restoreSession()
+                    await appUpdateCheck
                     await model.refreshNotificationAuthorization()
                 }
                 .onOpenURL { url in

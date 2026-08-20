@@ -6,6 +6,8 @@ import type {
   UsageAppIdentityRecord,
   UsageAppIdentityWrite,
   ScreenTimeEventWrite,
+  ScreenTimeEventRecord,
+  ScreenTimeDeviceRecord,
   UsageSummaryRecord,
   UsageSummaryWrite,
   WebsiteActivitySessionRecord,
@@ -257,57 +259,6 @@ export class PrismaUsageRepository implements IUsageRepository {
               });
             }
 
-            // Aggregate only newly inserted events into UsageSummary
-            for (const event of newEvents) {
-              if (event.durationSeconds <= 0) continue;
-              const slices = splitIntervalIntoHours(event.startedAt, event.endedAt, event.durationSeconds);
-              for (const slice of slices) {
-                const existingSummary = await tx.usageSummary.findUnique({
-                  where: {
-                    syncDeviceId_source_localDate_hour_bundleId: {
-                      syncDeviceId: event.sourceDeviceId,
-                      source: event.source,
-                      localDate: slice.localDate,
-                      hour: slice.hour,
-                      bundleId: event.bundleId,
-                    },
-                  },
-                });
-
-                if (existingSummary) {
-                  await tx.usageSummary.update({
-                    where: {
-                      syncDeviceId_source_localDate_hour_bundleId: {
-                        syncDeviceId: event.sourceDeviceId,
-                        source: event.source,
-                        localDate: slice.localDate,
-                        hour: slice.hour,
-                        bundleId: event.bundleId,
-                      },
-                    },
-                    data: {
-                      activeSeconds: Math.min(3600, existingSummary.activeSeconds + slice.seconds),
-                      displayName: event.displayName,
-                    },
-                  });
-                } else {
-                  await tx.usageSummary.create({
-                    data: {
-                      userId,
-                      syncDeviceId: event.sourceDeviceId,
-                      source: event.source,
-                      localDate: slice.localDate,
-                      hour: slice.hour,
-                      bundleId: event.bundleId,
-                      displayName: event.displayName,
-                      timezone: 'Asia/Ho_Chi_Minh',
-                      activeSeconds: Math.min(3600, slice.seconds),
-                    },
-                  });
-                }
-              }
-            }
-
             return { accepted: true, inserted: created.count };
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -317,6 +268,104 @@ export class PrismaUsageRepository implements IUsageRepository {
       }
     }
     throw new Error('Unable to ingest Screen Time events');
+  }
+
+  async findScreenTimeEvents(
+    userId: string,
+    from: Date,
+    toExclusive: Date,
+    deviceId?: string,
+  ): Promise<ScreenTimeEventRecord[]> {
+    const rows = await this.prisma.usageImportEvent.findMany({
+      where: {
+        userId,
+        ...(deviceId && deviceId !== 'all' ? { sourceDeviceId: deviceId } : {}),
+        startedAt: { lt: toExclusive },
+        endedAt: { gt: from },
+        bundleId: {
+          notIn: [
+            'loginwindow',
+            'com.apple.loginwindow',
+            'com.apple.loginwindow.xpc',
+            'com.apple.LockScreen',
+            'com.apple.lockscreen',
+            'lockscreen',
+            'control-center',
+            'com.apple.controlcenter',
+            'dock',
+            'com.apple.dock',
+            'com.apple.WindowManager',
+            'com.apple.ScreenSaver.Engine',
+            'com.apple.screensaver',
+          ],
+        },
+      },
+      orderBy: { startedAt: 'asc' },
+    });
+
+    if (rows.length === 0) return [];
+
+    const identities = await this.prisma.usageAppIdentity.findMany({
+      where: { userId, bundleId: { in: [...new Set(rows.map((r) => r.bundleId))] } },
+      select: { bundleId: true, iconHash: true, iconStorageKey: true },
+    });
+    const byBundle = new Map(identities.map((identity) => [identity.bundleId, identity]));
+
+    return rows.map((row) => {
+      const ident = byBundle.get(row.bundleId);
+      return {
+        ...row,
+        iconHash: ident?.iconHash ?? null,
+        iconStorageKey: ident?.iconStorageKey ?? null,
+      };
+    });
+  }
+
+  async listScreenTimeDevices(userId: string): Promise<ScreenTimeDeviceRecord[]> {
+    const distinctDevices = await this.prisma.usageImportEvent.findMany({
+      where: { userId },
+      select: { sourceDeviceId: true, sourceDeviceName: true },
+      distinct: ['sourceDeviceId'],
+    });
+
+    const syncDevices = await this.prisma.syncDevice.findMany({
+      where: { userId, id: { in: distinctDevices.map((d) => d.sourceDeviceId) } },
+      select: { id: true, platform: true, lastSeenAt: true },
+    });
+    const syncMap = new Map(syncDevices.map((sd) => [sd.id, sd]));
+
+    return distinctDevices.map((d) => {
+      const sync = syncMap.get(d.sourceDeviceId);
+      return {
+        deviceId: d.sourceDeviceId,
+        name: d.sourceDeviceName ?? null,
+        platform: sync?.platform ?? 'IOS',
+        lastSeenAt: sync?.lastSeenAt ?? null,
+      };
+    });
+  }
+
+  async deleteScreenTimeEvents(userId: string, sourceDeviceId?: string): Promise<number> {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const deletedEvents = await tx.usageImportEvent.deleteMany({
+        where: {
+          userId,
+          ...(sourceDeviceId ? { sourceDeviceId } : {}),
+        },
+      });
+
+      await tx.usageSummary.deleteMany({
+        where: {
+          userId,
+          source: 'SCREEN_TIME_BIOME',
+          ...(sourceDeviceId ? { syncDeviceId: sourceDeviceId } : {}),
+        },
+      });
+
+      return deletedEvents.count;
+    });
+
+    return result;
   }
 
   async findWebsiteSummaries(userId: string, from: Date, toExclusive: Date): Promise<WebsiteUsageSummaryRecord[]> {
@@ -522,10 +571,15 @@ export class PrismaUsageRepository implements IUsageRepository {
     });
   }
 
-  async replaceBrowserExtensionCredential(userId: string, id: string, keyHash: string) {
+  async replaceBrowserExtensionCredential(
+    userId: string,
+    id: string,
+    keyHash: string,
+    kind: 'DEFAULT_BROWSER' | 'SAFARI_IOS',
+  ) {
     await this.prisma.browserExtensionCredential.upsert({
-      where: { userId },
-      create: { id, userId, keyHash },
+      where: { userId_kind: { userId, kind } },
+      create: { id, userId, keyHash, kind },
       update: { id, keyHash },
     });
   }

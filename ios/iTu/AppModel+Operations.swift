@@ -171,9 +171,23 @@ extension AppModel {
         }
     }
 
+    func retryPendingMutations(_ mutations: [SyncMutation], keepLocal: Bool = false) async {
+        guard !mutations.isEmpty else { return }
+        _ = await performOfflineMutation { store in
+            try await store.retryMutations(mutations.map(\.id), keepLocal: keepLocal)
+        }
+    }
+
     func discardPendingMutation(_ mutation: SyncMutation) async {
         _ = await performOfflineMutation { store in
             try await store.discardMutation(mutation.id)
+        }
+    }
+
+    func discardPendingMutations(_ mutations: [SyncMutation]) async {
+        guard !mutations.isEmpty else { return }
+        _ = await performOfflineMutation { store in
+            try await store.discardMutations(mutations.map(\.id))
         }
     }
 

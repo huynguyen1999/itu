@@ -1,6 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { TOKENS } from '@core/application/constants/tokens';
 import { AiCredentialStatus } from '@core/domain/enums';
 import {
   EntityNotFoundException,
@@ -29,12 +27,11 @@ export interface AiCredentialView {
 
 const MAX_CREDENTIALS_PER_USER = 5;
 
-@Injectable()
 export class AiCredentialsService {
   constructor(
-    @Inject(TOKENS.AI_CREDENTIAL_REPOSITORY) private readonly credentials: IAiCredentialRepository,
-    @Inject(TOKENS.AI_CREDENTIAL_CRYPTO) private readonly crypto: IAiCredentialCrypto,
-    @Inject(TOKENS.GEMINI_KEY_VALIDATOR) private readonly validator: IGeminiKeyValidator,
+    private readonly credentials: IAiCredentialRepository,
+    private readonly crypto: IAiCredentialCrypto,
+    private readonly validator: IGeminiKeyValidator,
   ) {}
 
   async list(userId: string): Promise<AiCredentialView[]> {

@@ -4,7 +4,6 @@ import iTuDomain
 struct IOSDeviceActivityUsageImport: Sendable {
     let windows: Set<DeviceActivityUsageWindow>
     let applications: [UsageSummary]
-    let websites: [WebsiteUsageSummary]
 }
 
 enum IOSDeviceActivityUsageNormalizer {
@@ -28,23 +27,9 @@ enum IOSDeviceActivityUsageNormalizer {
                 notifications: application.notifications
             )
         }
-        let websites = snapshot.websites.compactMap { website -> WebsiteUsageSummary? in
-            guard !website.hostname.isEmpty, website.activeSeconds > 0 else { return nil }
-            return WebsiteUsageSummary(
-                localDate: website.window.localDate,
-                hour: website.window.hour,
-                browserDisplayName: "Screen Time",
-                hostname: website.hostname,
-                timezone: timezone,
-                activeSeconds: website.activeSeconds,
-                source: .deviceActivity,
-                deviceId: deviceID
-            )
-        }
         return IOSDeviceActivityUsageImport(
             windows: Set(snapshot.windows),
-            applications: applications,
-            websites: websites
+            applications: applications
         )
     }
 }

@@ -1,4 +1,3 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { JournalEntryKind } from '@core/domain/enums';
 import {
   type JournalAttachmentModel,
@@ -15,11 +14,6 @@ import {
   type IJournalTagRepository,
   type IJournalTemplateRepository,
   type IJournalWeeklyReviewQuery,
-  JOURNAL_ATTACHMENT_REPOSITORY,
-  JOURNAL_REPOSITORY,
-  JOURNAL_TAG_REPOSITORY,
-  JOURNAL_TEMPLATE_REPOSITORY,
-  JOURNAL_WEEKLY_REVIEW_QUERY,
   type JournalSearchFilter,
   type UpdateJournalEntryData,
   type UpdateJournalTemplateData,
@@ -27,30 +21,29 @@ import {
 import { ReviewContextBuilder } from '../review-context.builder';
 import type { ReviewRangeInput } from '@core/application/ports/out/review-data-source.port';
 import type { ReviewContextV1 } from '@core/domain/review/review.types';
+import { ResourceNotFoundException } from '@core/domain/exceptions';
+import { ReviewAutomationService } from './review-automation.service';
 
-@Injectable()
 export class JournalService {
   constructor(
-    @Inject(JOURNAL_REPOSITORY)
     private readonly journalRepository: IJournalRepository,
-    @Inject(JOURNAL_TEMPLATE_REPOSITORY)
     private readonly templateRepository: IJournalTemplateRepository,
-    @Inject(JOURNAL_TAG_REPOSITORY)
     private readonly tagRepository: IJournalTagRepository,
-    @Inject(JOURNAL_ATTACHMENT_REPOSITORY)
     private readonly attachmentRepository: IJournalAttachmentRepository,
-    @Inject(JOURNAL_WEEKLY_REVIEW_QUERY)
     private readonly weeklyReviewQuery: IJournalWeeklyReviewQuery,
     private readonly reviewContextBuilder: ReviewContextBuilder,
+    private readonly reviewAutomation: ReviewAutomationService,
   ) {}
 
   async listEntries(userId: string, filter?: JournalSearchFilter): Promise<JournalEntryModel[]> {
+    if (filter?.kind === JournalEntryKind.DAILY_REVIEW) await this.reviewAutomation.ensureDailyReview(userId);
+    if (filter?.kind === JournalEntryKind.WEEKLY_REVIEW) await this.reviewAutomation.ensureWeeklyReview(userId);
     return this.journalRepository.list(userId, filter);
   }
 
   async getEntry(userId: string, id: string): Promise<JournalEntryModel> {
     const entry = await this.journalRepository.findById(userId, id);
-    if (!entry) throw new NotFoundException('Journal entry not found');
+    if (!entry) throw new ResourceNotFoundException('Journal entry not found');
     return entry;
   }
 
@@ -69,24 +62,24 @@ export class JournalService {
     mutationMeta?: { deviceId?: string; mutationId?: string },
   ): Promise<JournalEntryModel> {
     const updated = await this.journalRepository.update(userId, id, data, mutationMeta);
-    if (!updated) throw new NotFoundException('Journal entry not found');
+    if (!updated) throw new ResourceNotFoundException('Journal entry not found');
     return updated;
   }
 
   async softDeleteEntry(userId: string, id: string): Promise<void> {
     const deleted = await (this.journalRepository.softDelete ?? this.journalRepository.delete)(userId, id);
-    if (!deleted) throw new NotFoundException('Journal entry not found');
+    if (!deleted) throw new ResourceNotFoundException('Journal entry not found');
   }
 
   async restoreEntry(userId: string, id: string): Promise<JournalEntryModel> {
     const restored = await this.journalRepository.restore(userId, id);
-    if (!restored) throw new NotFoundException('Journal entry not found');
+    if (!restored) throw new ResourceNotFoundException('Journal entry not found');
     return restored;
   }
 
   async hardDeleteEntry(userId: string, id: string): Promise<void> {
     const deleted = await this.journalRepository.hardDelete(userId, id);
-    if (!deleted) throw new NotFoundException('Journal entry not found');
+    if (!deleted) throw new ResourceNotFoundException('Journal entry not found');
   }
 
   async listRevisions(userId: string, entryId: string): Promise<JournalEntryRevisionModel[]> {
@@ -95,7 +88,7 @@ export class JournalService {
 
   async restoreRevision(userId: string, entryId: string, revisionId: string): Promise<JournalEntryModel> {
     const restored = await this.journalRepository.restoreRevision(userId, entryId, revisionId);
-    if (!restored) throw new NotFoundException('Journal entry revision not found');
+    if (!restored) throw new ResourceNotFoundException('Journal entry revision not found');
     return restored;
   }
 
@@ -109,13 +102,13 @@ export class JournalService {
 
   async updateTemplate(userId: string, id: string, data: UpdateJournalTemplateData): Promise<JournalTemplateModel> {
     const updated = await this.templateRepository.update(userId, id, data);
-    if (!updated) throw new NotFoundException('Journal template not found');
+    if (!updated) throw new ResourceNotFoundException('Journal template not found');
     return updated;
   }
 
   async deleteTemplate(userId: string, id: string): Promise<void> {
     const deleted = await this.templateRepository.delete(userId, id);
-    if (!deleted) throw new NotFoundException('Journal template not found');
+    if (!deleted) throw new ResourceNotFoundException('Journal template not found');
   }
 
   async listTags(userId: string): Promise<JournalTagModel[]> {

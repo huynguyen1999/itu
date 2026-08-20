@@ -118,7 +118,7 @@ final class BiomeScreenTimeTests: XCTestCase {
         XCTAssertEqual(interval.startedAt, start)
         XCTAssertEqual(interval.endedAt, end)
         XCTAssertEqual(interval.durationSeconds, 300)
-        XCTAssertEqual(interval.source, .screenTimeBiome)
+        XCTAssertEqual(interval.source, UsageSource.screenTimeBiome)
 
         // Deterministic event ID check
         let expectedID = ImportedUsageInterval.deterministicEventID(
@@ -213,8 +213,19 @@ final class BiomeScreenTimeTests: XCTestCase {
             devicesToReturn
         }
 
-        func intervals(for device: ScreenTimeDevice, since watermark: Date?) async throws -> [ImportedUsageInterval] {
-            intervalsToReturn
+        func scanDevice(
+            _ device: ScreenTimeDevice,
+            since watermark: Date?,
+            initialState: BiomeForegroundState?
+        ) async throws -> DeviceScanResult {
+            DeviceScanResult(
+                intervals: intervalsToReturn,
+                nextState: nil,
+                latestRecordDate: intervalsToReturn.map(\.endedAt).max(),
+                stats: NormalizationStats(rawEventCount: intervalsToReturn.count),
+                scannedFilesCount: 1,
+                decodedFilesCount: 1
+            )
         }
     }
 
@@ -254,6 +265,21 @@ final class BiomeScreenTimeTests: XCTestCase {
 
         let outbox = await coordinator.allOutboxIntervals()
         XCTAssertTrue(outbox.isEmpty)
+
+        // Run scan
+        let scanStatus = await coordinator.runOnce()
+        XCTAssertEqual(scanStatus.pendingUploadCount, 1)
+
+        let pendingOutbox = await coordinator.pendingOutboxIntervals()
+        XCTAssertEqual(pendingOutbox.count, 1)
+
+        // Test pending vs all outbox behavior
+        await store.markUploaded(eventIds: ["MOCK_EID_1"])
+        let pendingAfterUpload = await coordinator.pendingOutboxIntervals()
+        XCTAssertEqual(pendingAfterUpload.count, 0) // Confirmed: uploaded items are not in pending outbox
+
+        let allAfterUpload = await coordinator.allOutboxIntervals()
+        XCTAssertEqual(allAfterUpload.count, 1) // But still retained in allOutbox for offline cache
 
         try? FileManager.default.removeItem(at: tempDir)
     }
@@ -351,11 +377,69 @@ final class BiomeScreenTimeTests: XCTestCase {
         // loginwindow and controlcenter should be ignored
         XCTAssertEqual(intervals.count, 2)
         XCTAssertEqual(intervals[0].bundleId, "com.apple.Safari")
-        // Clamped to maxSessionDuration (43,200s / 12 hours) instead of 50400s
+        // Clamped to maxSessionDuration (1800s / 30 minutes) instead of 50400s
         XCTAssertEqual(intervals[0].durationSeconds, Int(BiomeUsageNormalizer.maxSessionDuration))
 
         XCTAssertEqual(intervals[1].bundleId, "com.google.Chrome")
         XCTAssertEqual(intervals[1].durationSeconds, 100)
+    }
+
+    func testUsageNormalizerCapsOvernightPhantomSessionWhenClosedBySleepLockScreen() {
+        let device = ScreenTimeDevice(deviceIdentifier: "DEV_IPHONE_SLEEP")
+        let t0 = Date(timeIntervalSince1970: 1700000000)
+
+        let events = [
+            // Tubee launched at 2:53 AM
+            BiomeAppInFocusEvent(timestamp: t0, bundleId: "com.tracup.Tubee", starting: true, type: 1),
+            // SleepLockScreen fires at 6:35 AM (3h 41m later, 13276s)
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(13276), bundleId: "com.apple.SleepLockScreen", starting: false, type: 1)
+        ]
+
+        let intervals = BiomeUsageNormalizer.normalize(events: events, for: device)
+        XCTAssertEqual(intervals.count, 1)
+        XCTAssertEqual(intervals[0].bundleId, "com.tracup.Tubee")
+        // Clamped to maxSleepBoundarySessionDuration (180s = 3 minutes) instead of 13276s
+        XCTAssertEqual(intervals[0].durationSeconds, Int(BiomeUsageNormalizer.maxSleepBoundarySessionDuration))
+        XCTAssertEqual(intervals[0].endedAt, t0.addingTimeInterval(BiomeUsageNormalizer.maxSleepBoundarySessionDuration))
+    }
+
+    func testUsageNormalizerCapsLockscreenTransientCameraSession() {
+        let device = ScreenTimeDevice(deviceIdentifier: "DEV_IPHONE_CAMERA")
+        let t0 = Date(timeIntervalSince1970: 1700000000)
+
+        let events = [
+            // Camera launched from lock screen swipe
+            BiomeAppInFocusEvent(
+                timestamp: t0,
+                bundleId: "com.apple.camera",
+                starting: true,
+                transitionReason: "_SBDashBoardHostedAppEntityViewController",
+                type: 1
+            ),
+            // User puts phone in pocket and opens Gmail 42 minutes later (2548s)
+            BiomeAppInFocusEvent(
+                timestamp: t0.addingTimeInterval(2548),
+                bundleId: "com.google.Gmail",
+                starting: true,
+                type: 1
+            ),
+            BiomeAppInFocusEvent(
+                timestamp: t0.addingTimeInterval(2600),
+                bundleId: "com.google.Gmail",
+                starting: false,
+                type: 1
+            )
+        ]
+
+        let intervals = BiomeUsageNormalizer.normalize(events: events, for: device)
+        XCTAssertEqual(intervals.count, 2)
+        XCTAssertEqual(intervals[0].bundleId, "com.apple.camera")
+        // Clamped to maxLockscreenSessionDuration (120s = 2 minutes) instead of 2548s
+        XCTAssertEqual(intervals[0].durationSeconds, Int(BiomeUsageNormalizer.maxLockscreenSessionDuration))
+        XCTAssertEqual(intervals[0].endedAt, t0.addingTimeInterval(BiomeUsageNormalizer.maxLockscreenSessionDuration))
+
+        XCTAssertEqual(intervals[1].bundleId, "com.google.Gmail")
+        XCTAssertEqual(intervals[1].durationSeconds, 52)
     }
 
     func testUsageNormalizerClosesSessionOnLockScreenAndSpringboardBoundary() {
@@ -383,4 +467,204 @@ final class BiomeScreenTimeTests: XCTestCase {
         XCTAssertEqual(intervals[1].bundleId, "com.apple.mobilesafari")
         XCTAssertEqual(intervals[1].durationSeconds, 300)
     }
+
+    func testStatefulNormalizationCarriesForwardOpenAppAcrossScanChunks() {
+        let device = ScreenTimeDevice(deviceIdentifier: "DEV_IPHONE_CHUNK")
+        let t0 = Date(timeIntervalSince1970: 1700000000)
+
+        // Chunk 1: User opens Telegram, but scan finishes before user closes it
+        let chunk1Events = [
+            BiomeAppInFocusEvent(timestamp: t0, bundleId: "ph.telegra.Telegraph", starting: true)
+        ]
+
+        let (chunk1Intervals, nextState, stats1) = BiomeUsageNormalizer.normalize(
+            events: chunk1Events,
+            for: device,
+            initialState: nil
+        )
+
+        // Chunk 1 yields 0 finalized intervals, but saves nextState with open Telegram session
+        XCTAssertEqual(chunk1Intervals.count, 0)
+        XCTAssertNotNil(nextState)
+        XCTAssertEqual(nextState?.bundleId, "ph.telegra.Telegraph")
+        XCTAssertEqual(nextState?.startedAt, t0)
+        XCTAssertEqual(stats1.rawEventCount, 1)
+
+        // Chunk 2 (300 seconds later): User switches from Telegram to Safari, then closes Safari
+        let t1 = t0.addingTimeInterval(300)
+        let t2 = t0.addingTimeInterval(600)
+
+        let chunk2Events = [
+            BiomeAppInFocusEvent(timestamp: t1, bundleId: "com.apple.mobilesafari", starting: true),
+            BiomeAppInFocusEvent(timestamp: t2, bundleId: "com.apple.mobilesafari", starting: false)
+        ]
+
+        let (chunk2Intervals, finalState, stats2) = BiomeUsageNormalizer.normalize(
+            events: chunk2Events,
+            for: device,
+            initialState: nextState
+        )
+
+        // Chunk 2 correctly stitches Telegram from Chunk 1 (t0 -> t1, 300s) and Safari (t1 -> t2, 300s)
+        XCTAssertEqual(chunk2Intervals.count, 2)
+        XCTAssertEqual(chunk2Intervals[0].bundleId, "ph.telegra.Telegraph")
+        XCTAssertEqual(chunk2Intervals[0].startedAt, t0)
+        XCTAssertEqual(chunk2Intervals[0].endedAt, t1)
+        XCTAssertEqual(chunk2Intervals[0].durationSeconds, 300)
+
+        XCTAssertEqual(chunk2Intervals[1].bundleId, "com.apple.mobilesafari")
+        XCTAssertEqual(chunk2Intervals[1].startedAt, t1)
+        XCTAssertEqual(chunk2Intervals[1].endedAt, t2)
+        XCTAssertEqual(chunk2Intervals[1].durationSeconds, 300)
+
+        XCTAssertNil(finalState)
+        XCTAssertEqual(stats2.rawEventCount, 2)
+    }
+
+    func testDeduplicationDropsExactDuplicateEventsAndStrayEnds() {
+        let device = ScreenTimeDevice(deviceIdentifier: "DEV_DEDUPE")
+        let t0 = Date(timeIntervalSince1970: 1700000000)
+
+        let duplicateEvents = [
+            // Stray ending without starting
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(-10), bundleId: "com.apple.Safari", starting: false),
+            // Duplicate start events at exact same millisecond
+            BiomeAppInFocusEvent(timestamp: t0, bundleId: "com.apple.Safari", starting: true),
+            BiomeAppInFocusEvent(timestamp: t0, bundleId: "com.apple.Safari", starting: true),
+            // Normal end
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(120), bundleId: "com.apple.Safari", starting: false)
+        ]
+
+        let (intervals, nextState, stats) = BiomeUsageNormalizer.normalize(
+            events: duplicateEvents,
+            for: device,
+            initialState: nil
+        )
+
+        XCTAssertEqual(intervals.count, 1)
+        XCTAssertEqual(intervals[0].bundleId, "com.apple.Safari")
+        XCTAssertEqual(intervals[0].durationSeconds, 120)
+        XCTAssertNil(nextState)
+        XCTAssertEqual(stats.duplicatesDroppedCount, 1) // Dropped the duplicate start
+        XCTAssertEqual(stats.strayEventsCount, 1) // Dropped the stray end
+    }
+
+    func testUsageNormalizerFocusSwitching() {
+        let device = ScreenTimeDevice(deviceIdentifier: "DEV_MAC_FOCUS_SWITCH")
+        let t0 = Date(timeIntervalSince1970: 1700000000)
+
+        let events = [
+            // User working in Microsoft Edge
+            BiomeAppInFocusEvent(timestamp: t0, bundleId: "com.microsoft.edgemac", starting: true, type: 1),
+            // User switches to Antigravity 10 minutes later (600s)
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(600), bundleId: "com.google.antigravity", starting: true, type: 1),
+            // User switches back to Edge 1 minute later (660s)
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(660), bundleId: "com.microsoft.edgemac", starting: true, type: 1),
+            // User closes Edge 20 minutes later (1860s from t0)
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(1860), bundleId: "com.microsoft.edgemac", starting: false, type: 1)
+        ]
+
+        let (intervals, nextState, stats) = BiomeUsageNormalizer.normalize(
+            events: events,
+            for: device,
+            initialState: nil
+        )
+
+        // Yields Edge interval (t0 -> 600s, 600s) + Antigravity (600s -> 660s, 60s) + Edge resumed interval (660s -> 1860s, 1200s)
+        XCTAssertEqual(intervals.count, 3)
+        XCTAssertEqual(intervals[0].bundleId, "com.microsoft.edgemac")
+        XCTAssertEqual(intervals[0].durationSeconds, 600)
+
+        XCTAssertEqual(intervals[1].bundleId, "com.google.antigravity")
+        XCTAssertEqual(intervals[1].durationSeconds, 60)
+
+        XCTAssertEqual(intervals[2].bundleId, "com.microsoft.edgemac")
+        XCTAssertEqual(intervals[2].durationSeconds, 1200)
+
+        XCTAssertNil(nextState)
+        XCTAssertEqual(stats.intervalsProducedCount, 3)
+    }
+
+    func testUsageNormalizerPreservesLongContinuousSessions() {
+        let device = ScreenTimeDevice(deviceIdentifier: "DEV_LONG_SESSION")
+        let t0 = Date(timeIntervalSince1970: 1700000000)
+
+        // 70-minute continuous Safari session (4200s) with explicit matching STOP
+        let events = [
+            BiomeAppInFocusEvent(timestamp: t0, bundleId: "com.apple.mobilesafari", starting: true, type: 1),
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(4200), bundleId: "com.apple.mobilesafari", starting: false, type: 1)
+        ]
+
+        let intervals = BiomeUsageNormalizer.normalize(events: events, for: device)
+        XCTAssertEqual(intervals.count, 1)
+        XCTAssertEqual(intervals[0].bundleId, "com.apple.mobilesafari")
+        XCTAssertEqual(intervals[0].durationSeconds, 4200)
+        XCTAssertEqual(intervals[0].endedAt, t0.addingTimeInterval(4200))
+    }
+
+    func testUsageNormalizerIgnoresStrayStopWithoutPrecedingStartAfterSystemBoundary() {
+        let device = ScreenTimeDevice(deviceIdentifier: "DEV_OMITTED_START")
+        let t0 = Date(timeIntervalSince1970: 1700000000)
+
+        // Lockscreen / Sleep boundary occurs, and later a background process emits STOP for Xcode
+        // without a prior START. This must NOT synthesize a phantom multi-hour session.
+        let events = [
+            BiomeAppInFocusEvent(timestamp: t0, bundleId: "com.apple.SleepLockScreen", starting: false, type: 1),
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(1800), bundleId: "com.apple.dt.Xcode", starting: false, type: 1)
+        ]
+
+        let (intervals, _, stats) = BiomeUsageNormalizer.normalize(events: events, for: device, initialState: nil)
+        XCTAssertEqual(intervals.count, 0)
+        XCTAssertEqual(stats.strayEventsCount, 1)
+    }
+
+    func testUsageNormalizerIgnoresBackgroundStopForDifferentAppWhileSessionIsActive() {
+        let device = ScreenTimeDevice(deviceIdentifier: "DEV_BG_TRANSITION")
+        let t0 = Date(timeIntervalSince1970: 1700000000)
+
+        // Tubee is active in foreground. A background helper or process emits STOP for another app.
+        // The foreground Tubee session must continue without being overwritten.
+        let events = [
+            BiomeAppInFocusEvent(timestamp: t0, bundleId: "com.tracup.Tubee", starting: true, type: 1),
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(300), bundleId: "com.apple.dt.Xcode", starting: false, type: 1),
+            BiomeAppInFocusEvent(timestamp: t0.addingTimeInterval(600), bundleId: "com.tracup.Tubee", starting: false, type: 1)
+        ]
+
+        let (intervals, _, stats) = BiomeUsageNormalizer.normalize(events: events, for: device, initialState: nil)
+        XCTAssertEqual(intervals.count, 1)
+        XCTAssertEqual(intervals[0].bundleId, "com.tracup.Tubee")
+        XCTAssertEqual(intervals[0].durationSeconds, 600)
+        XCTAssertEqual(stats.strayEventsCount, 1)
+    }
+
+    // MARK: - Device Display Name & Discovery Tests
+
+    func testScreenTimeDeviceDisplayName() {
+        let customNameDevice = ScreenTimeDevice(deviceIdentifier: "D1", name: "Huy's iPhone", model: "iPhone15,2", platform: "iOS")
+        XCTAssertEqual(customNameDevice.displayName, "Huy's iPhone")
+
+        let macDevice = ScreenTimeDevice(deviceIdentifier: "D2", name: nil, model: "24G830", platform: "macOS", isMe: true)
+        XCTAssertEqual(macDevice.displayName, "This Mac")
+
+        let iosUnnamedDevice = ScreenTimeDevice(deviceIdentifier: "D3", name: "   ", model: "23D8133", platform: "iOS", isMe: false)
+        XCTAssertEqual(iosUnnamedDevice.displayName, "iPhone")
+
+        let genericUnnamedDevice = ScreenTimeDevice(deviceIdentifier: "D4", name: nil, model: "AppleTV14,1", platform: "tvOS", isMe: false)
+        XCTAssertEqual(genericUnnamedDevice.displayName, "AppleTV14,1")
+
+        let emptyDevice = ScreenTimeDevice(deviceIdentifier: "D5", name: nil, model: nil, platform: nil, isMe: false)
+        XCTAssertEqual(emptyDevice.displayName, "Apple Device")
+    }
+
+    func testLiveBiomeDeviceDiscovery() throws {
+        let devices = try BiomeDeviceDiscovery.discoverDevices()
+        // If sync.db is present on this machine, it must return exactly the enrolled peers
+        if FileManager.default.fileExists(atPath: BiomeDeviceDiscovery.syncDatabaseURL.path) {
+            XCTAssertEqual(devices.count, 2, "Expected exactly 2 devices (This Mac and iPhone), got \(devices.count): \(devices.map(\.displayName))")
+            XCTAssertTrue(devices.contains { $0.isMe }, "Expected local Mac in discovered devices")
+            XCTAssertTrue(devices.contains { !$0.isMe }, "Expected remote iPhone in discovered devices")
+        }
+    }
 }
+
+

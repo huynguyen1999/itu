@@ -7,12 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		20A0000000000000000000A0 /* BrowserActivityHost in Embed BrowserActivityHost */ = {isa = PBXBuildFile; fileRef = 20A000000000000000000032 /* BrowserActivityHost */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A7F77D2130268A93004C47A8 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000091 /* KeyboardShortcuts */; };
 		A7F77D2130268A93004C47A9 /* iTuDomain in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000093 /* iTuDomain */; };
 		A7F77D2130268A93004C47AA /* iTuNetworking in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000094 /* iTuNetworking */; };
 		A7F77D2130268A93004C47AB /* iTuOffline in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000095 /* iTuOffline */; };
 		A7F77D2130268A93004C7AC /* iTuSync in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000096 /* iTuSync */; };
 		A7F77D2130268A93004C7AD /* iTuDesignCore in Frameworks */ = {isa = PBXBuildFile; productRef = 20A000000000000000000097 /* iTuDesignCore */; };
+		A7F77D2130268A93004C7AE /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 20A00000000000000000009A /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -23,7 +25,28 @@
 			remoteGlobalIDString = 20A000000000000000000020;
 			remoteInfo = iTu;
 		};
+		20A000000000000000000012 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 20A000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 20A000000000000000000022;
+			remoteInfo = BrowserActivityHost;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		20A000000000000000000057 /* Embed BrowserActivityHost */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Helpers;
+			dstSubfolderSpec = 1;
+			files = (
+				20A0000000000000000000A0 /* BrowserActivityHost in Embed BrowserActivityHost */,
+			);
+			name = "Embed BrowserActivityHost";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		20A000000000000000000030 /* iTu.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iTu.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -60,6 +83,7 @@
 				A7F77D2130268A93004C47AB /* iTuOffline in Frameworks */,
 				A7F77D2130268A93004C7AC /* iTuSync in Frameworks */,
 				A7F77D2130268A93004C7AD /* iTuDesignCore in Frameworks */,
+				A7F77D2130268A93004C7AE /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -103,10 +127,12 @@
 				20A000000000000000000052 /* Sources */,
 				20A000000000000000000050 /* Frameworks */,
 				20A000000000000000000054 /* Resources */,
+				20A000000000000000000057 /* Embed BrowserActivityHost */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				20A000000000000000000013 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				20A000000000000000000040 /* iTu */,
@@ -119,6 +145,7 @@
 				20A000000000000000000095 /* iTuOffline */,
 				20A000000000000000000096 /* iTuSync */,
 				20A000000000000000000097 /* iTuDesignCore */,
+				20A00000000000000000009A /* Sparkle */,
 			);
 			productName = iTu;
 			productReference = 20A000000000000000000030 /* iTu.app */;
@@ -201,6 +228,7 @@
 			packageReferences = (
 				20A000000000000000000090 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				20A000000000000000000092 /* XCLocalSwiftPackageReference "../apple/Packages/iTuCore" */,
+				20A000000000000000000098 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 20A000000000000000000003 /* Products */;
@@ -260,6 +288,11 @@
 			isa = PBXTargetDependency;
 			target = 20A000000000000000000020 /* iTu */;
 			targetProxy = 20A000000000000000000010 /* PBXContainerItemProxy */;
+		};
+		20A000000000000000000013 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 20A000000000000000000022 /* BrowserActivityHost */;
+			targetProxy = 20A000000000000000000012 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -368,14 +401,13 @@
 				DEVELOPMENT_TEAM = B5W4Y6RRAN;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = iTu;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "iTu needs browser access to block distracting websites during Focus Sessions.";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.itu.macos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SPARKLE_PUBLIC_ED_KEY = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
@@ -395,14 +427,13 @@
 				DEVELOPMENT_TEAM = B5W4Y6RRAN;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = iTu;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "iTu needs browser access to block distracting websites during Focus Sessions.";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.itu.macos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SPARKLE_PUBLIC_ED_KEY = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
@@ -527,6 +558,14 @@
 				minimumVersion = 2.2.0;
 			};
 		};
+		20A000000000000000000098 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.4;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -559,6 +598,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 20A000000000000000000092 /* XCLocalSwiftPackageReference "../apple/Packages/iTuCore" */;
 			productName = iTuDesignCore;
+		};
+		20A00000000000000000009A /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 20A000000000000000000098 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

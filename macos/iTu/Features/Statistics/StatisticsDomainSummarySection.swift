@@ -51,8 +51,9 @@ struct StatisticsDomainSummarySection: View {
                 ])
             }
             if isVisible(.digital) {
+                let activeSec = model.screenTimeStatistics?.screenTimeSeconds ?? model.usageStatistics?.totalActiveSeconds
                 card(.digital, title: "Digital activity", description: "App and website usage", destination: .settings, icon: "rectangle.inset.filled", metrics: [
-                    metric("App active", duration(model.usageStatistics?.totalActiveSeconds)),
+                    metric("App active", duration(activeSec)),
                     metric("Websites", model.websiteUsageStatistics?.topHostnames.count ?? 0)
                 ])
             }

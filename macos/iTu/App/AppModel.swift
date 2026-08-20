@@ -347,6 +347,8 @@ final class AppModel {
     var journalPreferences = JournalPreferencesModel()
     var calendarPreferences = CalendarPreferencesModel()
     var usageStatistics: UsageStatistics?
+    var screenTimeStatistics: ScreenTimeStatistics?
+    var screenTimeDeviceScope: UsageDeviceScope = .all
     var websiteUsageStatistics: WebsiteUsageStatistics?
     var localUsageSummaries: [UsageSummary] = []
     var localWebsiteUsageSummaries: [WebsiteUsageSummary] = []
@@ -355,6 +357,9 @@ final class AppModel {
     var usageError: String?
     var websiteUsageError: String?
     var screenTimeStatus = ScreenTimeImportStatus()
+    var appUpdateState: AppUpdateCheckState = .idle
+    var appUpdatePolicy: AppUpdatePolicy?
+    var appUpdateLastCheckedAt: Date?
     @ObservationIgnored var usageServerStatistics: UsageStatistics?
     @ObservationIgnored var websiteUsageTracker: WebsiteUsageTracker?
     @ObservationIgnored var biomeCoordinator: BiomeImportCoordinator?
@@ -398,16 +403,24 @@ final class AppModel {
     var tagIdsByTaskID: [String: [String]] = [:]
 
     @ObservationIgnored let apiClient: APIClient
+    @ObservationIgnored let appUpdateCoordinator: AppUpdateCoordinator
+    @ObservationIgnored let appUpdater: any MacAppUpdating
     @ObservationIgnored let syncCoordinator: SyncCoordinator
     @ObservationIgnored var offlineStore: OfflineStore
 
-    init() {
+    init(appUpdater: any MacAppUpdating = MacSparkleUpdater.shared) {
         let cachedUser = SessionCache.loadUser()
         user = cachedUser
         authenticationState = cachedUser == nil ? .restoring : .authenticated
         FocusCommandService.shared.register(timer: focusTimer, cycleEngine: focusCycleEngine, settingsStore: settingsStore)
         FocusURLRouter.shared.setHydrated(true, authenticated: cachedUser != nil)
         apiClient = APIClient()
+        let updateCoordinator = AppUpdateCoordinator(apiClient: apiClient, platform: .macos)
+        appUpdateCoordinator = updateCoordinator
+        appUpdateState = updateCoordinator.state
+        appUpdatePolicy = updateCoordinator.policy
+        appUpdateLastCheckedAt = updateCoordinator.lastCheckedAt
+        self.appUpdater = appUpdater
         offlineStore = OfflineStore(accountID: cachedUser?.id ?? "anonymous", location: Self.offlineStoreLocation)
         syncCoordinator = SyncCoordinator(apiClient: apiClient, offlineStore: offlineStore)
         setupUsageTracking()

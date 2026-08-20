@@ -20,7 +20,7 @@
           <div><p class="eyebrow">Usage history</p><h2 id="range-heading">Your browsing pattern</h2><p class="history-description">See where your attention went, then drill into the sessions behind it.</p></div>
           <div class="history-metric"><span class="metric-label">Active in view</span><strong id="range-total">0m</strong><span id="summary" class="history-summary"></span></div>
         </div>
-        <div class="history-toolbar">
+        <form id="filter-form" class="history-toolbar">
           <div class="filters" aria-label="Activity filters">
             <label><span>Range</span><select id="range"><option value="today">Today</option><option value="7d">7D</option><option value="30d">30D</option><option value="90d">90D</option><option value="1y">1Y</option><option value="custom">Custom</option></select></label>
             <label><span>Search</span><input id="search" type="search" placeholder="Title, domain, or URL"></label>
@@ -28,8 +28,8 @@
             <label><span>Sync</span><select id="sync"><option value="all">All</option><option value="pending">Pending</option><option value="failed">Failed</option><option value="blocked">Blocked</option></select></label>
             <label id="from-wrap" hidden><span>From</span><input id="from" type="date"></label><label id="to-wrap" hidden><span>To</span><input id="to" type="date"></label>
           </div>
-          <div class="history-actions"><button id="clear-range" class="button-secondary" type="button">Clear range</button><button id="clear-all" class="button-secondary" type="button">Clear all</button><button id="reset-all" class="button-danger" type="button">Reset all</button></div>
-        </div>
+          <div class="history-actions"><button id="submit-filter" class="button-primary" type="submit">Submit filter</button><button id="clear-range" class="button-secondary" type="button">Clear range</button><button id="clear-all" class="button-secondary" type="button">Clear all</button><button id="reset-all" class="button-danger" type="button">Reset all</button></div>
+        </form>
         <div class="history-status-row"><p id="sync-diagnostic" class="detail-summary"></p></div>
         <div class="history-overview">
           <div class="trend-block"><div class="panel-heading"><div><p class="panel-kicker">Activity trend</p><h3>Time across the selected range</h3></div><span class="trend-hint">Hover a bar for details</span></div><div id="trend" class="trend" aria-label="Daily activity trend"></div></div>

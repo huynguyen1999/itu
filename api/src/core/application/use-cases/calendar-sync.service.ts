@@ -1,15 +1,13 @@
-import { BadRequestException, Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { CALENDAR_INTEGRATION_PORT, CALENDAR_REPOSITORY_PORT } from '@core/application/ports/out/calendar.port';
+import { DomainException, InvalidRequestException } from '@core/domain/exceptions';
 import type { CalendarIntegrationPort, CalendarRepositoryPort } from '@core/application/ports/out/calendar.port';
 
 const RANGE_BEFORE_MONTHS = 3;
 const RANGE_AFTER_MONTHS = 12;
 
-@Injectable()
 export class CalendarSyncService {
   constructor(
-    @Inject(CALENDAR_REPOSITORY_PORT) private readonly repository: CalendarRepositoryPort,
-    @Inject(CALENDAR_INTEGRATION_PORT) private readonly integration: CalendarIntegrationPort,
+    private readonly repository: CalendarRepositoryPort,
+    private readonly integration: CalendarIntegrationPort,
   ) {}
 
   async list(userId: string) {
@@ -31,7 +29,7 @@ export class CalendarSyncService {
 
   async syncIcs(userId: string, calendarId: string) {
     const source = await this.repository.findSource(userId, calendarId);
-    if (!source?.url || source.provider !== 'ICS') throw new BadRequestException('ICS calendar was not found');
+    if (!source?.url || source.provider !== 'ICS') throw new InvalidRequestException('ICS calendar was not found');
     try {
       const { from, to } = syncRange();
       const snapshot = await this.integration.fetchIcs(source.url, from, to);
@@ -49,9 +47,9 @@ export class CalendarSyncService {
 
   async refresh(userId: string, id: string) {
     const source = await this.repository.findSource(userId, id);
-    if (!source) throw new BadRequestException('Calendar source was not found');
+    if (!source) throw new InvalidRequestException('Calendar source was not found');
     if (source.provider === 'ICS') return this.syncIcs(userId, id);
-    if (!source.connectionId) throw new BadRequestException('Google Calendar connection was not found');
+    if (!source.connectionId) throw new InvalidRequestException('Google Calendar connection was not found');
     return this.syncGoogleConnection(source.connectionId, userId);
   }
 
@@ -76,7 +74,7 @@ export class CalendarSyncService {
 
   async syncGoogleConnection(connectionId: string, userId?: string) {
     const connection = await this.repository.findConnection(connectionId, userId);
-    if (!connection?.encryptedRefreshToken) throw new BadRequestException('Google Calendar is not connected');
+    if (!connection?.encryptedRefreshToken) throw new InvalidRequestException('Google Calendar is not connected');
     try {
       const sources = (await this.repository.listSources(connection.userId)).filter(
         (source) => source.provider === 'GOOGLE' && source.connectionId === connection.id,
@@ -128,6 +126,6 @@ function syncRange() {
 }
 
 function safeError(error: unknown): string {
-  if (error instanceof BadRequestException || error instanceof ServiceUnavailableException) return error.message;
+  if (error instanceof DomainException && (error.status === 400 || error.status === 503)) return error.message;
   return 'Calendar synchronization failed';
 }

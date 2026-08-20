@@ -12,15 +12,37 @@ import { ScheduledJobProcessor } from './scheduled-job.processor';
 import { SyncJobProcessor } from './sync-job.processor';
 import { LocalMediaStorage } from '@infrastructure/media/local-media-storage';
 import { ReviewContextBuilder } from '@core/application/use-cases/review-context.builder';
+import { REVIEW_DATA_SOURCE, type IReviewDataSource } from '@core/application/ports/out/review-data-source.port';
+import { PreferencesService } from '@core/application/use-cases/preferences.service';
+import { ReviewAutomationService } from '@core/application/use-cases/journal/review-automation.service';
+import { JOURNAL_AUTOMATION_USER_QUERY, JOURNAL_REPOSITORY } from '@core/application/ports/out/journal-repository.port';
+import { PREFERENCES_REPOSITORY } from '@core/application/ports/out/preferences-repository.port';
+import { ReviewAutomationScheduler } from './review-automation.scheduler';
 
 @Module({
   imports: [PersistenceModule, AiProviderModule, JwtModule],
   controllers: [RabbitMqMessageController],
   providers: [
     AiQueueJobProcessor,
-    ReviewContextBuilder,
+    {
+      provide: ReviewContextBuilder,
+      useFactory: (source: IReviewDataSource) => new ReviewContextBuilder(source),
+      inject: [REVIEW_DATA_SOURCE],
+    },
     ScheduledJobProcessor,
     ScheduledJobDispatcher,
+    ReviewAutomationScheduler,
+    {
+      provide: PreferencesService,
+      useFactory: (preferences) => new PreferencesService(preferences),
+      inject: [PREFERENCES_REPOSITORY],
+    },
+    {
+      provide: ReviewAutomationService,
+      useFactory: (journal, automationUsers, contextBuilder, preferences) =>
+        new ReviewAutomationService(journal, automationUsers, contextBuilder, preferences),
+      inject: [JOURNAL_REPOSITORY, JOURNAL_AUTOMATION_USER_QUERY, ReviewContextBuilder, PreferencesService],
+    },
     SyncJobProcessor,
     LocalMediaStorage,
     RabbitMqQueueJobHandler,

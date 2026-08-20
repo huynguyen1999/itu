@@ -173,8 +173,19 @@ export interface IJournalWeeklyReviewQuery {
   getSnapshotData(userId: string, periodStart: Date, periodEnd: Date): Promise<JournalWeeklyReviewSnapshotData>;
 }
 
+export interface JournalAutomationUser {
+  userId: string;
+  timezone?: string | null;
+}
+
+export interface IJournalAutomationUserQuery {
+  findTimezone(userId: string): Promise<string | null>;
+  listUsers(): Promise<JournalAutomationUser[]>;
+}
+
 export const JOURNAL_REPOSITORY = 'JOURNAL_REPOSITORY';
 export const JOURNAL_TEMPLATE_REPOSITORY = 'JOURNAL_TEMPLATE_REPOSITORY';
 export const JOURNAL_TAG_REPOSITORY = 'JOURNAL_TAG_REPOSITORY';
 export const JOURNAL_ATTACHMENT_REPOSITORY = 'JOURNAL_ATTACHMENT_REPOSITORY';
 export const JOURNAL_WEEKLY_REVIEW_QUERY = 'JOURNAL_WEEKLY_REVIEW_QUERY';
+export const JOURNAL_AUTOMATION_USER_QUERY = 'JOURNAL_AUTOMATION_USER_QUERY';

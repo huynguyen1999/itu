@@ -24,7 +24,7 @@ import {
   Dumbbell,
   type LucideIcon,
 } from 'lucide-react';
-import { CSSProperties, PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useState } from 'react';
+import { CSSProperties, PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/shared/ui/button';
@@ -42,6 +42,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { NotificationMenu } from './NotificationMenu';
 import { SyncStatus } from './SyncStatus';
+import { useStoredNumber } from '@/shared/hooks/useStoredNumber';
 export { getSyncStatusLabel, pendingMutationErrorLabel, pendingMutationLabel } from './SyncStatus';
 export type WorkspaceNavigationEntry = {
   id: string;
@@ -475,13 +476,4 @@ export function isNavigationEntryActive(id: string, pathname: string): boolean {
   }
   const entry = workspaceNavigation.find((item) => item.id === id);
   return entry ? pathname === entry.to || pathname.startsWith(`${entry.to}/`) : false;
-}
-
-function useStoredNumber(key: string, fallback: number) {
-  const [value, setValue] = useState(() => {
-    const stored = Number(window.localStorage.getItem(key));
-    return Number.isFinite(stored) && stored > 0 ? stored : fallback;
-  });
-  useEffect(() => window.localStorage.setItem(key, String(value)), [key, value]);
-  return [value, setValue] as const;
 }

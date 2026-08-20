@@ -152,3 +152,166 @@ describe('ScreenTime Usage Ingestion', () => {
     );
   });
 });
+
+describe('ScreenTime Statistics & Timeline Union', () => {
+  const repo: any = {
+    getTrackingPreferences: jest.fn(),
+    findScreenTimeEvents: jest.fn(),
+    listScreenTimeDevices: jest.fn(),
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    repo.getTrackingPreferences.mockResolvedValue({
+      trackingEnabled: true,
+      websiteTrackingEnabled: true,
+      retentionDays: 30,
+      idleThresholdSeconds: 180,
+      excludedBundleIds: [],
+    });
+    repo.listScreenTimeDevices.mockResolvedValue([
+      { deviceId: 'iphone-1', name: "Huy's iPhone", platform: 'IOS', lastSeenAt: new Date() },
+      { deviceId: 'mac-1', name: "Huy's Mac", platform: 'MACOS', lastSeenAt: new Date() },
+    ]);
+  });
+
+  it('accumulates simultaneous device intervals correctly for All Devices (70m)', async () => {
+    // iPhone Safari: 10:00 - 10:30 UTC (30m / 1800s)
+    // Mac Chrome:    10:10 - 10:50 UTC (40m / 2400s)
+    // Accumulated across All Devices: 1800s + 2400s = 70m (4200s)
+    repo.findScreenTimeEvents.mockResolvedValue([
+      {
+        id: '1',
+        userId: 'user-1',
+        collectorDeviceId: 'mac-1',
+        sourceDeviceId: 'iphone-1',
+        source: 'SCREEN_TIME_BIOME',
+        eventId: 'E1',
+        bundleId: 'com.apple.mobilesafari',
+        displayName: 'Safari',
+        startedAt: new Date('2026-08-17T10:00:00.000Z'),
+        endedAt: new Date('2026-08-17T10:30:00.000Z'),
+        durationSeconds: 1800,
+      },
+      {
+        id: '2',
+        userId: 'user-1',
+        collectorDeviceId: 'mac-1',
+        sourceDeviceId: 'mac-1',
+        source: 'SCREEN_TIME_BIOME',
+        eventId: 'E2',
+        bundleId: 'com.google.Chrome',
+        displayName: 'Google Chrome',
+        startedAt: new Date('2026-08-17T10:10:00.000Z'),
+        endedAt: new Date('2026-08-17T10:50:00.000Z'),
+        durationSeconds: 2400,
+      },
+    ]);
+
+    const service = new UsageService(repo);
+    const stats = await service.getScreenTimeStatistics(
+      'user-1',
+      '2026-08-17',
+      '2026-08-17',
+      'all',
+      'UTC',
+    );
+
+    // Headline Screen Time equals sum of device totals: 4200s (70m)
+    expect(stats.screenTimeSeconds).toBe(4200);
+
+    // Per-app active times: independently measured
+    const safari = stats.apps.find((a) => a.bundleId === 'com.apple.mobilesafari');
+    expect(safari?.activeSeconds).toBe(1800);
+
+    const chrome = stats.apps.find((a) => a.bundleId === 'com.google.Chrome');
+    expect(chrome?.activeSeconds).toBe(2400);
+
+    // Hourly bar for hour 10: accumulated across devices to 4200s (70m)
+    const hour10 = stats.hourlyScreenTime.find((h) => h.hour === 10);
+    expect(hour10?.screenTimeSeconds).toBe(4200);
+  });
+
+  it('aggregates disjoint device intervals correctly (producing exact 60m)', async () => {
+    // iPhone: 10:00 - 10:30 (30m)
+    // Mac:    11:00 - 11:30 (30m)
+    repo.findScreenTimeEvents.mockResolvedValue([
+      {
+        id: '1',
+        userId: 'user-1',
+        collectorDeviceId: 'mac-1',
+        sourceDeviceId: 'iphone-1',
+        source: 'SCREEN_TIME_BIOME',
+        eventId: 'E1',
+        bundleId: 'com.apple.mobilesafari',
+        displayName: 'Safari',
+        startedAt: new Date('2026-08-17T10:00:00.000Z'),
+        endedAt: new Date('2026-08-17T10:30:00.000Z'),
+        durationSeconds: 1800,
+      },
+      {
+        id: '2',
+        userId: 'user-1',
+        collectorDeviceId: 'mac-1',
+        sourceDeviceId: 'mac-1',
+        source: 'SCREEN_TIME_BIOME',
+        eventId: 'E2',
+        bundleId: 'com.google.Chrome',
+        displayName: 'Google Chrome',
+        startedAt: new Date('2026-08-17T11:00:00.000Z'),
+        endedAt: new Date('2026-08-17T11:30:00.000Z'),
+        durationSeconds: 1800,
+      },
+    ]);
+
+    const service = new UsageService(repo);
+    const stats = await service.getScreenTimeStatistics(
+      'user-1',
+      '2026-08-17',
+      '2026-08-17',
+      'all',
+      'UTC',
+    );
+
+    expect(stats.screenTimeSeconds).toBe(3600);
+    expect(stats.hourlyScreenTime.find((h) => h.hour === 10)?.screenTimeSeconds).toBe(1800);
+    expect(stats.hourlyScreenTime.find((h) => h.hour === 11)?.screenTimeSeconds).toBe(1800);
+  });
+
+  it('scopes statistics strictly to requested deviceId when specified', async () => {
+    repo.findScreenTimeEvents.mockImplementation(async (_u: any, _s: any, _e: any, deviceId: any) => {
+      if (deviceId === 'iphone-1') {
+        return [
+          {
+            id: '1',
+            userId: 'user-1',
+            collectorDeviceId: 'mac-1',
+            sourceDeviceId: 'iphone-1',
+            source: 'SCREEN_TIME_BIOME',
+            eventId: 'E1',
+            bundleId: 'com.apple.mobilesafari',
+            displayName: 'Safari',
+            startedAt: new Date('2026-08-17T10:00:00.000Z'),
+            endedAt: new Date('2026-08-17T10:30:00.000Z'),
+            durationSeconds: 1800,
+          },
+        ];
+      }
+      return [];
+    });
+
+    const service = new UsageService(repo);
+    const stats = await service.getScreenTimeStatistics(
+      'user-1',
+      '2026-08-17',
+      '2026-08-17',
+      'iphone-1',
+      'UTC',
+    );
+
+    expect(stats.selectedDeviceScope).toBe('iphone-1');
+    expect(stats.screenTimeSeconds).toBe(1800);
+    expect(stats.apps.length).toBe(1);
+    expect(stats.apps[0].bundleId).toBe('com.apple.mobilesafari');
+  });
+});

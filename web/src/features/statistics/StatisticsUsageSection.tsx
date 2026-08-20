@@ -17,7 +17,7 @@ import { Button } from '@/shared/ui/button';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { ChartEmptyState, QueryError } from './StatisticsSectionStates';
 import { AppUsageDetailModal } from './AppUsageDetailModal';
-import { axisActiveDuration, engagementPercent, formatActiveDuration } from './statistics';
+import { axisActiveDuration, formatActiveDuration } from './statistics';
 
 export function UsageSection({
   isLoading,
@@ -41,24 +41,6 @@ export function UsageSection({
   const [selectedApp, setSelectedApp] = useState<UsageSummary['topApps'][number] | null>(null);
 
   const hasHourlyBuckets = stack.length === 24;
-  const engagedPercent = engagementPercent(summary?.totalActiveSeconds ?? 0, summary?.totalEngagedSeconds);
-  const hasEngagementData = engagedPercent !== null && summary?.totalEngagedSeconds != null;
-  const coveragePercent =
-    summary?.engagementCoverage && summary.engagementCoverage.totalActiveSeconds > 0
-      ? Math.min(
-          100,
-          Math.max(
-            0,
-            Math.round(
-              (summary.engagementCoverage.observedActiveSeconds / summary.engagementCoverage.totalActiveSeconds) * 100,
-            ),
-          ),
-        )
-      : null;
-  const engagementMeasurement =
-    coveragePercent === null
-      ? 'Engagement coverage is unavailable.'
-      : `Engagement was measured for ${coveragePercent}% of foreground activity.`;
 
   const filteredApps = useMemo(() => {
     if (!searchQuery.trim()) return topApps;
@@ -118,42 +100,11 @@ export function UsageSection({
       ) : (
         <Card className="overflow-hidden shadow-[var(--shadow-soft)]">
           <CardHeader className="flex-col gap-3 border-b bg-muted/20 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-6">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">Screen Time</p>
-                <p className="font-mono text-2xl font-bold tracking-[-0.03em]">
-                  {formatActiveDuration(summary.totalActiveSeconds)}
-                </p>
-              </div>
-              <div className="h-8 w-px bg-border" />
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-medium text-muted-foreground">Engaged Time</p>
-                  <span className="group relative inline-flex">
-                    <button
-                      type="button"
-                      className="grid h-5 w-5 place-items-center rounded-full text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      aria-label="How Engaged Time is measured"
-                      aria-describedby="engagement-measurement"
-                    >
-                      ⓘ
-                    </button>
-                    <span
-                      id="engagement-measurement"
-                      role="tooltip"
-                      className="pointer-events-none invisible absolute left-0 top-full z-10 mt-2 w-64 rounded-[var(--itu-radius-s)] border border-border bg-card px-3 py-2 text-xs leading-4 text-foreground opacity-0 shadow-[var(--shadow-soft)] transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
-                    >
-                      {engagementMeasurement}
-                    </span>
-                  </span>
-                </div>
-                <p className="font-mono text-2xl font-bold tracking-[-0.03em] text-primary">
-                  {hasEngagementData ? formatActiveDuration(summary.totalEngagedSeconds ?? 0) : '—'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {hasEngagementData ? `${engagedPercent}% of screen time` : 'Not enough engagement data yet.'}
-                </p>
-              </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Screen Time</p>
+              <p className="font-mono text-2xl font-bold tracking-[-0.03em]">
+                {formatActiveDuration(summary.totalActiveSeconds)}
+              </p>
             </div>
             <p className="text-xs text-muted-foreground">
               {hasHourlyBuckets ? 'Hourly foreground time' : 'Daily foreground time'}, stacked by application.
@@ -274,11 +225,6 @@ export function UsageSection({
                             />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-xs font-medium text-foreground">{app.displayName}</p>
-                              {app.engagedSeconds != null && (
-                                <p className="text-[10px] text-muted-foreground">
-                                  Engaged: {formatActiveDuration(app.engagedSeconds)}
-                                </p>
-                              )}
                             </div>
                             <div className="text-right">
                               <p className="shrink-0 font-mono text-xs font-semibold tabular-nums text-foreground">

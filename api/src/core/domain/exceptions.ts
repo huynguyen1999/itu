@@ -9,6 +9,30 @@ export class DomainException extends Error {
   }
 }
 
+export class InvalidRequestException extends DomainException {
+  constructor(message: string) {
+    super(message, 'INVALID_REQUEST', 400);
+  }
+}
+
+export class ResourceNotFoundException extends DomainException {
+  constructor(message: string) {
+    super(message, 'RESOURCE_NOT_FOUND', 404);
+  }
+}
+
+export class ResourceConflictException extends DomainException {
+  constructor(message: string) {
+    super(message, 'RESOURCE_CONFLICT', 409);
+  }
+}
+
+export class ServiceUnavailableDomainException extends DomainException {
+  constructor(message: string) {
+    super(message, 'SERVICE_UNAVAILABLE', 503);
+  }
+}
+
 export class EntityNotFoundException extends DomainException {
   constructor(entity: string, id: string) {
     super(`${entity} ${id} was not found`, 'ENTITY_NOT_FOUND', 404);
@@ -16,8 +40,8 @@ export class EntityNotFoundException extends DomainException {
 }
 
 export class ForbiddenResourceException extends DomainException {
-  constructor() {
-    super('You do not have access to this resource', 'FORBIDDEN_RESOURCE', 403);
+  constructor(message = 'You do not have access to this resource') {
+    super(message, 'FORBIDDEN_RESOURCE', 403);
   }
 }
 

@@ -31,7 +31,7 @@ import {
   DailySummaryQueryDto,
 } from '../dto/journal.dto';
 import type { AuthenticatedMultipartRequest, AuthenticatedRequest } from '../types/authenticated-request';
-import { createUlid } from '@infrastructure/persistence/prisma/ulid';
+import { createUlid } from '@core/application/ulid';
 import type { FastifyReply } from 'fastify';
 import { hcmcDateOnly } from '@core/application/utils/calendar';
 

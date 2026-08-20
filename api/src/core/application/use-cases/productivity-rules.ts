@@ -1,4 +1,4 @@
-import { HabitScheduleType, TaskPriority } from '@prisma/client';
+import { HabitScheduleType, TaskPriority } from '@core/domain/enums';
 import { HabitCalendarDefinition, isHabitScheduled as isHabitScheduledV2 } from './habit-v2';
 
 export function deriveUrgency(

@@ -1,20 +1,20 @@
-import { CommitmentPenaltyState, CommitmentPolicyLevel, GrowthCurrency, GrowthLedgerKind, HabitCommitmentState, HabitOccurrenceStatus } from '@prisma/client';
+import { CommitmentPenaltyState, CommitmentPolicyLevel, GrowthCurrency, GrowthLedgerKind, HabitCommitmentState, HabitOccurrenceStatus } from '@core/domain/enums';
 import { DomainException, EntityNotFoundException } from '@core/domain/exceptions';
 import { growthLevelProgress } from './growth-rules';
 import { createUlid } from '@core/application/ulid';
+import type { ApplicationTransactionPort } from '@core/application/ports/out/application-transaction.port';
 
-type Tx = Record<string, any>;
+type Tx = ApplicationTransactionPort;
 
 const COMMITMENT_CONFIG = {
-  featureFlag: 'COMMITMENT_FEATURE_ENABLED',
   gentleRate: 0.5,
   standardRate: 1,
   maxRecoveryWindowMinutes: 14_400,
 } as const;
 const DAY_MS = 86_400_000;
 
-export function commitmentFeatureEnabled(): boolean {
-  return (process.env[COMMITMENT_CONFIG.featureFlag] ?? '').trim().toLowerCase() === 'true';
+export function commitmentFeatureEnabled(value: unknown): boolean {
+  return String(value ?? '').trim().toLowerCase() === 'true';
 }
 
 function localDateKey(instant: Date, formatter: Intl.DateTimeFormat): string {
@@ -158,8 +158,8 @@ function policyMetadata(occurrence: any) {
   };
 }
 
-export async function evaluateMissedCommitment(tx: Tx, userId: string, occurrenceId: string, now = new Date(), idempotencyKey?: string) {
-  if (!commitmentFeatureEnabled()) return { enabled: false, breached: false, penalty: null };
+export async function evaluateMissedCommitment(tx: Tx, userId: string, occurrenceId: string, now = new Date(), idempotencyKey?: string, featureEnabled = false) {
+  if (!featureEnabled) return { enabled: false, breached: false, penalty: null };
   const occurrence = await tx.habitOccurrence.findFirst({ where: { id: occurrenceId, habit: { userId } }, include: { habit: true, commitmentPenalty: true } });
   if (!occurrence) throw new EntityNotFoundException('Habit occurrence', occurrenceId);
   if (occurrence.commitmentPenalty?.state === CommitmentPenaltyState.ACTIVE) {
@@ -239,8 +239,8 @@ export async function evaluateMissedCommitment(tx: Tx, userId: string, occurrenc
   return { enabled: true, breached: true, penalty, dueAt };
 }
 
-export async function reverseCommitmentPenalty(tx: Tx, userId: string, occurrenceId: string, reason: 'RECOVERY' | 'EXCUSE', now = new Date()) {
-  if (!commitmentFeatureEnabled()) return null;
+export async function reverseCommitmentPenalty(tx: Tx, userId: string, occurrenceId: string, reason: 'RECOVERY' | 'EXCUSE', now = new Date(), featureEnabled = false) {
+  if (!featureEnabled) return null;
   const penalty = await tx.growthCommitmentPenalty.findFirst({ where: { userId, occurrenceId, state: CommitmentPenaltyState.ACTIVE } });
   if (!penalty) return null;
   const original = await tx.growthLedgerEntry.findUnique({ where: { id: penalty.ledgerEntryId } });

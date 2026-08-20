@@ -62,37 +62,43 @@ public enum BiomeDeviceDiscovery {
     public static func discoverDevices() throws -> [ScreenTimeDevice] {
         var devicesByIdentifier: [String: ScreenTimeDevice] = [:]
 
-        // 1. Try reading from sync/sync.db
-        if FileManager.default.fileExists(atPath: syncDatabaseURL.path) {
-            let dbDevices = queryDevicesFromSyncDatabase()
-            for dev in dbDevices {
-                devicesByIdentifier[dev.deviceIdentifier] = dev
-            }
+        // 1. Authoritative discovery from sync/sync.db (DevicePeer table)
+        let dbDevices = queryDevicesFromSyncDatabase()
+        for dev in dbDevices {
+            devicesByIdentifier[dev.deviceIdentifier] = dev
         }
 
-        // 2. Discover from remote directory structure if any remote device folders exist
-        let fileManager = FileManager.default
-        let remotePath = remoteStreamsURL.path
-        if fileManager.fileExists(atPath: remotePath),
-           let contents = try? fileManager.contentsOfDirectory(atPath: remotePath) {
-            for item in contents {
-                if item.hasPrefix(".") || item.lowercased() == "tombstone" { continue }
-                if devicesByIdentifier[item] == nil {
-                    // Create entry from directory UUID
-                    devicesByIdentifier[item] = ScreenTimeDevice(
-                        deviceIdentifier: item,
-                        name: "iOS Device (\(item.prefix(8)))",
-                        model: "iPhone/iPad",
-                        platform: "iOS",
-                        isMe: false,
-                        lastSyncDate: nil
-                    )
+        // 2. Only fallback to remote directory inspection if sync.db is missing or returned no peers
+        if dbDevices.isEmpty {
+            let fileManager = FileManager.default
+            let remotePath = remoteStreamsURL.path
+            if fileManager.fileExists(atPath: remotePath),
+               let contents = try? fileManager.contentsOfDirectory(atPath: remotePath) {
+                for item in contents {
+                    if item.hasPrefix(".") || item.lowercased() == "tombstone" { continue }
+                    let itemPath = (remotePath as NSString).appendingPathComponent(item)
+                    guard let itemContents = try? fileManager.contentsOfDirectory(atPath: itemPath),
+                          itemContents.contains(where: { !$0.hasPrefix(".") && $0.lowercased() != "tombstone" }) else {
+                        continue
+                    }
+                    if devicesByIdentifier[item] == nil {
+                        // Create entry from directory UUID
+                        devicesByIdentifier[item] = ScreenTimeDevice(
+                            deviceIdentifier: item,
+                            name: "iOS Device (\(item.prefix(8)))",
+                            model: "iPhone/iPad",
+                            platform: "iOS",
+                            isMe: false,
+                            lastSyncDate: nil
+                        )
+                    }
                 }
             }
         }
 
         // 3. Ensure local device ("This Mac") is included if local streams exist
         let hasLocalMe = devicesByIdentifier.values.contains { $0.isMe }
+        let fileManager = FileManager.default
         if !hasLocalMe && (fileManager.fileExists(atPath: localStreamsURL.path) || fileManager.fileExists(atPath: biomeRootURL.path)) {
             let localName = Host.current().localizedName ?? "This Mac"
             let localId = "local-mac"
@@ -109,14 +115,18 @@ public enum BiomeDeviceDiscovery {
         return devicesByIdentifier.values
             .sorted {
                 if $0.isMe != $1.isMe { return $0.isMe }
-                return ($0.name ?? $0.deviceIdentifier) < ($1.name ?? $1.deviceIdentifier)
+                return ($0.displayName) < ($1.displayName)
             }
     }
 
     private static func queryDevicesFromSyncDatabase() -> [ScreenTimeDevice] {
+        guard FileManager.default.fileExists(atPath: syncDatabaseURL.path) else {
+            return []
+        }
         var db: OpaquePointer?
         let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_URI
-        guard sqlite3_open_v2(syncDatabaseURL.path, &db, flags, nil) == SQLITE_OK else {
+        let uriPath = "file://\(syncDatabaseURL.path)?immutable=1"
+        guard sqlite3_open_v2(uriPath, &db, flags, nil) == SQLITE_OK else {
             if let db { sqlite3_close(db) }
             return []
         }
@@ -130,27 +140,41 @@ public enum BiomeDeviceDiscovery {
             while sqlite3_step(stmt) == SQLITE_ROW {
                 let idText = sqlite3_column_text(stmt, 0).map { String(cString: $0) } ?? ""
                 let meInt = sqlite3_column_int(stmt, 1)
-                let nameText = sqlite3_column_text(stmt, 2).map { String(cString: $0) }
-                let modelText = sqlite3_column_text(stmt, 3).map { String(cString: $0) }
+                let nameText = sqlite3_column_text(stmt, 2)
+                    .map { String(cString: $0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .flatMap { $0.isEmpty ? nil : $0 }
+                let modelText = sqlite3_column_text(stmt, 3)
+                    .map { String(cString: $0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .flatMap { $0.isEmpty ? nil : $0 }
                 let platformInt = sqlite3_column_int(stmt, 4)
                 let lastSyncVal = sqlite3_column_double(stmt, 5)
 
                 guard !idText.isEmpty else { continue }
 
                 let lastSyncDate: Date? = lastSyncVal > 0 ? BiomeRecordDecoder.parseTimestamp(lastSyncVal) : nil
+                let isMe = meInt != 0
                 let platformName: String
-                if meInt != 0 {
+                if isMe {
                     platformName = "macOS"
                 } else {
                     platformName = platformInt == 2 ? "iOS" : "Apple"
                 }
 
+                let resolvedName: String?
+                if let nameText {
+                    resolvedName = nameText
+                } else if isMe {
+                    resolvedName = Host.current().localizedName ?? "This Mac"
+                } else {
+                    resolvedName = platformName == "iOS" ? "iPhone" : "Apple Device"
+                }
+
                 devices.append(ScreenTimeDevice(
                     deviceIdentifier: idText,
-                    name: nameText,
+                    name: resolvedName,
                     model: modelText,
                     platform: platformName,
-                    isMe: meInt != 0,
+                    isMe: isMe,
                     lastSyncDate: lastSyncDate
                 ))
             }

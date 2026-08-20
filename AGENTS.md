@@ -79,3 +79,22 @@ When building or verifying the macOS client:
 
 - **Consistent Code Signing Across Builds.** macOS application and test builds must maintain consistent code signing (automatic signing with Apple Development certificate and stable Team ID).
 - **Avoid Disabling Signing for App or Test Builds.** Do not pass `CODE_SIGNING_ALLOWED=NO` or `CODE_SIGN_IDENTITY="-"` for `xcodebuild build` or `xcodebuild test`. Using ad-hoc or disabled signing breaks macOS Keychain ACL recognition across rebuilds and causes macOS to prompt for system passwords on every test run.
+
+## 7. Reusable Codex Agent Routing
+
+The main Codex session is the Sol lead and owns planning, architecture,
+delegation, integration, and final decisions. Subagents are bounded workers:
+
+| Role | Model | Scope |
+| --- | --- | --- |
+| `coder` | `gpt-5.6-luna` | Implement assigned code and run focused checks |
+| `researcher` | `gpt-5.6-luna` | Read-only repository and official-doc research |
+| `browser_debugger` | `gpt-5.6-luna` | Read-only Chrome DevTools reproduction and evidence |
+| `reviewer` | `gpt-5.6-terra` | Read-only diff review for correctness and risk |
+
+Never spawn or configure a Sol subagent. Prefer the named roles above, select
+the role and model explicitly, and use fresh context (`fork_turns = "none"`
+when supported; otherwise `fork_context = false`). Use one subagent by
+default, at most two for independent non-overlapping work, and close workers
+after their bounded task completes. Every delegated prompt must include its
+scope, paths, constraints, acceptance criteria, and required verification.

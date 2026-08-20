@@ -3,7 +3,7 @@ import { SyncDevicePlatform } from '@core/domain/enums';
 
 export class RegisterDeviceDto {
   @IsString()
-  @Length(12, 128)
+  @Length(1, 128)
   deviceId!: string;
 
   @IsEnum(SyncDevicePlatform)

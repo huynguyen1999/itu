@@ -276,6 +276,22 @@ describe('PrismaUsageRepository', () => {
     });
   });
 
+  it('replaces only the requested browser credential kind', async () => {
+    const upsert = jest.fn();
+    const prisma = { browserExtensionCredential: { upsert } } as any;
+    await new PrismaUsageRepository(prisma).replaceBrowserExtensionCredential(
+      'user-1',
+      'credential-1',
+      'hash',
+      'SAFARI_IOS',
+    );
+    expect(upsert).toHaveBeenCalledWith({
+      where: { userId_kind: { userId: 'user-1', kind: 'SAFARI_IOS' } },
+      create: { id: 'credential-1', userId: 'user-1', keyHash: 'hash', kind: 'SAFARI_IOS' },
+      update: { id: 'credential-1', keyHash: 'hash' },
+    });
+  });
+
   it('bulk joins app identities without one query per summary row', async () => {
     const findSummaries = jest.fn().mockResolvedValue([
       { localDate: new Date('2026-08-09T00:00:00Z'), hour: 9, bundleId: 'a', displayName: 'A', activeSeconds: 1 },

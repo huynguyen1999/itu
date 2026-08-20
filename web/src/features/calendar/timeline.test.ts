@@ -101,17 +101,43 @@ describe('timeline math', () => {
     expect(timelineItemColor('TASK_DURATION', 'EMERALD')).toBe('#059669');
   });
 
-  it('finds the timed item nearest the current local time and leaves all-day-only days at the start', () => {
-    const now = new Date(2026, 7, 12, 14, 30);
+  it('locates the nearest future task on the same day or positions to current time when no future task exists', () => {
+    const today = new Date(2026, 7, 12, 14, 30);
     const items = [9, 15, 23].map((hour) => ({
       kind: 'TASK_DURATION' as const,
       startAt: new Date(2026, 7, 12, hour).toISOString(),
       endAt: new Date(2026, 7, 12, hour + 1).toISOString(),
     }));
 
-    expect(findClosestTimedItem(items, now)?.startAt).toBe(items[1].startAt);
-    expect(dayTimelineScrollTop(items, now)).toBe(840);
-    expect(dayTimelineScrollTop([{ kind: 'TASK_DUE' as const, startAt: now.toISOString(), allDay: true }], now)).toBe(0);
+    // Future task at 15:00 exists on same day -> targets 15:00 (900m - 60m context = 840px)
+    expect(dayTimelineScrollTop(items, today, today)).toBe(840);
+
+    // Only past tasks on same day -> positions to current time (14:30 = 870m - 60m context = 810px)
+    const pastOnlyItems = [
+      {
+        kind: 'TASK_DURATION' as const,
+        startAt: new Date(2026, 7, 12, 9).toISOString(),
+        endAt: new Date(2026, 7, 12, 10).toISOString(),
+      },
+    ];
+    expect(dayTimelineScrollTop(pastOnlyItems, today, today)).toBe(810);
+
+    // No timed tasks on same day -> positions to current time (14:30 = 870m - 60m context = 810px)
+    expect(dayTimelineScrollTop([], today, today)).toBe(810);
+
+    // Future day (not today) with tasks at 10:00 -> targets earliest task 10:00 (600m - 60m = 540px)
+    const tomorrow = new Date(2026, 7, 13);
+    const tomorrowItems = [
+      {
+        kind: 'TASK_DURATION' as const,
+        startAt: new Date(2026, 7, 13, 10).toISOString(),
+        endAt: new Date(2026, 7, 13, 11).toISOString(),
+      },
+    ];
+    expect(dayTimelineScrollTop(tomorrowItems, tomorrow, today)).toBe(540);
+
+    // Future day without tasks -> defaults to 8:00 AM (480m - 60m = 420px)
+    expect(dayTimelineScrollTop([], tomorrow, today)).toBe(420);
   });
 
   it('finds the populated week day nearest today and leaves empty weeks at the start', () => {

@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -17,6 +17,13 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { USAGE_SOURCES } from '@core/application/ports/out/repositories.port';
+import { BROWSER_EXTENSION_CREDENTIAL_KINDS } from '@core/application/ports/out/repositories.port';
+
+export class GenerateBrowserExtensionDsnDto {
+  @IsOptional()
+  @IsIn(BROWSER_EXTENSION_CREDENTIAL_KINDS)
+  kind?: (typeof BROWSER_EXTENSION_CREDENTIAL_KINDS)[number];
+}
 
 export class UsageSummaryDto {
   @IsOptional()
@@ -284,6 +291,7 @@ export class ScreenTimeEventDto {
   sourceDeviceId!: string;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' && value.trim() === '' ? undefined : value))
   @IsString()
   @Length(1, 255)
   sourceDeviceName?: string;
@@ -314,7 +322,7 @@ export class ScreenTimeEventDto {
 export class ScreenTimeUsageBatchDto {
   @IsString()
   @IsNotEmpty()
-  @Length(12, 128)
+  @Length(1, 128)
   collectorDeviceId!: string;
 
   @IsArray()
@@ -324,3 +332,9 @@ export class ScreenTimeUsageBatchDto {
   events!: ScreenTimeEventDto[];
 }
 
+export class ScreenTimeQueryDto extends UsageDateQueryDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  timezone?: string;
+}

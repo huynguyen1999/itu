@@ -9,6 +9,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case desktop
     case ai
     case companion
+    case about
 
     var id: String { rawValue }
 
@@ -18,6 +19,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .desktop: "Desktop & Sync"
         case .ai: "AI / Gemini"
         case .companion: "Companion"
+        case .about: "About"
         }
     }
 
@@ -27,6 +29,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .desktop: "laptopcomputer.and.iphone"
         case .ai: "key.fill"
         case .companion: "sidebar.squares.trailing"
+        case .about: "info.circle"
         }
     }
 }
@@ -103,6 +106,8 @@ struct SettingsView: View {
                         AiSettingsPanel()
                     case .companion:
                         CompanionSettingsPanel()
+                    case .about:
+                        AboutSettingsPanel()
                     }
                 }
                 .padding(28)
@@ -784,12 +789,14 @@ private struct ScreenTimeSettingsPanel: View {
                                         .font(.system(size: 13))
                                         .foregroundStyle(iTuTheme.teal)
                                     VStack(alignment: .leading, spacing: 1) {
-                                        Text(device.isMe ? "This Mac" : (device.name ?? "iOS Device"))
+                                        Text(device.displayName)
                                             .font(.system(size: 13, weight: .medium))
                                             .foregroundStyle(iTuTheme.ink)
-                                        Text(device.model ?? device.platform ?? "Apple Device")
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(iTuTheme.inkDim)
+                                        if let subtitle = device.model ?? device.platform {
+                                            Text(subtitle)
+                                                .font(.system(size: 11))
+                                                .foregroundStyle(iTuTheme.inkDim)
+                                        }
                                     }
                                     Spacer()
                                     if let lastSync = device.lastSyncDate {
@@ -901,7 +908,7 @@ private struct ScreenTimeSettingsPanel: View {
 
 // MARK: - Reusable UI Components
 
-private struct SettingsCardView<Content: View>: View {
+struct SettingsCardView<Content: View>: View {
     let iconName: String
     let title: String
     let description: String

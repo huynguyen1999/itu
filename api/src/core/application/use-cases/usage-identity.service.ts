@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { BadRequestException } from '@nestjs/common';
+import { InvalidRequestException } from '@core/domain/exceptions';
 import type { IUsageRepository, UsageAppIdentityWrite } from '@core/application/ports/out/repositories.port';
 import type { IMediaStorage } from '@core/application/ports/out/services.port';
 import type { UsageAppIconInput } from './usage.types';
@@ -15,7 +15,7 @@ export class UsageIdentityService {
   async replaceAppIcon(userId: string, input: UsageAppIconInput) {
     const bundleId = requireText(input.bundleId, 'bundleId');
     const displayName = requireText(input.displayName, 'displayName').trim();
-    if (!displayName) throw new BadRequestException('displayName is required and must be at most 255 characters');
+    if (!displayName) throw new InvalidRequestException('displayName is required and must be at most 255 characters');
     if (!this.media) throw new Error('Media storage is not configured');
 
     const hash = createHash('sha256').update(input.buffer).digest('hex');

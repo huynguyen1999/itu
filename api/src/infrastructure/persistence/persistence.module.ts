@@ -38,6 +38,7 @@ import { REVIEW_DATA_SOURCE } from '@core/application/ports/out/review-data-sour
 import { PrismaPreferencesRepository } from './prisma/prisma-preferences.repository';
 import {
   JOURNAL_ATTACHMENT_REPOSITORY,
+  JOURNAL_AUTOMATION_USER_QUERY,
   JOURNAL_REPOSITORY,
   JOURNAL_TAG_REPOSITORY,
   JOURNAL_TEMPLATE_REPOSITORY,
@@ -102,6 +103,7 @@ import { PREFERENCES_REPOSITORY } from '@core/application/ports/out/preferences-
     { provide: JOURNAL_TEMPLATE_REPOSITORY, useExisting: PrismaJournalTemplateRepository },
     { provide: JOURNAL_TAG_REPOSITORY, useExisting: PrismaJournalTagRepository },
     { provide: JOURNAL_ATTACHMENT_REPOSITORY, useExisting: PrismaJournalAttachmentRepository },
+    { provide: JOURNAL_AUTOMATION_USER_QUERY, useExisting: PrismaJournalRepository },
     { provide: JOURNAL_WEEKLY_REVIEW_QUERY, useExisting: PrismaJournalWeeklyReviewRepository },
     { provide: REVIEW_DATA_SOURCE, useExisting: PrismaReviewDataSource },
     { provide: PREFERENCES_REPOSITORY, useExisting: PrismaPreferencesRepository },
@@ -162,6 +164,7 @@ import { PREFERENCES_REPOSITORY } from '@core/application/ports/out/preferences-
     JOURNAL_TEMPLATE_REPOSITORY,
     JOURNAL_TAG_REPOSITORY,
     JOURNAL_ATTACHMENT_REPOSITORY,
+    JOURNAL_AUTOMATION_USER_QUERY,
     JOURNAL_WEEKLY_REVIEW_QUERY,
     REVIEW_DATA_SOURCE,
     PREFERENCES_REPOSITORY,

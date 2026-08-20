@@ -5,7 +5,11 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if model.authenticationState == .restoring {
+            if model.appUpdateRequiresUpdate, let policy = model.appUpdatePolicy {
+                RequiredAppUpdateView(policy: policy) {
+                    model.startAppUpdate()
+                }
+            } else if model.authenticationState == .restoring {
                 VStack(spacing: 14) {
                     iTuBrandMark(size: 42)
                     ProgressView()
@@ -42,6 +46,17 @@ struct RootView: View {
                 AuthView()
             } else {
                 MainView()
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let policy = model.appUpdateOptionalPolicy {
+                OptionalAppUpdateBanner(
+                    policy: policy,
+                    onUpdate: { model.startAppUpdate() },
+                    onDismiss: { model.dismissOptionalAppUpdate() }
+                )
+                .padding(.horizontal, 18)
+                .padding(.top, 10)
             }
         }
         .overlay(alignment: .topTrailing) {

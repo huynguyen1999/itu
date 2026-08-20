@@ -34,7 +34,7 @@ describe('habit commitments', () => {
 
   it('is inert by default and does not inspect persistence', async () => {
     delete process.env.COMMITMENT_FEATURE_ENABLED;
-    expect(commitmentFeatureEnabled()).toBe(false);
+    expect(commitmentFeatureEnabled(undefined)).toBe(false);
     const findFirst = jest.fn();
     const result = await evaluateMissedCommitment({ habitOccurrence: { findFirst } } as never, 'user-1', 'occurrence-1');
     expect(result).toEqual({ enabled: false, breached: false, penalty: null });
@@ -74,7 +74,7 @@ describe('habit commitments', () => {
       commitmentExpectedAccountXp: 10, commitmentPenaltyRate: 1, commitmentGraceMinutes: 0, commitmentTimezone: 'UTC', commitmentPenalty: null,
     };
     const tx = { habitOccurrence: { findFirst: jest.fn().mockResolvedValue(occurrence), update: jest.fn() } } as never;
-    const result = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:00:00.000Z'));
+    const result = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:00:00.000Z'), undefined, true);
     expect(result.breached).toBe(false);
     expect((tx as any).habitOccurrence.update).not.toHaveBeenCalled();
   });
@@ -92,7 +92,7 @@ describe('habit commitments', () => {
       commitmentTimezone: 'UTC',
       commitmentPenalty: null,
     });
-    const result = await evaluateMissedCommitment({ habitOccurrence: { findFirst } } as never, 'user-1', 'occurrence-1', new Date('2026-01-02T00:00:00.000Z'));
+    const result = await evaluateMissedCommitment({ habitOccurrence: { findFirst } } as never, 'user-1', 'occurrence-1', new Date('2026-01-02T00:00:00.000Z'), undefined, true);
     expect(result).toEqual({ enabled: true, breached: false, penalty: null });
   });
 
@@ -118,14 +118,14 @@ describe('habit commitments', () => {
       growthLedgerEntry: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockImplementation(({ data }) => ({ id: data.id, amount: data.amount, cycleId: 'cycle-1', titleSnapshot: 'Read' })) },
       growthCommitmentPenalty: { findUnique, create },
     };
-    const first = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:01:00.000Z'));
+    const first = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:01:00.000Z'), undefined, true);
     expect(first.penalty?.amount).toBe(-25);
     expect(tx.growthLedgerEntry.create.mock.calls[0][0].data.currency).toBe('ACCOUNT_XP');
     expect(tx.growthLedgerEntry.create.mock.calls[0][0].data.skillId).toBeUndefined();
     expect(create).toHaveBeenCalledTimes(1);
 
     findUnique.mockResolvedValue(first.penalty);
-    const replay = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:02:00.000Z'));
+    const replay = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:02:00.000Z'), undefined, true);
     expect(replay.penalty).toBe(first.penalty);
     expect(create).toHaveBeenCalledTimes(1);
   });
@@ -144,10 +144,10 @@ describe('habit commitments', () => {
       growthLedgerEntry: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockImplementation(({ data }) => ({ id: data.id, amount: data.amount, cycleId: 'cycle-1', titleSnapshot: 'Read' })), findUnique: jest.fn().mockResolvedValue({ id: 'entry-1', cycleId: 'cycle-1', titleSnapshot: 'Read' }) },
       growthCommitmentPenalty: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockImplementation(() => penalty), findFirst: jest.fn().mockResolvedValue(penalty), update: jest.fn().mockImplementation(({ data }) => Object.assign(penalty, data)) },
     };
-    const breach = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:05:00.000Z'));
+    const breach = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:05:00.000Z'), undefined, true);
     expect(breach.breached).toBe(true);
     occurrence.commitmentPenalty = penalty;
-    const reversed = await reverseCommitmentPenalty(tx, 'user-1', occurrence.id, 'RECOVERY', new Date('2026-01-01T00:05:30.000Z'));
+    const reversed = await reverseCommitmentPenalty(tx, 'user-1', occurrence.id, 'RECOVERY', new Date('2026-01-01T00:05:30.000Z'), true);
     expect(reversed?.reversal.amount).toBe(10);
   });
 
@@ -163,8 +163,8 @@ describe('habit commitments', () => {
       growthProfile: { findUnique: jest.fn().mockResolvedValue({ userId: 'user-1', lifetimeEarnedXp: 100, outstandingPenaltyDebt: 50, protectedLevelFloor: 1, highestLevelReached: 2, accountBaseXp: 75 }) },
       growthLedgerEntry: { findMany: jest.fn().mockResolvedValue([]) },
     };
-    const first = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:05:00.000Z'));
-    const replay = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:06:00.000Z'));
+    const first = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:05:00.000Z'), undefined, true);
+    const replay = await evaluateMissedCommitment(tx, 'user-1', occurrence.id, new Date('2026-01-01T00:06:00.000Z'), undefined, true);
     expect(first).toMatchObject({ breached: true, capped: true, penalty: null });
     expect(replay).toMatchObject({ breached: true, penalty: null });
   });

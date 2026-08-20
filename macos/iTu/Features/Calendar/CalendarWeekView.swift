@@ -177,7 +177,20 @@ struct CalendarWeekView: View {
                         .frame(width: totalWidth, height: totalGridHeight, alignment: .topLeading)
                     }
                     .onAppear {
-                        let targetHour = isAnyToday ? max(0, Calendar.current.component(.hour, from: Date()) - 1) : 8
+                        let now = Date()
+                        let targetHour: Int
+                        if isAnyToday {
+                            let cal = Calendar.current
+                            let todayTimed = effectiveItems.filter { !$0.allDay && $0.kind != "TASK_DUE" && cal.isDateInToday($0.start) }
+                            let futureItems = todayTimed.filter { ($0.end ?? $0.start) > now || $0.start >= now }.sorted { $0.start < $1.start }
+                            if let nearest = futureItems.first {
+                                targetHour = max(0, cal.component(.hour, from: nearest.start) - 1)
+                            } else {
+                                targetHour = max(0, cal.component(.hour, from: now) - 1)
+                            }
+                        } else {
+                            targetHour = 8
+                        }
                         proxy.scrollTo(targetHour, anchor: .top)
                     }
                 }

@@ -57,13 +57,24 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
     @Published private(set) var healthImportStatus: IOSHealthImportStatus = .idle
     @Published private(set) var healthLastSuccessfulImportAt: String?
     @Published private(set) var notificationAuthorizationState: IOSNotificationAuthorizationState = .notDetermined
+    @Published var safariExtensionConfiguration = IOSSafariExtensionConfigurationStore.load()
     @Published var phase6State = IOSPhase6State()
     @Published private(set) var navigationRequest: IOSNavigationRequest?
     @Published var destination: IOSDestination = .home
     @Published private(set) var isRestoring = true
+    @Published var appUpdateState: AppUpdateCheckState = .idle
+    @Published var appUpdatePolicy: AppUpdatePolicy?
+    @Published var appUpdateLastCheckedAt: Date?
 
     private var store: OfflineStore?
+    let appUpdateCoordinator: AppUpdateCoordinator
     private var syncCore: SyncCoordinatorCore?
+    private let webSocketSession: URLSession
+    private var socketTask: URLSessionWebSocketTask?
+    private var socketReceiveTask: Task<Void, Never>?
+    private var periodicSyncTask: Task<Void, Never>?
+    private var registrationTask: Task<Void, Never>?
+    private var registeredDevice = false
     private var pathMonitor: NWPathMonitor?
     private var outboxTask: Task<Void, Never>?
     private var debounceTask: Task<Void, Never>?
@@ -86,7 +97,14 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
     ) {
         let credentials = credentialStore ?? KeychainCredentialStore(serviceIdentifier: "com.itu.ios.session")
         self.credentialStore = credentials
-        self.apiClient = apiClient ?? APIClient(platform: "IOS", credentialStore: credentials)
+        let client = apiClient ?? APIClient(platform: "IOS", credentialStore: credentials)
+        self.apiClient = client
+        self.webSocketSession = APIClient.makeSession()
+        let updateCoordinator = AppUpdateCoordinator(apiClient: client, platform: .ios)
+        self.appUpdateCoordinator = updateCoordinator
+        self.appUpdateState = updateCoordinator.state
+        self.appUpdatePolicy = updateCoordinator.policy
+        self.appUpdateLastCheckedAt = updateCoordinator.lastCheckedAt
         self.offlineLocation = offlineLocation ?? Self.defaultOfflineLocation()
         if let saved = UserDefaults.standard.string(forKey: "com.itu.ios.syncDeviceId"), saved.count >= 12 {
             deviceId = saved
@@ -110,6 +128,10 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
         hydrationTask?.cancel()
         healthImportTask?.cancel()
         notificationSyncTask?.cancel()
+        periodicSyncTask?.cancel()
+        registrationTask?.cancel()
+        socketReceiveTask?.cancel()
+        socketTask?.cancel(with: .goingAway, reason: nil)
     }
 
     static func defaultOfflineLocation(fileManager: FileManager = .default) -> OfflineStoreLocation {
@@ -188,6 +210,7 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
     }
 
     func logout() async {
+        pauseSafariExtensionUpload()
         await resetAuthenticatedState()
         let runGeneration = generation
         do { try await apiClient.logout() } catch {
@@ -321,6 +344,12 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
         }
         healthImportTask = nil
         notificationSyncTask = nil
+        periodicSyncTask?.cancel()
+        registrationTask?.cancel()
+        socketReceiveTask?.cancel()
+        socketTask?.cancel(with: .goingAway, reason: nil)
+        socketTask = nil
+        registeredDevice = false
         await IOSLocalNotificationScheduler.shared.sync(tasks: [], activeFocus: nil)
         healthImportToken &+= 1
         finishHealthObserverCompletions()
@@ -336,6 +365,7 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
         store = accountStore
         user = account
         phase6State = IOSPhase6State()
+        activateSafariExtension(for: account)
         errorMessage = nil
         syncErrorMessage = nil
         syncCore = SyncCoordinatorCore(
@@ -354,6 +384,17 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
         }
         guard runGeneration == generation, user?.id == account.id else { return }
         startHealthPipeline(for: accountStore, accountID: account.id, generation: runGeneration)
+        periodicSyncTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled else { return }
+                guard let self, self.generation == runGeneration, self.user?.id == account.id, self.isOnline else { return }
+                await self.synchronize(generation: runGeneration)
+            }
+        }
+        if isOnline {
+            scheduleWebSocketRegistration(generation: runGeneration)
+        }
         outboxTask = Task { [weak self, accountStore] in
             for await _ in await accountStore.outboxEvents() {
                 guard !Task.isCancelled else { return }
@@ -682,9 +723,28 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
         }
     }
 
+    func resolveConflicts(_ conflicts: [SyncConflict], keepLocal: Bool) async {
+        guard let store, let accountID = user?.id, !conflicts.isEmpty else { return }
+        let runGeneration = generation
+        do {
+            let snapshot = try await store.resolveConflicts(conflicts, keepLocal: keepLocal)
+            guard isCurrent(store: store, accountID: accountID, generation: runGeneration) else { return }
+            apply(snapshot)
+            syncPhase = .pending
+            requestDebouncedSync(generation: runGeneration, immediate: true)
+        } catch {
+            guard isCurrent(store: store, accountID: accountID, generation: runGeneration) else { return }
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func reconcileForeground() async {
         guard isAuthenticated, isOnline else { return }
+        _ = await ensureSafariExtensionCredential()
         let runGeneration = generation
+        if socketTask == nil {
+            scheduleWebSocketRegistration(generation: runGeneration)
+        }
         if let hydrationTask {
             await hydrationTask.value
             guard runGeneration == generation else { return }
@@ -870,6 +930,9 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
             let attachmentsUploaded = await uploadPendingJournalAttachments()
             if !attachmentsUploaded { return }
             syncPhase = conflicts.isEmpty ? (pendingMutations.isEmpty ? .upToDate : .pending) : .conflict
+            if socketTask == nil && isOnline {
+                scheduleWebSocketRegistration(generation: runGeneration)
+            }
             requestFollowupIfNeeded(generation: runGeneration)
         } catch {
             guard isCurrent(store: store, accountID: accountID, generation: runGeneration) else { return }
@@ -878,6 +941,79 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
             apply(snapshot)
             recordSyncError("Could not sync with the server", error)
             requestFollowupIfNeeded(generation: runGeneration)
+        }
+    }
+
+    private func scheduleWebSocketRegistration(generation runGeneration: Int) {
+        guard generation == runGeneration, registrationTask == nil, isOnline, user != nil else { return }
+        registrationTask = Task { [weak self] in
+            await self?.registerAndConnectWebSocket(generation: runGeneration)
+            guard let self, self.generation == runGeneration else { return }
+            self.registrationTask = nil
+        }
+    }
+
+    private func registerAndConnectWebSocket(generation runGeneration: Int) async {
+        guard generation == runGeneration, socketTask == nil, isOnline,
+              await apiClient.token() != nil, let store else { return }
+        do {
+            let cursor = (await store.snapshot()).cursor
+            guard generation == runGeneration, socketTask == nil else { return }
+            try await apiClient.registerSyncDevice(deviceId: deviceId, cursor: cursor)
+            guard generation == runGeneration, socketTask == nil else { return }
+            registeredDevice = true
+            await connectWebSocket(generation: runGeneration)
+        } catch {
+            // Registration will retry on next sync pass
+        }
+    }
+
+    private func connectWebSocket(generation connectionGeneration: Int) async {
+        guard generation == connectionGeneration, registeredDevice,
+              socketTask == nil, let token = await apiClient.token() else { return }
+        let baseURL = apiClient.baseURL
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.scheme = baseURL.scheme == "https" ? "wss" : "ws"
+        components?.path = "/ws/sync"
+        components?.queryItems = [
+            URLQueryItem(name: "token", value: token),
+            URLQueryItem(name: "deviceId", value: deviceId),
+            URLQueryItem(name: "clientInstanceId", value: clientInstanceId)
+        ]
+        guard let url = components?.url else { return }
+        let webSocket = webSocketSession.webSocketTask(with: url)
+        socketTask = webSocket
+        webSocket.resume()
+        socketReceiveTask = Task { [weak self] in
+            await self?.receiveWebSocketMessages(from: webSocket, generation: connectionGeneration)
+        }
+    }
+
+    private func receiveWebSocketMessages(from webSocket: URLSessionWebSocketTask, generation connectionGeneration: Int) async {
+        while !Task.isCancelled {
+            do {
+                let message = try await webSocket.receive()
+                let data: Data
+                switch message {
+                case let .data(value): data = value
+                case let .string(value): data = Data(value.utf8)
+                @unknown default: continue
+                }
+                if let invalidation = try? JSONDecoder().decode(SyncInvalidationMessage.self, from: data),
+                   invalidation.type == "SYNC_AVAILABLE" {
+                    guard connectionGeneration == generation else { continue }
+                    requestDebouncedSync(generation: connectionGeneration, immediate: true)
+                }
+            } catch {
+                guard connectionGeneration == generation else { return }
+                socketTask = nil
+                socketReceiveTask = nil
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(for: .seconds(3))
+                guard connectionGeneration == self.generation, self.isAuthenticated, self.isOnline else { return }
+                self.scheduleWebSocketRegistration(generation: connectionGeneration)
+                return
+            }
         }
     }
 
@@ -1015,6 +1151,15 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
         retryTask?.cancel()
         hydrationTask?.cancel()
         healthImportTask?.cancel()
+        periodicSyncTask?.cancel()
+        periodicSyncTask = nil
+        registrationTask?.cancel()
+        registrationTask = nil
+        socketReceiveTask?.cancel()
+        socketReceiveTask = nil
+        socketTask?.cancel(with: .goingAway, reason: nil)
+        socketTask = nil
+        registeredDevice = false
         if let notificationSyncTask {
             notificationSyncTask.cancel()
             await notificationSyncTask.value
@@ -1103,6 +1248,7 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
 
     func setPhase6UsagePreferences(_ preferences: UsagePreferences) {
         phase6State.usagePreferences = preferences
+        refreshSafariExtensionConfiguration()
     }
 
     func setUpdatedAuthenticatedUser(_ account: UserProfile) {
@@ -1218,4 +1364,9 @@ final class AppModel: ObservableObject, IOSFocusIntentHandler, IOSProductivityIn
         healthObserverCompletions.removeAll()
         completions.forEach { $0.finish() }
     }
+}
+
+private struct SyncInvalidationMessage: Decodable {
+    let type: String
+    let cursor: String?
 }

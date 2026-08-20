@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "iTu Browser Activity for Safari",
+  "version": "1.3.0",
+  "description": "Sends opted-in website usage sessions directly to iTu.",
+  "permissions": ["tabs", "storage", "alarms", "nativeMessaging"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "iTu Browser Activity"
+  }
+}

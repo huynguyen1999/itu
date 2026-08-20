@@ -1,16 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
-import {
-  REVIEW_DATA_SOURCE,
-  type IReviewDataSource,
-  type ReviewRangeInput,
-} from '../ports/out/review-data-source.port';
+import type { IReviewDataSource, ReviewRangeInput } from '../ports/out/review-data-source.port';
 import type { ReviewComparison, ReviewContextV1, ReviewEvidence, ReviewPeriod } from '@core/domain/review/review.types';
 
 export const REVIEW_PROMPT_VERSION = 'review-insights-v1' as const;
 
-@Injectable()
 export class ReviewContextBuilder {
-  constructor(@Inject(REVIEW_DATA_SOURCE) private readonly source: IReviewDataSource) {}
+  constructor(private readonly source: IReviewDataSource) {}
 
   async build(
     userId: string,

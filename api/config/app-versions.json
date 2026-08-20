@@ -1,0 +1,22 @@
+{
+  "ios": {
+    "stable": {
+      "latestVersion": "0.1.0",
+      "minimumSupportedVersion": "0.1.0",
+      "updateUrl": null,
+      "releasedAt": "2026-01-01T00:00:00.000Z",
+      "title": "iTu 0.1.0",
+      "releaseNotes": ["Initial stable release."]
+    }
+  },
+  "macos": {
+    "stable": {
+      "latestVersion": "0.1.0",
+      "minimumSupportedVersion": "0.1.0",
+      "updateUrl": null,
+      "releasedAt": "2026-01-01T00:00:00.000Z",
+      "title": "iTu 0.1.0",
+      "releaseNotes": ["Initial stable release."]
+    }
+  }
+}

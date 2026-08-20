@@ -48,6 +48,8 @@ export interface ChangePasswordCommand {
 export interface IAuthUseCase {
   register(command: RegisterCommand): Promise<AuthResult>;
   login(command: LoginCommand): Promise<AuthResult>;
+  googleAuthorizationUrl(): string;
+  loginWithGoogleCode(code: string): Promise<GoogleAuthResult>;
   loginWithGoogle(command: GoogleLoginCommand): Promise<GoogleAuthResult>;
   registerWithGoogle(command: { registerToken: string; termsAgreed: boolean }): Promise<AuthResult>;
   refresh(refreshToken: string): Promise<AuthResult>;

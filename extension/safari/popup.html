@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>iTu Browser Activity</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">iTu · Safari</p>
+      <h1>Browser Activity</h1>
+      <p id="status" class="status">Loading…</p>
+      <dl>
+        <div><dt>Current</dt><dd id="current">No HTTP(S) page</dd></div>
+        <div><dt>Today</dt><dd id="today">0s</dd></div>
+        <div><dt>Sync</dt><dd id="sync">Synced</dd></div>
+        <div><dt>Queued</dt><dd id="queued">0</dd></div>
+      </dl>
+      <div class="actions">
+        <button id="pause" type="button">Pause tracking</button>
+        <a href="itu://settings">Open iTu</a>
+      </div>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

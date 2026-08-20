@@ -1,0 +1,306 @@
+# name: Apple Release
+
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       platform:
+#         description: "Apple platform to release"
+#         required: true
+#         type: choice
+#         options:
+#           - macos
+#           - ios
+#       version:
+#         description: "MARKETING_VERSION to publish"
+#         required: true
+#         type: string
+#       minimum_supported_version:
+#         description: "Minimum version accepted by the backend policy"
+#         required: true
+#         type: string
+#       publish:
+#         description: "Upload the verified artifact and policy"
+#         required: true
+#         default: false
+#         type: boolean
+
+# permissions:
+#   contents: read
+
+# jobs:
+#   release:
+#     runs-on: macos-14
+#     env:
+#       PLATFORM: ${{ inputs.platform }}
+#       VERSION: ${{ inputs.version }}
+#       MINIMUM_SUPPORTED_VERSION: ${{ inputs.minimum_supported_version }}
+#       PUBLISH: ${{ inputs.publish }}
+#       RELEASE_UPLOAD_TOKEN: ${{ secrets.RELEASE_UPLOAD_TOKEN }}
+#       APP_VERSION_POLICY_UPLOAD_TOKEN: ${{ secrets.APP_VERSION_POLICY_UPLOAD_TOKEN }}
+#       SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+#       SPARKLE_PUBLIC_ED_KEY: ${{ vars.SPARKLE_PUBLIC_ED_KEY }}
+#       APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+#       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+#       APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+#       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+#       APPLE_ID: ${{ secrets.APPLE_ID }}
+#       APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+#       IOS_EXPORT_OPTIONS_PLIST_BASE64: ${{ secrets.IOS_EXPORT_OPTIONS_PLIST_BASE64 }}
+#       MACOS_RELEASE_BASE_URL: ${{ vars.MACOS_RELEASE_BASE_URL }}
+#       MACOS_RELEASE_UPLOAD_URL: ${{ vars.MACOS_RELEASE_UPLOAD_URL }}
+#       MACOS_APPCAST_URL: ${{ vars.MACOS_APPCAST_URL }}
+#       MACOS_APPCAST_UPLOAD_URL: ${{ vars.MACOS_APPCAST_UPLOAD_URL }}
+#       IOS_RELEASE_UPLOAD_URL: ${{ vars.IOS_RELEASE_UPLOAD_URL }}
+#       IOS_ARTIFACT_URL: ${{ vars.IOS_ARTIFACT_URL }}
+#       IOS_UPDATE_URL: ${{ vars.IOS_UPDATE_URL }}
+#       APP_VERSION_POLICY_UPLOAD_URL: ${{ vars.APP_VERSION_POLICY_UPLOAD_URL }}
+
+#     steps:
+#       - uses: actions/checkout@v5
+
+#       - name: Validate release input
+#         run: |
+#           python3 - "$VERSION" "$MINIMUM_SUPPORTED_VERSION" <<'PY'
+#           import re
+#           import sys
+
+#           versions = []
+#           for value in sys.argv[1:]:
+#               if not re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2}", value):
+#                   raise SystemExit(f"invalid numeric marketing version: {value}")
+#               versions.append(tuple(int(part) for part in value.split(".")))
+#           if versions[1] > versions[0]:
+#               raise SystemExit("minimum supported version cannot exceed the release version")
+#           PY
+
+#       - name: Install signing certificate
+#         env:
+#           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+#         run: |
+#           test -n "$APPLE_CERTIFICATE_P12_BASE64" || { echo "APPLE_CERTIFICATE_P12_BASE64 is required" >&2; exit 1; }
+#           test -n "$APPLE_CERTIFICATE_PASSWORD" || { echo "APPLE_CERTIFICATE_PASSWORD is required" >&2; exit 1; }
+#           test -n "$APPLE_SIGNING_IDENTITY" || { echo "APPLE_SIGNING_IDENTITY is required" >&2; exit 1; }
+#           test -n "$APPLE_TEAM_ID" || { echo "APPLE_TEAM_ID is required" >&2; exit 1; }
+#           test -n "$KEYCHAIN_PASSWORD" || { echo "KEYCHAIN_PASSWORD is required" >&2; exit 1; }
+
+#           keychain="$RUNNER_TEMP/itu-release.keychain-db"
+#           security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+#           security set-keychain-settings -lut 21600 "$keychain"
+#           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+#           security list-keychains -d user -s "$keychain"
+#           printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/apple-signing.p12"
+#           security import "$RUNNER_TEMP/apple-signing.p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+#           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$keychain"
+
+#       - name: Test macOS
+#         if: inputs.platform == 'macos'
+#         working-directory: macos
+#         run: |
+#           xcodebuild \
+#             -project iTu.xcodeproj \
+#             -scheme iTu \
+#             -configuration Debug \
+#             -destination 'platform=macOS' \
+#             -derivedDataPath "$RUNNER_TEMP/iTu-derived-data" \
+#             -clonedSourcePackagesDirPath "$RUNNER_TEMP/iTu-source-packages" \
+#             CODE_SIGN_IDENTITY="$APPLE_SIGNING_IDENTITY" \
+#             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+#             test
+
+#       - name: Test iOS
+#         if: inputs.platform == 'ios'
+#         working-directory: ios
+#         run: |
+#           xcodebuild \
+#             -project iTu.xcodeproj \
+#             -scheme iTu \
+#             -configuration Debug \
+#             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+#             -derivedDataPath "$RUNNER_TEMP/iTu-ios-derived-data" \
+#             -clonedSourcePackagesDirPath "$RUNNER_TEMP/iTu-source-packages" \
+#             test
+
+#       - name: Archive macOS
+#         if: inputs.platform == 'macos'
+#         working-directory: macos
+#         run: |
+#           test -n "$SPARKLE_PUBLIC_ED_KEY" || { echo "SPARKLE_PUBLIC_ED_KEY is required" >&2; exit 1; }
+#           xcodebuild \
+#             -project iTu.xcodeproj \
+#             -scheme iTu \
+#             -configuration Release \
+#             -destination 'generic/platform=macOS' \
+#             -archivePath "$RUNNER_TEMP/iTu.xcarchive" \
+#             -clonedSourcePackagesDirPath "$RUNNER_TEMP/iTu-source-packages" \
+#             CODE_SIGN_IDENTITY="$APPLE_SIGNING_IDENTITY" \
+#             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+#             SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY" \
+#             MARKETING_VERSION="$VERSION" \
+#             archive
+
+#       - name: Archive iOS
+#         if: inputs.platform == 'ios'
+#         working-directory: ios
+#         run: |
+#           xcodebuild \
+#             -project iTu.xcodeproj \
+#             -scheme iTu \
+#             -configuration Release \
+#             -destination 'generic/platform=iOS' \
+#             -archivePath "$RUNNER_TEMP/iTu.xcarchive" \
+#             -clonedSourcePackagesDirPath "$RUNNER_TEMP/iTu-source-packages" \
+#             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+#             MARKETING_VERSION="$VERSION" \
+#             archive
+
+#       - name: Export iOS archive
+#         if: inputs.platform == 'ios'
+#         run: |
+#           test -n "$IOS_EXPORT_OPTIONS_PLIST_BASE64" || { echo "IOS_EXPORT_OPTIONS_PLIST_BASE64 is required" >&2; exit 1; }
+#           printf '%s' "$IOS_EXPORT_OPTIONS_PLIST_BASE64" | base64 --decode > "$RUNNER_TEMP/export-options.plist"
+#           xcodebuild -exportArchive \
+#             -archivePath "$RUNNER_TEMP/iTu.xcarchive" \
+#             -exportPath "$RUNNER_TEMP/ios-export" \
+#             -exportOptionsPlist "$RUNNER_TEMP/export-options.plist"
+#           cp "$RUNNER_TEMP/ios-export/iTu.ipa" "$RUNNER_TEMP/iTu-$VERSION.ipa"
+
+#       - name: Verify archive marketing version
+#         run: |
+#           if [[ "$PLATFORM" == macos ]]; then
+#             plist="$RUNNER_TEMP/iTu.xcarchive/Products/Applications/iTu.app/Contents/Info.plist"
+#           else
+#             plist="$RUNNER_TEMP/iTu.xcarchive/Products/Applications/iTu.app/Info.plist"
+#           fi
+#           test "$(plutil -extract CFBundleShortVersionString raw -o - "$plist")" = "$VERSION"
+#           if [[ "$PLATFORM" == macos ]]; then
+#             test -n "$SPARKLE_PUBLIC_ED_KEY" || { echo "SPARKLE_PUBLIC_ED_KEY is required" >&2; exit 1; }
+#             test "$(plutil -extract SUPublicEDKey raw -o - "$plist")" = "$SPARKLE_PUBLIC_ED_KEY"
+#           fi
+
+#       - name: Package and notarize macOS archive
+#         if: inputs.platform == 'macos'
+#         run: |
+#           test -n "$APPLE_ID" || { echo "APPLE_ID is required" >&2; exit 1; }
+#           test -n "$APPLE_APP_SPECIFIC_PASSWORD" || { echo "APPLE_APP_SPECIFIC_PASSWORD is required" >&2; exit 1; }
+#           app="$RUNNER_TEMP/iTu.xcarchive/Products/Applications/iTu.app"
+#           helper="$app/Contents/Helpers/BrowserActivityHost"
+#           test -d "$app" || { echo "archived app missing: $app" >&2; exit 1; }
+#           test -x "$helper" || { echo "BrowserActivityHost was not embedded in the app" >&2; exit 1; }
+#           /usr/bin/codesign --verify --deep --strict --verbose=2 "$app"
+#           ditto -c -k --keepParent "$app" "$RUNNER_TEMP/iTu-$VERSION.zip"
+#           xcrun notarytool submit "$RUNNER_TEMP/iTu-$VERSION.zip" \
+#             --apple-id "$APPLE_ID" \
+#             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+#             --team-id "$APPLE_TEAM_ID" \
+#             --wait
+#           xcrun stapler staple "$app"
+#           rm "$RUNNER_TEMP/iTu-$VERSION.zip"
+#           ditto -c -k --keepParent "$app" "$RUNNER_TEMP/iTu-$VERSION.zip"
+#           /usr/bin/codesign --verify --deep --strict --verbose=2 "$app"
+
+#       - name: Generate macOS appcast
+#         if: inputs.platform == 'macos'
+#         working-directory: macos
+#         run: |
+#           test -n "$SPARKLE_ED_KEY" || { echo "SPARKLE_ED_KEY is required" >&2; exit 1; }
+#           test -n "$MACOS_RELEASE_BASE_URL" || { echo "MACOS_RELEASE_BASE_URL is required" >&2; exit 1; }
+#           python3 - "$MACOS_RELEASE_BASE_URL" <<'PY'
+#           from urllib.parse import urlparse
+#           import sys
+#           if urlparse(sys.argv[1]).scheme != "https":
+#               raise SystemExit("MACOS_RELEASE_BASE_URL must use HTTPS")
+#           PY
+#           archives="$RUNNER_TEMP/sparkle-archives"
+#           mkdir -p "$archives"
+#           cp "$RUNNER_TEMP/iTu-$VERSION.zip" "$archives/iTu-$VERSION.zip"
+#           python3 - "$archives/iTu-$VERSION.md" ../api/config/app-versions.json <<'PY'
+#           import json
+#           import pathlib
+#           import sys
+
+#           destination, config_path = map(pathlib.Path, sys.argv[1:])
+#           config = json.loads(config_path.read_text())
+#           notes = config["macos"]["stable"]["releaseNotes"]
+#           destination.write_text("\n".join(f"- {note}" for note in notes) + "\n")
+#           PY
+#           SPARKLE_BIN="$RUNNER_TEMP/iTu-source-packages/artifacts/sparkle/Sparkle/bin" \
+#             SPARKLE_ED_KEY="$SPARKLE_ED_KEY" \
+#             ./scripts/generate-sparkle-appcast.sh "$archives" "$MACOS_RELEASE_BASE_URL"
+#           test -n "$(rg -o "sparkle:version=\"$VERSION\"" "$archives/appcast.xml")"
+#           test -n "$(rg -o 'sparkle:edSignature="[^"]+"' "$archives/appcast.xml")"
+#           cp "$archives/appcast.xml" "$RUNNER_TEMP/appcast.xml"
+
+#       - name: Upload verified release and policy
+#         if: inputs.publish == true
+#         run: |
+#           test -n "$RELEASE_UPLOAD_TOKEN" || { echo "RELEASE_UPLOAD_TOKEN is required" >&2; exit 1; }
+#           test -n "$APP_VERSION_POLICY_UPLOAD_TOKEN" || { echo "APP_VERSION_POLICY_UPLOAD_TOKEN is required" >&2; exit 1; }
+#           test -n "$APP_VERSION_POLICY_UPLOAD_URL" || { echo "APP_VERSION_POLICY_UPLOAD_URL is required" >&2; exit 1; }
+#           python3 - "$APP_VERSION_POLICY_UPLOAD_URL" "$MACOS_APPCAST_URL" "$IOS_UPDATE_URL" <<'PY'
+#           from urllib.parse import urlparse
+#           import sys
+#           for value in sys.argv[1:]:
+#               if value and urlparse(value).scheme != "https":
+#                   raise SystemExit(f"release URL must use HTTPS: {value}")
+#           PY
+
+#           if [[ "$PLATFORM" == macos ]]; then
+#             test -n "$MACOS_RELEASE_UPLOAD_URL" || { echo "MACOS_RELEASE_UPLOAD_URL is required" >&2; exit 1; }
+#             test -n "$MACOS_APPCAST_URL" || { echo "MACOS_APPCAST_URL is required" >&2; exit 1; }
+#             test -n "$MACOS_APPCAST_UPLOAD_URL" || { echo "MACOS_APPCAST_UPLOAD_URL is required" >&2; exit 1; }
+#             curl --fail --silent --show-error --retry 3 \
+#               -H "Authorization: Bearer $RELEASE_UPLOAD_TOKEN" \
+#               --upload-file "$RUNNER_TEMP/iTu-$VERSION.zip" \
+#               "${MACOS_RELEASE_UPLOAD_URL%/}/iTu-$VERSION.zip"
+#             curl --fail --silent --show-error --retry 3 \
+#               -H "Authorization: Bearer $RELEASE_UPLOAD_TOKEN" \
+#               --upload-file "$RUNNER_TEMP/appcast.xml" \
+#               "$MACOS_APPCAST_UPLOAD_URL"
+#             curl --fail --silent --show-error --retry 3 -I "$MACOS_APPCAST_URL"
+#             curl --fail --silent --show-error --retry 3 -I "${MACOS_RELEASE_BASE_URL%/}/iTu-$VERSION.zip"
+#             update_url="$MACOS_APPCAST_URL"
+#             artifact="$RUNNER_TEMP/iTu-$VERSION.zip"
+#           else
+#             test -n "$IOS_RELEASE_UPLOAD_URL" || { echo "IOS_RELEASE_UPLOAD_URL is required" >&2; exit 1; }
+#             test -n "$IOS_ARTIFACT_URL" || { echo "IOS_ARTIFACT_URL is required" >&2; exit 1; }
+#             test -n "$IOS_UPDATE_URL" || { echo "IOS_UPDATE_URL is required" >&2; exit 1; }
+#             curl --fail --silent --show-error --retry 3 \
+#               -H "Authorization: Bearer $RELEASE_UPLOAD_TOKEN" \
+#               --upload-file "$RUNNER_TEMP/iTu-$VERSION.ipa" \
+#               "${IOS_RELEASE_UPLOAD_URL%/}/iTu-$VERSION.ipa"
+#             curl --fail --silent --show-error --retry 3 -I "$IOS_ARTIFACT_URL"
+#             update_url="$IOS_UPDATE_URL"
+#             artifact="$RUNNER_TEMP/iTu-$VERSION.ipa"
+#           fi
+
+#           policy="$RUNNER_TEMP/app-versions.json"
+#           python3 - "$policy" api/config/app-versions.json "$PLATFORM" "$VERSION" "$MINIMUM_SUPPORTED_VERSION" "$update_url" <<'PY'
+#           import json
+#           import datetime
+#           import pathlib
+#           import sys
+
+#           destination, source, platform, version, minimum, update_url = sys.argv[1:]
+#           policy = json.loads(pathlib.Path(source).read_text())
+#           release = policy[platform]["stable"]
+#           release["latestVersion"] = version
+#           release["minimumSupportedVersion"] = minimum
+#           release["updateUrl"] = update_url
+#           release["title"] = f"iTu {version}"
+#           release["releasedAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+#           pathlib.Path(destination).write_text(json.dumps(policy, indent=2) + "\n")
+#           PY
+#           curl --fail --silent --show-error --retry 3 \
+#             -H "Authorization: Bearer $APP_VERSION_POLICY_UPLOAD_TOKEN" \
+#             -H 'Content-Type: application/json' \
+#             --upload-file "$policy" \
+#             "$APP_VERSION_POLICY_UPLOAD_URL"
+#           test -s "$artifact"
+
+#       - name: Store release artifacts
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: itu-${{ inputs.platform }}-${{ inputs.version }}
+#           path: |
+#             ${{ runner.temp }}/iTu-${{ inputs.version }}.*
+#             ${{ runner.temp }}/appcast.xml

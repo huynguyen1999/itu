@@ -10,7 +10,11 @@ import { AuthModule } from '../auth/auth.module';
   imports: [AuthModule, PersistenceModule],
   controllers: [BudgetController],
   providers: [
-    BudgetService,
+    {
+      provide: BudgetService,
+      useFactory: (budgetRepo) => new BudgetService(budgetRepo),
+      inject: [BUDGET_REPOSITORY_PORT],
+    },
     {
       provide: BUDGET_REPOSITORY_PORT,
       useClass: PrismaBudgetRepository,

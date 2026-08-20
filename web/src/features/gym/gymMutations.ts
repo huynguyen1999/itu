@@ -272,19 +272,6 @@ export function useRepeatGymWorkout() {
   });
 }
 
-export function useUpdateCompletedWorkout() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => api.updateGymWorkout(id, data),
-    onSuccess: (_updated, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['gym', 'workout', variables.id] });
-      queryClient.invalidateQueries({ queryKey: ['gym', 'workouts'] });
-      queryClient.invalidateQueries({ queryKey: ['gym', 'overview'] });
-      queryClient.invalidateQueries({ queryKey: ['gym', 'analytics'] });
-    },
-  });
-}
-
 export function useAbandonGymWorkout() {
   const queryClient = useQueryClient();
   return useMutation({

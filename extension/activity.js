@@ -1,5 +1,3 @@
-export const BROWSER_BUNDLE_ID = "com.microsoft.edgemac";
-export const BROWSER_DISPLAY_NAME = "Microsoft Edge";
 export const UPLOAD_ALARM = "upload-browser-activity";
 export const UPLOAD_PERIOD_MINUTES = 0.5;
 export const MAX_ELAPSED_SECONDS = 60;
@@ -72,19 +70,29 @@ export function stateForTab(tab) {
   };
 }
 
+export function browserIdentity(value) {
+  const bundleId = value?.bundleId ?? value?.browserBundleId;
+  const displayName = value?.displayName ?? value?.browserDisplayName;
+  return {
+    bundleId: typeof bundleId === "string" ? bundleId : null,
+    displayName: typeof displayName === "string" ? displayName : null
+  };
+}
+
 export function localDate(at = Date.now()) {
   const date = new Date(at);
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
 }
 
-export function addElapsed(totals, state, startedAt, endedAt) {
+export function addElapsed(totals, state, startedAt, endedAt, identity = null) {
   const elapsed = Math.min(MAX_ELAPSED_SECONDS, Math.floor((endedAt - startedAt) / 1000));
   if (!state?.hostname || !state?.url || elapsed <= 0) return totals;
-  const key = `${localDate(endedAt)}\u0000${BROWSER_BUNDLE_ID}\u0000${state.url}`;
+  const { bundleId, displayName } = browserIdentity(identity);
+  const key = `${localDate(endedAt)}\u0000${bundleId ?? ""}\u0000${state.url}`;
   const current = totals[key];
   totals[key] = {
-    localDate: localDate(endedAt), browserBundleId: BROWSER_BUNDLE_ID,
-    browserDisplayName: BROWSER_DISPLAY_NAME, hostname: state.hostname, url: state.url,
+    localDate: localDate(endedAt), browserBundleId: bundleId,
+    browserDisplayName: displayName, hostname: state.hostname, url: state.url,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     activeSeconds: Math.min(86_400, (current?.activeSeconds ?? 0) + elapsed)
   };
@@ -92,16 +100,19 @@ export function addElapsed(totals, state, startedAt, endedAt) {
 }
 
 export function sameSession(left, right) {
-  return Boolean(left && right && left.url === right.url && left.incognito === right.incognito && left.browserBundleId === right.browserBundleId);
+  return Boolean(left && right && left.url === right.url && left.incognito === right.incognito && left.browserBundleId === right.browserBundleId && (left.accountId ?? "default") === (right.accountId ?? "default"));
 }
 
-export function createSession(state, startedAt, endedAt, id = globalThis.crypto?.randomUUID?.() ?? `session-${startedAt}`) {
+export function createSession(state, startedAt, endedAt, idOrIdentity = undefined, identity = null) {
+  const identityArgument = idOrIdentity && typeof idOrIdentity === "object" ? idOrIdentity : identity;
+  const id = typeof idOrIdentity === "string" ? idOrIdentity : globalThis.crypto?.randomUUID?.() ?? `session-${startedAt}`;
   const activeSeconds = Math.min(MAX_ELAPSED_SECONDS, Math.floor((endedAt - startedAt) / 1000));
   if (!state?.url || activeSeconds < SESSION_MIN_SECONDS) return null;
+  const { bundleId, displayName } = browserIdentity(identityArgument);
   return {
     id, startedAt, endedAt, activeSeconds, localDate: localDate(startedAt),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-    browserBundleId: BROWSER_BUNDLE_ID, browserDisplayName: BROWSER_DISPLAY_NAME,
+    browserBundleId: bundleId, browserDisplayName: displayName,
     hostname: state.hostname, url: state.url, iconUrl: state.iconUrl ?? null, title: state.title ?? "", incognito: Boolean(state.incognito)
   };
 }
@@ -122,11 +133,12 @@ export function projectAggregates(sessions) {
   const urls = new Map();
   const domains = new Map();
   for (const session of sessions) {
-    const urlKey = [session.localDate, session.browserBundleId, session.url, session.incognito ? "private" : "normal"].join("\u0000");
-    const url = urls.get(urlKey) ?? { key: urlKey, localDate: session.localDate, browserBundleId: session.browserBundleId, browserDisplayName: session.browserDisplayName, hostname: session.hostname, url: session.url, timezone: session.timezone, incognito: Boolean(session.incognito), activeSeconds: 0 };
+    const accountId = session.accountId ?? "default";
+    const urlKey = [accountId, session.localDate, session.browserBundleId, session.url, session.incognito ? "private" : "normal"].join("\u0000");
+    const url = urls.get(urlKey) ?? { key: urlKey, accountId, localDate: session.localDate, browserBundleId: session.browserBundleId, browserDisplayName: session.browserDisplayName, hostname: session.hostname, url: session.url, timezone: session.timezone, incognito: Boolean(session.incognito), activeSeconds: 0 };
     url.activeSeconds += session.activeSeconds; urls.set(urlKey, url);
-    const domainKey = [session.localDate, session.browserBundleId, session.hostname, session.incognito ? "private" : "normal"].join("\u0000");
-    const domain = domains.get(domainKey) ?? { key: domainKey, localDate: session.localDate, browserBundleId: session.browserBundleId, browserDisplayName: session.browserDisplayName, hostname: session.hostname, timezone: session.timezone, incognito: Boolean(session.incognito), activeSeconds: 0 };
+    const domainKey = [accountId, session.localDate, session.browserBundleId, session.hostname, session.incognito ? "private" : "normal"].join("\u0000");
+    const domain = domains.get(domainKey) ?? { key: domainKey, accountId, localDate: session.localDate, browserBundleId: session.browserBundleId, browserDisplayName: session.browserDisplayName, hostname: session.hostname, timezone: session.timezone, incognito: Boolean(session.incognito), activeSeconds: 0 };
     domain.activeSeconds += session.activeSeconds; domains.set(domainKey, domain);
   }
   return { urls: [...urls.values()], domains: [...domains.values()] };

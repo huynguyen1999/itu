@@ -5,8 +5,16 @@ struct MenuBarPopoverRootView: View {
     let onOpenMainWindow: @MainActor () -> Void
 
     var body: some View {
-        MenuBarView(onOpenMainWindow: onOpenMainWindow)
-            .environment(model)
-            .preferredColorScheme(.dark)
+        Group {
+            if model.appUpdateRequiresUpdate, let policy = model.appUpdatePolicy {
+                RequiredAppUpdateView(policy: policy) {
+                    model.startAppUpdate()
+                }
+            } else {
+                MenuBarView(onOpenMainWindow: onOpenMainWindow)
+            }
+        }
+        .environment(model)
+        .preferredColorScheme(.dark)
     }
 }

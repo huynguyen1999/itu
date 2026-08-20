@@ -22,6 +22,7 @@ import { GymModule } from './features/gym/gym.module';
 import { PublicModule } from './infrastructure/public/public.module';
 import { UsageModule } from './features/usage/usage.module';
 import { CalendarModule } from './features/calendar/calendar.module';
+import { AppVersionModule } from './features/app-version/app-version.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { CalendarModule } from './features/calendar/calendar.module';
     GymModule,
     UsageModule,
     CalendarModule,
+    AppVersionModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: DomainExceptionFilter },

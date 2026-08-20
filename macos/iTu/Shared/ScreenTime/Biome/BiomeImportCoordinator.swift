@@ -66,6 +66,9 @@ public actor BiomeImportCoordinator {
 
         var discoveredDevices: [ScreenTimeDevice] = []
         var latestRecordDate: Date? = status.lastRecordAt
+        var totalDuplicatesDropped = 0
+        var totalStrayEvents = 0
+        var activeApps: [String] = []
 
         do {
             discoveredDevices = try await source.discoverDevices()
@@ -74,14 +77,25 @@ public actor BiomeImportCoordinator {
 
             for device in discoveredDevices {
                 let existingCursor = await stateStore.cursor(for: device.deviceIdentifier)
-                // Default initial watermark: 7 days ago
+                // For initial scan if no cursor, look back 7 days unless full rebuild was triggered
                 let watermark = existingCursor?.lastRecordAt ?? Calendar.current.date(byAdding: .day, value: -7, to: Date())
+                let initialState = existingCursor?.openForegroundState
 
-                let intervals = try await source.intervals(for: device, since: watermark)
-                _ = await stateStore.saveIntervalsToOutbox(intervals)
+                let scanResult = try await source.scanDevice(
+                    device,
+                    since: watermark,
+                    initialState: initialState
+                )
+                _ = await stateStore.saveIntervalsToOutbox(scanResult.intervals)
+
+                if let app = scanResult.nextState?.bundleId {
+                    activeApps.append(app)
+                }
+                totalDuplicatesDropped += scanResult.stats.duplicatesDroppedCount
+                totalStrayEvents += scanResult.stats.strayEventsCount
 
                 // Update cursor
-                let deviceLatestRecord = intervals.map(\.endedAt).max()
+                let deviceLatestRecord = scanResult.latestRecordDate ?? scanResult.intervals.map(\.endedAt).max()
                 if let deviceLatestRecord {
                     if latestRecordDate == nil || deviceLatestRecord > latestRecordDate! {
                         latestRecordDate = deviceLatestRecord
@@ -90,10 +104,16 @@ public actor BiomeImportCoordinator {
 
                 var newCursor = existingCursor ?? ScreenTimeImportCursor(sourceDeviceId: device.deviceIdentifier)
                 newCursor.lastImportAt = Date()
+                newCursor.normalizationVersion = 2
+                newCursor.openForegroundState = scanResult.nextState
                 if let deviceLatestRecord {
                     newCursor.lastRecordAt = max(newCursor.lastRecordAt ?? .distantPast, deviceLatestRecord)
                 }
-                newCursor.stitchedIntervalCount += intervals.count
+                newCursor.scannedFileCount += scanResult.scannedFilesCount
+                newCursor.decodedEventCount += scanResult.stats.rawEventCount
+                newCursor.duplicatesDroppedCount += scanResult.stats.duplicatesDroppedCount
+                newCursor.strayEventsCount += scanResult.stats.strayEventsCount
+                newCursor.stitchedIntervalCount += scanResult.intervals.count
                 newCursor.lastError = nil
                 await stateStore.saveCursor(newCursor)
             }
@@ -108,6 +128,10 @@ public actor BiomeImportCoordinator {
             status.lastRecordAt = latestRecordDate
             status.pendingUploadCount = await stateStore.pendingCount()
             status.totalImportedCount = await stateStore.totalImportedCount()
+            status.normalizationVersion = 2
+            status.openForegroundApps = activeApps
+            status.duplicatesDroppedCount = totalDuplicatesDropped
+            status.strayEventsCount = totalStrayEvents
             status.lastError = nil
 
         } catch {
@@ -117,7 +141,22 @@ public actor BiomeImportCoordinator {
         return status
     }
 
-    /// Resets the watermark cursor for all devices to 7 days ago and performs a full scan.
+    /// Completely rebuilds all available retained Biome history from scratch (wiping previous outbox and resetting cursors).
+    public func rebuildAllBiomeHistory() async -> ScreenTimeImportStatus {
+        let devices = (try? await source.discoverDevices()) ?? []
+        for device in devices {
+            await stateStore.resetCursor(for: device.deviceIdentifier, lookbackDays: nil)
+        }
+        await stateStore.clearOutbox()
+
+        if let apiClient = await apiClientProvider?() {
+            try? await apiClient.deleteScreenTimeEvents()
+        }
+
+        return await runOnce()
+    }
+
+    /// Resets the watermark cursor for all devices to 7 days ago and performs a scan.
     public func reimportLast7Days() async -> ScreenTimeImportStatus {
         let devices = (try? await source.discoverDevices()) ?? []
         for device in devices {
@@ -127,9 +166,14 @@ public actor BiomeImportCoordinator {
         return await runOnce()
     }
 
-    /// Returns all local outbox intervals for offline aggregation and preview.
+    /// Returns pending outbox intervals for optimistic local overlay before server confirmation.
+    public func pendingOutboxIntervals() async -> [ImportedUsageInterval] {
+        await stateStore.pendingOutboxIntervals()
+    }
+
+    /// Returns all local outbox intervals for offline aggregation, diagnostics, and app icon discovery.
     public func allOutboxIntervals() async -> [ImportedUsageInterval] {
-        await stateStore.allOutboxItems().map(\.asImportedUsageInterval)
+        await stateStore.allOutboxIntervals()
     }
 
     private func flushPendingOutbox() async {
@@ -158,6 +202,9 @@ public actor BiomeImportCoordinator {
                 #if DEBUG
                 print("[BiomeImport] Upload failed for batch: \(error)")
                 #endif
+                if status.lastError == nil {
+                    status.lastError = "Upload failed: \(error.localizedDescription)"
+                }
                 break
             }
         }

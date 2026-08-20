@@ -96,7 +96,7 @@ public extension OfflineStore {
         return state
     }
 
-    /// Replaces the complete DeviceActivity app and website buckets represented
+    /// Replaces the complete DeviceActivity app buckets represented
     /// by this snapshot. A submitted date/hour window is authoritative: rows
     /// omitted from that window are removed, while other sources and windows
     /// remain untouched.
@@ -104,25 +104,16 @@ public extension OfflineStore {
     func replaceDeviceActivityUsage(
         deviceId: String,
         summaries: [UsageSummary] = [],
-        websiteSummaries: [WebsiteUsageSummary] = [],
         windows: Set<DeviceActivityUsageWindow> = []
     ) throws -> OfflineSnapshot {
         let submittedWindows = Set(windows.map { DeviceActivityWindow(localDate: $0.localDate, hour: $0.hour) })
         let appWindows = submittedWindows.union(summaries.map { DeviceActivityWindow(localDate: $0.localDate, hour: $0.hour) })
-        let websiteWindows = submittedWindows.union(websiteSummaries.map { DeviceActivityWindow(localDate: $0.localDate, hour: $0.hour) })
 
         if !appWindows.isEmpty {
             state.usageSummaries.removeAll { summary in
                 summary.source == .deviceActivity &&
                     summary.deviceId == deviceId &&
                     appWindows.contains(DeviceActivityWindow(localDate: summary.localDate, hour: summary.hour))
-            }
-        }
-        if !websiteWindows.isEmpty {
-            state.websiteUsageSummaries.removeAll { summary in
-                summary.source == .deviceActivity &&
-                    summary.deviceId == deviceId &&
-                    websiteWindows.contains(DeviceActivityWindow(localDate: summary.localDate, hour: summary.hour))
             }
         }
 
@@ -134,19 +125,8 @@ public extension OfflineStore {
             state.usageSummaries.append(summary)
         }
 
-        var websiteSeen: Set<String> = []
-        for var summary in websiteSummaries {
-            summary.source = .deviceActivity
-            summary.deviceId = deviceId
-            summary.browserBundleId = nil
-            guard websiteSeen.insert(summary.id).inserted else { continue }
-            state.websiteUsageSummaries.append(summary)
-        }
-
         let remainingUsage = Set(state.usageSummaries.map(\.id))
         state.usageUploadWatermarks = state.usageUploadWatermarks.filter { remainingUsage.contains($0.key) }
-        let remainingWebsite = Set(state.websiteUsageSummaries.map(\.id))
-        state.websiteUsageUploadWatermarks = state.websiteUsageUploadWatermarks.filter { remainingWebsite.contains($0.key) }
         try persist()
         return state
     }
@@ -155,12 +135,6 @@ public extension OfflineStore {
     @discardableResult
     func replaceDeviceActivityUsage(_ summaries: [UsageSummary], deviceId: String) throws -> OfflineSnapshot {
         try replaceDeviceActivityUsage(deviceId: deviceId, summaries: summaries)
-    }
-
-    /// Convenience overload for website-only DeviceActivity snapshots.
-    @discardableResult
-    func replaceDeviceActivityWebsiteUsage(_ summaries: [WebsiteUsageSummary], deviceId: String) throws -> OfflineSnapshot {
-        try replaceDeviceActivityUsage(deviceId: deviceId, websiteSummaries: summaries)
     }
 
     func usageSummariesToUpload() -> [UsageSummary] {

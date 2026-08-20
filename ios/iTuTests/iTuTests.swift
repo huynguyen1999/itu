@@ -176,7 +176,7 @@ final class iTuTests: XCTestCase {
         XCTAssertFalse(service.isApplied)
     }
 
-    func testDeviceActivityReportNormalizesHourlyApplicationsAndWebsites() {
+    func testDeviceActivityReportNormalizesApplicationsOnly() {
         let window = DeviceActivityUsageWindow(localDate: "2026-08-17", hour: 9)
         let snapshot = DeviceActivityReportSnapshot(
             capturedAt: "2026-08-17T10:00:00Z",
@@ -188,8 +188,7 @@ final class iTuTests: XCTestCase {
                 activeSeconds: 120,
                 pickups: 2,
                 notifications: 3
-            )],
-            websites: [DeviceActivityReportWebsite(window: window, hostname: "example.com", activeSeconds: 45)]
+            )]
         )
 
         let imported = IOSDeviceActivityUsageNormalizer.normalize(snapshot, deviceID: "ios-device")
@@ -198,8 +197,6 @@ final class iTuTests: XCTestCase {
         XCTAssertEqual(imported.applications.first?.source, .deviceActivity)
         XCTAssertEqual(imported.applications.first?.deviceId, "ios-device")
         XCTAssertEqual(imported.applications.first?.pickups, 2)
-        XCTAssertEqual(imported.websites.first?.hostname, "example.com")
-        XCTAssertEqual(imported.websites.first?.browserDisplayName, "Screen Time")
     }
 
     func testDeviceActivityImportReplacesEmptyBucketsWithoutDuplicatingRows() async throws {
@@ -216,22 +213,6 @@ final class iTuTests: XCTestCase {
             timezone: "Asia/Ho_Chi_Minh",
             activeSeconds: 120,
             source: .deviceActivity
-        )
-        let website = WebsiteUsageSummary(
-            localDate: window.localDate,
-            hour: window.hour,
-            browserDisplayName: "Screen Time",
-            hostname: "example.com",
-            timezone: "Asia/Ho_Chi_Minh",
-            activeSeconds: 45,
-            source: .deviceActivity
-        )
-
-        _ = try await store.replaceDeviceActivityUsage(
-            deviceId: "ios-device",
-            summaries: [application],
-            websiteSummaries: [website],
-            windows: [window]
         )
         _ = try await store.replaceDeviceActivityUsage(
             deviceId: "ios-device",

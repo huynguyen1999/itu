@@ -59,14 +59,6 @@ export function formatDayOfWeek(dateStr: string): string {
   return date.toLocaleDateString('en-US', { weekday: 'long' });
 }
 
-export function formatBrandDate(dateStr: string): string {
-  if (!dateStr) return '';
-  const [year, month, day] = dateStr.split('-').map(Number);
-  if (!year || !month || !day) return dateStr;
-  const date = new Date(year, month - 1, day);
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 export function calculateDailyStreak(dates: string[], targetDate = getLocalTodayDateString()): number {
   if (!dates || dates.length === 0) return 1;
   const dateSet = new Set(dates.map((d) => d.slice(0, 10)));
@@ -89,4 +81,3 @@ export function calculateDailyStreak(dates: string[], targetDate = getLocalToday
   
   return Math.max(1, streak);
 }
-

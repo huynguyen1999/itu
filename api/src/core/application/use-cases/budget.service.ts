@@ -1,6 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
 import type {
-  BUDGET_REPOSITORY_PORT,
   CreateCategoryDto,
   CreateExpenseDto,
   CreateRecurringExpenseDto,
@@ -10,11 +8,9 @@ import type {
   UpdateExpenseDto,
   UpdateRecurringExpenseDto,
 } from '../ports/out/budget-repository.port';
-import { BUDGET_REPOSITORY_PORT as BUDGET_PORT } from '../ports/out/budget-repository.port';
 
-@Injectable()
 export class BudgetService {
-  constructor(@Inject(BUDGET_PORT) private readonly budgetRepo: IBudgetRepositoryPort) {}
+  constructor(private readonly budgetRepo: IBudgetRepositoryPort) {}
   getCategories(userId: string) { return this.budgetRepo.getCategories(userId); }
   createCategory(userId: string, dto: CreateCategoryDto) { return this.budgetRepo.createCategory(userId, dto); }
   updateCategory(userId: string, id: string, dto: UpdateCategoryDto) { return this.budgetRepo.updateCategory(userId, id, dto); }

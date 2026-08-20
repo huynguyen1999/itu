@@ -1,0 +1,3606 @@
+{
+  "updatedAt": "2026-08-20T09:26:39.072Z",
+  "weeks": {
+    "2026-08-10": {
+      "monday": "2026-08-10",
+      "startDate": "2026-08-10T00:00:00.000Z",
+      "endDate": "2026-08-16T00:00:00.000Z",
+      "summary": [
+        {
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "programClassName": "Main - class",
+          "maxClassesPerWeek": 2,
+          "enrolledClassesThisWeek": 2
+        },
+        {
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "programClassName": "Free - Talk",
+          "maxClassesPerWeek": 2,
+          "enrolledClassesThisWeek": 2
+        },
+        {
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "programClassName": "Skills Development",
+          "maxClassesPerWeek": 100,
+          "enrolledClassesThisWeek": 6
+        }
+      ],
+      "canBooking": false,
+      "flexibleClasses": [
+        {
+          "id": "019fe0b0-24b5-7e51-817d-0d49de49d747",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-10",
+          "teacherName": "Lê Duy Thắng",
+          "teacherNickName": "Thắng",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Bean Bag - 1F",
+          "lesson": "Linking verbs",
+          "currentStudents": 10,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Linking verbs",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786616160561.pdf"
+          },
+          "subClassType": {
+            "name": "Grammar",
+            "color": "#FFFFFF",
+            "bgcolor": "#fa931a"
+          }
+        },
+        {
+          "id": "019fe0b7-04b0-74c9-9a48-4256dac4f67a",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-10",
+          "teacherName": "Thạch Thị Mỹ Tú",
+          "teacherNickName": "Mỹ Tú",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Fancy - 1F",
+          "lesson": "How to handle complaints",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "How to handle complaints",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1778943081849.pdf"
+          },
+          "subClassType": {
+            "name": "Communicative 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#6b75d6"
+          }
+        },
+        {
+          "id": "019fe0ba-2f23-7feb-85b2-d4409d380763",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-10",
+          "teacherName": "Phan Hồng Ngọc",
+          "teacherNickName": "Hồng Ngọc",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Fancy - 1F",
+          "lesson": "How to handle complaints with empathy",
+          "currentStudents": 9,
+          "maxStudents": 11,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "How to handle complaints with empathy",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1778943138485.pdf"
+          },
+          "subClassType": {
+            "name": "Communicative 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#0ea5e6"
+          }
+        },
+        {
+          "id": "019fe0b3-88d2-7110-b196-125199fae063",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-10",
+          "teacherName": "Phan Mạnh Hưng",
+          "teacherNickName": "Hưng",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Bean Bag - 1F",
+          "lesson": "Mastering Customer Service Phone Calls",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Mastering Customer Service Phone Calls",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "Vocabulary",
+            "color": "#FFFFFF",
+            "bgcolor": "#10b4b3"
+          }
+        },
+        {
+          "id": "019fe0ac-db47-7da0-a5af-591d24e45794",
+          "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-11",
+          "teacherName": "Lê Kim Pha",
+          "teacherNickName": "Kim Pha",
+          "startTime": "08:50:00",
+          "endTime": "10:20:00",
+          "room": "Coffee - 1F",
+          "lesson": "I would like to make a complaint...",
+          "currentStudents": 5,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "I would like to make a complaint...",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "019fe0ac-db69-71ee-b085-bf26204739df",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-11",
+          "teacherName": "Lê Trung Hiếu",
+          "teacherNickName": "Hiếu",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Meeting - 1F",
+          "lesson": "I would like to make a complaint...",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "I would like to make a complaint...",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "019fe0ae-d67b-7609-a9a8-8b21af2524f8",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-11",
+          "teacherName": "Phan Mạnh Hưng",
+          "teacherNickName": "Hưng",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Bean Bag - 1F",
+          "lesson": "Can you handle the complaints?",
+          "currentStudents": 9,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Can you handle the complaints?",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "FreeTalk 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#ff6464"
+          }
+        },
+        {
+          "id": "019fe0b7-04b0-74c9-9a48-4257690b7e1b",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-11",
+          "teacherName": "Johnny Starantino",
+          "teacherNickName": "Johnny",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Ground",
+          "lesson": "How to handle complaints",
+          "currentStudents": 8,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "How to handle complaints",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1778943081849.pdf"
+          },
+          "subClassType": {
+            "name": "Communicative 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#6b75d6"
+          }
+        },
+        {
+          "id": "019fe0b3-88d1-7fce-bf01-704bc46ba20b",
+          "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-11",
+          "teacherName": "Nguyễn Kiều Phương Trinh",
+          "teacherNickName": "Trinh Nguyen",
+          "startTime": "10:30:00",
+          "endTime": "12:00:00",
+          "room": "Ground",
+          "lesson": "Mastering Customer Service Phone Calls",
+          "currentStudents": 9,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Mastering Customer Service Phone Calls",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "Vocabulary",
+            "color": "#FFFFFF",
+            "bgcolor": "#10b4b3"
+          }
+        },
+        {
+          "id": "019fe0b3-88d2-7110-b196-12500ed59b56",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-11",
+          "teacherName": "Lê Trung Hiếu",
+          "teacherNickName": "Hiếu",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Fancy - 1F",
+          "lesson": "Mastering Customer Service Phone Calls",
+          "currentStudents": 10,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Mastering Customer Service Phone Calls",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "Vocabulary",
+            "color": "#FFFFFF",
+            "bgcolor": "#10b4b3"
+          }
+        },
+        {
+          "id": "019fe0e2-c218-7640-8d75-7ac9744a713a",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-11",
+          "teacherName": "Thạch Thị Mỹ Tú",
+          "teacherNickName": "Mỹ Tú",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Ground",
+          "lesson": "Personal Safety Tech",
+          "currentStudents": 16,
+          "maxStudents": 25,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Personal Safety Tech",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786180699952.pdf"
+          },
+          "subClassType": {
+            "name": "The Perfect Pitch",
+            "color": "#FFFFFF",
+            "bgcolor": "#3c9baf"
+          }
+        },
+        {
+          "id": "019fe0e2-4fe8-7e18-aa27-153a40f47ce1",
+          "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-11",
+          "teacherName": "Phan Hồng Ngọc",
+          "teacherNickName": "Hồng Ngọc",
+          "startTime": "08:50:00",
+          "endTime": "10:20:00",
+          "room": "Ground",
+          "lesson": "Investing in \"Face\"",
+          "currentStudents": 12,
+          "maxStudents": 25,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Investing in \"Face\"",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786180626302.pdf"
+          },
+          "subClassType": {
+            "name": "Debate",
+            "color": "#FFFFFF",
+            "bgcolor": "#3c9baf"
+          }
+        },
+        {
+          "id": "019fe0ac-db6a-7703-aeea-c55b0712c7c0",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-12",
+          "teacherName": "Nguyễn Minh Nhựt",
+          "teacherNickName": "Minh Nhựt",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Fancy - 1F",
+          "lesson": "I would like to make a complaint...",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "I would like to make a complaint...",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "019fe0b1-3edf-771a-83a1-8ec8a7e806d4",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-12",
+          "teacherName": "Nguyễn Hoàng Thúc",
+          "teacherNickName": "Thúc",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Friend Zone - 1F",
+          "lesson": "θ thank & ð that",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "θ thank & ð that",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786529979912.pdf"
+          },
+          "subClassType": {
+            "name": "Pronunciation",
+            "color": "#FFFFFF",
+            "bgcolor": "#f071af"
+          }
+        },
+        {
+          "id": "019fe0ba-2f24-7f05-a802-f86c3d9fa012",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-12",
+          "teacherName": "Jamie Jennings",
+          "teacherNickName": "Jamie",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Friend Zone - 1F",
+          "lesson": "How to handle complaints with empathy",
+          "currentStudents": 3,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "How to handle complaints with empathy",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1778943138485.pdf"
+          },
+          "subClassType": {
+            "name": "Communicative 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#0ea5e6"
+          }
+        },
+        {
+          "id": "019fe0b3-88d3-7c91-8cdd-132d9e85ee15",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-12",
+          "teacherName": "Nguyễn Minh Nhựt",
+          "teacherNickName": "Minh Nhựt",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Sofa - 2F",
+          "lesson": "Mastering Customer Service Phone Calls",
+          "currentStudents": 9,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Mastering Customer Service Phone Calls",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "Vocabulary",
+            "color": "#FFFFFF",
+            "bgcolor": "#10b4b3"
+          }
+        },
+        {
+          "id": "019fe0d5-d5bc-7537-b34e-14e5401799bb",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-12",
+          "teacherName": "Nguyễn Thị Xuân Thường",
+          "teacherNickName": "Xuân Thường",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Ground",
+          "lesson": "The Cinema",
+          "currentStudents": 24,
+          "maxStudents": 25,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "The Cinema",
+            "description": "",
+            "studentDocKey": "N/A"
+          },
+          "subClassType": {
+            "name": "Drama Club",
+            "color": "#FFFFFF",
+            "bgcolor": "#b888d6"
+          }
+        },
+        {
+          "id": "019fe0dd-685d-7ee8-ae14-7d7cd05dad93",
+          "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-12",
+          "teacherName": "Bùi Đức Huy",
+          "teacherNickName": "Huy Bùi",
+          "startTime": "10:30:00",
+          "endTime": "12:00:00",
+          "room": "Ground",
+          "lesson": "Worst and Baddest",
+          "currentStudents": 15,
+          "maxStudents": 25,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Worst and Baddest",
+            "description": "",
+            "studentDocKey": "N/A"
+          },
+          "subClassType": {
+            "name": "Grammar Police",
+            "color": "#FFFFFF",
+            "bgcolor": "#b888d6"
+          }
+        },
+        {
+          "id": "019fe0ac-db6a-7703-aeea-c55c19798b3c",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-13",
+          "teacherName": "Phan Mạnh Hưng",
+          "teacherNickName": "Hưng",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Meeting - 1F",
+          "lesson": "I would like to make a complaint...",
+          "currentStudents": 7,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "I would like to make a complaint...",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "019fe0ae-d67c-7ab8-97e4-13306171c1e5",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-13",
+          "teacherName": "Johnny Starantino",
+          "teacherNickName": "Johnny",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Ground",
+          "lesson": "Can you handle the complaints?",
+          "currentStudents": 11,
+          "maxStudents": 12,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Can you handle the complaints?",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "FreeTalk 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#ff6464"
+          }
+        },
+        {
+          "id": "019fe0b0-24b6-743e-826a-68b7a04e32ce",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-13",
+          "teacherName": "Nguyễn Hoàng Thúc",
+          "teacherNickName": "Thúc",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Outdoor - 2F",
+          "lesson": "Linking verbs",
+          "currentStudents": 10,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Linking verbs",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786616160561.pdf"
+          },
+          "subClassType": {
+            "name": "Grammar",
+            "color": "#FFFFFF",
+            "bgcolor": "#fa931a"
+          }
+        },
+        {
+          "id": "019fe0b1-3ee1-767a-a250-8c27df52b3ec",
+          "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-13",
+          "teacherName": "Lương Mỹ Nhàn",
+          "teacherNickName": "Nhàn Lương",
+          "startTime": "10:30:00",
+          "endTime": "12:00:00",
+          "room": "Fancy - 1F",
+          "lesson": "θ thank & ð that",
+          "currentStudents": 3,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "θ thank & ð that",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786529979912.pdf"
+          },
+          "subClassType": {
+            "name": "Pronunciation",
+            "color": "#FFFFFF",
+            "bgcolor": "#f071af"
+          }
+        },
+        {
+          "id": "019fe0e0-7cb5-7174-a759-ada30a7f9e42",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-13",
+          "teacherName": "Jamie Jennings",
+          "teacherNickName": "Jamie",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Ground",
+          "lesson": "Internal communication",
+          "currentStudents": 24,
+          "maxStudents": 25,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Internal communication",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "Business Writing",
+            "color": "#FFFFFF",
+            "bgcolor": "#ef7947"
+          }
+        },
+        {
+          "id": "019fe0ac-db6a-7703-aeea-c55d281a8eea",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-14",
+          "teacherName": "Johnny Starantino",
+          "teacherNickName": "Johnny",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Ground",
+          "lesson": "I would like to make a complaint...",
+          "currentStudents": 10,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "I would like to make a complaint...",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "019fe0df-6d99-7fd9-8126-220219cf2c86",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-14",
+          "teacherName": "Phan Mạnh Hưng",
+          "teacherNickName": "Hưng",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Ground",
+          "lesson": "Remember, he told her",
+          "currentStudents": 20,
+          "maxStudents": 25,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Remember, he told her",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "Pronunciation Club",
+            "color": "#FFFFFF",
+            "bgcolor": "#b888d6"
+          }
+        },
+        {
+          "id": "019fe0e1-00ea-7cc0-8538-db737880872f",
+          "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-14",
+          "teacherName": "Lương Mỹ Nhàn",
+          "teacherNickName": "Nhàn Lương",
+          "startTime": "10:30:00",
+          "endTime": "12:00:00",
+          "room": "Ground",
+          "lesson": "AI Daily Life",
+          "currentStudents": 14,
+          "maxStudents": 25,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "AI Daily Life",
+            "description": "",
+            "studentDocKey": "N/A"
+          },
+          "subClassType": {
+            "name": "Talk Show",
+            "color": "#FFFFFF",
+            "bgcolor": "#ef7947"
+          }
+        },
+        {
+          "id": "019fe0ae-d67c-7ab8-97e4-1331fd4dd50f",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-14",
+          "teacherName": "Johnny Starantino",
+          "teacherNickName": "Johnny",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Fancy - 1F",
+          "lesson": "Can you handle the complaints?",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Can you handle the complaints?",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "FreeTalk 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#ff6464"
+          }
+        },
+        {
+          "id": "019fe0ac-db6a-7703-aeea-c55eba18ac6c",
+          "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-15",
+          "teacherName": "Đinh Phạm Uyên Ly",
+          "teacherNickName": "Uyên Ly",
+          "startTime": "10:30:00",
+          "endTime": "12:00:00",
+          "room": "Fancy - 1F",
+          "lesson": "I would like to make a complaint...",
+          "currentStudents": 7,
+          "maxStudents": 11,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "I would like to make a complaint...",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "019fe0ae-d67d-77be-be53-7db3c2b9d167",
+          "timeSlot": "019b11fa-232d-7637-bbc0-930881ae26c3",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-15",
+          "teacherName": "Jamie Jennings",
+          "teacherNickName": "Jamie",
+          "startTime": "15:30:00",
+          "endTime": "17:00:00",
+          "room": "Fancy - 1F",
+          "lesson": "Can you handle the complaints?",
+          "currentStudents": 6,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Can you handle the complaints?",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "FreeTalk 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#ff6464"
+          }
+        },
+        {
+          "id": "019fe0b0-24b6-743e-826a-68b8af391432",
+          "timeSlot": "019b11f9-3997-7478-9a55-300253d69bd3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-15",
+          "teacherName": "Jamie Jennings",
+          "teacherNickName": "Jamie",
+          "startTime": "13:30:00",
+          "endTime": "15:00:00",
+          "room": "Ground",
+          "lesson": "Linking verbs",
+          "currentStudents": 7,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Linking verbs",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786616160561.pdf"
+          },
+          "subClassType": {
+            "name": "Grammar",
+            "color": "#FFFFFF",
+            "bgcolor": "#fa931a"
+          }
+        },
+        {
+          "id": "019fe0dd-685e-7c42-a439-dd98d3b8e062",
+          "timeSlot": "019b11fa-232d-7637-bbc0-930881ae26c3",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-15",
+          "teacherName": "Phan Mạnh Hưng",
+          "teacherNickName": "Hưng",
+          "startTime": "15:30:00",
+          "endTime": "17:00:00",
+          "room": "Ground",
+          "lesson": "Worst and Baddest",
+          "currentStudents": 18,
+          "maxStudents": 25,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Worst and Baddest",
+            "description": "",
+            "studentDocKey": "N/A"
+          },
+          "subClassType": {
+            "name": "Grammar Police",
+            "color": "#FFFFFF",
+            "bgcolor": "#b888d6"
+          }
+        },
+        {
+          "id": "019fe0ae-d67c-7ab8-97e4-1332e3313154",
+          "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-15",
+          "teacherName": "Nguyễn Hoàng Thúc",
+          "teacherNickName": "Thúc",
+          "startTime": "08:50:00",
+          "endTime": "10:20:00",
+          "room": "Ground",
+          "lesson": "Can you handle the complaints?",
+          "currentStudents": 9,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Can you handle the complaints?",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "FreeTalk 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#ff6464"
+          }
+        },
+        {
+          "id": "019fe0df-e634-7921-898e-548e2addcea5",
+          "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-16",
+          "teacherName": "Phạm Quế Phương",
+          "teacherNickName": "Quế Phương",
+          "startTime": "08:50:00",
+          "endTime": "10:20:00",
+          "room": "Ground",
+          "lesson": "Voice Inflection",
+          "currentStudents": 11,
+          "maxStudents": 25,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Voice Inflection",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "Presentation Skills",
+            "color": "#FFFFFF",
+            "bgcolor": "#ef7947"
+          }
+        }
+      ],
+      "fixedClasses": [],
+      "fetchedAt": "2026-08-20T08:19:26.238Z"
+    },
+    "2026-08-17": {
+      "monday": "2026-08-17",
+      "startDate": "2026-08-17T00:00:00.000Z",
+      "endDate": "2026-08-23T00:00:00.000Z",
+      "summary": [
+        {
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "programClassName": "Main - class",
+          "maxClassesPerWeek": 2,
+          "enrolledClassesThisWeek": 2
+        },
+        {
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "programClassName": "Free - Talk",
+          "maxClassesPerWeek": 2,
+          "enrolledClassesThisWeek": 2
+        },
+        {
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "programClassName": "Skills Development",
+          "maxClassesPerWeek": 100,
+          "enrolledClassesThisWeek": 5
+        }
+      ],
+      "canBooking": false,
+      "flexibleClasses": [
+        {
+          "id": "01a00395-7a39-7b31-8868-3aad2263ffff",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-17",
+          "teacherName": "Jamie Jennings",
+          "teacherNickName": "Jamie",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Fancy - 1F",
+          "lesson": "What's the best mindset towards negotiation",
+          "currentStudents": 9,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "What's the best mindset towards negotiation",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1779547292469.pdf"
+          },
+          "subClassType": {
+            "name": "Communicative 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#0ea5e6"
+          }
+        },
+        {
+          "id": "01a00388-58bb-707c-aaab-29b65fd545ae",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-17",
+          "teacherName": "Nguyễn Thị Xuân Thường",
+          "teacherNickName": "Xuân Thường",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Bean Bag - 1F",
+          "lesson": "Nail a negotiation 1",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Nail a negotiation 1",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951088288.pdf"
+          },
+          "subClassType": {
+            "name": "FreeTalk 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#ff6464"
+          }
+        },
+        {
+          "id": "01a0038a-c590-7413-a8ac-f990085d968f",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-17",
+          "teacherName": "Lê Duy Thắng",
+          "teacherNickName": "Thắng",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Bean Bag - 1F",
+          "lesson": "Nouns in sentences: Functions and Uses",
+          "currentStudents": 10,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Nouns in sentences: Functions and Uses",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951202289.pdf"
+          },
+          "subClassType": {
+            "name": "Grammar",
+            "color": "#FFFFFF",
+            "bgcolor": "#fa931a"
+          }
+        },
+        {
+          "id": "01a00394-2c8f-7678-b290-555a382909f8",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-17",
+          "teacherName": "Phan Hồng Ngọc",
+          "teacherNickName": "Hồng Ngọc",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Fancy - 1F",
+          "lesson": "How to negotiate more effectively",
+          "currentStudents": 12,
+          "maxStudents": 12,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "How to negotiate more effectively",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1779547347196.pdf"
+          },
+          "subClassType": {
+            "name": "Communicative 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#6b75d6"
+          }
+        },
+        {
+          "id": "01a0040e-6587-778d-be29-92c6b2215c6b",
+          "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-18",
+          "teacherName": "Lê Kim Pha",
+          "teacherNickName": "Kim Pha",
+          "startTime": "08:50:00",
+          "endTime": "10:20:00",
+          "room": "Ground",
+          "lesson": "Livestream Fail 🇻🇳",
+          "currentStudents": 11,
+          "maxStudents": 25,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Livestream Fail 🇻🇳",
+            "description": "",
+            "studentDocKey": "N/A"
+          },
+          "subClassType": {
+            "name": "Drama Club",
+            "color": "#FFFFFF",
+            "bgcolor": "#b888d6"
+          }
+        },
+        {
+          "id": "01a004a2-25b9-7113-b7b4-79e5784218da",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-18",
+          "teacherName": "Johnny Starantino",
+          "teacherNickName": "Johnny",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Ground",
+          "lesson": "Leadership Skills: Beyond the Title",
+          "currentStudents": 14,
+          "maxStudents": 25,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Leadership Skills: Beyond the Title",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786769745391.pdf"
+          },
+          "subClassType": {
+            "name": "Public Speaking",
+            "color": "#FFFFFF",
+            "bgcolor": "#3c9baf"
+          }
+        },
+        {
+          "id": "01a00385-83d8-7ecd-a899-947e61ace72d",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-18",
+          "teacherName": "Bùi Đức Huy",
+          "teacherNickName": "Huy Bùi",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Meeting - 1F",
+          "lesson": "Round Table Discussion",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Round Table Discussion",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "01a0038d-ff45-751e-ba8a-a39a6da19d97",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-18",
+          "teacherName": "Lê Trung Hiếu",
+          "teacherNickName": "Hiếu",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Coffee - 1F",
+          "lesson": "Striking the Right Balance",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Striking the Right Balance",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951292004.pdf"
+          },
+          "subClassType": {
+            "name": "Vocabulary",
+            "color": "#FFFFFF",
+            "bgcolor": "#10b4b3"
+          }
+        },
+        {
+          "id": "01a0038d-ff44-7860-b635-da112985b9f7",
+          "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-18",
+          "teacherName": "Lương Mỹ Nhàn",
+          "teacherNickName": "Nhàn Lương",
+          "startTime": "10:30:00",
+          "endTime": "12:00:00",
+          "room": "Ground",
+          "lesson": "Striking the Right Balance",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Striking the Right Balance",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951292004.pdf"
+          },
+          "subClassType": {
+            "name": "Vocabulary",
+            "color": "#FFFFFF",
+            "bgcolor": "#10b4b3"
+          }
+        },
+        {
+          "id": "01a00394-2c90-7209-a5fe-8b29e6c73758",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-18",
+          "teacherName": "Johnny Starantino",
+          "teacherNickName": "Johnny",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Ground",
+          "lesson": "How to negotiate more effectively",
+          "currentStudents": 9,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "How to negotiate more effectively",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1779547347196.pdf"
+          },
+          "subClassType": {
+            "name": "Communicative 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#6b75d6"
+          }
+        },
+        {
+          "id": "01a004a1-72fd-7e1f-9bec-6c9666c2c608",
+          "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-19",
+          "teacherName": "Bùi Đức Huy",
+          "teacherNickName": "Huy Bùi",
+          "startTime": "10:30:00",
+          "endTime": "12:00:00",
+          "room": "Ground",
+          "lesson": "The Digital Nomad Kit",
+          "currentStudents": 12,
+          "maxStudents": 25,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "The Digital Nomad Kit",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1787049083842.pdf"
+          },
+          "subClassType": {
+            "name": "The Perfect Pitch",
+            "color": "#FFFFFF",
+            "bgcolor": "#3c9baf"
+          }
+        },
+        {
+          "id": "01a0038d-ff46-773a-b70e-62283b59d724",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-19",
+          "teacherName": "Jamie Jennings",
+          "teacherNickName": "Jamie",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Outdoor - 2F",
+          "lesson": "Striking the Right Balance",
+          "currentStudents": 10,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Striking the Right Balance",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951292004.pdf"
+          },
+          "subClassType": {
+            "name": "Vocabulary",
+            "color": "#FFFFFF",
+            "bgcolor": "#10b4b3"
+          }
+        },
+        {
+          "id": "01a00385-83d9-7257-867a-f266e4640aaf",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-19",
+          "teacherName": "Nguyễn Minh Nhựt",
+          "teacherNickName": "Minh Nhựt",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Fancy - 1F",
+          "lesson": "Round Table Discussion",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Round Table Discussion",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "01a00410-8ff0-77c8-baef-7dab71b5b8b1",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-19",
+          "teacherName": "Nguyễn Thị Xuân Thường",
+          "teacherNickName": "Xuân Thường",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Ground",
+          "lesson": "Stay Trendy",
+          "currentStudents": 26,
+          "maxStudents": 26,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Stay Trendy",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "Stay Trendy",
+            "color": "#FFFFFF",
+            "bgcolor": "#b888d6"
+          }
+        },
+        {
+          "id": "01a0038a-c591-7712-bf31-cf28708812a7",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-19",
+          "teacherName": "Johnny Starantino",
+          "teacherNickName": "Johnny",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Ground",
+          "lesson": "Nouns in sentences: Functions and Uses",
+          "currentStudents": 7,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Nouns in sentences: Functions and Uses",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951202289.pdf"
+          },
+          "subClassType": {
+            "name": "Grammar",
+            "color": "#FFFFFF",
+            "bgcolor": "#fa931a"
+          }
+        },
+        {
+          "id": "01a0038b-f8cb-70ae-b32c-91e939a9d75c",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-19",
+          "teacherName": "Nguyễn Hoàng Thúc",
+          "teacherNickName": "Thúc",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Friend Zone - 1F",
+          "lesson": "p pie, b buy, f fine, v vine, & w wine",
+          "currentStudents": 9,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "p pie, b buy, f fine, v vine, & w wine",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951238106.pdf"
+          },
+          "subClassType": {
+            "name": "Pronunciation",
+            "color": "#FFFFFF",
+            "bgcolor": "#f071af"
+          }
+        },
+        {
+          "id": "01a00395-7a3a-7a00-a6ba-c9d8ed3d97f6",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-19",
+          "teacherName": "Nguyễn Minh Nhựt",
+          "teacherNickName": "Minh Nhựt",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Friend Zone - 1F",
+          "lesson": "What's the best mindset towards negotiation",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "What's the best mindset towards negotiation",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1779547292469.pdf"
+          },
+          "subClassType": {
+            "name": "Communicative 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#0ea5e6"
+          }
+        },
+        {
+          "id": "01a00385-83d9-7257-867a-f2676100e2d5",
+          "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-20",
+          "teacherName": "Huỳnh Hồ Trúc Thanh",
+          "teacherNickName": "Trúc Thanh",
+          "startTime": "08:50:00",
+          "endTime": "10:20:00",
+          "room": "Coffee - 1F",
+          "lesson": "Round Table Discussion",
+          "currentStudents": 5,
+          "maxStudents": 11,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Round Table Discussion",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "01a00385-83d9-7257-867a-f2689ac43b75",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-20",
+          "teacherName": "Nguyễn Đức Huy",
+          "teacherNickName": "Huy Nguyễn",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Meeting - 1F",
+          "lesson": "Round Table Discussion",
+          "currentStudents": 12,
+          "maxStudents": 12,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Round Table Discussion",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "01a00388-58bc-7bb9-bc5d-d7d3b07bc0df",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-20",
+          "teacherName": "Thạch Thị Mỹ Tú",
+          "teacherNickName": "Mỹ Tú",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Ground",
+          "lesson": "Nail a negotiation 1",
+          "currentStudents": 10,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Nail a negotiation 1",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951088288.pdf"
+          },
+          "subClassType": {
+            "name": "FreeTalk 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#ff6464"
+          }
+        },
+        {
+          "id": "01a0038b-f8cc-7491-bb0c-12ff7e2e8a83",
+          "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-20",
+          "teacherName": "Lương Mỹ Nhàn",
+          "teacherNickName": "Nhàn Lương",
+          "startTime": "10:30:00",
+          "endTime": "12:00:00",
+          "room": "Fancy - 1F",
+          "lesson": "p pie, b buy, f fine, v vine, & w wine",
+          "currentStudents": 6,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "p pie, b buy, f fine, v vine, & w wine",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951238106.pdf"
+          },
+          "subClassType": {
+            "name": "Pronunciation",
+            "color": "#FFFFFF",
+            "bgcolor": "#f071af"
+          }
+        },
+        {
+          "id": "01a0049e-bc45-76e0-a421-4120dddb12d8",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-21",
+          "teacherName": "Jamie Jennings",
+          "teacherNickName": "Jamie",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Ground",
+          "lesson": "The Space Conflict",
+          "currentStudents": 24,
+          "maxStudents": 25,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "The Space Conflict",
+            "description": "",
+            "studentDocKey": "N/A"
+          },
+          "subClassType": {
+            "name": "The Office Improv",
+            "color": "#FFFFFF",
+            "bgcolor": "#ef7947"
+          }
+        },
+        {
+          "id": "01a004a0-ba75-71e4-8d91-361303821692",
+          "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-21",
+          "teacherName": "Jamie Jennings",
+          "teacherNickName": "Jamie",
+          "startTime": "10:30:00",
+          "endTime": "12:00:00",
+          "room": "Ground",
+          "lesson": "Making arrangements",
+          "currentStudents": 12,
+          "maxStudents": 25,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Making arrangements",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "Business Writing",
+            "color": "#FFFFFF",
+            "bgcolor": "#ef7947"
+          }
+        },
+        {
+          "id": "01a0038d-ff46-773a-b70e-62296fc9ddd7",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-21",
+          "teacherName": "Thạch Thị Mỹ Tú",
+          "teacherNickName": "Mỹ Tú",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Sofa - 2F",
+          "lesson": "Striking the Right Balance",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Striking the Right Balance",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951292004.pdf"
+          },
+          "subClassType": {
+            "name": "Vocabulary",
+            "color": "#FFFFFF",
+            "bgcolor": "#10b4b3"
+          }
+        },
+        {
+          "id": "01a00385-83d9-7257-867a-f2696b58436a",
+          "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-21",
+          "teacherName": "Johnny Starantino",
+          "teacherNickName": "Johnny",
+          "startTime": "19:50:00",
+          "endTime": "21:20:00",
+          "room": "Ground",
+          "lesson": "Round Table Discussion",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Round Table Discussion",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "01a00388-58bc-7bb9-bc5d-d7d4b0e5683e",
+          "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-21",
+          "teacherName": "Phan Hồng Ngọc",
+          "teacherNickName": "Hồng Ngọc",
+          "startTime": "18:15:00",
+          "endTime": "19:45:00",
+          "room": "Fancy - 1F",
+          "lesson": "Nail a negotiation 1",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Nail a negotiation 1",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951088288.pdf"
+          },
+          "subClassType": {
+            "name": "FreeTalk 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#ff6464"
+          }
+        },
+        {
+          "id": "01a0040f-07f0-7542-8efa-5f9ba0374b30",
+          "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-22",
+          "teacherName": "Phan Hồng Ngọc",
+          "teacherNickName": "Hồng Ngọc",
+          "startTime": "10:30:00",
+          "endTime": "12:00:00",
+          "room": "Ground",
+          "lesson": "Record, Record",
+          "currentStudents": 24,
+          "maxStudents": 25,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Record, Record",
+            "description": "",
+            "studentDocKey": ""
+          },
+          "subClassType": {
+            "name": "Pronunciation Club",
+            "color": "#FFFFFF",
+            "bgcolor": "#b888d6"
+          }
+        },
+        {
+          "id": "01a00385-83da-71af-9d03-f713ee098f96",
+          "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-22",
+          "teacherName": "Đinh Phạm Uyên Ly",
+          "teacherNickName": "Uyên Ly",
+          "startTime": "10:30:00",
+          "endTime": "12:00:00",
+          "room": "Coffee - 1F",
+          "lesson": "Round Table Discussion",
+          "currentStudents": 10,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Round Table Discussion",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786950910066.pdf"
+          },
+          "subClassType": {
+            "name": "FreeTalk 1",
+            "color": "#FFFFFF",
+            "bgcolor": "#59b14f"
+          }
+        },
+        {
+          "id": "01a00388-58bd-7388-b6ec-f4625d504c71",
+          "timeSlot": "019b11fa-232d-7637-bbc0-930881ae26c3",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-22",
+          "teacherName": "Phan Mạnh Hưng",
+          "teacherNickName": "Hưng",
+          "startTime": "15:30:00",
+          "endTime": "17:00:00",
+          "room": "Ground",
+          "lesson": "Nail a negotiation 1",
+          "currentStudents": 8,
+          "maxStudents": 11,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Nail a negotiation 1",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951088288.pdf"
+          },
+          "subClassType": {
+            "name": "FreeTalk 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#ff6464"
+          }
+        },
+        {
+          "id": "01a00388-58bd-7388-b6ec-f46138090d5b",
+          "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "date": "2026-08-22",
+          "teacherName": "Jamie Jennings",
+          "teacherNickName": "Jamie",
+          "startTime": "08:50:00",
+          "endTime": "10:20:00",
+          "room": "Ground",
+          "lesson": "Nail a negotiation 1",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Nail a negotiation 1",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951088288.pdf"
+          },
+          "subClassType": {
+            "name": "FreeTalk 2",
+            "color": "#FFFFFF",
+            "bgcolor": "#ff6464"
+          }
+        },
+        {
+          "id": "01a0038a-c592-770b-85bf-10cdd00d5008",
+          "timeSlot": "019b11f9-3997-7478-9a55-300253d69bd3",
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "date": "2026-08-22",
+          "teacherName": "Nguyễn Minh Nhựt",
+          "teacherNickName": "Minh Nhựt",
+          "startTime": "13:30:00",
+          "endTime": "15:00:00",
+          "room": "Ground",
+          "lesson": "Nouns in sentences: Functions and Uses",
+          "currentStudents": 11,
+          "maxStudents": 11,
+          "hasEnrolled": false,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Nouns in sentences: Functions and Uses",
+            "description": "",
+            "studentDocKey": "files/studentDoc/1786951202289.pdf"
+          },
+          "subClassType": {
+            "name": "Grammar",
+            "color": "#FFFFFF",
+            "bgcolor": "#fa931a"
+          }
+        },
+        {
+          "id": "01a004a0-10f3-7c84-9863-2f22d5503ef8",
+          "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "date": "2026-08-23",
+          "teacherName": "Phạm Quế Phương",
+          "teacherNickName": "Quế Phương",
+          "startTime": "08:50:00",
+          "endTime": "10:20:00",
+          "room": "Ground",
+          "lesson": "Privacy/Security",
+          "currentStudents": 19,
+          "maxStudents": 25,
+          "hasEnrolled": true,
+          "timeType": "STANDARD",
+          "mode": "Offline",
+          "lessonInfo": {
+            "lesson": "Privacy/Security",
+            "description": "",
+            "studentDocKey": "N/A"
+          },
+          "subClassType": {
+            "name": "Talk Show",
+            "color": "#FFFFFF",
+            "bgcolor": "#ef7947"
+          }
+        }
+      ],
+      "fixedClasses": [],
+      "fetchedAt": "2026-08-20T09:26:39.072Z"
+    },
+    "2026-08-24": {
+      "monday": "2026-08-24",
+      "startDate": "2026-08-24T00:00:00.000Z",
+      "endDate": "2026-08-30T00:00:00.000Z",
+      "summary": [
+        {
+          "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+          "programClassName": "Main - class",
+          "maxClassesPerWeek": 2,
+          "enrolledClassesThisWeek": 0
+        },
+        {
+          "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+          "programClassName": "Free - Talk",
+          "maxClassesPerWeek": 2,
+          "enrolledClassesThisWeek": 0
+        },
+        {
+          "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+          "programClassName": "Skills Development",
+          "maxClassesPerWeek": 100,
+          "enrolledClassesThisWeek": 0
+        }
+      ],
+      "canBooking": false,
+      "flexibleClasses": [],
+      "fixedClasses": [],
+      "fetchedAt": "2026-08-20T08:35:49.186Z"
+    }
+  },
+  "allClasses": [
+    {
+      "id": "019fe0b0-24b5-7e51-817d-0d49de49d747",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-10",
+      "teacherName": "Lê Duy Thắng",
+      "teacherNickName": "Thắng",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Bean Bag - 1F",
+      "lesson": "Linking verbs",
+      "currentStudents": 10,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Linking verbs",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786616160561.pdf"
+      },
+      "subClassType": {
+        "name": "Grammar",
+        "color": "#FFFFFF",
+        "bgcolor": "#fa931a"
+      }
+    },
+    {
+      "id": "019fe0b7-04b0-74c9-9a48-4256dac4f67a",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-10",
+      "teacherName": "Thạch Thị Mỹ Tú",
+      "teacherNickName": "Mỹ Tú",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Fancy - 1F",
+      "lesson": "How to handle complaints",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "How to handle complaints",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1778943081849.pdf"
+      },
+      "subClassType": {
+        "name": "Communicative 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#6b75d6"
+      }
+    },
+    {
+      "id": "019fe0ba-2f23-7feb-85b2-d4409d380763",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-10",
+      "teacherName": "Phan Hồng Ngọc",
+      "teacherNickName": "Hồng Ngọc",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Fancy - 1F",
+      "lesson": "How to handle complaints with empathy",
+      "currentStudents": 9,
+      "maxStudents": 11,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "How to handle complaints with empathy",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1778943138485.pdf"
+      },
+      "subClassType": {
+        "name": "Communicative 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#0ea5e6"
+      }
+    },
+    {
+      "id": "019fe0b3-88d2-7110-b196-125199fae063",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-10",
+      "teacherName": "Phan Mạnh Hưng",
+      "teacherNickName": "Hưng",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Bean Bag - 1F",
+      "lesson": "Mastering Customer Service Phone Calls",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Mastering Customer Service Phone Calls",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "Vocabulary",
+        "color": "#FFFFFF",
+        "bgcolor": "#10b4b3"
+      }
+    },
+    {
+      "id": "019fe0ac-db47-7da0-a5af-591d24e45794",
+      "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-11",
+      "teacherName": "Lê Kim Pha",
+      "teacherNickName": "Kim Pha",
+      "startTime": "08:50:00",
+      "endTime": "10:20:00",
+      "room": "Coffee - 1F",
+      "lesson": "I would like to make a complaint...",
+      "currentStudents": 5,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "I would like to make a complaint...",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "019fe0ac-db69-71ee-b085-bf26204739df",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-11",
+      "teacherName": "Lê Trung Hiếu",
+      "teacherNickName": "Hiếu",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Meeting - 1F",
+      "lesson": "I would like to make a complaint...",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "I would like to make a complaint...",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "019fe0ae-d67b-7609-a9a8-8b21af2524f8",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-11",
+      "teacherName": "Phan Mạnh Hưng",
+      "teacherNickName": "Hưng",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Bean Bag - 1F",
+      "lesson": "Can you handle the complaints?",
+      "currentStudents": 9,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Can you handle the complaints?",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "FreeTalk 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#ff6464"
+      }
+    },
+    {
+      "id": "019fe0b7-04b0-74c9-9a48-4257690b7e1b",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-11",
+      "teacherName": "Johnny Starantino",
+      "teacherNickName": "Johnny",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Ground",
+      "lesson": "How to handle complaints",
+      "currentStudents": 8,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "How to handle complaints",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1778943081849.pdf"
+      },
+      "subClassType": {
+        "name": "Communicative 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#6b75d6"
+      }
+    },
+    {
+      "id": "019fe0b3-88d1-7fce-bf01-704bc46ba20b",
+      "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-11",
+      "teacherName": "Nguyễn Kiều Phương Trinh",
+      "teacherNickName": "Trinh Nguyen",
+      "startTime": "10:30:00",
+      "endTime": "12:00:00",
+      "room": "Ground",
+      "lesson": "Mastering Customer Service Phone Calls",
+      "currentStudents": 9,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Mastering Customer Service Phone Calls",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "Vocabulary",
+        "color": "#FFFFFF",
+        "bgcolor": "#10b4b3"
+      }
+    },
+    {
+      "id": "019fe0b3-88d2-7110-b196-12500ed59b56",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-11",
+      "teacherName": "Lê Trung Hiếu",
+      "teacherNickName": "Hiếu",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Fancy - 1F",
+      "lesson": "Mastering Customer Service Phone Calls",
+      "currentStudents": 10,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Mastering Customer Service Phone Calls",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "Vocabulary",
+        "color": "#FFFFFF",
+        "bgcolor": "#10b4b3"
+      }
+    },
+    {
+      "id": "019fe0e2-c218-7640-8d75-7ac9744a713a",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-11",
+      "teacherName": "Thạch Thị Mỹ Tú",
+      "teacherNickName": "Mỹ Tú",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Ground",
+      "lesson": "Personal Safety Tech",
+      "currentStudents": 16,
+      "maxStudents": 25,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Personal Safety Tech",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786180699952.pdf"
+      },
+      "subClassType": {
+        "name": "The Perfect Pitch",
+        "color": "#FFFFFF",
+        "bgcolor": "#3c9baf"
+      }
+    },
+    {
+      "id": "019fe0e2-4fe8-7e18-aa27-153a40f47ce1",
+      "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-11",
+      "teacherName": "Phan Hồng Ngọc",
+      "teacherNickName": "Hồng Ngọc",
+      "startTime": "08:50:00",
+      "endTime": "10:20:00",
+      "room": "Ground",
+      "lesson": "Investing in \"Face\"",
+      "currentStudents": 12,
+      "maxStudents": 25,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Investing in \"Face\"",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786180626302.pdf"
+      },
+      "subClassType": {
+        "name": "Debate",
+        "color": "#FFFFFF",
+        "bgcolor": "#3c9baf"
+      }
+    },
+    {
+      "id": "019fe0ac-db6a-7703-aeea-c55b0712c7c0",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-12",
+      "teacherName": "Nguyễn Minh Nhựt",
+      "teacherNickName": "Minh Nhựt",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Fancy - 1F",
+      "lesson": "I would like to make a complaint...",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "I would like to make a complaint...",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "019fe0b1-3edf-771a-83a1-8ec8a7e806d4",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-12",
+      "teacherName": "Nguyễn Hoàng Thúc",
+      "teacherNickName": "Thúc",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Friend Zone - 1F",
+      "lesson": "θ thank & ð that",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "θ thank & ð that",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786529979912.pdf"
+      },
+      "subClassType": {
+        "name": "Pronunciation",
+        "color": "#FFFFFF",
+        "bgcolor": "#f071af"
+      }
+    },
+    {
+      "id": "019fe0ba-2f24-7f05-a802-f86c3d9fa012",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-12",
+      "teacherName": "Jamie Jennings",
+      "teacherNickName": "Jamie",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Friend Zone - 1F",
+      "lesson": "How to handle complaints with empathy",
+      "currentStudents": 3,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "How to handle complaints with empathy",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1778943138485.pdf"
+      },
+      "subClassType": {
+        "name": "Communicative 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#0ea5e6"
+      }
+    },
+    {
+      "id": "019fe0b3-88d3-7c91-8cdd-132d9e85ee15",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-12",
+      "teacherName": "Nguyễn Minh Nhựt",
+      "teacherNickName": "Minh Nhựt",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Sofa - 2F",
+      "lesson": "Mastering Customer Service Phone Calls",
+      "currentStudents": 9,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Mastering Customer Service Phone Calls",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "Vocabulary",
+        "color": "#FFFFFF",
+        "bgcolor": "#10b4b3"
+      }
+    },
+    {
+      "id": "019fe0d5-d5bc-7537-b34e-14e5401799bb",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-12",
+      "teacherName": "Nguyễn Thị Xuân Thường",
+      "teacherNickName": "Xuân Thường",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Ground",
+      "lesson": "The Cinema",
+      "currentStudents": 24,
+      "maxStudents": 25,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "The Cinema",
+        "description": "",
+        "studentDocKey": "N/A"
+      },
+      "subClassType": {
+        "name": "Drama Club",
+        "color": "#FFFFFF",
+        "bgcolor": "#b888d6"
+      }
+    },
+    {
+      "id": "019fe0dd-685d-7ee8-ae14-7d7cd05dad93",
+      "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-12",
+      "teacherName": "Bùi Đức Huy",
+      "teacherNickName": "Huy Bùi",
+      "startTime": "10:30:00",
+      "endTime": "12:00:00",
+      "room": "Ground",
+      "lesson": "Worst and Baddest",
+      "currentStudents": 15,
+      "maxStudents": 25,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Worst and Baddest",
+        "description": "",
+        "studentDocKey": "N/A"
+      },
+      "subClassType": {
+        "name": "Grammar Police",
+        "color": "#FFFFFF",
+        "bgcolor": "#b888d6"
+      }
+    },
+    {
+      "id": "019fe0ac-db6a-7703-aeea-c55c19798b3c",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-13",
+      "teacherName": "Phan Mạnh Hưng",
+      "teacherNickName": "Hưng",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Meeting - 1F",
+      "lesson": "I would like to make a complaint...",
+      "currentStudents": 7,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "I would like to make a complaint...",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "019fe0ae-d67c-7ab8-97e4-13306171c1e5",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-13",
+      "teacherName": "Johnny Starantino",
+      "teacherNickName": "Johnny",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Ground",
+      "lesson": "Can you handle the complaints?",
+      "currentStudents": 11,
+      "maxStudents": 12,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Can you handle the complaints?",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "FreeTalk 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#ff6464"
+      }
+    },
+    {
+      "id": "019fe0b0-24b6-743e-826a-68b7a04e32ce",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-13",
+      "teacherName": "Nguyễn Hoàng Thúc",
+      "teacherNickName": "Thúc",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Outdoor - 2F",
+      "lesson": "Linking verbs",
+      "currentStudents": 10,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Linking verbs",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786616160561.pdf"
+      },
+      "subClassType": {
+        "name": "Grammar",
+        "color": "#FFFFFF",
+        "bgcolor": "#fa931a"
+      }
+    },
+    {
+      "id": "019fe0b1-3ee1-767a-a250-8c27df52b3ec",
+      "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-13",
+      "teacherName": "Lương Mỹ Nhàn",
+      "teacherNickName": "Nhàn Lương",
+      "startTime": "10:30:00",
+      "endTime": "12:00:00",
+      "room": "Fancy - 1F",
+      "lesson": "θ thank & ð that",
+      "currentStudents": 3,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "θ thank & ð that",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786529979912.pdf"
+      },
+      "subClassType": {
+        "name": "Pronunciation",
+        "color": "#FFFFFF",
+        "bgcolor": "#f071af"
+      }
+    },
+    {
+      "id": "019fe0e0-7cb5-7174-a759-ada30a7f9e42",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-13",
+      "teacherName": "Jamie Jennings",
+      "teacherNickName": "Jamie",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Ground",
+      "lesson": "Internal communication",
+      "currentStudents": 24,
+      "maxStudents": 25,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Internal communication",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "Business Writing",
+        "color": "#FFFFFF",
+        "bgcolor": "#ef7947"
+      }
+    },
+    {
+      "id": "019fe0ac-db6a-7703-aeea-c55d281a8eea",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-14",
+      "teacherName": "Johnny Starantino",
+      "teacherNickName": "Johnny",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Ground",
+      "lesson": "I would like to make a complaint...",
+      "currentStudents": 10,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "I would like to make a complaint...",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "019fe0df-6d99-7fd9-8126-220219cf2c86",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-14",
+      "teacherName": "Phan Mạnh Hưng",
+      "teacherNickName": "Hưng",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Ground",
+      "lesson": "Remember, he told her",
+      "currentStudents": 20,
+      "maxStudents": 25,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Remember, he told her",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "Pronunciation Club",
+        "color": "#FFFFFF",
+        "bgcolor": "#b888d6"
+      }
+    },
+    {
+      "id": "019fe0e1-00ea-7cc0-8538-db737880872f",
+      "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-14",
+      "teacherName": "Lương Mỹ Nhàn",
+      "teacherNickName": "Nhàn Lương",
+      "startTime": "10:30:00",
+      "endTime": "12:00:00",
+      "room": "Ground",
+      "lesson": "AI Daily Life",
+      "currentStudents": 14,
+      "maxStudents": 25,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "AI Daily Life",
+        "description": "",
+        "studentDocKey": "N/A"
+      },
+      "subClassType": {
+        "name": "Talk Show",
+        "color": "#FFFFFF",
+        "bgcolor": "#ef7947"
+      }
+    },
+    {
+      "id": "019fe0ae-d67c-7ab8-97e4-1331fd4dd50f",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-14",
+      "teacherName": "Johnny Starantino",
+      "teacherNickName": "Johnny",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Fancy - 1F",
+      "lesson": "Can you handle the complaints?",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Can you handle the complaints?",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "FreeTalk 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#ff6464"
+      }
+    },
+    {
+      "id": "019fe0ac-db6a-7703-aeea-c55eba18ac6c",
+      "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-15",
+      "teacherName": "Đinh Phạm Uyên Ly",
+      "teacherNickName": "Uyên Ly",
+      "startTime": "10:30:00",
+      "endTime": "12:00:00",
+      "room": "Fancy - 1F",
+      "lesson": "I would like to make a complaint...",
+      "currentStudents": 7,
+      "maxStudents": 11,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "I would like to make a complaint...",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "019fe0ae-d67d-77be-be53-7db3c2b9d167",
+      "timeSlot": "019b11fa-232d-7637-bbc0-930881ae26c3",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-15",
+      "teacherName": "Jamie Jennings",
+      "teacherNickName": "Jamie",
+      "startTime": "15:30:00",
+      "endTime": "17:00:00",
+      "room": "Fancy - 1F",
+      "lesson": "Can you handle the complaints?",
+      "currentStudents": 6,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Can you handle the complaints?",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "FreeTalk 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#ff6464"
+      }
+    },
+    {
+      "id": "019fe0b0-24b6-743e-826a-68b8af391432",
+      "timeSlot": "019b11f9-3997-7478-9a55-300253d69bd3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-15",
+      "teacherName": "Jamie Jennings",
+      "teacherNickName": "Jamie",
+      "startTime": "13:30:00",
+      "endTime": "15:00:00",
+      "room": "Ground",
+      "lesson": "Linking verbs",
+      "currentStudents": 7,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Linking verbs",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786616160561.pdf"
+      },
+      "subClassType": {
+        "name": "Grammar",
+        "color": "#FFFFFF",
+        "bgcolor": "#fa931a"
+      }
+    },
+    {
+      "id": "019fe0dd-685e-7c42-a439-dd98d3b8e062",
+      "timeSlot": "019b11fa-232d-7637-bbc0-930881ae26c3",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-15",
+      "teacherName": "Phan Mạnh Hưng",
+      "teacherNickName": "Hưng",
+      "startTime": "15:30:00",
+      "endTime": "17:00:00",
+      "room": "Ground",
+      "lesson": "Worst and Baddest",
+      "currentStudents": 18,
+      "maxStudents": 25,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Worst and Baddest",
+        "description": "",
+        "studentDocKey": "N/A"
+      },
+      "subClassType": {
+        "name": "Grammar Police",
+        "color": "#FFFFFF",
+        "bgcolor": "#b888d6"
+      }
+    },
+    {
+      "id": "019fe0ae-d67c-7ab8-97e4-1332e3313154",
+      "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-15",
+      "teacherName": "Nguyễn Hoàng Thúc",
+      "teacherNickName": "Thúc",
+      "startTime": "08:50:00",
+      "endTime": "10:20:00",
+      "room": "Ground",
+      "lesson": "Can you handle the complaints?",
+      "currentStudents": 9,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Can you handle the complaints?",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "FreeTalk 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#ff6464"
+      }
+    },
+    {
+      "id": "019fe0df-e634-7921-898e-548e2addcea5",
+      "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-16",
+      "teacherName": "Phạm Quế Phương",
+      "teacherNickName": "Quế Phương",
+      "startTime": "08:50:00",
+      "endTime": "10:20:00",
+      "room": "Ground",
+      "lesson": "Voice Inflection",
+      "currentStudents": 11,
+      "maxStudents": 25,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Voice Inflection",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "Presentation Skills",
+        "color": "#FFFFFF",
+        "bgcolor": "#ef7947"
+      }
+    },
+    {
+      "id": "01a00395-7a39-7b31-8868-3aad2263ffff",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-17",
+      "teacherName": "Jamie Jennings",
+      "teacherNickName": "Jamie",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Fancy - 1F",
+      "lesson": "What's the best mindset towards negotiation",
+      "currentStudents": 9,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "What's the best mindset towards negotiation",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1779547292469.pdf"
+      },
+      "subClassType": {
+        "name": "Communicative 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#0ea5e6"
+      }
+    },
+    {
+      "id": "01a00388-58bb-707c-aaab-29b65fd545ae",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-17",
+      "teacherName": "Nguyễn Thị Xuân Thường",
+      "teacherNickName": "Xuân Thường",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Bean Bag - 1F",
+      "lesson": "Nail a negotiation 1",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Nail a negotiation 1",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951088288.pdf"
+      },
+      "subClassType": {
+        "name": "FreeTalk 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#ff6464"
+      }
+    },
+    {
+      "id": "01a0038a-c590-7413-a8ac-f990085d968f",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-17",
+      "teacherName": "Lê Duy Thắng",
+      "teacherNickName": "Thắng",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Bean Bag - 1F",
+      "lesson": "Nouns in sentences: Functions and Uses",
+      "currentStudents": 10,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Nouns in sentences: Functions and Uses",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951202289.pdf"
+      },
+      "subClassType": {
+        "name": "Grammar",
+        "color": "#FFFFFF",
+        "bgcolor": "#fa931a"
+      }
+    },
+    {
+      "id": "01a00394-2c8f-7678-b290-555a382909f8",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-17",
+      "teacherName": "Phan Hồng Ngọc",
+      "teacherNickName": "Hồng Ngọc",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Fancy - 1F",
+      "lesson": "How to negotiate more effectively",
+      "currentStudents": 12,
+      "maxStudents": 12,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "How to negotiate more effectively",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1779547347196.pdf"
+      },
+      "subClassType": {
+        "name": "Communicative 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#6b75d6"
+      }
+    },
+    {
+      "id": "01a0040e-6587-778d-be29-92c6b2215c6b",
+      "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-18",
+      "teacherName": "Lê Kim Pha",
+      "teacherNickName": "Kim Pha",
+      "startTime": "08:50:00",
+      "endTime": "10:20:00",
+      "room": "Ground",
+      "lesson": "Livestream Fail 🇻🇳",
+      "currentStudents": 11,
+      "maxStudents": 25,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Livestream Fail 🇻🇳",
+        "description": "",
+        "studentDocKey": "N/A"
+      },
+      "subClassType": {
+        "name": "Drama Club",
+        "color": "#FFFFFF",
+        "bgcolor": "#b888d6"
+      }
+    },
+    {
+      "id": "01a004a2-25b9-7113-b7b4-79e5784218da",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-18",
+      "teacherName": "Johnny Starantino",
+      "teacherNickName": "Johnny",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Ground",
+      "lesson": "Leadership Skills: Beyond the Title",
+      "currentStudents": 14,
+      "maxStudents": 25,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Leadership Skills: Beyond the Title",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786769745391.pdf"
+      },
+      "subClassType": {
+        "name": "Public Speaking",
+        "color": "#FFFFFF",
+        "bgcolor": "#3c9baf"
+      }
+    },
+    {
+      "id": "01a00385-83d8-7ecd-a899-947e61ace72d",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-18",
+      "teacherName": "Bùi Đức Huy",
+      "teacherNickName": "Huy Bùi",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Meeting - 1F",
+      "lesson": "Round Table Discussion",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Round Table Discussion",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "01a0038d-ff45-751e-ba8a-a39a6da19d97",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-18",
+      "teacherName": "Lê Trung Hiếu",
+      "teacherNickName": "Hiếu",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Coffee - 1F",
+      "lesson": "Striking the Right Balance",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Striking the Right Balance",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951292004.pdf"
+      },
+      "subClassType": {
+        "name": "Vocabulary",
+        "color": "#FFFFFF",
+        "bgcolor": "#10b4b3"
+      }
+    },
+    {
+      "id": "01a0038d-ff44-7860-b635-da112985b9f7",
+      "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-18",
+      "teacherName": "Lương Mỹ Nhàn",
+      "teacherNickName": "Nhàn Lương",
+      "startTime": "10:30:00",
+      "endTime": "12:00:00",
+      "room": "Ground",
+      "lesson": "Striking the Right Balance",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Striking the Right Balance",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951292004.pdf"
+      },
+      "subClassType": {
+        "name": "Vocabulary",
+        "color": "#FFFFFF",
+        "bgcolor": "#10b4b3"
+      }
+    },
+    {
+      "id": "01a00394-2c90-7209-a5fe-8b29e6c73758",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-18",
+      "teacherName": "Johnny Starantino",
+      "teacherNickName": "Johnny",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Ground",
+      "lesson": "How to negotiate more effectively",
+      "currentStudents": 9,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "How to negotiate more effectively",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1779547347196.pdf"
+      },
+      "subClassType": {
+        "name": "Communicative 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#6b75d6"
+      }
+    },
+    {
+      "id": "01a004a1-72fd-7e1f-9bec-6c9666c2c608",
+      "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-19",
+      "teacherName": "Bùi Đức Huy",
+      "teacherNickName": "Huy Bùi",
+      "startTime": "10:30:00",
+      "endTime": "12:00:00",
+      "room": "Ground",
+      "lesson": "The Digital Nomad Kit",
+      "currentStudents": 12,
+      "maxStudents": 25,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "The Digital Nomad Kit",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1787049083842.pdf"
+      },
+      "subClassType": {
+        "name": "The Perfect Pitch",
+        "color": "#FFFFFF",
+        "bgcolor": "#3c9baf"
+      }
+    },
+    {
+      "id": "01a0038d-ff46-773a-b70e-62283b59d724",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-19",
+      "teacherName": "Jamie Jennings",
+      "teacherNickName": "Jamie",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Outdoor - 2F",
+      "lesson": "Striking the Right Balance",
+      "currentStudents": 10,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Striking the Right Balance",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951292004.pdf"
+      },
+      "subClassType": {
+        "name": "Vocabulary",
+        "color": "#FFFFFF",
+        "bgcolor": "#10b4b3"
+      }
+    },
+    {
+      "id": "01a00385-83d9-7257-867a-f266e4640aaf",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-19",
+      "teacherName": "Nguyễn Minh Nhựt",
+      "teacherNickName": "Minh Nhựt",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Fancy - 1F",
+      "lesson": "Round Table Discussion",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Round Table Discussion",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "01a00410-8ff0-77c8-baef-7dab71b5b8b1",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-19",
+      "teacherName": "Nguyễn Thị Xuân Thường",
+      "teacherNickName": "Xuân Thường",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Ground",
+      "lesson": "Stay Trendy",
+      "currentStudents": 26,
+      "maxStudents": 26,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Stay Trendy",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "Stay Trendy",
+        "color": "#FFFFFF",
+        "bgcolor": "#b888d6"
+      }
+    },
+    {
+      "id": "01a0038a-c591-7712-bf31-cf28708812a7",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-19",
+      "teacherName": "Johnny Starantino",
+      "teacherNickName": "Johnny",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Ground",
+      "lesson": "Nouns in sentences: Functions and Uses",
+      "currentStudents": 7,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Nouns in sentences: Functions and Uses",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951202289.pdf"
+      },
+      "subClassType": {
+        "name": "Grammar",
+        "color": "#FFFFFF",
+        "bgcolor": "#fa931a"
+      }
+    },
+    {
+      "id": "01a0038b-f8cb-70ae-b32c-91e939a9d75c",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-19",
+      "teacherName": "Nguyễn Hoàng Thúc",
+      "teacherNickName": "Thúc",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Friend Zone - 1F",
+      "lesson": "p pie, b buy, f fine, v vine, & w wine",
+      "currentStudents": 9,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "p pie, b buy, f fine, v vine, & w wine",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951238106.pdf"
+      },
+      "subClassType": {
+        "name": "Pronunciation",
+        "color": "#FFFFFF",
+        "bgcolor": "#f071af"
+      }
+    },
+    {
+      "id": "01a00395-7a3a-7a00-a6ba-c9d8ed3d97f6",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-19",
+      "teacherName": "Nguyễn Minh Nhựt",
+      "teacherNickName": "Minh Nhựt",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Friend Zone - 1F",
+      "lesson": "What's the best mindset towards negotiation",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "What's the best mindset towards negotiation",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1779547292469.pdf"
+      },
+      "subClassType": {
+        "name": "Communicative 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#0ea5e6"
+      }
+    },
+    {
+      "id": "01a00385-83d9-7257-867a-f2676100e2d5",
+      "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-20",
+      "teacherName": "Huỳnh Hồ Trúc Thanh",
+      "teacherNickName": "Trúc Thanh",
+      "startTime": "08:50:00",
+      "endTime": "10:20:00",
+      "room": "Coffee - 1F",
+      "lesson": "Round Table Discussion",
+      "currentStudents": 5,
+      "maxStudents": 11,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Round Table Discussion",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "01a00385-83d9-7257-867a-f2689ac43b75",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-20",
+      "teacherName": "Nguyễn Đức Huy",
+      "teacherNickName": "Huy Nguyễn",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Meeting - 1F",
+      "lesson": "Round Table Discussion",
+      "currentStudents": 12,
+      "maxStudents": 12,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Round Table Discussion",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "01a00388-58bc-7bb9-bc5d-d7d3b07bc0df",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-20",
+      "teacherName": "Thạch Thị Mỹ Tú",
+      "teacherNickName": "Mỹ Tú",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Ground",
+      "lesson": "Nail a negotiation 1",
+      "currentStudents": 10,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Nail a negotiation 1",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951088288.pdf"
+      },
+      "subClassType": {
+        "name": "FreeTalk 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#ff6464"
+      }
+    },
+    {
+      "id": "01a0038b-f8cc-7491-bb0c-12ff7e2e8a83",
+      "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-20",
+      "teacherName": "Lương Mỹ Nhàn",
+      "teacherNickName": "Nhàn Lương",
+      "startTime": "10:30:00",
+      "endTime": "12:00:00",
+      "room": "Fancy - 1F",
+      "lesson": "p pie, b buy, f fine, v vine, & w wine",
+      "currentStudents": 6,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "p pie, b buy, f fine, v vine, & w wine",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951238106.pdf"
+      },
+      "subClassType": {
+        "name": "Pronunciation",
+        "color": "#FFFFFF",
+        "bgcolor": "#f071af"
+      }
+    },
+    {
+      "id": "01a0049e-bc45-76e0-a421-4120dddb12d8",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-21",
+      "teacherName": "Jamie Jennings",
+      "teacherNickName": "Jamie",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Ground",
+      "lesson": "The Space Conflict",
+      "currentStudents": 24,
+      "maxStudents": 25,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "The Space Conflict",
+        "description": "",
+        "studentDocKey": "N/A"
+      },
+      "subClassType": {
+        "name": "The Office Improv",
+        "color": "#FFFFFF",
+        "bgcolor": "#ef7947"
+      }
+    },
+    {
+      "id": "01a004a0-ba75-71e4-8d91-361303821692",
+      "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-21",
+      "teacherName": "Jamie Jennings",
+      "teacherNickName": "Jamie",
+      "startTime": "10:30:00",
+      "endTime": "12:00:00",
+      "room": "Ground",
+      "lesson": "Making arrangements",
+      "currentStudents": 12,
+      "maxStudents": 25,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Making arrangements",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "Business Writing",
+        "color": "#FFFFFF",
+        "bgcolor": "#ef7947"
+      }
+    },
+    {
+      "id": "01a0038d-ff46-773a-b70e-62296fc9ddd7",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-21",
+      "teacherName": "Thạch Thị Mỹ Tú",
+      "teacherNickName": "Mỹ Tú",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Sofa - 2F",
+      "lesson": "Striking the Right Balance",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Striking the Right Balance",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951292004.pdf"
+      },
+      "subClassType": {
+        "name": "Vocabulary",
+        "color": "#FFFFFF",
+        "bgcolor": "#10b4b3"
+      }
+    },
+    {
+      "id": "01a00385-83d9-7257-867a-f2696b58436a",
+      "timeSlot": "019b11fc-b771-7727-8326-1b5b4c1669b3",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-21",
+      "teacherName": "Johnny Starantino",
+      "teacherNickName": "Johnny",
+      "startTime": "19:50:00",
+      "endTime": "21:20:00",
+      "room": "Ground",
+      "lesson": "Round Table Discussion",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Round Table Discussion",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "01a00388-58bc-7bb9-bc5d-d7d4b0e5683e",
+      "timeSlot": "019b11fb-7b87-7ea2-ae85-16ecdf627be7",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-21",
+      "teacherName": "Phan Hồng Ngọc",
+      "teacherNickName": "Hồng Ngọc",
+      "startTime": "18:15:00",
+      "endTime": "19:45:00",
+      "room": "Fancy - 1F",
+      "lesson": "Nail a negotiation 1",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Nail a negotiation 1",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951088288.pdf"
+      },
+      "subClassType": {
+        "name": "FreeTalk 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#ff6464"
+      }
+    },
+    {
+      "id": "01a0040f-07f0-7542-8efa-5f9ba0374b30",
+      "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-22",
+      "teacherName": "Phan Hồng Ngọc",
+      "teacherNickName": "Hồng Ngọc",
+      "startTime": "10:30:00",
+      "endTime": "12:00:00",
+      "room": "Ground",
+      "lesson": "Record, Record",
+      "currentStudents": 24,
+      "maxStudents": 25,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Record, Record",
+        "description": "",
+        "studentDocKey": ""
+      },
+      "subClassType": {
+        "name": "Pronunciation Club",
+        "color": "#FFFFFF",
+        "bgcolor": "#b888d6"
+      }
+    },
+    {
+      "id": "01a00385-83da-71af-9d03-f713ee098f96",
+      "timeSlot": "019b11f8-be6f-74c3-8cd5-13cddfe0fb37",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-22",
+      "teacherName": "Đinh Phạm Uyên Ly",
+      "teacherNickName": "Uyên Ly",
+      "startTime": "10:30:00",
+      "endTime": "12:00:00",
+      "room": "Coffee - 1F",
+      "lesson": "Round Table Discussion",
+      "currentStudents": 10,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Round Table Discussion",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786950910066.pdf"
+      },
+      "subClassType": {
+        "name": "FreeTalk 1",
+        "color": "#FFFFFF",
+        "bgcolor": "#59b14f"
+      }
+    },
+    {
+      "id": "01a00388-58bd-7388-b6ec-f4625d504c71",
+      "timeSlot": "019b11fa-232d-7637-bbc0-930881ae26c3",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-22",
+      "teacherName": "Phan Mạnh Hưng",
+      "teacherNickName": "Hưng",
+      "startTime": "15:30:00",
+      "endTime": "17:00:00",
+      "room": "Ground",
+      "lesson": "Nail a negotiation 1",
+      "currentStudents": 8,
+      "maxStudents": 11,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Nail a negotiation 1",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951088288.pdf"
+      },
+      "subClassType": {
+        "name": "FreeTalk 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#ff6464"
+      }
+    },
+    {
+      "id": "01a00388-58bd-7388-b6ec-f46138090d5b",
+      "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+      "programClassId": "019b08a3-50e9-7c33-b9ce-0b86668579b6",
+      "date": "2026-08-22",
+      "teacherName": "Jamie Jennings",
+      "teacherNickName": "Jamie",
+      "startTime": "08:50:00",
+      "endTime": "10:20:00",
+      "room": "Ground",
+      "lesson": "Nail a negotiation 1",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Nail a negotiation 1",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951088288.pdf"
+      },
+      "subClassType": {
+        "name": "FreeTalk 2",
+        "color": "#FFFFFF",
+        "bgcolor": "#ff6464"
+      }
+    },
+    {
+      "id": "01a0038a-c592-770b-85bf-10cdd00d5008",
+      "timeSlot": "019b11f9-3997-7478-9a55-300253d69bd3",
+      "programClassId": "019b08a3-11f1-7f49-aee8-6ba81cdb469f",
+      "date": "2026-08-22",
+      "teacherName": "Nguyễn Minh Nhựt",
+      "teacherNickName": "Minh Nhựt",
+      "startTime": "13:30:00",
+      "endTime": "15:00:00",
+      "room": "Ground",
+      "lesson": "Nouns in sentences: Functions and Uses",
+      "currentStudents": 11,
+      "maxStudents": 11,
+      "hasEnrolled": false,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Nouns in sentences: Functions and Uses",
+        "description": "",
+        "studentDocKey": "files/studentDoc/1786951202289.pdf"
+      },
+      "subClassType": {
+        "name": "Grammar",
+        "color": "#FFFFFF",
+        "bgcolor": "#fa931a"
+      }
+    },
+    {
+      "id": "01a004a0-10f3-7c84-9863-2f22d5503ef8",
+      "timeSlot": "019b11f8-382f-7a0b-b275-1255e6394719",
+      "programClassId": "019b08a3-b490-7c6c-bd25-d7d11e1c4c35",
+      "date": "2026-08-23",
+      "teacherName": "Phạm Quế Phương",
+      "teacherNickName": "Quế Phương",
+      "startTime": "08:50:00",
+      "endTime": "10:20:00",
+      "room": "Ground",
+      "lesson": "Privacy/Security",
+      "currentStudents": 19,
+      "maxStudents": 25,
+      "hasEnrolled": true,
+      "timeType": "STANDARD",
+      "mode": "Offline",
+      "lessonInfo": {
+        "lesson": "Privacy/Security",
+        "description": "",
+        "studentDocKey": "N/A"
+      },
+      "subClassType": {
+        "name": "Talk Show",
+        "color": "#FFFFFF",
+        "bgcolor": "#ef7947"
+      }
+    }
+  ]
+}

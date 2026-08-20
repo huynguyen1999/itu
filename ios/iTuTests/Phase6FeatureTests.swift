@@ -58,6 +58,82 @@ final class Phase6FeatureTests: XCTestCase {
         XCTAssertEqual(statistics.engagementCoverage?.totalActiveSeconds, 180)
         XCTAssertFalse(statistics.engagementCoverage?.complete ?? true)
     }
+
+    func testBatchConflictResolutionKeepLocalAndServer() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let location = OfflineStoreLocation(rootURL: root)
+        let store = OfflineStore(accountID: "batch-test", location: location)
+        _ = try await store.load()
+
+        let conflict1 = SyncConflict(
+            mutationId: "mut-1",
+            entityType: "task",
+            entityId: "task-1",
+            reason: "CONCURRENT_UPDATE",
+            serverData: .object(["version": .number(2)]),
+            localDraft: ["title": .string("Task 1 Local")],
+            conflictingFields: ["title"],
+            kind: "task.update",
+            occurredAt: "2026-08-17T00:00:00Z"
+        )
+        let conflict2 = SyncConflict(
+            mutationId: "mut-2",
+            entityType: "task",
+            entityId: "task-2",
+            reason: "CONCURRENT_UPDATE",
+            serverData: .object(["version": .number(2)]),
+            localDraft: ["title": .string("Task 2 Local")],
+            conflictingFields: ["title"],
+            kind: "task.update",
+            occurredAt: "2026-08-17T00:00:00Z"
+        )
+
+        _ = try await store.resolveConflicts([conflict1, conflict2], keepLocal: true)
+        let snap1 = await store.snapshot()
+        XCTAssertTrue(snap1.conflicts.isEmpty)
+        XCTAssertEqual(snap1.mutations.count, 2)
+
+        let conflict3 = SyncConflict(
+            mutationId: "mut-3",
+            entityType: "task",
+            entityId: "task-3",
+            reason: "CONCURRENT_UPDATE",
+            serverData: .object(["version": .number(2)]),
+            localDraft: ["title": .string("Task 3 Local")],
+            conflictingFields: ["title"],
+            kind: "task.update",
+            occurredAt: "2026-08-17T00:00:00Z"
+        )
+        _ = try await store.resolveConflicts([conflict3], keepLocal: false)
+        let snap2 = await store.snapshot()
+        XCTAssertTrue(snap2.conflicts.isEmpty)
+        XCTAssertEqual(snap2.mutations.count, 2)
+    }
+
+    func testBatchMutationRetryAndDiscard() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let location = OfflineStoreLocation(rootURL: root)
+        let store = OfflineStore(accountID: "batch-test-2", location: location)
+        _ = try await store.load()
+
+        _ = try await store.createTask(title: "Task A")
+        _ = try await store.createTask(title: "Task B")
+        _ = try await store.createTask(title: "Task C")
+
+        let snap1 = await store.snapshot()
+        XCTAssertEqual(snap1.mutations.count, 3)
+
+        let mutationIDs = snap1.mutations.map(\.id)
+        _ = try await store.discardMutations([mutationIDs[0], mutationIDs[1]])
+        let snap2 = await store.snapshot()
+        XCTAssertEqual(snap2.mutations.count, 1)
+        XCTAssertEqual(snap2.mutations.first?.id, mutationIDs[2])
+
+        _ = try await store.retryMutations([mutationIDs[2]], keepLocal: true)
+        let snap3 = await store.snapshot()
+        XCTAssertEqual(snap3.mutations.count, 1)
+        XCTAssertNotEqual(snap3.mutations.first?.id, mutationIDs[2])
+    }
 }
 
 @MainActor

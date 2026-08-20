@@ -26,10 +26,6 @@ extension APIError: @retroactive SyncTransportFailure {
     }
 }
 
-private struct IOSTaskRecord: Decodable, Sendable {
-    let task: ProductivityTask
-}
-
 extension APIClient {
     func registerSyncDevice(deviceId: String, cursor: String) async throws {
         let _: EmptyResponse = try await request(
@@ -49,31 +45,6 @@ extension APIClient {
             method: "PATCH",
             body: ["lastKnownSyncCursor": JSONValue.string(cursor)] as [String: JSONValue]
         )
-    }
-
-    func fetchTasks() async throws -> [ProductivityTask] {
-        var cursor: String?
-        var result: [ProductivityTask] = []
-        repeat {
-            var path = "/productivity/tasks?limit=100"
-            if let cursor { path += "&cursor=\(escapedPath(cursor))" }
-            let page: CursorPageResponse<IOSTaskRecord> = try await request(path: path)
-            result.append(contentsOf: page.data.map(\.task))
-            cursor = page.meta?.hasNextPage == true ? page.meta?.nextCursor : nil
-        } while cursor != nil
-        return result
-    }
-
-    func fetchTaskLists() async throws -> [TaskListModel] {
-        try await request(path: "/productivity/task-lists")
-    }
-
-    func fetchHabits() async throws -> [HabitModel] {
-        try await request(path: "/productivity/habits")
-    }
-
-    func fetchHabitOccurrences(from: String, to: String) async throws -> [HabitOccurrenceModel] {
-        try await request(path: "/productivity/habit-occurrences?from=\(escapedPath(from))&to=\(escapedPath(to))")
     }
 
     func fetchActiveFocus() async throws -> FocusSession? {
@@ -105,3 +76,4 @@ extension APIClient {
         )
     }
 }
+

@@ -1,9 +1,8 @@
-import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
-import { CALENDAR_REPOSITORY_PORT } from '@core/application/ports/out/calendar.port';
 import type { CalendarEventRecord, CalendarRepositoryPort } from '@core/application/ports/out/calendar.port';
 import { FocusService } from './focus.service';
 import { TaskService } from './task.service';
 import { GymService } from './gym.service';
+import { InvalidRequestException } from '@core/domain/exceptions';
 
 type CalendarTask = {
   id: string;
@@ -47,20 +46,19 @@ function overlapsCalendarRange(item: TimelineItem, from: Date, to: Date): boolea
   return startAt < to && effectiveEndAt > from;
 }
 
-@Injectable()
 export class CalendarService {
   constructor(
     private readonly tasks: TaskService,
     private readonly focus: FocusService,
-    @Inject(CALENDAR_REPOSITORY_PORT) private readonly repository: CalendarRepositoryPort,
-    @Optional() private readonly gymService?: GymService,
+    private readonly repository: CalendarRepositoryPort,
+    private readonly gymService?: GymService,
   ) {}
 
   async timeline(userId: string, from: string, to: string) {
     const fromDate = new Date(from);
     const toDate = new Date(to);
     if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime()) || fromDate >= toDate) {
-      throw new BadRequestException('Invalid calendar range');
+      throw new InvalidRequestException('Invalid calendar range');
     }
 
     const [taskPage, focusSessions, externalEvents, workouts] = await Promise.all([

@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#111c30" />
+      <stop offset="100%" stop-color="#090d16" />
+    </linearGradient>
+
+    <!-- Orange/Gold Gradient for TF Monogram -->
+    <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="40%" stop-color="#FBA931" />
+      <stop offset="100%" stop-color="#EA580C" />
+    </linearGradient>
+
+    <!-- Accent Gradient -->
+    <linearGradient id="accent-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2DA9E1" />
+      <stop offset="100%" stop-color="#24BCA8" />
+    </linearGradient>
+
+    <!-- Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Drop Shadow -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.6" />
+    </filter>
+  </defs>
+
+  <!-- Squircle Base -->
+  <rect x="32" y="32" width="448" height="448" rx="108" fill="url(#bg-grad)" filter="url(#shadow)" stroke="rgba(251, 169, 49, 0.4)" stroke-width="6" />
+
+  <!-- Accent Circle Spark / Status Orb -->
+  <circle cx="396" cy="116" r="28" fill="url(#accent-grad)" />
+  <circle cx="396" cy="116" r="14" fill="#ffffff" opacity="0.8" />
+
+  <!-- Calendar Grid Graphic Background Silhouette -->
+  <g opacity="0.08" stroke="#ffffff" stroke-width="8" fill="none">
+    <rect x="96" y="112" width="320" height="288" rx="32" />
+    <line x1="96" y1="192" x2="416" y2="192" />
+    <line x1="202" y1="192" x2="202" y2="400" />
+    <line x1="310" y1="192" x2="310" y2="400" />
+  </g>
+
+  <!-- TF Typography Monogram -->
+  <g filter="url(#glow)">
+    <!-- T Letter -->
+    <path d="M 120,172 L 272,172 C 280,172 286,178 286,186 L 286,212 C 286,220 280,226 272,226 L 222,226 L 222,382 C 222,390 216,396 208,396 L 174,396 C 166,396 160,390 160,382 L 160,226 L 120,226 C 112,226 106,220 106,212 L 106,186 C 106,178 112,172 120,172 Z" fill="url(#gold-grad)" />
+
+    <!-- F Letter -->
+    <path d="M 276,172 L 400,172 C 408,172 414,178 414,186 L 414,212 C 414,220 408,226 400,226 L 334,226 L 334,270 L 388,270 C 396,270 402,276 402,284 L 402,308 C 402,316 396,322 388,322 L 334,322 L 334,382 C 334,390 328,396 320,396 L 288,396 C 280,396 274,390 274,382 L 274,186 C 274,178 280,172 276,172 Z" fill="url(#gold-grad)" />
+  </g>
+
+  <!-- Bottom Accent Stripe -->
+  <rect x="140" y="420" width="232" height="8" rx="4" fill="url(#accent-grad)" />
+</svg>

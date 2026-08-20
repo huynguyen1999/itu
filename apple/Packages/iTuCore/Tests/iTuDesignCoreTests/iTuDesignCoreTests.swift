@@ -54,4 +54,24 @@ final class iTuDesignCoreTests: XCTestCase {
             XCTAssertEqual(token.dark, iTuRGBA(hex: darkHex, alpha: alpha))
         }
     }
+
+    func testGrowthIconCatalogAndEmojiResolution() {
+        let preset = GrowthIconDescriptor.presets.first { $0.id == "FLOWER_2" }
+        XCTAssertEqual(preset?.label, "Mindfulness")
+        XCTAssertEqual(preset?.systemImage, "camera.macro")
+
+        let emoji = GrowthIconDescriptor.resolve("🔥")
+        XCTAssertEqual(emoji.id, "FLAME")
+        XCTAssertEqual(emoji.systemImage, "flame")
+        XCTAssertFalse(emoji.isTextGlyph)
+    }
+
+    func testGrowthIconResolverPreservesFallbackAndTextGlyphBehavior() {
+        XCTAssertEqual(GrowthIconDescriptor.resolve(nil), .fallback)
+
+        let glyph = GrowthIconDescriptor.resolve("custom.icon!")
+        XCTAssertEqual(glyph.id, "custom.icon!")
+        XCTAssertEqual(glyph.systemImage, GrowthIconDescriptor.fallback.systemImage)
+        XCTAssertTrue(glyph.isTextGlyph)
+    }
 }

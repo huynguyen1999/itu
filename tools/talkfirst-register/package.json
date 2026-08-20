@@ -1,0 +1,46 @@
+{
+  "name": "cloudflare-bypass",
+  "version": "3.0.0",
+  "license": "UNLICENSED",
+  "description": "TalkFirst student schedule search and auto-registration engine",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/pre-register.ts",
+    "start": "tsx src/auto-register.ts",
+    "start:this": "tsx src/auto-register.ts --this-week",
+    "start:next": "tsx src/auto-register.ts --next-week",
+    "pre-register": "tsx src/pre-register.ts",
+    "pre-register:bypass": "tsx src/pre-register.ts --bypass",
+    "pre-register:offline": "tsx src/pre-register.ts --offline",
+    "schedule": "tsx src/pre-register.ts",
+    "dry-run": "tsx src/auto-register.ts --dry-run",
+    "dry-run:this": "tsx src/auto-register.ts --this-week --dry-run",
+    "status": "tsx src/auto-register.ts --status",
+    "refresh": "tsx src/auto-register.ts --refresh",
+    "enrolled": "tsx src/enrolled-classes.ts",
+    "enrolled:this": "tsx src/enrolled-classes.ts --this-week",
+    "enrolled:next": "tsx src/enrolled-classes.ts --next-week",
+    "enrolled:month": "tsx src/enrolled-classes.ts --month",
+    "enrolled:offline": "tsx src/enrolled-classes.ts --offline",
+    "teachers": "tsx src/enrolled-classes.ts --offline --report",
+    "teachers:month": "tsx src/enrolled-classes.ts --offline --report --month",
+    "login": "tsx --env-file=.env src/bypass.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "chrome": "pkill -f 'Google Chrome' 2>/dev/null; sleep 2 && '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --remote-debugging-port=9223 --remote-debugging-address=127.0.0.1 --user-data-dir=/tmp/chrome-debug",
+    "install-browser": "npx patchright install chromium"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "hono": "^4.13.2",
+    "mri": "^1.2.0",
+    "patchright": "^1.51.0",
+    "playwright": "^1.51.0",
+    "sirv": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.0"
+  }
+}

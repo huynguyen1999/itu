@@ -1,18 +1,10 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
-import { TOKENS } from '@core/application/constants/tokens';
 import type { GrowthAttributeMappingsInput, IGrowthRepository, ISyncDeviceRepository } from '@core/application/ports/out/repositories.port';
 import type { ISyncInvalidationNotifier } from '@core/application/ports/out/services.port';
 
-@Injectable()
 export class GrowthService {
   constructor(
-    @Inject(TOKENS.GROWTH_REPOSITORY)
     private readonly repo: IGrowthRepository,
-    @Optional()
-    @Inject(TOKENS.SYNC_INVALIDATION_NOTIFIER)
     private readonly invalidationNotifier?: ISyncInvalidationNotifier,
-    @Optional()
-    @Inject(TOKENS.SYNC_DEVICE_REPOSITORY)
     private readonly devices?: ISyncDeviceRepository,
   ) {}
 

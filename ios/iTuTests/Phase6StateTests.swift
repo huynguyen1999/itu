@@ -7,6 +7,58 @@ import iTuSync
 
 @MainActor
 final class Phase6StateTests: XCTestCase {
+    func testSafariConfigurationIsolatesAccountsAndPausesUploadOnLogout() throws {
+        let suite = "itu-safari-config-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        var configuration = IOSSafariExtensionConfigurationStore.activate(
+            accountId: "account-a",
+            apiBaseUrl: "https://api.example.com",
+            trackingEnabled: true,
+            defaults: defaults
+        )
+        XCTAssertFalse(configuration.uploadEnabled)
+        XCTAssertFalse(configuration.privateTrackingEnabled)
+        configuration = IOSSafariExtensionConfigurationStore.saveCredential(
+            "safari-a",
+            accountId: "account-a",
+            defaults: defaults
+        )
+        XCTAssertTrue(configuration.uploadEnabled)
+        _ = IOSSafariExtensionConfigurationStore.setPrivateTracking(true, accountId: "account-a", defaults: defaults)
+        configuration = IOSSafariExtensionConfigurationStore.update(uploadEnabled: false, defaults: defaults)
+        XCTAssertEqual(configuration.dsnKey, "safari-a")
+        XCTAssertFalse(configuration.uploadEnabled)
+
+        let accountB = IOSSafariExtensionConfigurationStore.activate(
+            accountId: "account-b",
+            apiBaseUrl: "https://api.example.com",
+            trackingEnabled: true,
+            defaults: defaults
+        )
+        XCTAssertEqual(accountB.dsnKey, "")
+        XCTAssertFalse(accountB.privateTrackingEnabled)
+        XCTAssertNotEqual(accountB.installationId, configuration.installationId)
+
+        let restoredA = IOSSafariExtensionConfigurationStore.activate(
+            accountId: "account-a",
+            apiBaseUrl: "https://api.example.com",
+            trackingEnabled: true,
+            defaults: defaults
+        )
+        XCTAssertEqual(restoredA.dsnKey, "safari-a")
+        XCTAssertEqual(restoredA.installationId, configuration.installationId)
+        XCTAssertTrue(restoredA.privateTrackingEnabled)
+        let response = try XCTUnwrap(IOSSafariExtensionConfigurationStore.response(
+            to: ["type": "getConfiguration"],
+            defaults: defaults
+        ))
+        XCTAssertEqual(response["accountId"] as? String, "account-a")
+        XCTAssertEqual(response["dsnKey"] as? String, "safari-a")
+        XCTAssertNil(IOSSafariExtensionConfigurationStore.response(to: ["type": "sessions"], defaults: defaults))
+    }
+
     func testSnapshotProjectionKeepsOfflineDomainsTogether() {
         var snapshot = OfflineSnapshot()
         snapshot.decks = [DeckModel(id: "deck", title: "Learn", description: "", cardCount: 1, dueCount: 1, color: "teal", icon: "book.closed")]

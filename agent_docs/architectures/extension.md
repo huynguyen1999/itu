@@ -1,6 +1,6 @@
 # Browser Extension Architecture
 
-The browser extension is a dependency-free Manifest V3 client for opt-in website-usage collection. It tracks active HTTP(S) tabs, keeps cumulative summaries locally, and uploads them directly to the API with a restricted DSN credential.
+The browser extension is a dependency-free Manifest V3 client for opt-in website-usage collection in Chromium and iOS Safari. It tracks active HTTP(S) tabs, stores raw sessions and projections locally, and uploads them directly to the API with a restricted DSN credential.
 
 [Back to system overview](README.md) · [Extension setup](../../extension/README.md)
 
@@ -8,11 +8,11 @@ The browser extension is a dependency-free Manifest V3 client for opt-in website
 
 ```text
 extension/
-  manifest.json               Manifest V3 permissions and entry points
-  popup.html, popup.css        Settings and local usage presentation
-  popup.js                    Popup events, permission request, rendering
-  service-worker.js           Lifecycle, tab/focus observation, uploads
-  activity.js                 URL normalization, time accumulation, retention
+  activity.js                 Shared normalization, sessions, persistence
+  controller.js               Shared lifecycle, outbox, retry, retention
+  chromium-adapter.js         Chromium tabs/windows/alarms adapter
+  service-worker.js           Chromium entry point
+  safari/                     Safari manifest, adapter, worker, small popup
   test/extension.test.js       Dependency-free behavior tests
 ```
 
@@ -21,12 +21,13 @@ The extension requests tabs, storage, and alarms. Backend host access is optiona
 ## Current features
 
 - Explicit opt-in website tracking, disabled by default.
-- Active-tab measurement for the focused normal or InPrivate Chromium window.
+- Active-tab measurement for Chromium and iOS Safari.
 - URL and hostname normalization for HTTP(S) pages; privileged schemes are ignored.
-- Local cumulative daily summaries with a seven-day retry/retention window.
+- Account-partitioned raw sessions, outbox, and daily projections in IndexedDB.
 - A popup with connection status, today’s active time, domain-share chart, ranked domains, and URL detail.
 - User-configured backend origin with optional host permission requested at save time.
-- Rotatable DSN authentication and direct cumulative-summary upload to the API every 30 seconds.
+- Independent default-browser and Safari iOS DSNs with direct session upload to the API.
+- Ninety-day retention for acknowledged sessions; unsynced sessions are never age-pruned.
 - Offline retention and automatic retry after failed uploads.
 
 The extension does not provide planning, Focus enforcement, website blocking, or general account access.
@@ -41,8 +42,8 @@ flowchart TB
     Events["Tab, URL, window-focus events"]
     Alarm["30-second browser alarm"]
     Logic["activity.js\nnormalization + accumulation"]
-    Local[("chrome.storage.local")]
-    API["POST /usage/websites/ingest"]
+    Local[("IndexedDB + extension storage")]
+    API["POST /usage/websites/sessions/ingest"]
 
     User --> Popup
     Popup <--> Worker
@@ -61,22 +62,22 @@ flowchart TB
 sequenceDiagram
     participant Browser as Browser events
     participant Worker as Service worker
-    participant Local as chrome.storage.local
+    participant Local as IndexedDB
     participant API as BrowserExtensionUsageController
     participant Service as UsageService
     participant DB as PostgreSQL
 
     Browser->>Worker: Active tab, URL, or focus changed
     Worker->>Worker: Settle elapsed time for previous HTTP(S) URL
-    Worker->>Local: Persist cumulative summaries and active state
+    Worker->>Local: Persist raw session, outbox, projections, active state
     Browser->>Worker: Periodic upload alarm
     Worker->>API: POST summaries with Authorization: DSN
     API->>Service: Resolved user plus installation batch
-    Service->>DB: Validate opt-in and replace cumulative summaries
-    DB-->>Worker: Accepted/replaced result
+    Service->>DB: Validate and ingest idempotent sessions
+    DB-->>Worker: Acknowledged/rejected session IDs
 ```
 
-Uploads are cumulative rather than destructive: local totals remain available for retry and the backend replaces the installation’s matching summary keys. The service worker caps any single elapsed interval and prunes local data outside its retention window.
+Uploads contain raw sessions. Acknowledgements remove outbox entries; rejected records retain an error state. The service worker caps any single elapsed interval, drops suspicious stale intervals after restart, and age-prunes only acknowledged raw sessions.
 
 ## Configuration and authentication
 
@@ -87,7 +88,7 @@ The popup saves:
 - A DSN key generated from authenticated iTu settings.
 - A random extension installation ID created by the service worker.
 
-The API returns the plaintext DSN only when it is generated or rotated; the server stores its hash. The extension sends `Authorization: DSN <key>` only to `POST /usage/websites/ingest`. This credential is not a bearer login token and cannot access normal user endpoints.
+The API returns the plaintext DSN only when it is generated or rotated; the server stores its hash. The extension sends `Authorization: DSN <key>` only to browser ingest routes. This credential is not a bearer login token and cannot access normal user endpoints.
 
 ```mermaid
 flowchart LR
@@ -103,16 +104,16 @@ flowchart LR
 
 - Tracking is disabled by default and stops accumulating when the setting is off.
 - Only normalized HTTP(S) URLs are eligible; credentials and fragments are removed and privileged schemes are ignored.
-- InPrivate activity shares the extension process because the manifest uses spanning incognito behavior; the active implementation does not label records as private.
+- Chromium private activity is labeled separately. Safari private activity is discarded unless the user explicitly enables it; when enabled it is labeled private.
 - Loss of focus settles the previous interval and moves tracking to an inactive state.
-- Failed uploads retain local cumulative totals and report a disconnected status; the next alarm retries.
+- Failed uploads retain raw sessions and outbox records for retry.
 - The popup reads local summaries from the service worker and does not query the backend for its chart.
 
-## Current-state compatibility note
+## Safari containing app
 
-The active extension manifest has no native-messaging permission and [`service-worker.js`](../../extension/service-worker.js) does not connect to a native host. Website summaries travel directly from the extension to the API.
+`ios/iTu.app` embeds `iTuSafariExtension.appex`. A registered iPhone can install the development-signed containing app directly from Xcode; public App Store publication is not required. The native handler exposes API URL, Safari DSN, account/installation identity, and tracking preferences from the existing App Group. It never receives URL streams or session batches.
 
-[`macos/NativeHost`](../../macos/NativeHost) and the macOS compatibility reader remain in the workspace for compatibility with the superseded native-messaging design. Do not route new extension work through them unless the architecture is deliberately changed and the manifest, installation, privacy, and migration story are updated together.
+Safari uses native messaging only to pull configuration. Website sessions travel Safari JavaScript → IndexedDB/outbox → API. Chromium remains manually configured and uses its default-browser DSN; rotating either credential kind leaves the other valid.
 
 ## Reading the flow
 

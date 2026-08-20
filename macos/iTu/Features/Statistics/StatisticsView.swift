@@ -64,8 +64,9 @@ struct StatisticsView: View {
     @SceneStorage("statistics.customToDate") private var customToTimestamp = Date().timeIntervalSinceReferenceDate
     @SceneStorage("statistics.didHydrateDefaultRange") var didHydrateDefaultRange = false
     @State var showingSettings = false
+    @State var showingDiagnostics = false
     @State var statisticsStore = StatisticsStore()
-    @State var showingUsageDetail = false
+    @SceneStorage("statistics.showingUsageDetail") var showingUsageDetail = true
     @State var isAppListExpanded = false
     @State var appSearchQuery = ""
     @State var selectedAppDetail: UsageTopApp? = nil

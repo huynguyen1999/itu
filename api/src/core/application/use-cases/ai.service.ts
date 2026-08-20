@@ -1,5 +1,3 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { TOKENS } from '@core/application/constants/tokens';
 import type { IAiUseCase } from '@core/application/ports/in/ai-use-case.port';
 import type {
   IAiFeedbackRepository,
@@ -15,18 +13,17 @@ import { hydrateSessionReviewImages } from './ai-session-images';
 import { AiCredentialsService } from './ai-credentials.service';
 import { JOURNAL_REPOSITORY, type IJournalRepository } from '@core/application/ports/out/journal-repository.port';
 
-@Injectable()
 export class AiService implements IAiUseCase {
   constructor(
-    @Inject(TOKENS.AI_JOB_REPOSITORY) private readonly jobs: IAiJobRepository,
-    @Inject(TOKENS.AI_FEEDBACK_REPOSITORY) private readonly feedback: IAiFeedbackRepository,
-    @Inject(TOKENS.STUDY_SESSION_REPOSITORY) private readonly sessions: IStudySessionRepository,
-    @Inject(TOKENS.QUEUE_JOB_HANDLER) private readonly queue: IQueueJobHandler,
-    @Inject(TOKENS.LOGGER) private readonly logger: ILogger,
-    @Inject(TOKENS.AI_PROVIDER) private readonly ai: IAiProvider,
-    @Inject(TOKENS.MEDIA_STORAGE) private readonly media: IMediaStorage,
+    private readonly jobs: IAiJobRepository,
+    private readonly feedback: IAiFeedbackRepository,
+    private readonly sessions: IStudySessionRepository,
+    private readonly queue: IQueueJobHandler,
+    private readonly logger: ILogger,
+    private readonly ai: IAiProvider,
+    private readonly media: IMediaStorage,
     private readonly credentials: AiCredentialsService,
-    @Inject(JOURNAL_REPOSITORY) private readonly journal: IJournalRepository,
+    private readonly journal: IJournalRepository,
   ) {}
 
   async suggestCards(userId: string, pastedText: string): Promise<AiJobModel> {

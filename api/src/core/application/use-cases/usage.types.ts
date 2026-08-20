@@ -83,3 +83,62 @@ export interface ScreenTimeUsageBatchInput {
   collectorDeviceId: string;
   events: ScreenTimeEventInput[];
 }
+
+export interface ScreenTimeAppStatistic {
+  bundleId: string;
+  displayName: string;
+  activeSeconds: number;
+  iconHash?: string;
+  iconUrl?: string;
+}
+
+export interface ScreenTimeHourlyAppStatistic {
+  localDate: string;
+  hour: number;
+  bundleId: string;
+  displayName: string;
+  activeSeconds: number;
+}
+
+export interface ScreenTimeDailyAppStatistic {
+  localDate: string;
+  bundleId: string;
+  displayName: string;
+  activeSeconds: number;
+}
+
+export interface ScreenTimeHourlyBucket {
+  hour: number;
+  screenTimeSeconds: number;
+}
+
+export interface ScreenTimeDailyBucket {
+  localDate: string;
+  screenTimeSeconds: number;
+}
+
+export interface ScreenTimeDeviceSummary {
+  deviceId: string;
+  name: string | null;
+  platform: string | null;
+  screenTimeSeconds: number;
+}
+
+export interface ScreenTimeStatisticsResponse {
+  from: string;
+  to: string;
+  timezone: string;
+  selectedDeviceScope: string;
+  screenTimeSeconds: number;
+  hourlyScreenTime: ScreenTimeHourlyBucket[];
+  dailyScreenTime: ScreenTimeDailyBucket[];
+  apps: ScreenTimeAppStatistic[];
+  hourlyApps: ScreenTimeHourlyAppStatistic[];
+  dailyApps: ScreenTimeDailyAppStatistic[];
+  devices: ScreenTimeDeviceSummary[];
+  coverage: {
+    intervalCount: number;
+    firstEventAt: string | null;
+    lastEventAt: string | null;
+  };
+}

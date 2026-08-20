@@ -181,15 +181,56 @@ export function findClosestPopulatedDay<T extends PositionableTimelineItem>(
     }, null)?.index ?? null;
 }
 
+export function findNearestFutureOrCurrentTargetMinutes<T extends PositionableTimelineItem>(
+  items: readonly T[],
+  targetDay = new Date(),
+  now = new Date(),
+): number {
+  const isToday = isSameLocalDay(targetDay, now);
+  const timedItemsOnDay = items.filter((item) => {
+    if (item.kind === 'TASK_DUE' || item.allDay) return false;
+    const itemDate = new Date(item.startAt);
+    if (!Number.isFinite(itemDate.getTime())) return false;
+    return itemSpansDay(item, targetDay);
+  });
+
+  if (isToday) {
+    const nowMs = now.getTime();
+    // Locate nearest future task on the same day (or currently active task)
+    const futureTasks = timedItemsOnDay
+      .map((item) => {
+        const start = new Date(item.startAt);
+        const end = item.endAt ? new Date(item.endAt) : new Date(start.getTime() + 30 * 60_000);
+        return { item, start, end };
+      })
+      .filter(({ start, end }) => start.getTime() >= nowMs || (start.getTime() <= nowMs && end.getTime() > nowMs))
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    if (futureTasks.length > 0) {
+      return localMinutesSinceMidnight(futureTasks[0].start);
+    }
+    // If no future task on the same day, position to the current time instead
+    return localMinutesSinceMidnight(now);
+  }
+
+  if (timedItemsOnDay.length > 0) {
+    const sorted = [...timedItemsOnDay].sort(
+      (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+    );
+    return localMinutesSinceMidnight(sorted[0].startAt);
+  }
+  return 8 * 60; // 8:00 AM default for other days without tasks
+}
+
 export function dayTimelineScrollTop(
   items: readonly PositionableTimelineItem[],
+  targetDay = new Date(),
   now = new Date(),
   hourHeight = CALENDAR_HOUR_HEIGHT,
   contextMinutes = 60,
 ): number {
-  const closest = findClosestTimedItem(items, now);
-  if (!closest) return 0;
-  return Math.max(0, ((localMinutesSinceMidnight(closest.startAt) - contextMinutes) / 60) * hourHeight);
+  const targetMinutes = findNearestFutureOrCurrentTargetMinutes(items, targetDay, now);
+  return Math.max(0, ((targetMinutes - contextMinutes) / 60) * hourHeight);
 }
 
 export function weekTimelineScrollLeft(

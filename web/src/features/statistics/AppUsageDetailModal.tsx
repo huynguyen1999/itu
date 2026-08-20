@@ -131,17 +131,11 @@ export function AppUsageDetailModal({
         </DialogHeader>
 
         {/* Stats tiles */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg border bg-muted/20 p-3 text-left">
             <p className="text-xs font-medium text-muted-foreground">Screen Time</p>
             <p className="mt-1 font-mono text-xl font-bold tracking-tight text-foreground">
               {formatActiveDuration(app.activeSeconds)}
-            </p>
-          </div>
-          <div className="rounded-lg border bg-muted/20 p-3 text-left">
-            <p className="text-xs font-medium text-muted-foreground">Engaged Time</p>
-            <p className="mt-1 font-mono text-xl font-bold tracking-tight text-primary">
-              {app.engagedSeconds != null ? formatActiveDuration(app.engagedSeconds) : '—'}
             </p>
           </div>
           <div className="rounded-lg border bg-muted/20 p-3 text-left">

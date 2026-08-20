@@ -44,8 +44,12 @@ describe('PreferencesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PreferencesController],
       providers: [
-        PreferencesService,
         { provide: PREFERENCES_REPOSITORY, useValue: mockPreferencesRepository },
+        {
+          provide: PreferencesService,
+          inject: [PREFERENCES_REPOSITORY],
+          useFactory: (repository) => new PreferencesService(repository),
+        },
       ],
     })
       .overrideGuard(AuthGuard)

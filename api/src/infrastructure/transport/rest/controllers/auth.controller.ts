@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,7 +9,6 @@ import {
   Query,
   Req,
   Res,
-  ServiceUnavailableException,
   UseGuards,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -20,7 +18,6 @@ import type { ServerResponse } from 'node:http';
 import {
   AUTH_ERRORS,
   CONFIG_KEYS,
-  CONTENT_TYPES,
   DEFAULT_URLS,
   GOOGLE_OAUTH,
   HTTP_HEADERS,
@@ -41,8 +38,6 @@ import {
 } from '../dto/auth.dto';
 import { AuthGuard as JwtAuthGuard } from '../guards/auth.guard';
 import type { AuthenticatedRequest } from '../types/authenticated-request';
-import { fetchWithTimeout } from '@infrastructure/http/outbound-http';
-import type { GoogleProfileResponse, GoogleTokenResponse } from '../types/google-oauth.types';
 import { refreshCookiePolicy } from '../refresh-cookie-policy';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
@@ -205,7 +200,7 @@ export class AuthController {
    */
   @Get(REST_ROUTES.google)
   google(@Res() res: FastifyReply) {
-    return this.redirect(res, this.buildGoogleAuthorizationUrl());
+    return this.redirect(res, this.auth.googleAuthorizationUrl());
   }
 
   /**
@@ -227,8 +222,7 @@ export class AuthController {
     }
 
     try {
-      const profile = await this.fetchGoogleProfile(code);
-      const session = await this.auth.loginWithGoogle(profile);
+      const session = await this.auth.loginWithGoogleCode(code);
       if (session.type === 'register') {
         const handoffCode = await this.auth.createOAuthHandoff({ registerToken: session.registerToken });
         return this.redirect(res, `${webOrigin}/auth?oauthCode=${encodeURIComponent(handoffCode)}`);
@@ -279,72 +273,6 @@ export class AuthController {
     raw.setHeader(HTTP_HEADERS.location, url);
     raw.setHeader(HTTP_HEADERS.contentLength, '0');
     raw.end();
-  }
-
-  private buildGoogleAuthorizationUrl(): string {
-    const clientId = this.googleClientId();
-    const callbackUrl = this.googleCallbackUrl();
-    const url = new URL(GOOGLE_OAUTH.authorizationUrl);
-    url.searchParams.set('client_id', clientId);
-    url.searchParams.set('redirect_uri', callbackUrl);
-    url.searchParams.set('response_type', GOOGLE_OAUTH.responseType);
-    url.searchParams.set('scope', GOOGLE_OAUTH.scope);
-    url.searchParams.set('access_type', GOOGLE_OAUTH.accessType);
-    url.searchParams.set('prompt', GOOGLE_OAUTH.prompt);
-    return url.toString();
-  }
-
-  private async fetchGoogleProfile(code: string) {
-    const clientId = this.googleClientId();
-    const clientSecret = this.googleClientSecret();
-    const callbackUrl = this.googleCallbackUrl();
-    const tokenResponse = await fetchWithTimeout(GOOGLE_OAUTH.tokenUrl, {
-      method: 'POST',
-      headers: { [HTTP_HEADERS.contentType]: CONTENT_TYPES.formUrlEncoded },
-      body: new URLSearchParams({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: callbackUrl,
-        grant_type: GOOGLE_OAUTH.grantType,
-      }),
-    });
-
-    if (!tokenResponse.ok) throw new BadRequestException(AUTH_ERRORS.googleTokenExchangeFailed);
-    const token = (await tokenResponse.json()) as GoogleTokenResponse;
-    if (!token.access_token) throw new BadRequestException(AUTH_ERRORS.googleTokenMissingAccessToken);
-
-    const profileResponse = await fetchWithTimeout(GOOGLE_OAUTH.userInfoUrl, {
-      headers: { [HTTP_HEADERS.authorization]: `Bearer ${token.access_token}` },
-    });
-    if (!profileResponse.ok) throw new BadRequestException(AUTH_ERRORS.googleProfileRequestFailed);
-
-    const profile = (await profileResponse.json()) as GoogleProfileResponse;
-    if (!profile.sub || !profile.email) throw new BadRequestException(AUTH_ERRORS.googleProfileMissingRequiredFields);
-    return {
-      email: profile.email,
-      displayName: profile.name,
-      providerUserId: profile.sub,
-    };
-  }
-
-  private googleClientId(): string {
-    const clientId = this.config.get<string>(CONFIG_KEYS.googleClientId)?.trim();
-    if (!clientId) throw new ServiceUnavailableException(AUTH_ERRORS.googleNotConfigured);
-    return clientId;
-  }
-
-  private googleClientSecret(): string {
-    const clientSecret = this.config.get<string>(CONFIG_KEYS.googleClientSecret)?.trim();
-    if (!clientSecret) throw new ServiceUnavailableException(AUTH_ERRORS.googleNotConfigured);
-    return clientSecret;
-  }
-
-  private googleCallbackUrl(): string {
-    return this.config.get<string>(
-      CONFIG_KEYS.googleCallbackUrl,
-      `${DEFAULT_URLS.apiOrigin}${GOOGLE_OAUTH.callbackPath}`,
-    );
   }
 
   private withRefreshCookie(

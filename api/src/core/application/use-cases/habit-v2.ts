@@ -1,4 +1,4 @@
-import { HabitDirection, HabitScheduleType, HabitTargetType } from '@prisma/client';
+import { HabitDirection, HabitScheduleType, HabitTargetType } from '@core/domain/enums';
 
 const DAY_MS = 86_400_000;
 

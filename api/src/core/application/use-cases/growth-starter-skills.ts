@@ -1,4 +1,4 @@
-import { GrowthProgressKind } from '@prisma/client';
+import { GrowthProgressKind } from '@core/domain/enums';
 
 export const STARTER_SKILL_KEYS = {
   attributeGeneral: 'attribute-general',
@@ -178,4 +178,3 @@ export const STARTER_ATTRIBUTE_MAPPING_ROUTES: StarterMappingRoute[] = [
     secondaryWeight: 30,
   },
 ];
-

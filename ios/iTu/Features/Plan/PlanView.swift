@@ -105,6 +105,9 @@ public struct PlanView: View {
             .padding(.bottom, IOSSpacing.pageBreak)
         }
         .scrollIndicators(.hidden)
+        .refreshable {
+            await model.reconcileForeground()
+        }
     }
 
     private func taskRowLink(_ task: ProductivityTask) -> some View {

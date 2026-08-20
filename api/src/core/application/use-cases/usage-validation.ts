@@ -1,11 +1,17 @@
-import { BadRequestException } from '@nestjs/common';
 import { USAGE_CONSTANTS } from '@core/application/constants/app.constants';
+import { InvalidRequestException } from '@core/domain/exceptions';
+
+export interface HourlyUsageSlice {
+  localDate: Date;
+  hour: number;
+  seconds: number;
+}
 
 export function parseDate(value: string, field: string): Date {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new BadRequestException(`${field} must use YYYY-MM-DD`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new InvalidRequestException(`${field} must use YYYY-MM-DD`);
   const date = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
-    throw new BadRequestException(`${field} is not a valid date`);
+    throw new InvalidRequestException(`${field} is not a valid date`);
   }
   return date;
 }
@@ -40,25 +46,25 @@ export function validTimezone(timezone: string): boolean {
 
 export function normalizeHostname(value: unknown): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > 253) {
-    throw new BadRequestException('hostname must be a valid hostname');
+    throw new InvalidRequestException('hostname must be a valid hostname');
   }
   const hostname = value.toLowerCase();
   if (!USAGE_CONSTANTS.hostnamePattern.test(hostname)) {
-    throw new BadRequestException('hostname must contain only a normalized hostname');
+    throw new InvalidRequestException('hostname must contain only a normalized hostname');
   }
   return hostname;
 }
 
 export function validateWebsiteRange(start: Date, end: Date): void {
-  if (start > end) throw new BadRequestException('from must not be after to');
+  if (start > end) throw new InvalidRequestException('from must not be after to');
   const days = (end.getTime() - start.getTime()) / 86_400_000 + 1;
-  if (days > USAGE_CONSTANTS.maxDateRangeDays) throw new BadRequestException('Usage date range cannot exceed 365 days');
+  if (days > USAGE_CONSTANTS.maxDateRangeDays) throw new InvalidRequestException('Usage date range cannot exceed 365 days');
 }
 
 export function normalizeWebsiteUrl(value: unknown, hostname: string): string | null {
   if (value === undefined || value === null) return null;
   if (typeof value !== 'string' || value.length === 0 || value.length > 2048) {
-    throw new BadRequestException('url must be a valid HTTP(S) URL at most 2048 characters');
+    throw new InvalidRequestException('url must be a valid HTTP(S) URL at most 2048 characters');
   }
   try {
     const url = new URL(value);
@@ -70,7 +76,7 @@ export function normalizeWebsiteUrl(value: unknown, hostname: string): string | 
     url.password = '';
     return url.toString();
   } catch {
-    throw new BadRequestException('url must be a valid HTTP(S) URL matching hostname');
+    throw new InvalidRequestException('url must be a valid HTTP(S) URL matching hostname');
   }
 }
 
@@ -126,14 +132,14 @@ export function sanitizePageTitle(value: unknown): string | null {
 
 export function requireText(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > 255) {
-    throw new BadRequestException(`${field} is required and must be at most 255 characters`);
+    throw new InvalidRequestException(`${field} is required and must be at most 255 characters`);
   }
   return value;
 }
 
 export function requireTimezone(value: unknown): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > 100 || !validTimezone(value)) {
-    throw new BadRequestException('timezone must be a valid IANA timezone');
+    throw new InvalidRequestException('timezone must be a valid IANA timezone');
   }
   return value;
 }
@@ -148,10 +154,85 @@ export function localHourFor(date: Date, timezone: string): number {
   return parseInt(hourPart, 10);
 }
 
-export interface HourlyUsageSlice {
-  localDate: Date;
-  hour: number;
-  seconds: number;
+export interface TimeInterval {
+  startedAt: Date;
+  endedAt: Date;
+}
+
+/**
+ * Computes the continuous non-overlapping wall-clock union of time intervals.
+ */
+export function unionIntervals<T extends TimeInterval>(
+  intervals: T[],
+): Array<{ startedAt: Date; endedAt: Date; durationSeconds: number }> {
+  if (intervals.length === 0) return [];
+  const valid = intervals.filter((i) => i.startedAt < i.endedAt);
+  if (valid.length === 0) return [];
+  const sorted = [...valid].sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+  const merged: Array<{ startedAt: Date; endedAt: Date; durationSeconds: number }> = [];
+
+  let currentStart = sorted[0].startedAt;
+  let currentEnd = sorted[0].endedAt;
+
+  for (let i = 1; i < sorted.length; i += 1) {
+    const next = sorted[i];
+    if (next.startedAt.getTime() <= currentEnd.getTime()) {
+      if (next.endedAt.getTime() > currentEnd.getTime()) {
+        currentEnd = next.endedAt;
+      }
+    } else {
+      const dur = Math.max(0, Math.floor((currentEnd.getTime() - currentStart.getTime()) / 1000));
+      if (dur > 0) {
+        merged.push({ startedAt: currentStart, endedAt: currentEnd, durationSeconds: dur });
+      }
+      currentStart = next.startedAt;
+      currentEnd = next.endedAt;
+    }
+  }
+
+  const dur = Math.max(0, Math.floor((currentEnd.getTime() - currentStart.getTime()) / 1000));
+  if (dur > 0) {
+    merged.push({ startedAt: currentStart, endedAt: currentEnd, durationSeconds: dur });
+  }
+
+  return merged;
+}
+
+export function getLocalTimezoneOffsetMs(date: Date, timezone: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date);
+    const v = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+    const localAsUtc = Date.UTC(
+      parseInt(v.year, 10),
+      parseInt(v.month, 10) - 1,
+      parseInt(v.day, 10),
+      parseInt(v.hour, 10),
+      parseInt(v.minute, 10),
+      parseInt(v.second, 10),
+    );
+    return localAsUtc - date.getTime();
+  } catch {
+    return 0;
+  }
+}
+
+export function getLocalDayBounds(localDateStr: string, timezone: string): { start: Date; end: Date } {
+  const [year, month, day] = localDateStr.split('-').map((n) => parseInt(n, 10));
+  const approx = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const offsetMs = getLocalTimezoneOffsetMs(approx, timezone);
+  const midnightUtc = Date.UTC(year, month - 1, day, 0, 0, 0) - offsetMs;
+  const start = new Date(midnightUtc);
+  const end = new Date(midnightUtc + 86_400_000);
+  return { start, end };
 }
 
 export function splitIntervalIntoHours(
@@ -279,4 +360,3 @@ export function isSystemExcludedBundleId(bundleId: string | null | undefined): b
   }
   return false;
 }
-

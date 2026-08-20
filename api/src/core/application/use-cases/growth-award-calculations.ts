@@ -1,4 +1,4 @@
-import { GrowthScalingMode, GrowthSourceType } from '@prisma/client';
+import { GrowthScalingMode, GrowthSourceType } from '@core/domain/enums';
 
 export interface AwardScalingContext {
   reviewedCount?: number;

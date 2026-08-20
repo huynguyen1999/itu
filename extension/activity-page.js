@@ -1,3 +1,4 @@
+const filterForm = document.querySelector("#filter-form");
 const rangeElement = document.querySelector("#range");
 const searchElement = document.querySelector("#search");
 const privateElement = document.querySelector("#private");
@@ -182,8 +183,31 @@ async function refresh() {
   render();
 }
 
-rangeElement.addEventListener("change", () => { const custom = rangeElement.value === "custom"; fromWrap.hidden = !custom; toWrap.hidden = !custom; render(); });
-for (const element of [searchElement, privateElement, syncElement, fromElement, toElement]) element.addEventListener("input", render);
+rangeElement.addEventListener("change", () => {
+  const custom = rangeElement.value === "custom";
+  fromWrap.hidden = !custom;
+  toWrap.hidden = !custom;
+  if (custom && (!fromElement.value || !toElement.value)) {
+    const [start, end] = days(1);
+    fromElement.value = fromElement.value || start;
+    toElement.value = toElement.value || end;
+  }
+  render();
+});
+for (const dateInput of [fromElement, toElement]) {
+  dateInput?.addEventListener("click", () => {
+    try {
+      dateInput.showPicker();
+    } catch {}
+  });
+}
+privateElement.addEventListener("change", render);
+syncElement.addEventListener("change", render);
+searchElement.addEventListener("search", render);
+filterForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  render();
+});
 document.querySelector("#clear-range").addEventListener("click", async () => { const [from, to] = selectedDates(); if (!from || !to || !confirm("Clear the selected local activity?")) return; await chrome.runtime.sendMessage({ type: "clearUsage", from, to }); await refresh(); });
 document.querySelector("#clear-all").addEventListener("click", async () => { if (!confirm("Clear all local activity? Connection settings will be preserved; remote history is unchanged.")) return; await chrome.runtime.sendMessage({ type: "clearUsage", all: true }); await refresh(); });
 document.querySelector("#reset-all").addEventListener("click", async () => { if (!confirm("Reset local activity, connection settings, DSN, and installation identity? Remote history is not deleted.")) return; if (!confirm("Final confirmation: permanently reset this browser's local activity and configuration?")) return; await chrome.runtime.sendMessage({ type: "resetUsage" }); await refresh(); });

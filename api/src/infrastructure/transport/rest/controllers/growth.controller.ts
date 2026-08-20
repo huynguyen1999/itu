@@ -11,7 +11,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { GrowthProgressKind, GrowthSourceType } from '@prisma/client';
+import { GrowthProgressKind, GrowthSourceType } from '@core/domain/enums';
 import { MEDIA_ERRORS } from '@core/application/constants/app.constants';
 import { TOKENS } from '@core/application/constants/tokens';
 import { GrowthService } from '@core/application/use-cases/growth.service';

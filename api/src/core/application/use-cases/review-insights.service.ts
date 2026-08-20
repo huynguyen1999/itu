@@ -1,11 +1,10 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { JOURNAL_REPOSITORY, type IJournalRepository } from '../ports/out/journal-repository.port';
-import { TOKENS } from '../constants/tokens';
+import type { IJournalRepository } from '../ports/out/journal-repository.port';
 import type { IAiProvider } from '../ports/out/services.port';
 import type { ReviewRangeInput } from '../ports/out/review-data-source.port';
 import { ReviewContextBuilder, REVIEW_PROMPT_VERSION } from './review-context.builder';
 import type { ReviewContextV1, ReviewKind, ReviewInsightsResultV1 } from '@core/domain/review/review.types';
 import type { JournalEntryModel } from '@core/domain/journal/journal.types';
+import { ResourceConflictException, ResourceNotFoundException } from '@core/domain/exceptions';
 
 export function reviewContextInput(
   entry: JournalEntryModel,
@@ -14,7 +13,7 @@ export function reviewContextInput(
 ): { range: ReviewRangeInput; reflections: Record<string, string> } {
   if (kind === 'DAILY') {
     const review = entry.dailyReview;
-    if (!review) throw new ConflictException('Review data is missing.');
+    if (!review) throw new ResourceConflictException('Review data is missing.');
     return {
       range: {
         kind,
@@ -32,7 +31,7 @@ export function reviewContextInput(
   }
 
   const review = entry.weeklyReview;
-  if (!review) throw new ConflictException('Review data is missing.');
+  if (!review) throw new ResourceConflictException('Review data is missing.');
   return {
     range: {
       kind,
@@ -72,25 +71,24 @@ export async function generateAndSaveReviewInsights(
   );
 }
 
-@Injectable()
 export class ReviewInsightsService {
   constructor(
-    @Inject(JOURNAL_REPOSITORY) private readonly journal: IJournalRepository,
-    @Inject(TOKENS.AI_PROVIDER) private readonly ai: IAiProvider,
+    private readonly journal: IJournalRepository,
+    private readonly ai: IAiProvider,
     private readonly contextBuilder: ReviewContextBuilder,
   ) {}
 
   async generate(userId: string, entryId: string): Promise<JournalEntryModel> {
     const entry = await this.journal.findById(userId, entryId);
-    if (!entry) throw new NotFoundException('Journal entry not found');
+    if (!entry) throw new ResourceNotFoundException('Journal entry not found');
 
     const kind: ReviewKind | null =
       entry.kind === 'DAILY_REVIEW' ? 'DAILY' : entry.kind === 'WEEKLY_REVIEW' ? 'WEEKLY' : null;
-    if (!kind) throw new ConflictException('Only daily and weekly reviews can generate insights.');
+    if (!kind) throw new ResourceConflictException('Only daily and weekly reviews can generate insights.');
     const input = reviewContextInput(entry, kind);
     const context = await this.contextBuilder.build(userId, input.range, input.reflections, entryId);
     const saved = await generateAndSaveReviewInsights(this.journal, this.ai, userId, entryId, entry.version, null, context);
-    if (!saved) throw new ConflictException('Review changed while insights were generating. Save and regenerate.');
+    if (!saved) throw new ResourceConflictException('Review changed while insights were generating. Save and regenerate.');
     return saved;
   }
 }
